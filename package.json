@@ -1,0 +1,29 @@
+{
+  "name": "genesis-defense",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run test:unit && vite build && node scripts/check-assets.js",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@fontsource/chakra-petch": "^5.2.7",
+    "@fontsource/inter": "^5.2.8",
+    "@vitejs/plugin-react": "^4.5.2",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.7.0",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "jsdom": "^26.1.0",
+    "vitest": "^3.2.4"
+  }
+}
