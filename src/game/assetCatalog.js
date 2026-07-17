@@ -12,6 +12,8 @@ const previewUrls = import.meta.glob([
   "!./assets/troop/muralhaReforcada/idle/frame0.png",
   "./assets/troop/*/defense/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
+const enemyPreviewUrls = import.meta.glob("./assets/enemy/*/idle/frame0.png", { eager: true, query: "?url", import: "default" });
+const enemyConceptUrls = import.meta.glob("./assets/enemy/concepts/*.webp", { eager: true, query: "?url", import: "default" });
 
 const frameNumber = (key) => Number(/frame(\d+)\.png$/i.exec(key)?.[1] || 0);
 
@@ -48,15 +50,25 @@ export function getArenaUrl(arenaId) {
   return match?.[1] || "";
 }
 
-export async function loadBattleAssets(phase, loadout, onProgress = () => {}) {
+export function getEnemyPreviewUrl(enemyId) {
+  const match = Object.entries(enemyPreviewUrls).find(([key]) => key.includes(`/enemy/${enemyId}/idle/frame0.png`));
+  return match?.[1] || getEnemyConceptUrl(enemyId);
+}
+
+export function getEnemyConceptUrl(enemyId) {
+  const match = Object.entries(enemyConceptUrls).find(([key]) => key.endsWith(`/concepts/${enemyId}.webp`));
+  return match?.[1] || "";
+}
+
+export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {
   const troopIds = [...new Set(loadout)];
-  const enemyIds = [...new Set(phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)))];
+  const enemyIds = [...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)))];
   const tasks = [];
   const result = { troops: {}, enemies: {}, audio: {} };
 
   for (const troopId of troopIds) {
     const troop = TROOPS[troopId];
-    const states = troopId === "muralhaReforcada" ? ["defense"] : ["idle", "attack"];
+    const states = troop.assetStates || (troopId === "muralhaReforcada" ? ["defense"] : ["idle", "attack"]);
     result.troops[troopId] = {};
     for (const state of states) {
       tasks.push(async () => {
@@ -66,9 +78,10 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}) {
   }
 
   for (const enemyId of enemyIds) {
-    if (!ENEMIES[enemyId]) continue;
+    const enemy = ENEMIES[enemyId];
+    if (!enemy) continue;
     result.enemies[enemyId] = {};
-    for (const state of ["walking", "attack", "idle"]) {
+    for (const state of enemy.assetStates || ["walking", "attack", "idle"]) {
       tasks.push(async () => {
         result.enemies[enemyId][state] = await loadFrameSet(enemyFrameModules, enemyId, state);
       });

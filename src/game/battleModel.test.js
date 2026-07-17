@@ -1,9 +1,162 @@
 import { describe, expect, it } from "vitest";
-import { PHASES, TROOPS } from "./content.js";
-import { createBattleSession, placeTroop, removeTroop, startWave, stepBattle } from "./battleModel.js";
+import { DECISIONS, ENEMIES, PHASES, TROOPS } from "./content.js";
+import {
+  clearSandboxEntities, createBattleSession, FIELD, getEffectiveTroopStats, placeTroop, removeTroop,
+  selectDecision, setSandboxSettings, spawnEnemy, startWave, stepBattle, trySpawnGlassEcho,
+} from "./battleModel.js";
 import { getEnemyHitPoint, getMuzzleWorldPosition } from "./visualGeometry.js";
 
+const meleeTarget = (x = 304, row = 0) => ({
+  id: `melee_target_${row}_${x}`, type: "medu", row, x, y: row * 120 + 60,
+  hp: 100, maxHp: 100, speed: 0, damage: 0, attackReadyAt: Infinity,
+  slowUntil: 0, slowFactor: 1, baseDamage: 0, bossPhase: 0, dead: false,
+});
+
+describe("Ecos de Vidro", () => {
+  const source = { id: "source_1", type: "medu", row: 2, x: 640, y: 300, isEcho: false, variant: null };
+
+  it("retorna um hostil comum com os modificadores previstos", () => {
+    const session = createBattleSession(PHASES[8], ["colono"], 100);
+    session.rng = () => 0;
+    const events = [];
+    const echo = trySpawnGlassEcho(session, source, events);
+    expect(echo).toMatchObject({ type: "medu", row: 2, x: 640, y: 300, isEcho: true, echoSourceId: "source_1" });
+    expect(echo.maxHp).toBe(ENEMIES.medu.hp * 0.45);
+    expect(echo.speed).toBe(ENEMIES.medu.speed * 1.2);
+    expect(echo.damage).toBe(ENEMIES.medu.damage * 0.6);
+    expect(echo.baseDamage).toBe(ENEMIES.medu.baseDamage * 0.6);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ type: "echoSpawn", sourceId: "source_1" });
+  });
+
+  it("não recursa, não copia Alfas e limita doze ecos simultâneos", () => {
+    const session = createBattleSession(PHASES[15], ["colono"], 101);
+    session.rng = () => 0;
+    expect(trySpawnGlassEcho(session, { ...source, isEcho: true }, [])).toBeNull();
+    expect(trySpawnGlassEcho(session, { ...source, variant: "alpha" }, [])).toBeNull();
+    session.enemies = Array.from({ length: 12 }, (_, index) => ({ ...source, id: `echo_${index}`, isEcho: true, dead: false }));
+    expect(trySpawnGlassEcho(session, source, [])).toBeNull();
+  });
+
+  it("usa o RNG determinístico da sessão", () => {
+    const first = createBattleSession(PHASES[15], ["colono"], 771);
+    const second = createBattleSession(PHASES[15], ["colono"], 771);
+    const run = (session) => Array.from({ length: 20 }, (_, index) => Boolean(trySpawnGlassEcho(session, { ...source, id: `source_${index}`, x: 700 - index }, [])));
+    expect(run(first)).toEqual(run(second));
+  });
+});
+
+const chooseDecision = (session, id, level = 1) => {
+  session.pendingDecision = [DECISIONS[id]];
+  session.pendingDecisionLevel = level;
+  expect(selectDecision(session, DECISIONS[id])).toBe(true);
+};
+
+describe("Campo de Provas", () => {
+  const testPhase = { ...PHASES[0], id: "campo_de_provas", energy: 150, waves: [] };
+
+  it("gera qualquer inimigo na rota solicitada e aplica Alpha e HP temporário", () => {
+    const session = createBattleSession(testPhase, Object.keys(TROOPS), 20, {
+      sandbox: true,
+      sandboxSettings: { enemyHpMultiplier: 2 },
+    });
+    const result = spawnEnemy(session, { type: "crix", row: 3, count: 5, variant: "alpha" });
+
+    expect(result.ok).toBe(true);
+    expect(result.events).toHaveLength(5);
+    expect(session.enemies).toHaveLength(5);
+    expect(session.enemies.every((enemy) => enemy.row === 3 && enemy.variant === "alpha")).toBe(true);
+    expect(session.enemies[0].maxHp).toBe(ENEMIES.crix.hp * 8 * 2);
+  });
+
+  it("mantém o laboratório ativo sem ondas, vitória ou derrota", () => {
+    const session = createBattleSession(testPhase, ["colono"], 21, { sandbox: true });
+    stepBattle(session, 5000);
+    expect(session.outcome).toBeNull();
+    expect(session.result).toBeNull();
+    expect(session.elapsed).toBe(5000);
+  });
+
+  it("não consome recursos nem aplica cooldown no modo Livre", () => {
+    const session = createBattleSession(testPhase, ["reator"], 22, { sandbox: true });
+    const initialEnergy = session.energy;
+    const initialSupply = session.supply;
+    for (let col = 0; col < 6; col += 1) expect(placeTroop(session, "reator", 0, col).ok).toBe(true);
+    expect(session.energy).toBe(initialEnergy);
+    expect(session.supply).toBe(initialSupply);
+    expect(session.deployCooldowns).toEqual({});
+  });
+
+  it("preserva custos, cooldown e limites no modo Regras reais", () => {
+    const session = createBattleSession(testPhase, ["reator"], 23, {
+      sandbox: true,
+      sandboxSettings: { rulesMode: "real" },
+    });
+    expect(placeTroop(session, "reator", 0, 0).ok).toBe(true);
+    expect(session.energy).toBe(150 - TROOPS.reator.price);
+    expect(session.supply).toBe(20 - TROOPS.reator.supply);
+    expect(session.deployCooldowns.reator).toBeGreaterThan(0);
+    expect(placeTroop(session, "reator", 0, 1).reason).toMatch(/recarregando/i);
+  });
+
+  it("aplica velocidade e dano temporários e respeita a invulnerabilidade da base", () => {
+    const session = createBattleSession(testPhase, ["colono"], 24, { sandbox: true });
+    setSandboxSettings(session, { enemySpeedMultiplier: 0, enemyDamageMultiplier: 3 });
+    spawnEnemy(session, { type: "medu", row: 0 });
+    const stoppedX = session.enemies[0].x;
+    stepBattle(session, 1000);
+    expect(session.enemies[0].x).toBe(stoppedX);
+
+    session.enemies[0].x = FIELD.baseX;
+    stepBattle(session, 32);
+    expect(session.integrity).toBe(100);
+
+    setSandboxSettings(session, { invulnerableBase: false });
+    spawnEnemy(session, { type: "medu", row: 0 });
+    session.enemies[0].x = FIELD.baseX;
+    stepBattle(session, 32);
+    expect(session.integrity).toBe(100 - ENEMIES.medu.baseDamage * 3);
+  });
+
+  it("limpa entidades e restaura recursos de implantação", () => {
+    const session = createBattleSession(testPhase, ["colono"], 25, {
+      sandbox: true,
+      sandboxSettings: { rulesMode: "real" },
+    });
+    placeTroop(session, "colono", 0, 0);
+    spawnEnemy(session, { type: "medu", row: 0 });
+    clearSandboxEntities(session, "troops");
+    expect(session.troops).toHaveLength(0);
+    expect(session.enemies).toHaveLength(1);
+    expect(session.energy).toBe(session.energyMax);
+    expect(session.supply).toBe(session.supplyMax);
+    clearSandboxEntities(session, "enemies");
+    expect(session.enemies).toHaveLength(0);
+  });
+});
+
 describe("sessão de batalha", () => {
+  it("aplica os multiplicadores Alpha à configuração da variante", () => {
+    const phase = {
+      ...PHASES[3], cadenceMs: 1000,
+      waves: [{ enemies: [{ type: "vexar", variant: "alpha", count: 1 }] }],
+    };
+    const session = createBattleSession(phase, ["colono"], 7);
+    startWave(session);
+    stepBattle(session, 1);
+    const alpha = session.enemies[0];
+    expect(alpha).toMatchObject({ type: "vexar", variant: "alpha", bossPhase: 0 });
+    expect(alpha.maxHp).toBe(ENEMIES.vexar.hp * 8);
+    expect(alpha.speed).toBe(ENEMIES.vexar.speed * 0.75);
+    expect(alpha.damage).toBe(ENEMIES.vexar.damage * 2);
+    expect(alpha.scale).toBe(ENEMIES.vexar.scale * 1.45);
+
+    alpha.hp = alpha.maxHp * 0.3;
+    const events = stepBattle(session, 1);
+    expect(alpha.bossPhase).toBe(2);
+    expect(events.filter((event) => event.type === "bossPhase")).toHaveLength(2);
+  });
+
   it("implanta, limita célula e reembolsa metade da energia", () => {
     const session = createBattleSession(PHASES[0], ["colono"], 1);
     expect(placeTroop(session, "colono", 1, 1).ok).toBe(true);
@@ -12,6 +165,122 @@ describe("sessão de batalha", () => {
     expect(removeTroop(session, 1, 1)).toMatchObject({ ok: true, refund: 5 });
     expect(session.energy).toBe(75);
     expect(session.supply).toBe(20);
+  });
+
+  it("permite ao colono atacar a partir da muralha imediatamente a frente", () => {
+    const session = createBattleSession(PHASES[0], ["colono", "muralhaReforcada"], 11);
+    placeTroop(session, "colono", 0, 1);
+    placeTroop(session, "muralhaReforcada", 0, 2);
+    startWave(session);
+    session.queue = [];
+    const target = meleeTarget();
+    session.enemies = [target];
+
+    const events = stepBattle(session, 32);
+
+    expect(target.hp).toBe(100 - TROOPS.colono.damage);
+    expect(events).toContainEqual(expect.objectContaining({ type: "melee", x: target.x, y: target.y }));
+  });
+
+  it.each([
+    ["sem muralha", null],
+    ["com muralha em outra fileira", { row: 1, col: 2 }],
+    ["com uma celula entre o colono e a muralha", { row: 0, col: 3 }],
+    ["com a muralha morta", { row: 0, col: 2, dead: true }],
+  ])("nao estende o alcance melee %s", (_label, wall) => {
+    const session = createBattleSession(PHASES[0], ["colono", "muralhaReforcada"], 12);
+    placeTroop(session, "colono", 0, 1);
+    if (wall) {
+      placeTroop(session, "muralhaReforcada", wall.row, wall.col);
+      if (wall.dead) session.troops.at(-1).dead = true;
+    }
+    startWave(session);
+    session.queue = [];
+    const target = meleeTarget();
+    session.enemies = [target];
+
+    const events = stepBattle(session, 32);
+
+    expect(target.hp).toBe(100);
+    expect(events.some((event) => event.type === "melee")).toBe(false);
+  });
+
+  it.each(["removida", "destruida"])("retorna ao alcance normal quando a muralha e %s", (mode) => {
+    const session = createBattleSession(PHASES[0], ["colono", "muralhaReforcada"], 13);
+    placeTroop(session, "colono", 0, 1);
+    placeTroop(session, "muralhaReforcada", 0, 2);
+    const wall = session.troops.at(-1);
+    if (mode === "removida") removeTroop(session, 0, 2);
+    else wall.dead = true;
+    startWave(session);
+    session.queue = [];
+    const target = meleeTarget();
+    session.enemies = [target];
+
+    stepBattle(session, 32);
+
+    expect(target.hp).toBe(100);
+  });
+
+  it("faz o reator gerar energia durante a onda sem ultrapassar o limite", () => {
+    const session = createBattleSession(PHASES[0], ["reator"], 1);
+    expect(TROOPS.reator.hp).toBeLessThan(TROOPS.colono.hp);
+    expect(placeTroop(session, "reator", 0, 1).ok).toBe(true);
+    expect(session.deployCooldowns.reator).toBeUndefined();
+    expect(session.energy).toBe(68);
+    startWave(session);
+    session.queue = [];
+    session.enemies = [{
+      id: "energy_clock", type: "medu", row: 4, x: 900, y: 540, hp: 999, maxHp: 999,
+      speed: 0, damage: 0, attackReadyAt: Infinity, slowUntil: 0, slowFactor: 1,
+      baseDamage: 0, bossPhase: 0, dead: false,
+    }];
+
+    expect(stepBattle(session, 5999).some((event) => event.type === "energyGenerated")).toBe(false);
+    const events = stepBattle(session, 1);
+    expect(session.energy).toBe(69);
+    expect(events).toContainEqual(expect.objectContaining({ type: "energyGenerated", amount: 1 }));
+
+    session.energy = session.energyMax;
+    stepBattle(session, 6000);
+    expect(session.energy).toBe(session.energyMax);
+  });
+
+  it("permite cinco reatores sem cooldown durante a preparacao", () => {
+    const session = createBattleSession(PHASES[0], ["reator"], 3);
+    expect(TROOPS.reator.maxDeployed).toBe(5);
+    expect(TROOPS.reator.deployCooldownMs).toBe(20000);
+    for (let row = 0; row < 5; row += 1) {
+      expect(placeTroop(session, "reator", row, 1).ok).toBe(true);
+      expect(session.deployCooldowns.reator).toBeUndefined();
+    }
+    expect(session.troops.filter((troop) => !troop.dead && troop.type === "reator")).toHaveLength(5);
+    expect(placeTroop(session, "reator", 0, 2).reason).toMatch(/limite/i);
+  });
+
+  it("aplica o cooldown do reator depois que a onda comeca", () => {
+    const session = createBattleSession(PHASES[0], ["reator"], 4);
+    expect(placeTroop(session, "reator", 0, 1).ok).toBe(true);
+    startWave(session);
+
+    expect(placeTroop(session, "reator", 1, 1).ok).toBe(true);
+    expect(session.deployCooldowns.reator).toBe(session.elapsed + TROOPS.reator.deployCooldownMs);
+    expect(placeTroop(session, "reator", 2, 1).reason).toMatch(/recarregando/i);
+  });
+
+  it("pausa a carga na preparação e concede oito ao concluir a onda", () => {
+    const session = createBattleSession(PHASES[0], ["reator"], 2);
+    placeTroop(session, "reator", 0, 1);
+    stepBattle(session, 8000);
+    expect(session.energy).toBe(68);
+    expect(session.troops[0].energyAccumulator).toBe(0);
+
+    startWave(session);
+    session.queue = [];
+    const events = stepBattle(session, 32);
+    expect(session.energy).toBe(76);
+    expect(events).toContainEqual(expect.objectContaining({ type: "energyGenerated", amount: 8, reason: "wave" }));
+    expect(events.some((event) => event.type === "waveComplete")).toBe(true);
   });
 
   it("aplica dano de passagem e derrota somente com base zerada", () => {
@@ -26,6 +295,58 @@ describe("sessão de batalha", () => {
     stepBattle(session, 32);
     expect(session.integrity).toBe(0);
     expect(session.outcome).toBe("defeat");
+  });
+
+  it("canaliza fogo em area somente na mesma rota e dentro do alcance", () => {
+    const session = createBattleSession(PHASES[3], ["incinerador"], 71);
+    placeTroop(session, "incinerador", 0, 1);
+    startWave(session);
+    session.queue = [];
+    const enemy = (id, row, x) => ({
+      id, type: "medu", row, x, y: row * 120 + 60, hp: 10, maxHp: 10,
+      speed: 0, damage: 0, attackReadyAt: Infinity, slowUntil: 0, slowFactor: 1,
+      baseDamage: 10, bossPhase: 0, dead: false,
+    });
+    const first = enemy("first", 0, 300);
+    const second = enemy("second", 0, 360);
+    const otherLane = enemy("other_lane", 1, 300);
+    const outOfRange = enemy("out_of_range", 0, 410);
+    session.enemies = [first, second, otherLane, outOfRange];
+
+    const firstEvents = stepBattle(session, 32);
+    const troop = session.troops[0];
+    expect(first.hp).toBe(9);
+    expect(second.hp).toBe(9);
+    expect(otherLane.hp).toBe(10);
+    expect(outOfRange.hp).toBe(10);
+    expect(firstEvents.filter((event) => event.type === "flame")).toHaveLength(1);
+    const firstFlame = firstEvents.find((event) => event.type === "flame");
+    const firstMuzzle = getMuzzleWorldPosition(troop, TROOPS.incinerador, 0, 0);
+    expect(firstFlame.x0).toBeCloseTo(firstMuzzle.x);
+    expect(firstFlame.y0).toBeCloseTo(firstMuzzle.y);
+    expect(session.projectiles).toHaveLength(0);
+    expect(troop.channelingAttack).toBe(true);
+    expect(troop.attackStartedAt).toBe(32);
+
+    for (let index = 0; index < 4; index += 1) stepBattle(session, 32);
+    expect(first.hp).toBe(9);
+    const secondTickEvents = stepBattle(session, 32);
+    expect(first.hp).toBe(8);
+    expect(second.hp).toBe(8);
+    const secondFlame = secondTickEvents.find((event) => event.type === "flame");
+    const secondMuzzle = getMuzzleWorldPosition(troop, TROOPS.incinerador, 0, 2);
+    expect(secondFlame.x0).toBeCloseTo(secondMuzzle.x);
+    expect(secondFlame.y0).toBeCloseTo(secondMuzzle.y);
+
+    first.dead = true;
+    stepBattle(session, 32);
+    expect(troop.channelingAttack).toBe(true);
+    expect(troop.attackStartedAt).toBe(32);
+
+    second.dead = true;
+    stepBattle(session, 32);
+    expect(troop.channelingAttack).toBe(false);
+    expect(troop.channelTickAccumulator).toBe(0);
   });
 
   it("mantém pausa/velocidade fora do modelo por passos fixos", () => {
@@ -242,10 +563,10 @@ describe("sessão de batalha", () => {
     const firstEvents = stepBattle(session, 32);
     const projectile = session.projectiles[0];
     const muzzle = getMuzzleWorldPosition(session.troops[0], TROOPS.guarda);
-    expect(TROOPS.guarda.attackEveryMs).toBe(900);
+    expect(TROOPS.guarda.attackEveryMs).toBe(1500);
     expect(TROOPS.guarda.damage).toBe(9);
-    expect(session.troops[0].attackReadyAt - session.troops[0].lastAttackAt).toBe(900);
-    expect(projectile).toMatchObject({ kind: "fireball", visualKind: "fireball", row: 0, straightLane: true, vy: 0, maxDistance: 250 });
+    expect(session.troops[0].attackReadyAt - session.troops[0].lastAttackAt).toBe(1500);
+    expect(projectile).toMatchObject({ kind: "fireball", visualKind: "fireball", row: 0, straightLane: true, vy: 0, maxDistance: 300 });
     expect(projectile.origin.x).toBeCloseTo(muzzle.x);
     expect(projectile.origin.y).toBeCloseTo(muzzle.y);
     expect(firstEvents.some((event) => event.type === "shoot" && event.weapon === "fireball")).toBe(true);
@@ -294,5 +615,490 @@ describe("sessão de batalha", () => {
     expect(projectile.visualCount).toBe(3);
     for (let index = 0; index < 30 && session.enemies[0].hp === 100; index += 1) stepBattle(session, 32);
     expect(session.enemies[0].hp).toBe(100 - TROOPS.bombardeiro.damage);
+  });
+});
+
+describe("Mago Abissal", () => {
+  const sandboxPhase = { ...PHASES[4], id: "teste_mago_abissal", waves: [] };
+
+  function createMageDuel() {
+    const session = createBattleSession(sandboxPhase, ["colono", "muralhaReforcada"], 451, { sandbox: true });
+    const { troop: colono } = placeTroop(session, "colono", 0, 4);
+    const { troop: wall } = placeTroop(session, "muralhaReforcada", 0, 5);
+    const { enemies: [mage] } = spawnEnemy(session, { type: "magoAbissal", row: 0 });
+    mage.x = 900;
+    mage.previousRenderX = 900;
+    return { session, colono, wall, mage };
+  }
+
+  function finishFlight(session, limit = 240) {
+    const events = [];
+    for (let index = 0; index < limit && session.enemyProjectiles.length; index += 1) {
+      events.push(...stepBattle(session, 32));
+    }
+    return events;
+  }
+
+  it("para no alcance, carrega sem dano antecipado e lança uma esfera lenta", () => {
+    const { session, wall, mage } = createMageDuel();
+    const wallHp = wall.hp;
+    const chargeEvents = stepBattle(session, 1);
+    expect(mage).toMatchObject({ casting: true, moving: false, x: 900 });
+    expect(chargeEvents.some((event) => event.type === "abyssCharge")).toBe(true);
+    expect(session.enemyProjectiles).toHaveLength(0);
+    expect(wall.hp).toBe(wallHp);
+
+    stepBattle(session, ENEMIES.magoAbissal.chargeMs - 1);
+    expect(session.enemyProjectiles).toHaveLength(0);
+    const releaseEvents = stepBattle(session, 1);
+    expect(session.enemyProjectiles).toHaveLength(1);
+    expect(session.enemyProjectiles[0]).toMatchObject({ vx: -130, damage: 18, visualKind: "abyssOrb" });
+    expect(wall.hp).toBe(wallHp);
+    expect(mage.attackReadyAt - mage.lastAttackAt).toBe(ENEMIES.magoAbissal.attackEveryMs);
+    expect(releaseEvents.some((event) => event.type === "shoot" && event.weapon === "abyssOrb")).toBe(true);
+  });
+
+  it("atinge a primeira tropa, inclusive muralha, mesmo após a morte do conjurador", () => {
+    const { session, colono, wall, mage } = createMageDuel();
+    stepBattle(session, 1);
+    stepBattle(session, ENEMIES.magoAbissal.chargeMs);
+    mage.dead = true;
+    const events = finishFlight(session);
+    expect(session.enemyProjectiles).toHaveLength(0);
+    expect(wall.hp).toBe(wall.maxHp - ENEMIES.magoAbissal.damage);
+    expect(colono.hp).toBe(colono.maxHp);
+    expect(events.some((event) => event.type === "abyssImpact")).toBe(true);
+  });
+
+  it("continua até a próxima tropa se o primeiro alvo morrer e dissipa sem ferir a base", () => {
+    const first = createMageDuel();
+    stepBattle(first.session, 1);
+    stepBattle(first.session, ENEMIES.magoAbissal.chargeMs);
+    first.wall.dead = true;
+    finishFlight(first.session);
+    expect(first.colono.hp).toBe(first.colono.maxHp - ENEMIES.magoAbissal.damage);
+
+    const empty = createMageDuel();
+    stepBattle(empty.session, 1);
+    stepBattle(empty.session, ENEMIES.magoAbissal.chargeMs);
+    empty.session.troops = [];
+    const integrity = empty.session.integrity;
+    finishFlight(empty.session);
+    expect(empty.session.enemyProjectiles).toHaveLength(0);
+    expect(empty.session.integrity).toBe(integrity);
+  });
+
+  it("cancela a carga e retoma o avanço sem alvo na mesma fileira", () => {
+    const { session, colono, wall, mage } = createMageDuel();
+    stepBattle(session, 1);
+    colono.dead = true;
+    wall.dead = true;
+    stepBattle(session, 32);
+    expect(mage.casting).toBe(false);
+    expect(mage.moving).toBe(true);
+    expect(mage.x).toBeLessThan(900);
+  });
+
+  it("faz o Refrator disparar um projétil prismático mais veloz", () => {
+    const session = createBattleSession(sandboxPhase, ["muralhaReforcada"], 913, { sandbox: true });
+    placeTroop(session, "muralhaReforcada", 0, 5);
+    const { enemies: [refrator] } = spawnEnemy(session, { type: "refrator", row: 0 });
+    refrator.x = 900;
+    refrator.previousRenderX = 900;
+
+    stepBattle(session, 1);
+    const events = stepBattle(session, ENEMIES.refrator.chargeMs);
+
+    expect(session.enemyProjectiles[0]).toMatchObject({
+      vx: -170, damage: 14, visualKind: "prismBolt",
+    });
+    expect(events.some((event) => event.type === "shoot" && event.weapon === "prismBolt")).toBe(true);
+  });
+});
+
+describe("Demolidora de Minas", () => {
+  const sandboxPhase = { ...PHASES[5], id: "teste_demolidora", waves: [] };
+
+  it("reserva deterministicamente uma célula vazia nas três colunas e em qualquer linha", () => {
+    const first = createBattleSession(sandboxPhase, ["demolidora"], 401, { sandbox: true });
+    const second = createBattleSession(sandboxPhase, ["demolidora"], 401, { sandbox: true });
+    placeTroop(first, "demolidora", 2, 1);
+    placeTroop(second, "demolidora", 2, 1);
+    stepBattle(first, 1);
+    stepBattle(second, 1);
+    const target = first.projectiles.find((projectile) => projectile.kind === "mine");
+    const repeated = second.projectiles.find((projectile) => projectile.kind === "mine");
+    expect({ row: target.targetRow, col: target.targetCol }).toEqual({ row: repeated.targetRow, col: repeated.targetCol });
+    expect(target.targetRow).toBeGreaterThanOrEqual(0);
+    expect(target.targetRow).toBeLessThan(FIELD.rows);
+    expect(target.targetCol).toBeGreaterThanOrEqual(2);
+    expect(target.targetCol).toBeLessThanOrEqual(4);
+  });
+
+  it("não consome cooldown sem destino e respeita o limite de cinco dispositivos", () => {
+    const session = createBattleSession(sandboxPhase, ["demolidora"], 402, { sandbox: true });
+    const { troop } = placeTroop(session, "demolidora", 0, 0);
+    for (let row = 0; row < FIELD.rows; row += 1) {
+      for (let col = 1; col <= 3; col += 1) {
+        session.mines.push({ id: `block_${row}_${col}`, ownerId: "other", row, col, x: col * 100 + 50, y: row * 120 + 60, active: true });
+      }
+    }
+    stepBattle(session, 1);
+    expect(troop.mineReadyAt).toBe(0);
+    expect(session.projectiles).toHaveLength(0);
+
+    session.mines = Array.from({ length: 5 }, (_, index) => ({
+      id: `owned_${index}`, ownerId: troop.id, row: index, col: 5, x: 550, y: index * 120 + 60, active: true,
+    }));
+    stepBattle(session, 8000);
+    expect(session.projectiles).toHaveLength(0);
+  });
+
+  it("prioriza a pistola na mesma linha a duas células e retoma as minas depois", () => {
+    const session = createBattleSession(sandboxPhase, ["demolidora"], 403, { sandbox: true });
+    const { troop } = placeTroop(session, "demolidora", 1, 0);
+    const enemy = meleeTarget(troop.x + 180, 1);
+    session.enemies.push(enemy);
+    stepBattle(session, 1);
+    expect(troop.lastAttackMode).toBe("gun");
+    expect(session.projectiles.some((projectile) => projectile.visualKind === "demolidoraBullet")).toBe(true);
+    expect(session.projectiles.some((projectile) => projectile.kind === "mine")).toBe(false);
+
+    enemy.row = 4;
+    stepBattle(session, 650);
+    expect(troop.lastAttackMode).toBe("mine");
+    expect(session.projectiles.some((projectile) => projectile.kind === "mine")).toBe(true);
+  });
+
+  it("faz o lançamento percorrer uma parábola e arma a mina no destino", () => {
+    const session = createBattleSession(sandboxPhase, ["demolidora"], 404, { sandbox: true });
+    placeTroop(session, "demolidora", 2, 0);
+    stepBattle(session, 1);
+    const projectile = session.projectiles.find((entry) => entry.kind === "mine");
+    const linearMidY = (projectile.origin.y + projectile.targetY) / 2;
+    stepBattle(session, 320);
+    expect(projectile.launched).toBe(true);
+    expect(projectile.y).toBeLessThan(linearMidY - 70);
+    stepBattle(session, 330);
+    expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(false);
+    expect(session.mines).toHaveLength(1);
+    expect(session.mines[0]).toMatchObject({ row: projectile.targetRow, col: projectile.targetCol, active: true });
+  });
+
+  it("detona ao atravessar a célula em passo grande e aplica dano em pequena área", () => {
+    const session = createBattleSession(sandboxPhase, [], 405, { sandbox: true });
+    session.mines.push({ id: "mine_test", ownerId: "gone", row: 0, col: 3, x: 350, y: 60, damage: 36, radius: 58, color: "#22d3ee", active: true, seed: 9 });
+    const trigger = { ...meleeTarget(430, 0), id: "trigger", speed: 1000 };
+    const nearby = { ...meleeTarget(360, 0), id: "nearby", speed: 0 };
+    session.enemies.push(trigger, nearby);
+    const events = stepBattle(session, 160);
+    expect(session.mines).toHaveLength(0);
+    expect(trigger.hp).toBe(64);
+    expect(nearby.hp).toBe(64);
+    expect(events.filter((event) => event.type === "explosion" && event.weapon === "magneticMine")).toHaveLength(1);
+  });
+
+  it("não dispara nem causa dano em inimigos flutuantes", () => {
+    const session = createBattleSession(sandboxPhase, [], 407, { sandbox: true });
+    session.mines.push({ id: "mine_airborne", ownerId: "gone", row: 0, col: 3, x: 350, y: 60, damage: 36, radius: 58, color: "#22d3ee", active: true, seed: 10 });
+    const { enemies: [mage] } = spawnEnemy(session, { type: "magoAbissal", row: 0 });
+    mage.x = 360;
+    mage.previousRenderX = 360;
+    mage.speed = 0;
+    stepBattle(session, 32);
+    expect(session.mines).toHaveLength(1);
+    expect(mage.hp).toBe(mage.maxHp);
+
+    const trigger = { ...meleeTarget(430, 0), id: "ground_trigger", speed: 1000 };
+    session.enemies.push(trigger);
+    stepBattle(session, 160);
+    expect(session.mines).toHaveLength(0);
+    expect(trigger.hp).toBe(64);
+    expect(mage.hp).toBe(mage.maxHp);
+  });
+
+  it("não instala entre ondas, limpa na remoção manual e preserva após a morte", () => {
+    const phase = { ...PHASES[5], waves: [{ enemies: [] }] };
+    const session = createBattleSession(phase, ["demolidora"], 406);
+    const { troop } = placeTroop(session, "demolidora", 0, 0);
+    stepBattle(session, 9000);
+    expect(session.projectiles).toHaveLength(0);
+    startWave(session);
+    stepBattle(session, 1);
+    expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(true);
+    removeTroop(session, 0, 0);
+    expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(false);
+
+    session.mines.push({ id: "survivor", ownerId: troop.id, row: 1, col: 2, x: 250, y: 180, active: true });
+    session.troops = session.troops.filter((entry) => entry.id !== troop.id);
+    expect(session.mines).toHaveLength(1);
+  });
+});
+
+describe("Parasita Saltador", () => {
+  const sandboxPhase = { ...PHASES[2], id: "teste_parasita_saltador", waves: [] };
+
+  function createParasiteLane() {
+    const session = createBattleSession(sandboxPhase, ["reator", "muralhaReforcada"], 512, { sandbox: true });
+    const { troop: host } = placeTroop(session, "reator", 0, 4);
+    const { troop: front } = placeTroop(session, "muralhaReforcada", 0, 5);
+    const { enemies: [parasite] } = spawnEnemy(session, { type: "parasitaSaltador", row: 0 });
+    parasite.x = 604;
+    parasite.previousRenderX = 604;
+    return { session, host, front, parasite };
+  }
+
+  it("salta apenas a primeira tropa, percorre a rota em 720 ms e se anexa à segunda", () => {
+    const { session, host, parasite } = createParasiteLane();
+    host.attackReadyAt = 1000;
+
+    stepBattle(session, 1);
+    expect(parasite).toMatchObject({ jumpConsumed: true, jumping: true, jumpTargetTroopId: host.id, jumpProgress: 0 });
+    stepBattle(session, 360);
+    expect(parasite.jumpProgress).toBeCloseTo(0.5, 2);
+    expect(parasite.x).toBeCloseTo((604 + host.x) / 2, 1);
+    stepBattle(session, 360);
+
+    expect(parasite).toMatchObject({ jumping: false, attachedToTroopId: host.id, x: host.x });
+    expect(host.attachedParasiteId).toBe(parasite.id);
+    expect(host.attackSpeedFactor).toBe(0.65);
+    expect(host.attackReadyAt).toBeGreaterThan(1000);
+  });
+
+  it("ataca rapidamente enquanto anexado e uma mina o elimina restaurando o hospedeiro", () => {
+    const { session, host, parasite } = createParasiteLane();
+    stepBattle(session, 1);
+    stepBattle(session, 720);
+    const initialHp = host.hp;
+    stepBattle(session, 1);
+    expect(host.hp).toBe(initialHp - ENEMIES.parasitaSaltador.damage);
+
+    session.mines.push({
+      id: "parasite_mine", ownerId: "gone", row: 0, col: 4, x: host.x, y: host.y,
+      damage: 36, radius: 58, color: "#22d3ee", active: true, seed: 12,
+    });
+    stepBattle(session, 1);
+    expect(session.enemies.some((enemy) => enemy.id === parasite.id)).toBe(false);
+    expect(host.attachedParasiteId).toBeNull();
+    expect(host.attackSpeedFactor).toBe(1);
+  });
+
+  it("consome o salto e combate a linha de frente quando não existe alvo atrás", () => {
+    const session = createBattleSession(sandboxPhase, ["muralhaReforcada"], 513, { sandbox: true });
+    const { troop: front } = placeTroop(session, "muralhaReforcada", 0, 5);
+    const { enemies: [parasite] } = spawnEnemy(session, { type: "parasitaSaltador", row: 0 });
+    parasite.x = 604;
+    parasite.previousRenderX = 604;
+    const initialHp = front.hp;
+    stepBattle(session, 1);
+    expect(parasite).toMatchObject({ jumpConsumed: true, jumping: false, attachedToTroopId: null });
+    expect(front.hp).toBe(initialHp - ENEMIES.parasitaSaltador.damage);
+  });
+
+  it("cancela a aterrissagem se o destino morrer e não permite dois parasitas no mesmo hospedeiro", () => {
+    const first = createParasiteLane();
+    stepBattle(first.session, 1);
+    first.host.dead = true;
+    stepBattle(first.session, 32);
+    expect(first.parasite).toMatchObject({ jumpConsumed: true, jumping: false, attachedToTroopId: null });
+
+    const second = createParasiteLane();
+    stepBattle(second.session, 1);
+    stepBattle(second.session, 720);
+    const { enemies: [challenger] } = spawnEnemy(second.session, { type: "parasitaSaltador", row: 0 });
+    challenger.x = 604;
+    challenger.previousRenderX = 604;
+    stepBattle(second.session, 1);
+    expect(second.host.attachedParasiteId).toBe(second.parasite.id);
+    expect(challenger).toMatchObject({ jumpConsumed: true, jumping: false, attachedToTroopId: null });
+  });
+});
+
+describe("decisões táticas aleatórias", () => {
+  const decisionPhase = {
+    ...PHASES[0], id: "teste_decisoes", energy: 120,
+    waves: Array.from({ length: 4 }, () => ({ enemies: [] })),
+  };
+
+  it("apresenta os níveis 1 a 3 entre ondas e encerra sem nível 4", () => {
+    const session = createBattleSession(decisionPhase, ["marine", "bombardeiro", "ranger"], 901);
+    for (let level = 1; level <= 3; level += 1) {
+      expect(startWave(session)).toBe(true);
+      stepBattle(session, 1);
+      expect(session.pendingDecisionLevel).toBe(level);
+      expect(session.pendingDecision).toHaveLength(2);
+      const chosen = session.pendingDecision[0];
+      expect(selectDecision(session, chosen)).toBe(true);
+      expect(session.decisions.at(-1)).toEqual({ wave: level, level, id: chosen.id });
+    }
+    expect(startWave(session)).toBe(true);
+    stepBattle(session, 1);
+    expect(session.outcome).toBe("victory");
+    expect(session.pendingDecision).toBeNull();
+    expect(session.pendingDecisionLevel).toBeNull();
+  });
+
+  it("aplica recursos, integridade, escudo e modificadores persistentes", () => {
+    const session = createBattleSession(decisionPhase, ["marine"], 902);
+    session.energy = 40;
+    session.supply = 5;
+    session.integrity = 50;
+    chooseDecision(session, "emergency_energy");
+    chooseDecision(session, "supply_expansion");
+    chooseDecision(session, "repair_core");
+    chooseDecision(session, "emergency_shield");
+    chooseDecision(session, "armor_piercing");
+    chooseDecision(session, "rush_wave");
+    chooseDecision(session, "permanent_armor", 2);
+
+    expect(session).toMatchObject({
+      energy: 90, supply: 11, supplyMax: 26,
+      integrity: 90, integrityMax: 120, shieldCharges: 2,
+    });
+    expect(session.modifiers).toMatchObject({ troopDamage: 1.12, enemySpeed: 1.08 });
+  });
+
+  it("consome efeitos da próxima onda e aumenta a fila da Economia de guerra", () => {
+    const phase = { ...decisionPhase, waves: [{ enemies: [{ type: "medu", count: 2 }] }, ...decisionPhase.waves.slice(1)] };
+    const session = createBattleSession(phase, ["colono"], 903);
+    session.energy = 20;
+    chooseDecision(session, "strategic_reserve", 2);
+    chooseDecision(session, "containment_protocol", 2);
+    chooseDecision(session, "war_economy", 3);
+    expect(startWave(session)).toBe(true);
+
+    expect(session.energy).toBe(40);
+    expect(session.queue).toHaveLength(3);
+    expect(session.currentWaveBaseDamageFactor).toBe(0.75);
+    expect(session.nextWaveEnergy).toBe(0);
+    expect(session.nextWaveBaseDamageFactor).toBe(1);
+    expect(session.nextWaveEnemyCountFactor).toBe(1);
+  });
+
+  it("atualiza custo, cooldown e reembolso pelo valor efetivamente pago", () => {
+    const session = createBattleSession(decisionPhase, ["marine"], 904);
+    chooseDecision(session, "efficient_batteries", 3);
+    chooseDecision(session, "fast_deployment", 2);
+    chooseDecision(session, "recycling", 3);
+    expect(getEffectiveTroopStats(session, "marine")).toEqual({ price: 13, deployCooldownMs: 3750, refundRate: 0.75 });
+
+    const placed = placeTroop(session, "marine", 0, 0);
+    expect(placed.ok).toBe(true);
+    expect(placed.troop.energyCost).toBe(13);
+    expect(removeTroop(session, 0, 0).refund).toBe(9);
+  });
+
+  it("aplica Primeiro impacto uma vez e acelera o intervalo ofensivo", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 905);
+    const { troop } = placeTroop(session, "colono", 0, 1);
+    chooseDecision(session, "first_impact");
+    chooseDecision(session, "accelerated_training");
+    expect(startWave(session)).toBe(true);
+    const target = meleeTarget(230);
+    session.enemies = [target];
+    session.queue = [];
+
+    stepBattle(session, 1);
+    expect(target.hp).toBe(88);
+    expect(troop.firstImpactAvailable).toBe(false);
+    expect(troop.attackReadyAt - troop.lastAttackAt).toBeCloseTo(TROOPS.colono.attackEveryMs / 1.15);
+    stepBattle(session, TROOPS.colono.attackEveryMs / 1.15);
+    expect(target.hp).toBe(80);
+  });
+
+  it("aplica manutenção, Linha agressiva e resistência da Última linha", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 906);
+    const { troop } = placeTroop(session, "colono", 0, 1);
+    troop.hp = 10;
+    chooseDecision(session, "field_maintenance", 3);
+    expect(troop.hp).toBeCloseTo(20.2);
+    chooseDecision(session, "aggressive_line", 3);
+    expect(troop.maxHp).toBeCloseTo(27.2);
+    expect(troop.hp).toBeCloseTo(16.16);
+    chooseDecision(session, "last_line", 3);
+
+    expect(startWave(session)).toBe(true);
+    const enemy = meleeTarget(troop.x + 40);
+    enemy.damage = 8;
+    enemy.attackReadyAt = 0;
+    session.enemies = [enemy];
+    session.queue = [];
+    stepBattle(session, 1);
+    expect(troop.hp).toBeCloseTo(10.16);
+  });
+
+  it("configura especializações, mira e impacto concussivo sem alterar o catálogo", () => {
+    const session = createBattleSession(decisionPhase, ["marine", "bombardeiro", "ranger", "krio", "guarda"], 907);
+    chooseDecision(session, "ballistic_specialization", 2);
+    chooseDecision(session, "explosive_specialization", 2);
+    chooseDecision(session, "energy_specialization", 2);
+    chooseDecision(session, "targeting_systems", 3);
+    chooseDecision(session, "concussive_impact", 3);
+    expect(session.modifiers).toMatchObject({
+      ballisticDamage: 1.2, explosiveDamage: 1.25, rangerDamage: 1.2,
+      guardDamage: 1.2, krioSlowDuration: 1.25, guardRangeBonus: 0.5,
+      targetingRange: 1.15, concussiveImpact: true,
+    });
+    expect(TROOPS.guarda.range).toBe(3);
+    expect(TROOPS.marine.damage).toBe(4);
+  });
+
+  it("aplica os bônus individuais da especialização energética", () => {
+    const guardSession = createBattleSession(decisionPhase, ["guarda"], 910);
+    placeTroop(guardSession, "guarda", 0, 1);
+    chooseDecision(guardSession, "energy_specialization", 2);
+    expect(startWave(guardSession)).toBe(true);
+    guardSession.queue = [];
+    guardSession.enemies = [{ ...meleeTarget(430), id: "guard_energy_target" }];
+    stepBattle(guardSession, 1);
+    expect(guardSession.projectiles[0]).toMatchObject({ kind: "fireball", damage: TROOPS.guarda.damage * 1.2, maxDistance: 350 });
+
+    const krioSession = createBattleSession(decisionPhase, ["krio"], 911);
+    placeTroop(krioSession, "krio", 0, 1);
+    chooseDecision(krioSession, "energy_specialization", 2);
+    expect(startWave(krioSession)).toBe(true);
+    const frozen = { ...meleeTarget(300), id: "krio_energy_target" };
+    krioSession.enemies = [frozen];
+    krioSession.queue = [];
+    for (let index = 0; index < 40 && frozen.slowUntil === 0; index += 1) stepBattle(krioSession, 32);
+    expect(frozen.slowUntil - krioSession.elapsed).toBe(TROOPS.krio.slowMs * 1.25);
+  });
+
+  it("reduz também o tempo restante de cooldowns ativos", () => {
+    const session = createBattleSession(decisionPhase, ["marine"], 912);
+    expect(startWave(session)).toBe(true);
+    expect(placeTroop(session, "marine", 0, 1).ok).toBe(true);
+    expect(session.deployCooldowns.marine - session.elapsed).toBe(TROOPS.marine.deployCooldownMs);
+    chooseDecision(session, "fast_deployment", 2);
+    expect(session.deployCooldowns.marine - session.elapsed).toBe(TROOPS.marine.deployCooldownMs * 0.75);
+  });
+
+  it("amplifica e empurra alvos atingidos pela explosão do Bombardeiro", () => {
+    const session = createBattleSession(decisionPhase, ["bombardeiro"], 909);
+    placeTroop(session, "bombardeiro", 0, 1);
+    chooseDecision(session, "explosive_specialization", 2);
+    chooseDecision(session, "concussive_impact", 3);
+    expect(startWave(session)).toBe(true);
+    const target = { ...meleeTarget(300), id: "concussive_target", hp: 100, maxHp: 100 };
+    session.enemies = [target];
+    session.queue = [];
+    for (let index = 0; index < 60 && target.hp === 100; index += 1) stepBattle(session, 32);
+    expect(target.hp).toBe(100 - TROOPS.bombardeiro.damage * 1.25);
+    expect(target.x).toBe(350);
+  });
+
+  it("bloqueia duas invasões e aplica o protocolo após consumir o escudo", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 908);
+    chooseDecision(session, "emergency_shield");
+    chooseDecision(session, "containment_protocol", 2);
+    expect(startWave(session)).toBe(true);
+    session.queue = [];
+    session.enemies = Array.from({ length: 3 }, (_, index) => ({
+      ...meleeTarget(FIELD.baseX, index), id: `breach_${index}`, row: index, y: index * 120 + 60,
+      baseDamage: 20,
+    }));
+    stepBattle(session, 1);
+    expect(session.integrity).toBe(85);
+    expect(session.shieldCharges).toBe(0);
   });
 });

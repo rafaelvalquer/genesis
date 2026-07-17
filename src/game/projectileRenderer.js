@@ -39,18 +39,28 @@ export function createFlameStreamParticles(event, now, settings = {}) {
   const random = seeded(event.seed || 1);
   const particles = [];
   const range = Math.max(24, (event.x1 || event.x0 + 120) - event.x0);
-  const bodyCount = Math.max(3, Math.round(12 * quality.density));
+  const bodyCount = Math.max(4, Math.round(14 * quality.density));
   const emberCount = Math.max(4, Math.round(18 * quality.density));
   const ribbonCount = settings.quality === "low" ? 1 : 3;
 
+  particles.push({
+    kind: "flameJet", ...event,
+    bodyWidth: 12 + quality.density * 10,
+    waveAmp: settings.reduceMotion ? 0 : 3 + quality.density * 4,
+    wavePhase: random() * Math.PI * 2,
+    born: now, life: 230,
+    color: event.color || "#f97316",
+  });
+
   for (let index = 0; index < bodyCount; index += 1) {
-    const life = 330 + random() * 150;
+    const along = 0.06 + random() * 0.9;
+    const life = 190 + random() * 120;
     const waveAmp = settings.reduceMotion ? 0 : 2.5 + random() * 4;
     const base = {
-      kind: "flame", x: event.x0 + random() * 5, y: event.y0 + (random() - 0.5) * 6,
-      travel: range * (0.72 + random() * 0.28), driftY: (random() - 0.5) * 8,
+      kind: "flame", x: event.x0 + range * along, y: event.y0 + (random() - 0.5) * (5 + along * 13),
+      driftX: range * (0.025 + random() * 0.045), driftY: (random() - 0.5) * 10,
       waveAmp, waveFreq: 8 + random() * 6, wavePhase: random() * Math.PI * 2,
-      size: 8 + random() * 9, born: now, life, color: event.color || "#f97316",
+      size: 5 + along * (10 + random() * 9), born: now, life, color: event.color || "#f97316",
       inner: "255,248,185", outer: `255,${120 + Math.round(random() * 45)},${32 + Math.round(random() * 30)}`,
       soft: false,
     };
@@ -58,7 +68,7 @@ export function createFlameStreamParticles(event, now, settings = {}) {
     if (random() < 0.6 && settings.quality !== "low") {
       particles.push({
         ...base, x: base.x + random() * 4, y: base.y + (random() - 0.5) * 5,
-        travel: base.travel * (0.72 + random() * 0.12), size: 17 + random() * 10,
+        driftX: base.driftX * 0.65, size: base.size * (1.25 + random() * 0.25),
         life: life + 45, inner: "255,190,90", outer: "255,82,28", soft: true,
       });
     }
@@ -70,19 +80,24 @@ export function createFlameStreamParticles(event, now, settings = {}) {
 
   for (let index = 0; index < ribbonCount; index += 1) {
     particles.push({
-      kind: "flameRibbon", x: event.x0 + 8 + index * 7, y: event.y0 + (random() - 0.5) * 4,
-      travel: range * (0.45 + random() * 0.32), length: 8 + random() * 13,
-      width: 2.5 + random() * 2.5, born: now, life: 150 + random() * 90,
+      kind: "flameRibbon", x0: event.x0 + 5, y0: event.y0 + (random() - 0.5) * 3,
+      x1: event.x0 + range * (0.48 + random() * 0.38), y1: event.y0 + (random() - 0.5) * 8,
+      waveAmp: settings.reduceMotion ? 0 : 2 + random() * 4,
+      wavePhase: random() * Math.PI * 2,
+      width: 2.2 + random() * 2.8, born: now, life: 180 + random() * 70,
       color: random() < 0.5 ? "#fff0a3" : "#ffb15c",
     });
   }
 
   if (settings.quality !== "low") {
-    particles.push({
-      kind: "smoke", x: event.x0 + 2, y: event.y0 + (random() - 0.5) * 5,
-      vx: 28 + random() * 24, vy: -10 - random() * 12, color: "#8c8582",
-      born: now, life: 380 + random() * 100, size: 5 + random() * 5,
-    });
+    const smokeCount = settings.quality === "high" ? 2 : 1;
+    for (let index = 0; index < smokeCount; index += 1) {
+      particles.push({
+        kind: "smoke", x: event.x1 - random() * 26, y: event.y1 + (random() - 0.5) * 13,
+        vx: 12 + random() * 22, vy: -13 - random() * 17, color: "#766c69",
+        born: now, life: 420 + random() * 140, size: 6 + random() * 7,
+      });
+    }
   }
   return particles;
 }
@@ -139,9 +154,34 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     const random = seeded(event.seed || 1);
     const color = event.color || (event.type.includes("Death") ? "#fb7185" : "#67e8f9");
 
+    if (event.type === "echoSpawn") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#7fffd4", born: now, life: 520, maxRadius: 48 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#e9d5ff", born: now, life: 220, size: 22 });
+      addSparks(particles, event, now, Math.max(8, Math.round(22 * quality.density)), random, {
+        color: "#c4b5fd", minSpeed: 38, speed: 125, life: 480, size: 2.4,
+      });
+      continue;
+    }
+
+    if (event.type === "abyssCharge") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color, born: now, life: 520, maxRadius: 30 });
+      addSparks(particles, event, now, Math.max(4, Math.round(10 * quality.density)), random, {
+        color: "#d8b4fe", minSpeed: 18, speed: 52, life: 480, size: 1.6,
+      });
+      continue;
+    }
+
     if (event.type === "beam") {
       particles.push({ kind: "laser", ...event, color, born: now, life: 155 });
       particles.push({ kind: "ring", x: event.x1, y: event.y1, color, born: now, life: 220, maxRadius: 22 });
+      continue;
+    }
+    if (event.type === "energyGenerated") {
+      particles.push({ kind: "ring", x: event.x, y: event.y - 8, color, born: now, life: 520, maxRadius: event.reason === "wave" ? 82 : 48 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y - 24, color: "#ecfeff", born: now, life: 240, size: event.reason === "wave" ? 30 : 18 });
+      addSparks(particles, event, now, Math.max(5, Math.round((event.reason === "wave" ? 18 : 10) * quality.density)), random, {
+        color, minSpeed: 24, speed: 90, life: 420, size: 1.8,
+      });
       continue;
     }
     if (event.type === "shotgun") {
@@ -163,8 +203,8 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
     if (event.type === "shoot") {
-      const flashColor = event.weapon === "ice" ? "#d9fbff" : ["microMissile", "fireball"].includes(event.weapon) ? "#ffcf8a" : "#fff7d6";
-      const flashSize = event.weapon === "sniperBullet" ? 22 : event.weapon === "fireball" ? 12 : 15;
+      const flashColor = event.weapon === "ice" ? "#d9fbff" : event.weapon === "abyssOrb" ? "#ead7ff" : event.weapon === "prismBolt" ? "#fff1b8" : ["microMissile", "fireball"].includes(event.weapon) ? "#ffcf8a" : "#fff7d6";
+      const flashSize = event.weapon === "sniperBullet" ? 22 : ["abyssOrb", "prismBolt"].includes(event.weapon) ? 24 : event.weapon === "fireball" ? 12 : 15;
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: flashColor, born: now, life: event.weapon === "sniperBullet" ? 125 : 90, size: flashSize });
       if (["marineBullet", "sniperBullet"].includes(event.weapon)) {
         addSparks(particles, event, now, Math.max(2, Math.round(5 * quality.density)), random, { forward: true, color: event.color, speed: 100, life: 190, size: 1.4 });
@@ -176,6 +216,14 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       } else if (event.weapon === "fireball") {
         addSparks(particles, event, now, Math.max(2, Math.round(4 * quality.density)), random, {
           forward: true, color: "#ffd27a", minSpeed: 35, speed: 70, life: 180, size: 1.1,
+        });
+      } else if (event.weapon === "abyssOrb") {
+        addSparks(particles, event, now, Math.max(3, Math.round(7 * quality.density)), random, {
+          color: "#d8b4fe", minSpeed: 22, speed: 64, life: 260, size: 1.5,
+        });
+      } else if (event.weapon === "prismBolt") {
+        addSparks(particles, event, now, Math.max(3, Math.round(8 * quality.density)), random, {
+          color: "#7fffd4", minSpeed: 28, speed: 78, life: 260, size: 1.7,
         });
       }
       continue;
@@ -195,6 +243,15 @@ export function pushEventParticles(particles, events, now, settings = {}) {
         kind: "smoke", x: event.x, y: event.y - 2, vx: -5, vy: -18,
         color: "#665653", born: now, life: 380, size: 7,
       });
+      continue;
+    }
+    if (event.type === "abyssImpact") {
+      const prism = event.weapon === "prismBolt";
+      addSparks(particles, event, now, Math.max(6, Math.round(18 * quality.density)), random, {
+        color: prism ? "#7fffd4" : "#c084fc", minSpeed: 35, speed: 115, life: 420, size: 2.2,
+      });
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: prism ? "#ffcf70" : "#a855f7", born: now, life: 360, maxRadius: 52 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: prism ? "#effff8" : "#f3e8ff", born: now, life: 180, size: 28 });
       continue;
     }
     if (event.type === "projectileImpact") {
@@ -299,6 +356,71 @@ function drawFireball(ctx, projectile) {
   });
 }
 
+function drawAbyssOrb(ctx, projectile, quality) {
+  const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
+  trail.forEach((point, index) => {
+    const ratio = (index + 1) / trail.length;
+    ctx.fillStyle = `rgba(168,85,247,${ratio * 0.24})`;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 3 + ratio * 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  const glow = ctx.createRadialGradient(projectile.x - 2, projectile.y - 2, 1, projectile.x, projectile.y, 16);
+  glow.addColorStop(0, "#ffffff");
+  glow.addColorStop(0.2, "#ead7ff");
+  glow.addColorStop(0.55, projectile.color || "#a855f7");
+  glow.addColorStop(1, "rgba(88,28,135,0)");
+  ctx.fillStyle = glow;
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = projectile.color || "#a855f7";
+  ctx.beginPath();
+  ctx.arc(projectile.x, projectile.y, 16, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f5e8ff";
+  ctx.beginPath();
+  ctx.arc(projectile.x, projectile.y, 5, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMagneticMine(ctx, x, y, rotation = 0, image = null, size = 52) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rotation);
+  ctx.shadowColor = "#22d3ee";
+  ctx.shadowBlur = 10;
+  if (image) {
+    ctx.drawImage(image, -size / 2, -size / 2, size, size);
+  } else {
+    ctx.fillStyle = "#57462f";
+    ctx.strokeStyle = "#67e8f9";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 0.42, size * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#a5f3fc";
+    ctx.beginPath();
+    ctx.arc(0, -1, size * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+export function drawMines(ctx, mines, image = null, elapsed = 0) {
+  for (const mine of mines) {
+    if (!mine.active) continue;
+    const pulse = 0.88 + Math.sin((elapsed + mine.seed) / 180) * 0.08;
+    drawMagneticMine(ctx, mine.x, mine.y + 42, 0, image, 58 * pulse);
+    ctx.save();
+    ctx.globalAlpha = 0.22 + pulse * 0.12;
+    ctx.strokeStyle = mine.color || "#22d3ee";
+    ctx.beginPath();
+    ctx.ellipse(mine.x, mine.y + 43, 31 * pulse, 10 * pulse, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 export function drawFrozenEnemyEffect(ctx, entity, elapsed, settings = {}) {
   const motionTime = settings.reduceMotion ? 0 : elapsed;
   const pulse = 0.82 + Math.sin(motionTime / 180) * 0.08;
@@ -371,15 +493,46 @@ function drawMissileSalvo(ctx, projectile, quality) {
   });
 }
 
-export function drawProjectiles(ctx, projectiles, settings = {}) {
+function drawPrismBolt(ctx, projectile, quality) {
+  const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
+  trail.forEach((point, index) => {
+    const ratio = (index + 1) / trail.length;
+    ctx.strokeStyle = index % 2 ? `rgba(139,92,246,${ratio * .5})` : `rgba(127,255,212,${ratio * .62})`;
+    ctx.lineWidth = 1 + ratio * 3;
+    ctx.beginPath();
+    ctx.moveTo(point.x, point.y - (1 - ratio) * 6);
+    ctx.lineTo(projectile.x, projectile.y);
+    ctx.stroke();
+  });
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(Math.atan2(projectile.vy, projectile.vx));
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = "#7fffd4";
+  ctx.fillStyle = "#ffcf70";
+  ctx.beginPath();
+  ctx.moveTo(12, 0);
+  ctx.lineTo(-5, -7);
+  ctx.lineTo(-1, 0);
+  ctx.lineTo(-5, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#f5f3ff";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+export function drawProjectiles(ctx, projectiles, settings = {}, assets = {}) {
   const quality = profile(settings);
   for (const projectile of projectiles) {
     if (!projectile.launched) continue;
     ctx.save();
-    if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectile);
+    if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectile.x, projectile.y, projectile.rotation, assets.mine?.[0], 46);
+    else if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectile);
     else if (projectile.visualKind === "marineBullet") drawMarineBullet(ctx, projectile);
     else if (projectile.visualKind === "ice") drawIceProjectile(ctx, projectile);
     else if (projectile.visualKind === "fireball") drawFireball(ctx, projectile);
+    else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectile, quality);
+    else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectile, quality);
     else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectile, quality);
     else drawTracer(ctx, projectile, 14, 2.5, "#ffffff");
     ctx.restore();
@@ -424,13 +577,65 @@ function drawShotgun(ctx, particle, progress) {
   }
 }
 
+function drawFlameJet(ctx, particle, progress, settings) {
+  const range = particle.x1 - particle.x0;
+  const fade = Math.pow(1 - progress, 0.42);
+  const wave = settings.reduceMotion
+    ? 0
+    : Math.sin(particle.wavePhase + progress * Math.PI * 2) * particle.waveAmp;
+  const controlX = particle.x0 + range * 0.54;
+  const controlY = particle.y0 + wave;
+  const gradient = ctx.createLinearGradient(particle.x0, particle.y0, particle.x1, particle.y1);
+  gradient.addColorStop(0, `rgba(255,191,62,${0.96 * fade})`);
+  gradient.addColorStop(0.22, `rgba(255,137,28,${0.94 * fade})`);
+  gradient.addColorStop(0.72, `rgba(239,68,18,${0.8 * fade})`);
+  gradient.addColorStop(1, `rgba(127,29,18,${0.14 * fade})`);
+
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  const startRadius = particle.bodyWidth * 0.22;
+  const endRadius = particle.bodyWidth * 0.82;
+  ctx.fillStyle = gradient;
+  ctx.shadowBlur = 20;
+  ctx.shadowColor = "rgba(249,115,22,.88)";
+  ctx.beginPath();
+  ctx.moveTo(particle.x0, particle.y0 - startRadius);
+  ctx.quadraticCurveTo(controlX, controlY - endRadius * 0.72, particle.x1, particle.y1 - endRadius + wave * 0.35);
+  ctx.lineTo(particle.x1, particle.y1 + endRadius + wave * 0.35);
+  ctx.quadraticCurveTo(controlX, controlY + endRadius * 0.72, particle.x0, particle.y0 + startRadius);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = gradient;
+  ctx.lineWidth = particle.bodyWidth * (0.48 + Math.sin(particle.wavePhase + progress * 9) * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(particle.x0, particle.y0);
+  ctx.quadraticCurveTo(controlX, controlY, particle.x1, particle.y1 + wave * 0.35);
+  ctx.stroke();
+
+  const coreEndX = particle.x0 + range * 0.46;
+  const coreGradient = ctx.createLinearGradient(particle.x0, particle.y0, coreEndX, particle.y0);
+  coreGradient.addColorStop(0, `rgba(255,255,244,${fade})`);
+  coreGradient.addColorStop(0.48, `rgba(255,246,174,${0.92 * fade})`);
+  coreGradient.addColorStop(1, "rgba(255,177,69,0)");
+  ctx.strokeStyle = coreGradient;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = "#fff1a8";
+  ctx.lineWidth = Math.max(2, particle.bodyWidth * 0.16);
+  ctx.beginPath();
+  ctx.moveTo(particle.x0, particle.y0);
+  ctx.quadraticCurveTo(particle.x0 + range * 0.38, particle.y0 + wave * 0.45, coreEndX, particle.y0 + wave * 0.28);
+  ctx.stroke();
+}
+
 function drawFlame(ctx, particle, progress, settings) {
-  const travelProgress = Math.min(1, progress * (particle.soft ? 0.9 : 1.12));
-  const x = particle.x + particle.travel * travelProgress;
+  const x = particle.x + particle.driftX * progress;
   const wave = settings.reduceMotion ? 0 : Math.sin(progress * particle.waveFreq + particle.wavePhase) * particle.waveAmp;
   const y = particle.y + particle.driftY * progress + wave;
-  const radius = Math.max(1.5, particle.size * (1 - progress * (particle.soft ? 0.55 : 0.76)));
-  const alpha = (particle.soft ? 0.24 : 0.92) * (1 - progress);
+  const pulse = 0.88 + Math.sin(particle.wavePhase + progress * 12) * 0.12;
+  const radius = Math.max(1.5, particle.size * pulse * (1 - progress * (particle.soft ? 0.42 : 0.58)));
+  const alpha = (particle.soft ? 0.28 : 0.88) * Math.pow(1 - progress, 0.72);
   const glow = ctx.createRadialGradient(x, y, radius * 0.16, x, y, radius);
   glow.addColorStop(0, `rgba(${particle.inner},${alpha})`);
   glow.addColorStop(0.42, `rgba(${particle.outer},${alpha * 0.9})`);
@@ -444,8 +649,10 @@ function drawFlame(ctx, particle, progress, settings) {
 }
 
 function drawFlameRibbon(ctx, particle, progress) {
-  const x = particle.x + particle.travel * progress;
-  const alpha = 1 - progress;
+  const alpha = Math.pow(1 - progress, 0.55);
+  const controlX = particle.x0 + (particle.x1 - particle.x0) * 0.55;
+  const controlY = (particle.y0 + particle.y1) / 2
+    + Math.sin(particle.wavePhase + progress * 8) * particle.waveAmp;
   ctx.globalCompositeOperation = "lighter";
   ctx.strokeStyle = particle.color;
   ctx.shadowBlur = 9;
@@ -454,8 +661,8 @@ function drawFlameRibbon(ctx, particle, progress) {
   ctx.lineWidth = particle.width * alpha;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(x, particle.y);
-  ctx.lineTo(x + particle.length, particle.y);
+  ctx.moveTo(particle.x0, particle.y0);
+  ctx.quadraticCurveTo(controlX, controlY, particle.x1, particle.y1);
   ctx.stroke();
 }
 
@@ -512,6 +719,7 @@ export function drawParticles(ctx, particles, now, settings = {}) {
       ctx.fill();
     } else if (particle.kind === "laser") drawLaser(ctx, particle, progress, settings);
     else if (particle.kind === "shotgun") drawShotgun(ctx, particle, progress);
+    else if (particle.kind === "flameJet") drawFlameJet(ctx, particle, progress, settings);
     else if (particle.kind === "flame") drawFlame(ctx, particle, progress, settings);
     else if (particle.kind === "flameRibbon") drawFlameRibbon(ctx, particle, progress);
     ctx.restore();

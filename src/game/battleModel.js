@@ -1,6 +1,6 @@
 import { ENEMIES, TROOPS } from "./content.js";
-import { applyDecisionState, buildSpawnQueue, calculateStars, createRng } from "./domain.js";
-import { CELL, FIELD, getEnemyHitPoint, getMuzzleWorldPosition } from "./visualGeometry.js";
+import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, isGroundTrapEligible } from "./domain.js";
+import { CELL, FIELD, getEnemyHitPoint, getEnemyMuzzleWorldPosition, getMuzzleWorldPosition, getTroopAnimation } from "./visualGeometry.js";
 
 export { CELL, FIELD } from "./visualGeometry.js";
 
@@ -8,7 +8,57 @@ let entityId = 1;
 const id = (prefix) => `${prefix}_${entityId++}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
-export function createBattleSession(phase, loadout, seed = Date.now()) {
+const DEFAULT_SANDBOX_SETTINGS = {
+  rulesMode: "free",
+  invulnerableBase: true,
+  enemyHpMultiplier: 1,
+  enemySpeedMultiplier: 1,
+  enemyDamageMultiplier: 1,
+  troopDamageMultiplier: 1,
+};
+
+const DEFAULT_MODIFIERS = {
+  enemySpeed: 1, troopDamage: 1, slowDuration: 1, attackSpeed: 1,
+  deployCooldown: 1, energyCost: 1, refundRate: 0.5,
+  targetingRange: 1, aggressiveDamage: 1, aggressiveRange: 1, aggressiveHp: 1,
+  ballisticDamage: 1, explosiveDamage: 1, rangerDamage: 1, guardDamage: 1,
+  krioSlowDuration: 1, guardRangeBonus: 0, lastLineDamageTaken: 1,
+  concussiveImpact: false, firstImpact: false,
+};
+
+function isOffensiveConfig(config) {
+  return config && config.attack !== "none" && config.attack !== "energy";
+}
+
+function usesTargetingSystems(config) {
+  return config && !["none", "energy", "melee", "mine"].includes(config.attack);
+}
+
+export function getEffectiveTroopStats(session, troopId) {
+  const config = TROOPS[troopId];
+  if (!config) return null;
+  return {
+    price: Math.ceil(config.price * session.modifiers.energyCost),
+    deployCooldownMs: Math.round(config.deployCooldownMs * session.modifiers.deployCooldown),
+    refundRate: session.modifiers.refundRate,
+  };
+}
+
+function effectiveCombatConfig(session, troop, config) {
+  if (!config) return config;
+  let range = config.range + (troop.type === "guarda" ? session.modifiers.guardRangeBonus : 0);
+  let closeRange = config.closeRange;
+  if (usesTargetingSystems(config)) range *= session.modifiers.targetingRange;
+  if (config.attack === "mine" && Number.isFinite(closeRange)) closeRange *= session.modifiers.targetingRange;
+  if (isOffensiveConfig(config)) {
+    range *= session.modifiers.aggressiveRange;
+    if (Number.isFinite(closeRange)) closeRange *= session.modifiers.aggressiveRange;
+  }
+  return { ...config, range, closeRange };
+}
+
+export function createBattleSession(phase, loadout, seed = Date.now(), options = {}) {
+  const sandbox = Boolean(options.sandbox);
   return {
     phase,
     loadout: [...loadout],
@@ -16,39 +66,57 @@ export function createBattleSession(phase, loadout, seed = Date.now()) {
     rng: createRng(seed),
     elapsed: 0,
     energy: phase.energy,
+    energyMax: phase.energy,
+    lastEnergyGainAt: -Infinity,
     integrity: phase.baseIntegrity,
+    integrityMax: phase.baseIntegrity,
     supply: 20,
     supplyMax: 20,
     supplyAccumulator: 0,
     waveIndex: 0,
     waveActive: false,
-    preparing: true,
+    preparing: !sandbox,
     pendingDecision: null,
+    pendingDecisionLevel: null,
     queue: [],
     nextSpawnAt: 0,
     troops: [],
     enemies: [],
+    mines: [],
     projectiles: [],
+    enemyProjectiles: [],
     effects: [],
     effectSequence: 0,
     deployCooldowns: {},
-    modifiers: { enemySpeed: 1, troopDamage: 1, slowDuration: 1 },
+    modifiers: { ...DEFAULT_MODIFIERS },
+    shieldCharges: 0,
+    nextWaveEnergy: 0,
+    nextWaveBaseDamageFactor: 1,
+    currentWaveBaseDamageFactor: 1,
+    nextWaveEnemyCountFactor: 1,
     decisions: [],
     killed: 0,
     deployed: {},
     outcome: null,
     result: null,
+    sandbox,
+    sandboxSettings: sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null,
   };
 }
 
 export function canPlaceTroop(session, troopId, row, col) {
   const troop = TROOPS[troopId];
+  const effective = getEffectiveTroopStats(session, troopId);
+  const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
   if (!troop || !session.loadout.includes(troopId)) return "Tropa fora do loadout.";
   if (row < 0 || row >= FIELD.rows || col < 0 || col >= FIELD.cols - 1) return "Posição fora da zona de combate.";
   if (session.troops.some((entry) => !entry.dead && entry.row === row && entry.col === col)) return "Célula ocupada.";
-  if (session.energy < troop.price) return `Energia insuficiente: requer ${troop.price}.`;
-  if (session.supply < troop.supply) return `Supply insuficiente: requer ${troop.supply}.`;
-  if (session.waveActive && Number(session.deployCooldowns[troopId] || 0) > session.elapsed) return "Implantação recarregando.";
+  if (session.mines.some((entry) => entry.active && entry.row === row && entry.col === col)
+    || session.projectiles.some((entry) => entry.active && entry.kind === "mine" && entry.targetRow === row && entry.targetCol === col)) return "Célula reservada por uma mina.";
+  if (!freePlacement && troop.maxDeployed && session.troops.filter((entry) => !entry.dead && entry.type === troopId).length >= troop.maxDeployed) return `Limite de ${troop.maxDeployed} ${troop.label} por campo.`;
+  if (!freePlacement && session.energy < effective.price) return `Energia insuficiente: requer ${effective.price}.`;
+  if (!freePlacement && session.supply < troop.supply) return `Supply insuficiente: requer ${troop.supply}.`;
+  if (!freePlacement && (session.waveActive || session.sandbox || troop.cooldownDuringPreparation) && Number(session.deployCooldowns[troopId] || 0) > session.elapsed) return "Implantação recarregando.";
   return null;
 }
 
@@ -56,18 +124,29 @@ export function placeTroop(session, troopId, row, col) {
   const reason = canPlaceTroop(session, troopId, row, col);
   if (reason) return { ok: false, reason };
   const config = TROOPS[troopId];
+  const effective = getEffectiveTroopStats(session, troopId);
+  const maxHp = config.hp * (isOffensiveConfig(config) ? session.modifiers.aggressiveHp : 1);
   const troop = {
     id: id("troop"), type: troopId, row, col,
     x: col * CELL.width + CELL.width / 2,
     y: row * CELL.height + CELL.height / 2,
-    hp: config.hp, maxHp: config.hp, attackReadyAt: 0,
-    lastAttackAt: -Infinity, dead: false,
+    hp: maxHp, maxHp, energyCost: effective.price,
+    attackReadyAt: 0, mineReadyAt: 0, gunReadyAt: 0, energyAccumulator: 0,
+    lastAttackAt: -Infinity, channelingAttack: false, attackStartedAt: -Infinity,
+    lastAttackMode: null,
+    attackSpeedFactor: 1, attachedParasiteId: null,
+    channelTickAccumulator: 0, firstImpactAvailable: session.modifiers.firstImpact,
+    previousRenderX: col * CELL.width + CELL.width / 2,
+    previousRenderY: row * CELL.height + CELL.height / 2, dead: false,
   };
   session.troops.push(troop);
-  session.energy -= config.price;
-  session.supply -= config.supply;
+  const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
+  if (!freePlacement) {
+    session.energy -= effective.price;
+    session.supply -= config.supply;
+  }
   session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
-  if (session.waveActive) session.deployCooldowns[troopId] = session.elapsed + config.deployCooldownMs;
+  if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
   return { ok: true, troop, event: { type: "deploy", x: troop.x, y: troop.y } };
 }
 
@@ -75,60 +154,277 @@ export function removeTroop(session, row, col) {
   const index = session.troops.findIndex((troop) => !troop.dead && troop.row === row && troop.col === col);
   if (index < 0) return { ok: false, reason: "Nenhuma unidade nessa célula." };
   const [troop] = session.troops.splice(index, 1);
+  releaseParasiteFromTroop(session, troop);
   const config = TROOPS[troop.type];
-  const refund = Math.floor(config.price / 2);
-  session.energy += refund;
+  session.mines = session.mines.filter((mine) => mine.ownerId !== troop.id);
+  session.projectiles = session.projectiles.filter((projectile) => projectile.kind !== "mine" || projectile.sourceTroopId !== troop.id);
+  const refund = Math.floor(Number(troop.energyCost ?? config.price) * session.modifiers.refundRate);
+  session.energy = Math.min(session.energyMax, session.energy + refund);
   session.supply = Math.min(session.supplyMax, session.supply + config.supply);
-  return { ok: true, refund, troop };
+  return { ok: true, refund, troop, event: { type: "remove", x: troop.x, y: troop.y, entity: { ...troop } } };
+}
+
+function rescaleReadyTimers(session, factor) {
+  session.troops.forEach((troop) => {
+    if (!isOffensiveConfig(TROOPS[troop.type])) return;
+    for (const field of ["attackReadyAt", "mineReadyAt", "gunReadyAt"]) {
+      if (Number.isFinite(troop[field]) && troop[field] > session.elapsed) {
+        troop[field] = session.elapsed + (troop[field] - session.elapsed) * factor;
+      }
+    }
+  });
+}
+
+function applyDecision(session, decisionId) {
+  const multiply = (field, factor) => { session.modifiers[field] *= factor; };
+  switch (decisionId) {
+    case "emergency_energy":
+      session.energy = Math.min(session.energyMax, session.energy + 25);
+      break;
+    case "supply_expansion":
+      session.supplyMax += 6;
+      session.supply = Math.min(session.supplyMax, session.supply + 6);
+      break;
+    case "repair_core":
+      session.integrity = Math.min(session.integrityMax, session.integrity + 20);
+      break;
+    case "emergency_shield":
+      session.shieldCharges += 2;
+      break;
+    case "armor_piercing":
+      multiply("troopDamage", 1.12);
+      break;
+    case "accelerated_training":
+      multiply("attackSpeed", 1.15);
+      rescaleReadyTimers(session, 1 / 1.15);
+      break;
+    case "first_impact":
+      session.modifiers.firstImpact = true;
+      session.troops.filter((troop) => !troop.dead).forEach((troop) => { troop.firstImpactAvailable = true; });
+      break;
+    case "rush_wave":
+      session.energy = Math.min(session.energyMax, session.energy + 25);
+      multiply("enemySpeed", 1.08);
+      break;
+    case "resupply":
+      session.supply = Math.min(session.supplyMax, session.supply + 6);
+      break;
+    case "fast_deployment":
+      multiply("deployCooldown", 0.75);
+      Object.keys(session.deployCooldowns).forEach((troopId) => {
+        const readyAt = session.deployCooldowns[troopId];
+        if (readyAt > session.elapsed) session.deployCooldowns[troopId] = session.elapsed + (readyAt - session.elapsed) * 0.75;
+      });
+      break;
+    case "strategic_reserve":
+      session.nextWaveEnergy += 20;
+      break;
+    case "permanent_armor":
+      session.integrityMax += 20;
+      session.integrity += 20;
+      break;
+    case "containment_protocol":
+      session.nextWaveBaseDamageFactor *= 0.75;
+      break;
+    case "ballistic_specialization":
+      multiply("ballisticDamage", 1.2);
+      break;
+    case "explosive_specialization":
+      multiply("explosiveDamage", 1.25);
+      break;
+    case "energy_specialization":
+      multiply("rangerDamage", 1.2);
+      multiply("guardDamage", 1.2);
+      multiply("krioSlowDuration", 1.25);
+      session.modifiers.guardRangeBonus += 0.5;
+      break;
+    case "efficient_batteries":
+      multiply("energyCost", 0.85);
+      break;
+    case "recycling":
+      session.modifiers.refundRate = 0.75;
+      break;
+    case "last_line":
+      multiply("lastLineDamageTaken", 0.75);
+      break;
+    case "field_maintenance":
+      session.troops.filter((troop) => !troop.dead)
+        .forEach((troop) => { troop.hp = Math.min(troop.maxHp, troop.hp + troop.maxHp * 0.3); });
+      break;
+    case "targeting_systems":
+      multiply("targetingRange", 1.15);
+      break;
+    case "concussive_impact":
+      session.modifiers.concussiveImpact = true;
+      break;
+    case "aggressive_line":
+      multiply("aggressiveDamage", 1.2);
+      multiply("aggressiveRange", 1.2);
+      multiply("aggressiveHp", 0.8);
+      session.troops.filter((troop) => !troop.dead && isOffensiveConfig(TROOPS[troop.type])).forEach((troop) => {
+        troop.maxHp *= 0.8;
+        troop.hp *= 0.8;
+      });
+      break;
+    case "war_economy":
+      session.supply = Math.min(session.supplyMax, session.supply + 8);
+      session.nextWaveEnemyCountFactor *= 1.2;
+      break;
+    default:
+      return false;
+  }
+  return true;
 }
 
 export function startWave(session) {
   if (session.outcome || session.waveActive || session.pendingDecision) return false;
-  session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997);
+  if (session.nextWaveEnergy > 0) {
+    const previousEnergy = session.energy;
+    session.energy = Math.min(session.energyMax, session.energy + session.nextWaveEnergy);
+    if (session.energy > previousEnergy) session.lastEnergyGainAt = session.elapsed;
+    session.nextWaveEnergy = 0;
+  }
+  const enemyCountFactor = session.nextWaveEnemyCountFactor;
+  session.nextWaveEnemyCountFactor = 1;
+  session.currentWaveBaseDamageFactor = session.nextWaveBaseDamageFactor;
+  session.nextWaveBaseDamageFactor = 1;
+  session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
   session.waveActive = true;
   session.preparing = false;
   session.nextSpawnAt = session.elapsed;
+  session.troops.filter((troop) => !troop.dead && troop.type === "demolidora")
+    .forEach((troop) => { troop.mineReadyAt = session.elapsed; });
   return true;
 }
 
 export function selectDecision(session, option) {
   if (!session.pendingDecision?.some((entry) => entry.id === option.id)) return false;
-  const next = applyDecisionState(session, option);
-  if (next === session) return false;
-  session.energy = next.energy;
-  session.supply = next.supply;
-  session.integrity = next.integrity;
-  session.modifiers = next.modifiers;
-  session.decisions.push({ wave: session.waveIndex, id: option.id });
+  if (!applyDecision(session, option.id)) return false;
+  session.decisions.push({ wave: session.waveIndex, level: session.pendingDecisionLevel, id: option.id });
   session.pendingDecision = null;
+  session.pendingDecisionLevel = null;
   return true;
 }
 
 function createEnemy(session, queued) {
   const base = ENEMIES[queued.type];
+  if (!base) return null;
   const alpha = queued.variant === "alpha";
-  const maxHp = base.hp * (alpha ? 8 : 1);
+  const echo = Boolean(queued.isEcho);
+  const mechanic = session.phase.chapterMechanic;
+  const echoHpFactor = echo ? mechanic?.hpFactor ?? 0.45 : 1;
+  const echoSpeedFactor = echo ? mechanic?.speedFactor ?? 1.2 : 1;
+  const echoDamageFactor = echo ? mechanic?.damageFactor ?? 0.6 : 1;
+  const maxHp = base.hp * (alpha ? 8 : 1) * echoHpFactor * (session.sandboxSettings?.enemyHpMultiplier ?? 1);
   const enemy = {
-    id: id("enemy"), type: queued.type, variant: queued.variant,
-    row: Math.floor(session.rng() * FIELD.rows),
-    x: FIELD.width + 40, y: 0,
+    id: id("enemy"), type: queued.type, variant: queued.variant, isEcho: echo,
+    echoSourceId: queued.echoSourceId || null,
+    row: Number.isInteger(queued.row) ? clamp(queued.row, 0, FIELD.rows - 1) : Math.floor(session.rng() * FIELD.rows),
+    x: Number.isFinite(queued.x) ? queued.x : FIELD.width + 40, y: 0,
     hp: maxHp, maxHp,
-    speed: base.speed * (alpha ? 0.75 : 1),
-    damage: base.damage * (alpha ? 2 : 1),
+    speed: base.speed * (alpha ? 0.75 : 1) * echoSpeedFactor,
+    damage: base.damage * (alpha ? 2 : 1) * echoDamageFactor,
     attackReadyAt: 0, lastAttackAt: -Infinity,
+    casting: false, castStartedAt: -Infinity, castReadyAt: Infinity, moving: true,
+    jumpConsumed: false, jumping: false, jumpStartedAt: -Infinity, jumpProgress: 0,
+    jumpFromX: null, jumpTargetTroopId: null, attachedToTroopId: null,
     slowUntil: 0, slowFactor: 1, bossPhase: 0,
-    baseDamage: alpha ? 40 : base.baseDamage,
-    scale: base.scale * (alpha ? 1.45 : 1),
-    dead: false,
+    baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
+    scale: base.scale * (alpha ? 1.45 : 1) * (echo ? 0.94 : 1),
+    previousRenderX: FIELD.spawnX, previousRenderY: 0, dead: false,
   };
   enemy.y = enemy.row * CELL.height + CELL.height / 2;
+  enemy.previousRenderY = enemy.y;
   session.enemies.push(enemy);
   return enemy;
 }
 
-function closestEnemy(session, troop, range) {
+export function trySpawnGlassEcho(session, source, events = []) {
+  const mechanic = session.phase.chapterMechanic;
+  if (mechanic?.id !== "glass_echoes" || source?.isEcho || source?.variant === "alpha") return null;
+  const activeEchoes = session.enemies.filter((enemy) => enemy.isEcho && !enemy.dead).length;
+  if (activeEchoes >= mechanic.maxAlive || session.rng() >= mechanic.chance) return null;
+  const echo = createEnemy(session, {
+    type: source.type,
+    row: source.row,
+    x: source.x,
+    isEcho: true,
+    echoSourceId: source.id,
+  });
+  if (!echo) return null;
+  echo.y = source.y;
+  echo.previousRenderX = echo.x;
+  echo.previousRenderY = echo.y;
+  events.push({ type: "echoSpawn", x: echo.x, y: echo.y, color: "#7fffd4", enemy: { ...echo }, sourceId: source.id });
+  return echo;
+}
+
+export function spawnEnemy(session, { type, row = 0, count = 1, variant } = {}) {
+  if (!session.sandbox) return { ok: false, reason: "Spawn manual disponível apenas no Campo de Provas.", enemies: [], events: [] };
+  if (!ENEMIES[type]) return { ok: false, reason: "Inimigo desconhecido.", enemies: [], events: [] };
+  const amount = clamp(Math.floor(Number(count) || 1), 1, 50);
+  const targetRow = clamp(Math.floor(Number(row) || 0), 0, FIELD.rows - 1);
+  const enemies = [];
+  const events = [];
+  for (let index = 0; index < amount; index += 1) {
+    const enemy = createEnemy(session, { type, row: targetRow, variant: variant === "alpha" ? "alpha" : undefined });
+    enemy.x += index * 34;
+    enemy.previousRenderX = enemy.x;
+    enemies.push(enemy);
+    events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
+  }
+  return { ok: true, enemies, events };
+}
+
+export function setSandboxSettings(session, settings) {
+  if (!session.sandbox) return false;
+  session.sandboxSettings = { ...session.sandboxSettings, ...settings };
+  return true;
+}
+
+export function clearSandboxEntities(session, target = "all") {
+  if (!session.sandbox) return false;
+  if (target === "enemies" || target === "all") {
+    session.troops.forEach((troop) => setTroopAttackSpeedFactor(troop, 1, session.elapsed));
+    session.troops.forEach((troop) => { troop.attachedParasiteId = null; });
+    session.enemies = [];
+    session.queue = [];
+  }
+  if (target === "troops" || target === "all") {
+    session.enemies.forEach((enemy) => {
+      enemy.attachedToTroopId = null;
+      enemy.jumpTargetTroopId = null;
+      enemy.jumping = false;
+    });
+    session.troops = [];
+    session.energy = session.energyMax;
+    session.supply = session.supplyMax;
+    session.deployCooldowns = {};
+    session.deployed = {};
+  }
+  session.mines = [];
+  session.projectiles = [];
+  session.enemyProjectiles = [];
+  session.effects = [];
+  return true;
+}
+
+function attackOriginX(session, troop, config) {
+  if (config.attack !== "melee") return troop.x;
+  const adjacentWall = session.troops.find((candidate) => !candidate.dead
+    && candidate.type === "muralhaReforcada"
+    && candidate.row === troop.row
+    && candidate.col === troop.col + 1);
+  return adjacentWall?.x ?? troop.x;
+}
+
+function closestEnemy(session, troop, config) {
+  const originX = attackOriginX(session, troop, config);
   return session.enemies
-    .filter((enemy) => !enemy.dead && enemy.row === troop.row && enemy.x >= troop.x && enemy.x - troop.x <= range * CELL.width)
+    .filter((enemy) => !enemy.dead
+      && enemy.row === troop.row
+      && enemy.x >= originX
+      && enemy.x - originX <= config.range * CELL.width)
     .sort((left, right) => left.x - right.x)[0] || null;
 }
 
@@ -137,21 +433,154 @@ function nextEffectSeed(session) {
   return (session.seed + session.effectSequence * 997) >>> 0;
 }
 
+function setTroopAttackSpeedFactor(troop, nextFactor, elapsed) {
+  const currentFactor = troop.attackSpeedFactor || 1;
+  if (Math.abs(currentFactor - nextFactor) < 0.0001) return;
+  for (const field of ["attackReadyAt", "mineReadyAt", "gunReadyAt"]) {
+    const readyAt = troop[field];
+    if (Number.isFinite(readyAt) && readyAt > elapsed) {
+      troop[field] = elapsed + (readyAt - elapsed) * currentFactor / nextFactor;
+    }
+  }
+  troop.attackSpeedFactor = nextFactor;
+}
+
+function attackIntervalFor(session, troop, config, interval) {
+  const trainingSpeed = isOffensiveConfig(config) ? session.modifiers.attackSpeed : 1;
+  return interval / ((troop.attackSpeedFactor || 1) * trainingSpeed);
+}
+
+function attackDamageMultiplier(session, troop, { explosive = false } = {}) {
+  let multiplier = session.modifiers.troopDamage;
+  if (isOffensiveConfig(TROOPS[troop.type])) multiplier *= session.modifiers.aggressiveDamage;
+  if (["marine", "sniper", "caçador"].includes(troop.type)) multiplier *= session.modifiers.ballisticDamage;
+  if (explosive) multiplier *= session.modifiers.explosiveDamage;
+  if (troop.type === "ranger") multiplier *= session.modifiers.rangerDamage;
+  if (troop.type === "guarda") multiplier *= session.modifiers.guardDamage;
+  if (troop.firstImpactAvailable) {
+    multiplier *= 1.5;
+    troop.firstImpactAvailable = false;
+  }
+  return multiplier;
+}
+
+function applyConcussiveImpact(session, enemy) {
+  if (!session.modifiers.concussiveImpact || enemy.dead || !isGroundTrapEligible(enemy)) return;
+  enemy.x = Math.min(FIELD.width + 40, enemy.x + 50);
+  enemy.previousRenderX = enemy.x;
+}
+
+function detachParasite(session, enemy) {
+  if (!enemy?.attachedToTroopId) return;
+  const troop = session.troops.find((entry) => entry.id === enemy.attachedToTroopId);
+  if (troop?.attachedParasiteId === enemy.id) {
+    troop.attachedParasiteId = null;
+    setTroopAttackSpeedFactor(troop, 1, session.elapsed);
+  }
+  enemy.attachedToTroopId = null;
+  enemy.moving = true;
+}
+
+function releaseParasiteFromTroop(session, troop) {
+  if (!troop?.attachedParasiteId) return;
+  const parasite = session.enemies.find((enemy) => enemy.id === troop.attachedParasiteId);
+  if (parasite) {
+    parasite.attachedToTroopId = null;
+    parasite.moving = true;
+  }
+  troop.attachedParasiteId = null;
+  setTroopAttackSpeedFactor(troop, 1, session.elapsed);
+}
+
+function attachParasite(session, enemy, troop, config) {
+  if (!troop || troop.dead || troop.attachedParasiteId) return false;
+  enemy.jumping = false;
+  enemy.jumpProgress = 1;
+  enemy.jumpTargetTroopId = null;
+  enemy.attachedToTroopId = troop.id;
+  enemy.x = troop.x;
+  enemy.y = troop.y;
+  enemy.moving = false;
+  troop.attachedParasiteId = enemy.id;
+  setTroopAttackSpeedFactor(troop, config.attackSlowFactor, session.elapsed);
+  return true;
+}
+
 function damageEnemy(session, enemy, amount, events) {
   if (!enemy || enemy.dead) return;
-  enemy.hp -= amount * session.modifiers.troopDamage;
+  enemy.hp -= amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1);
   const hitPoint = getEnemyHitPoint(enemy);
-  events.push({ type: "hit", x: hitPoint.x, y: hitPoint.y, color: ENEMIES[enemy.type].color });
+  events.push({ type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y, color: ENEMIES[enemy.type].color });
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     enemy.dead = true;
+    detachParasite(session, enemy);
     session.killed += 1;
-    events.push({ type: enemy.variant === "alpha" ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y });
+    events.push({ type: enemy.variant === "alpha" ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy } });
+    trySpawnGlassEcho(session, enemy, events);
+  }
+}
+
+function damageTroop(session, troop, amount, events) {
+  if (!troop || troop.dead) return;
+  const lastLineFactor = troop.col <= 1 ? session.modifiers.lastLineDamageTaken : 1;
+  troop.hp -= amount * lastLineFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+  events.push({ type: "troopHit", targetId: troop.id, x: troop.x, y: troop.y });
+  if (troop.hp <= 0) {
+    troop.hp = 0;
+    troop.dead = true;
+    releaseParasiteFromTroop(session, troop);
+    events.push({ type: "troopDeath", x: troop.x, y: troop.y, entity: { ...troop } });
+  }
+}
+
+function updateFlameChannel(session, troop, config, events, dt) {
+  const targets = session.enemies
+    .filter((enemy) => !enemy.dead
+      && enemy.row === troop.row
+      && enemy.x >= troop.x
+      && enemy.x - troop.x <= config.range * CELL.width)
+    .sort((left, right) => left.x - right.x);
+
+  if (!targets.length) {
+    if (troop.channelingAttack) {
+      troop.channelingAttack = false;
+      troop.channelTickAccumulator = 0;
+      troop.lastAttackAt = session.elapsed - (config.attackVisual?.durationMs || 420);
+    }
+    return;
+  }
+
+  if (!troop.channelingAttack) {
+    troop.channelingAttack = true;
+    troop.attackStartedAt = session.elapsed;
+    troop.lastAttackAt = session.elapsed;
+    troop.channelTickAccumulator = config.attackEveryMs;
+  } else {
+    troop.channelTickAccumulator += dt * (troop.attackSpeedFactor || 1) * session.modifiers.attackSpeed;
+  }
+
+  while (troop.channelTickAccumulator >= config.attackEveryMs) {
+    troop.channelTickAccumulator -= config.attackEveryMs;
+    const activeTargets = targets.filter((enemy) => !enemy.dead);
+    if (!activeTargets.length) break;
+    const frameCount = config.attackVisual?.frameMuzzles?.length || 1;
+    const animation = getTroopAnimation(troop, config, session.elapsed, { attack: frameCount });
+    const origin = getMuzzleWorldPosition(troop, config, 0, animation.frame);
+    const damage = config.damage * attackDamageMultiplier(session, troop);
+    activeTargets.forEach((enemy) => damageEnemy(session, enemy, damage, events));
+    events.push({
+      type: "flame", weapon: config.attackVisual?.effect || "flame", troopType: troop.type,
+      sourceTroopId: troop.id, row: troop.row,
+      x0: origin.x, y0: origin.y,
+      x1: Math.max(origin.x + 24, troop.x + config.range * CELL.width), y1: origin.y,
+      color: config.color, seed: nextEffectSeed(session),
+    });
   }
 }
 
 function fireTroop(session, troop, config, target, events) {
-  const damage = config.damage;
+  const damage = config.damage * attackDamageMultiplier(session, troop, { explosive: config.attack === "missile" });
   const origin = getMuzzleWorldPosition(troop, config, 0);
   const targetPoint = getEnemyHitPoint(target);
   const effectSeed = nextEffectSeed(session);
@@ -210,15 +639,118 @@ function fireTroop(session, troop, config, target, events) {
   }
 }
 
-function updateTroops(session, events) {
+function mineCellIsFree(session, row, col) {
+  const troopOccupied = session.troops.some((troop) => !troop.dead && troop.row === row && troop.col === col);
+  const enemyOccupied = session.enemies.some((enemy) => !enemy.dead
+    && enemy.row === row
+    && enemy.x >= col * CELL.width
+    && enemy.x < (col + 1) * CELL.width);
+  const mineOccupied = session.mines.some((mine) => mine.active && mine.row === row && mine.col === col);
+  const reserved = session.projectiles.some((projectile) => projectile.active
+    && projectile.kind === "mine"
+    && projectile.targetRow === row
+    && projectile.targetCol === col);
+  return !troopOccupied && !enemyOccupied && !mineOccupied && !reserved;
+}
+
+function availableMineCells(session, troop, config) {
+  const cells = [];
+  const lastColumn = Math.min(FIELD.cols - 1, troop.col + config.mineRangeCols);
+  for (let row = 0; row < FIELD.rows; row += 1) {
+    for (let col = troop.col + 1; col <= lastColumn; col += 1) {
+      if (mineCellIsFree(session, row, col)) cells.push({ row, col });
+    }
+  }
+  return cells;
+}
+
+function ownedMineCount(session, troopId) {
+  return session.mines.filter((mine) => mine.active && mine.ownerId === troopId).length
+    + session.projectiles.filter((projectile) => projectile.active && projectile.kind === "mine" && projectile.sourceTroopId === troopId).length;
+}
+
+function launchMine(session, troop, config, events) {
+  if (ownedMineCount(session, troop.id) >= config.maxActiveMines) return false;
+  const cells = availableMineCells(session, troop, config);
+  if (!cells.length) return false;
+  const target = cells[Math.floor(session.rng() * cells.length)];
+  troop.lastAttackMode = "mine";
+  troop.lastAttackAt = session.elapsed;
+  const origin = getMuzzleWorldPosition(troop, config, 0);
+  const targetX = target.col * CELL.width + CELL.width / 2;
+  const mineY = target.row * CELL.height + CELL.height / 2;
+  const targetY = mineY + CELL.height * 0.35;
+  session.projectiles.push({
+    id: id("projectile"), kind: "mine", visualKind: "magneticMine", troopType: troop.type,
+    sourceTroopId: troop.id, row: troop.row, targetRow: target.row, targetCol: target.col,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    origin: { ...origin }, targetX, targetY, mineY, ageMs: 0, flightMs: config.mineFlightMs,
+    arcHeight: config.mineArcHeight, rotation: 0,
+    damage: config.damage * attackDamageMultiplier(session, troop, { explosive: true }), radius: config.radius,
+    color: config.color, active: true, launched: false, seed: nextEffectSeed(session),
+    launchAt: session.elapsed + (config.attackVisuals.mine.shots?.[0]?.atMs || 0),
+  });
+  troop.mineReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+  events.push({ type: "mineReserved", row: target.row, col: target.col, sourceTroopId: troop.id });
+  return true;
+}
+
+function fireCloseGun(session, troop, config, target) {
+  troop.lastAttackMode = "gun";
+  troop.lastAttackAt = session.elapsed;
+  const origin = getMuzzleWorldPosition(troop, config, 0);
+  session.projectiles.push({
+    id: id("projectile"), kind: "bullet", troopType: troop.type, visualKind: config.attackVisuals.gun.effect,
+    sourceTroopId: troop.id, shotIndex: 0, row: troop.row, straightLane: true,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    origin: { ...origin }, ageMs: 0, trail: [{ x: origin.x, y: origin.y }],
+    vx: 390, vy: 0, damage: config.closeDamage * attackDamageMultiplier(session, troop), targetId: target.id, radius: 0,
+    color: config.color, active: true, launched: false, seed: nextEffectSeed(session), maxDistance: config.closeRange * CELL.width,
+    launchAt: session.elapsed + (config.attackVisuals.gun.shots?.[0]?.atMs || 0),
+  });
+  troop.gunReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.closeAttackEveryMs);
+}
+
+function updateDemolidora(session, troop, config, events) {
+  const closeTarget = session.enemies
+    .filter((enemy) => !enemy.dead && enemy.row === troop.row && enemy.x >= troop.x && enemy.x - troop.x <= config.closeRange * CELL.width)
+    .sort((left, right) => left.x - right.x)[0] || null;
+  if (closeTarget) {
+    if (session.elapsed >= troop.gunReadyAt) fireCloseGun(session, troop, config, closeTarget);
+    return;
+  }
+  if (session.elapsed >= troop.mineReadyAt) launchMine(session, troop, config, events);
+}
+
+function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead) continue;
-    const config = TROOPS[troop.type];
+    const baseConfig = TROOPS[troop.type];
+    const config = effectiveCombatConfig(session, troop, baseConfig);
+    if (config.attack === "energy") {
+      troop.energyAccumulator = Math.min(config.attackEveryMs, troop.energyAccumulator + dt * (troop.attackSpeedFactor || 1));
+      if (troop.energyAccumulator < config.attackEveryMs || session.energy >= session.energyMax) continue;
+      const amount = Math.min(config.energyPerPulse, session.energyMax - session.energy);
+      session.energy += amount;
+      session.lastEnergyGainAt = session.elapsed;
+      troop.energyAccumulator -= config.attackEveryMs;
+      troop.lastAttackAt = session.elapsed;
+      events.push({ type: "energyGenerated", sourceTroopId: troop.id, x: troop.x, y: troop.y, amount, color: config.color });
+      continue;
+    }
+    if (config.attack === "flame") {
+      updateFlameChannel(session, troop, config, events, dt);
+      continue;
+    }
+    if (config.attack === "mine") {
+      updateDemolidora(session, troop, config, events);
+      continue;
+    }
     if (config.attack === "none" || session.elapsed < troop.attackReadyAt) continue;
-    const target = closestEnemy(session, troop, config.range);
+    const target = closestEnemy(session, troop, config);
     if (!target) continue;
     fireTroop(session, troop, config, target, events);
-    troop.attackReadyAt = session.elapsed + config.attackEveryMs;
+    troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
     troop.lastAttackAt = session.elapsed;
   }
 }
@@ -230,12 +762,33 @@ function updateProjectiles(session, dt, events) {
     if (!projectile.launched) {
       projectile.launched = true;
       events.push({
-        type: "shoot", weapon: projectile.visualKind, troopType: projectile.troopType,
+        type: projectile.kind === "mine" ? "mineLaunch" : "shoot", weapon: projectile.visualKind, troopType: projectile.troopType,
         sourceTroopId: projectile.sourceTroopId, shotIndex: projectile.shotIndex,
         x: projectile.x, y: projectile.y, color: projectile.color, seed: projectile.seed,
       });
     }
     projectile.ageMs += dt;
+    if (projectile.kind === "mine") {
+      const progress = Math.min(1, projectile.ageMs / projectile.flightMs);
+      projectile.previousX = projectile.x;
+      projectile.previousY = projectile.y;
+      projectile.previousRenderX = projectile.x;
+      projectile.previousRenderY = projectile.y;
+      projectile.x = projectile.origin.x + (projectile.targetX - projectile.origin.x) * progress;
+      projectile.y = projectile.origin.y + (projectile.targetY - projectile.origin.y) * progress
+        - projectile.arcHeight * 4 * progress * (1 - progress);
+      projectile.rotation = progress * Math.PI * 3;
+      if (progress >= 1) {
+        session.mines.push({
+          id: id("mine"), ownerId: projectile.sourceTroopId, row: projectile.targetRow, col: projectile.targetCol,
+          x: projectile.targetX, y: projectile.mineY, damage: projectile.damage, radius: projectile.radius,
+          color: projectile.color, active: true, armedAt: session.elapsed, seed: projectile.seed,
+        });
+        projectile.active = false;
+        events.push({ type: "mineArmed", x: projectile.targetX, y: projectile.targetY, color: projectile.color, seed: projectile.seed });
+      }
+      continue;
+    }
     let target;
     if (projectile.straightLane) {
       target = session.enemies
@@ -253,6 +806,8 @@ function updateProjectiles(session, dt, events) {
     }
     projectile.previousX = projectile.x;
     projectile.previousY = projectile.y;
+    projectile.previousRenderX = projectile.x;
+    projectile.previousRenderY = projectile.y;
     projectile.x += projectile.vx * dt / 1000;
     projectile.y += projectile.vy * dt / 1000;
     projectile.trail.push({ x: projectile.x, y: projectile.y });
@@ -299,8 +854,9 @@ function updateProjectiles(session, dt, events) {
     }
     if (hitTarget) {
       if (projectile.kind === "missile") {
-        session.enemies.filter((enemy) => !enemy.dead && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= projectile.radius)
-          .forEach((enemy) => damageEnemy(session, enemy, projectile.damage, events));
+        const affected = session.enemies.filter((enemy) => !enemy.dead && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= projectile.radius);
+        affected.forEach((enemy) => damageEnemy(session, enemy, projectile.damage, events));
+        affected.forEach((enemy) => applyConcussiveImpact(session, enemy));
         events.push({ type: "explosion", weapon: projectile.visualKind, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
       } else {
         damageEnemy(session, target, projectile.damage, events);
@@ -312,7 +868,7 @@ function updateProjectiles(session, dt, events) {
       }
       if (projectile.kind === "ice" && !target.dead) {
         target.slowFactor = projectile.slowFactor;
-        target.slowUntil = session.elapsed + projectile.slowMs * session.modifiers.slowDuration;
+        target.slowUntil = session.elapsed + projectile.slowMs * session.modifiers.slowDuration * session.modifiers.krioSlowDuration;
       }
       projectile.active = false;
     }
@@ -320,9 +876,165 @@ function updateProjectiles(session, dt, events) {
   session.projectiles = session.projectiles.filter((projectile) => projectile.active);
 }
 
+function moveEnemy(session, enemy, dt, events) {
+  enemy.moving = true;
+  const slow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
+  enemy.x -= enemy.speed * session.modifiers.enemySpeed * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
+  if (enemy.x <= FIELD.baseX) {
+    enemy.dead = true;
+    const shielded = !session.sandbox && session.shieldCharges > 0;
+    if (shielded) session.shieldCharges -= 1;
+    const breachDamage = shielded ? 0 : enemy.baseDamage * session.currentWaveBaseDamageFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+    if (!session.sandboxSettings?.invulnerableBase) session.integrity = Math.max(0, session.integrity - breachDamage);
+    if (shielded) events.push({ type: "shieldBlock", x: FIELD.baseX, y: enemy.y, remaining: session.shieldCharges });
+    events.push({ type: "breach", damage: breachDamage, x: FIELD.baseX, y: enemy.y });
+  }
+}
+
+function closestTroopForEnemy(session, enemy, range = Infinity) {
+  return session.troops
+    .filter((troop) => !troop.dead
+      && troop.row === enemy.row
+      && troop.x <= enemy.x
+      && enemy.x - troop.x <= range * CELL.width)
+    .sort((left, right) => right.x - left.x)[0] || null;
+}
+
+function updateJumpingParasite(session, enemy, config) {
+  const target = session.troops.find((troop) => troop.id === enemy.jumpTargetTroopId && !troop.dead);
+  if (!target || (target.attachedParasiteId && target.attachedParasiteId !== enemy.id)) {
+    enemy.jumping = false;
+    enemy.jumpTargetTroopId = null;
+    enemy.jumpProgress = 0;
+    enemy.moving = true;
+    return false;
+  }
+
+  const progress = clamp((session.elapsed - enemy.jumpStartedAt) / config.jumpDurationMs, 0, 1);
+  enemy.jumpProgress = progress;
+  enemy.x = enemy.jumpFromX + (target.x - enemy.jumpFromX) * progress;
+  enemy.moving = true;
+  if (progress < 1) return true;
+  return attachParasite(session, enemy, target, config);
+}
+
+function updateParasiteSaltador(session, enemy, config, dt, events) {
+  if (enemy.attachedToTroopId) {
+    const host = session.troops.find((troop) => troop.id === enemy.attachedToTroopId && !troop.dead);
+    if (!host || host.attachedParasiteId !== enemy.id) {
+      detachParasite(session, enemy);
+    } else {
+      enemy.x = host.x;
+      enemy.y = host.y;
+      enemy.moving = false;
+      if (session.elapsed >= enemy.attackReadyAt) {
+        damageTroop(session, host, enemy.damage, events);
+        enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+        enemy.lastAttackAt = session.elapsed;
+      }
+      return;
+    }
+  }
+
+  if (enemy.jumping && updateJumpingParasite(session, enemy, config)) return;
+
+  const candidates = session.troops
+    .filter((troop) => !troop.dead && troop.row === enemy.row && troop.x <= enemy.x)
+    .sort((left, right) => right.x - left.x);
+  const front = candidates[0] || null;
+  if (!front) {
+    moveEnemy(session, enemy, dt, events);
+    return;
+  }
+
+  const atFront = enemy.x - front.x <= 54;
+  if (atFront && !enemy.jumpConsumed) {
+    enemy.jumpConsumed = true;
+    const rear = candidates[1] || null;
+    const reserved = rear && session.enemies.some((candidate) => candidate !== enemy
+      && !candidate.dead
+      && candidate.jumpTargetTroopId === rear.id);
+    if (rear && !rear.attachedParasiteId && !reserved) {
+      enemy.jumping = true;
+      enemy.jumpStartedAt = session.elapsed;
+      enemy.jumpProgress = 0;
+      enemy.jumpFromX = enemy.x;
+      enemy.jumpTargetTroopId = rear.id;
+      enemy.moving = true;
+      return;
+    }
+  }
+
+  if (atFront) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      damageTroop(session, front, enemy.damage, events);
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+    }
+  } else {
+    moveEnemy(session, enemy, dt, events);
+  }
+}
+
+function launchArcaneProjectile(session, enemy, config, target, events) {
+  const origin = getEnemyMuzzleWorldPosition(enemy, config);
+  const flightSeconds = Math.max(0.1, (origin.x - target.x) / config.projectileSpeed);
+  const seed = nextEffectSeed(session);
+  const visualKind = config.attackVisual?.effect || "abyssOrb";
+  session.enemyProjectiles.push({
+    id: id("enemy_projectile"), kind: "arcane", visualKind,
+    sourceEnemyId: enemy.id, row: enemy.row, x: origin.x, y: origin.y,
+    previousX: origin.x, previousY: origin.y, previousRenderX: origin.x, previousRenderY: origin.y,
+    vx: -config.projectileSpeed, vy: (target.y - 18 - origin.y) / flightSeconds,
+    damage: enemy.damage, color: config.color, active: true, launched: true,
+    trail: [{ x: origin.x, y: origin.y }], ageMs: 0, seed,
+  });
+  events.push({
+    type: "shoot", weapon: visualKind, faction: "enemy", sourceEnemyId: enemy.id,
+    x: origin.x, y: origin.y, color: config.color, seed,
+  });
+}
+
+function updateEnemyProjectiles(session, dt, events) {
+  for (const projectile of session.enemyProjectiles) {
+    if (!projectile.active) continue;
+    projectile.ageMs += dt;
+    projectile.previousX = projectile.x;
+    projectile.previousY = projectile.y;
+    projectile.previousRenderX = projectile.x;
+    projectile.previousRenderY = projectile.y;
+    projectile.x += projectile.vx * dt / 1000;
+    projectile.y += projectile.vy * dt / 1000;
+    projectile.trail.push({ x: projectile.x, y: projectile.y });
+    if (projectile.trail.length > 14) projectile.trail.shift();
+
+    const target = session.troops
+      .filter((troop) => !troop.dead
+        && troop.row === projectile.row
+        && troop.x <= projectile.previousX + 24
+        && troop.x >= projectile.x - 24)
+      .sort((left, right) => right.x - left.x)[0] || null;
+    if (target) {
+      damageTroop(session, target, projectile.damage, events);
+      events.push({
+        type: "abyssImpact", weapon: projectile.visualKind, x: target.x, y: target.y - 18,
+        color: projectile.color, seed: projectile.seed,
+      });
+      projectile.active = false;
+    } else if (projectile.x <= FIELD.baseX || projectile.y < -80 || projectile.y > FIELD.height + 80) {
+      projectile.active = false;
+    }
+  }
+  session.enemyProjectiles = session.enemyProjectiles.filter((projectile) => projectile.active);
+}
+
 function updateEnemies(session, dt, events) {
   for (const enemy of session.enemies) {
     if (enemy.dead) continue;
+    enemy.previousRenderX = enemy.x;
+    enemy.previousRenderY = enemy.y;
+    const config = ENEMIES[enemy.type];
     if (enemy.variant === "alpha") {
       const ratio = enemy.hp / enemy.maxHp;
       const targetPhase = ratio <= 0.33 ? 2 : ratio <= 0.66 ? 1 : 0;
@@ -333,44 +1045,90 @@ function updateEnemies(session, dt, events) {
         events.push({ type: "bossPhase", phase: enemy.bossPhase, x: enemy.x, y: enemy.y });
       }
     }
-    const candidates = session.troops.filter((troop) => !troop.dead && troop.row === enemy.row && troop.x <= enemy.x);
-    const target = candidates.sort((left, right) => right.x - left.x)[0] || null;
-    if (target && enemy.x - target.x <= 54) {
-      if (session.elapsed >= enemy.attackReadyAt) {
-        target.hp -= enemy.damage;
-        enemy.attackReadyAt = session.elapsed + ENEMIES[enemy.type].attackEveryMs;
+
+    if (enemy.type === "parasitaSaltador") {
+      updateParasiteSaltador(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (config.attack === "arcane") {
+      const rangedTarget = closestTroopForEnemy(session, enemy, config.range);
+      if (!rangedTarget) {
+        enemy.casting = false;
+        enemy.castReadyAt = Infinity;
+        moveEnemy(session, enemy, dt, events);
+        continue;
+      }
+      enemy.moving = false;
+      if (enemy.casting && session.elapsed >= enemy.castReadyAt) {
+        launchArcaneProjectile(session, enemy, config, rangedTarget, events);
+        enemy.casting = false;
+        enemy.castReadyAt = Infinity;
         enemy.lastAttackAt = session.elapsed;
-        events.push({ type: "troopHit", x: target.x, y: target.y });
-        if (target.hp <= 0) {
-          target.dead = true;
-          events.push({ type: "troopDeath", x: target.x, y: target.y });
-        }
+        enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      } else if (!enemy.casting && session.elapsed >= enemy.attackReadyAt) {
+        enemy.casting = true;
+        enemy.castStartedAt = session.elapsed;
+        enemy.castReadyAt = session.elapsed + config.chargeMs;
+        const origin = getEnemyMuzzleWorldPosition(enemy, config);
+        events.push({ type: "abyssCharge", x: origin.x, y: origin.y, color: config.color, seed: nextEffectSeed(session) });
+      }
+      continue;
+    }
+
+    const target = closestTroopForEnemy(session, enemy);
+    if (target && enemy.x - target.x <= 54) {
+      enemy.moving = false;
+      if (session.elapsed >= enemy.attackReadyAt) {
+        damageTroop(session, target, enemy.damage, events);
+        enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+        enemy.lastAttackAt = session.elapsed;
       }
     } else {
-      const slow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
-      enemy.x -= enemy.speed * session.modifiers.enemySpeed * slow * dt / 1000;
-      if (enemy.x <= FIELD.baseX) {
-        enemy.dead = true;
-        session.integrity = Math.max(0, session.integrity - enemy.baseDamage);
-        events.push({ type: "breach", damage: enemy.baseDamage, x: FIELD.baseX, y: enemy.y });
-      }
+      moveEnemy(session, enemy, dt, events);
     }
   }
   session.troops = session.troops.filter((troop) => !troop.dead);
   session.enemies = session.enemies.filter((enemy) => !enemy.dead);
 }
 
+function updateMines(session, events) {
+  for (const mine of session.mines) {
+    if (!mine.active) continue;
+    const cellLeft = mine.col * CELL.width;
+    const cellRight = cellLeft + CELL.width;
+    const trigger = session.enemies.find((enemy) => {
+      if (enemy.dead || enemy.row !== mine.row || !isGroundTrapEligible(enemy)) return false;
+      const previousX = Number.isFinite(enemy.previousRenderX) ? enemy.previousRenderX : enemy.x;
+      return Math.min(previousX, enemy.x) <= cellRight && Math.max(previousX, enemy.x) >= cellLeft;
+    });
+    if (!trigger) continue;
+    mine.active = false;
+    const affected = session.enemies
+      .filter((enemy) => !enemy.dead && isGroundTrapEligible(enemy)
+        && (enemy === trigger || Math.hypot(enemy.x - mine.x, enemy.y - mine.y) <= mine.radius));
+    affected.forEach((enemy) => damageEnemy(session, enemy, mine.damage, events));
+    affected.forEach((enemy) => applyConcussiveImpact(session, enemy));
+    events.push({ type: "explosion", weapon: "magneticMine", x: mine.x, y: mine.y, color: mine.color, seed: mine.seed });
+  }
+  session.mines = session.mines.filter((mine) => mine.active);
+  session.enemies = session.enemies.filter((enemy) => !enemy.dead);
+}
+
 function finish(session, outcome) {
   if (session.outcome) return;
+  const integrityPercent = session.integrityMax > 0 ? session.integrity / session.integrityMax * 100 : 0;
   session.outcome = outcome;
   session.waveActive = false;
   session.preparing = false;
   session.result = {
     phaseId: session.phase.id,
     outcome,
-    stars: calculateStars({ outcome, integrity: session.integrity, durationMs: session.elapsed, targetDurationMs: session.phase.targetDurationMs }),
+    stars: calculateStars({ outcome, integrity: session.integrity, integrityMax: session.integrityMax, durationMs: session.elapsed, targetDurationMs: session.phase.targetDurationMs }),
     durationMs: Math.round(session.elapsed),
-    integrity: Math.round(session.integrity),
+    integrity: Math.round(integrityPercent),
+    integrityCurrent: Math.round(session.integrity),
+    integrityMax: Math.round(session.integrityMax),
     energy: Math.round(session.energy),
     enemiesDefeated: session.killed,
     composition: { ...session.deployed },
@@ -382,30 +1140,53 @@ export function stepBattle(session, dt = 32) {
   if (session.outcome) return [];
   const events = [];
   session.elapsed += dt;
-  if (session.waveActive) {
+  if (session.waveActive || session.sandbox) {
     session.supplyAccumulator += dt;
     while (session.supplyAccumulator >= 1000) {
       session.supplyAccumulator -= 1000;
       session.supply = Math.min(session.supplyMax, session.supply + 1);
     }
-    while (session.queue.length && session.elapsed >= session.nextSpawnAt) {
+    while (session.waveActive && session.queue.length && session.elapsed >= session.nextSpawnAt) {
       const enemy = createEnemy(session, session.queue.shift());
+      if (!enemy) continue;
       session.nextSpawnAt += session.phase.cadenceMs;
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
-    updateTroops(session, events);
+    updateTroops(session, events, dt);
     updateProjectiles(session, dt, events);
+    updateEnemyProjectiles(session, dt, events);
     updateEnemies(session, dt, events);
-    if (session.integrity <= 0) finish(session, "defeat");
-    if (!session.outcome && session.queue.length === 0 && session.enemies.length === 0) {
+    updateMines(session, events);
+    if (!session.sandbox && session.integrity <= 0) finish(session, "defeat");
+    if (!session.sandbox && !session.outcome && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0) {
       session.waveActive = false;
       const completedWave = session.waveIndex;
+      const reactor = session.troops.find((troop) => !troop.dead && TROOPS[troop.type].attack === "energy");
+      if (reactor) {
+        const config = TROOPS[reactor.type];
+        const amount = Math.min(config.waveEnergyBonus, Math.max(0, session.energyMax - session.energy));
+        if (amount > 0) {
+          session.energy += amount;
+          session.lastEnergyGainAt = session.elapsed;
+          reactor.lastAttackAt = session.elapsed;
+          events.push({ type: "energyGenerated", sourceTroopId: reactor.id, x: reactor.x, y: reactor.y, amount, reason: "wave", color: config.color });
+        }
+      }
       if (completedWave >= session.phase.waves.length - 1) {
         finish(session, "victory");
       } else {
         session.waveIndex += 1;
         session.preparing = true;
-        session.pendingDecision = session.phase.waves[completedWave].decision || null;
+        const level = completedWave + 1;
+        session.pendingDecisionLevel = level;
+        session.pendingDecision = getDecisionOptions({
+          level,
+          integrity: session.integrity,
+          integrityMax: session.integrityMax,
+          loadout: session.loadout,
+          decisions: session.decisions,
+          seed: session.seed,
+        });
         events.push({ type: "waveComplete", wave: completedWave + 1 });
       }
     }
@@ -414,14 +1195,24 @@ export function stepBattle(session, dt = 32) {
 }
 
 export function getSnapshot(session) {
+  const deploymentStats = Object.fromEntries(session.loadout.map((troopId) => [troopId, getEffectiveTroopStats(session, troopId)]));
   return {
-    energy: Math.round(session.energy), integrity: Math.round(session.integrity),
+    energy: Math.round(session.energy), energyMax: Math.round(session.energyMax),
+    energyPulse: session.elapsed - session.lastEnergyGainAt < 700,
     supply: Math.round(session.supply * 10) / 10, supplyMax: session.supplyMax,
+    integrity: Math.round(session.integrity), integrityMax: Math.round(session.integrityMax),
     wave: session.waveIndex + 1, totalWaves: session.phase.waves.length,
     enemies: session.enemies.length, queued: session.queue.length,
-    preparing: session.preparing, pendingDecision: session.pendingDecision,
+    mines: session.mines.length,
+    preparing: session.preparing, pendingDecision: session.pendingDecision, pendingDecisionLevel: session.pendingDecisionLevel,
     outcome: session.outcome, elapsed: session.elapsed,
+    sandbox: session.sandbox,
+    sandboxSettings: session.sandboxSettings ? { ...session.sandboxSettings } : null,
     cooldowns: Object.fromEntries(Object.entries(session.deployCooldowns).map(([key, value]) => [key, Math.max(0, value - session.elapsed)])),
+    deploymentStats,
+    refundRate: session.modifiers.refundRate,
+    shieldCharges: session.shieldCharges,
+    nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,
   };
 }
 

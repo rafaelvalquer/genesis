@@ -15,7 +15,7 @@ export const DEFAULT_SETTINGS = {
 
 export function createDefaultSave() {
   return {
-    version: 1,
+    version: 2,
     unlockedPhaseIndex: 0,
     currentPhaseId: PHASES[0].id,
     phaseStats: {},
@@ -28,10 +28,12 @@ function isPlainObject(value) {
 
 export function migrateSave(value) {
   if (!isPlainObject(value)) return createDefaultSave();
-  const unlocked = Math.max(0, Math.min(PHASES.length - 1, Number(value.unlockedPhaseIndex) || 0));
   const phaseStats = isPlainObject(value.phaseStats) ? value.phaseStats : {};
+  const completedLegacyCampaign = Number(phaseStats.fase_08?.victories || 0) > 0;
+  const migratedIndex = Math.max(Number(value.unlockedPhaseIndex) || 0, completedLegacyCampaign ? 8 : 0);
+  const unlocked = Math.max(0, Math.min(PHASES.length - 1, migratedIndex));
   return {
-    version: 1,
+    version: 2,
     unlockedPhaseIndex: unlocked,
     currentPhaseId: PHASES[unlocked]?.id || PHASES[0].id,
     phaseStats,

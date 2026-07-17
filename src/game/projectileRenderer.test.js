@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createFireTrailParticles, createIceTrailParticles, pushEventParticles } from "./projectileRenderer.js";
+import {
+  createFireTrailParticles,
+  createFlameStreamParticles,
+  createIceTrailParticles,
+  pushEventParticles,
+} from "./projectileRenderer.js";
 
 describe("efeitos dos projeteis", () => {
   it("gera efeitos reproduziveis a partir da semente do evento", () => {
@@ -26,7 +31,24 @@ describe("efeitos dos projeteis", () => {
     ], 0, { quality: "high" });
     expect(particles.some((particle) => particle.kind === "laser")).toBe(true);
     expect(particles.some((particle) => particle.kind === "shotgun")).toBe(true);
+    expect(particles.some((particle) => particle.kind === "flameJet")).toBe(true);
     expect(particles.some((particle) => particle.kind === "flame")).toBe(true);
+  });
+
+  it("adapta o jato continuo aos perfis graficos e ao movimento reduzido", () => {
+    const event = { type: "flame", x0: 10, y0: 40, x1: 180, y1: 40, seed: 33 };
+    const low = createFlameStreamParticles(event, 0, { quality: "low" });
+    const medium = createFlameStreamParticles(event, 0, { quality: "medium" });
+    const high = createFlameStreamParticles(event, 0, { quality: "high" });
+    const reduced = createFlameStreamParticles(event, 0, { quality: "high", reduceMotion: true });
+
+    expect(low.length).toBeLessThan(medium.length);
+    expect(medium.length).toBeLessThan(high.length);
+    expect(low.some((particle) => particle.kind === "smoke")).toBe(false);
+    expect(high.some((particle) => particle.kind === "smoke")).toBe(true);
+    expect(high.find((particle) => particle.kind === "flameJet").life).toBeGreaterThan(160);
+    expect(reduced.find((particle) => particle.kind === "flameJet").waveAmp).toBe(0);
+    expect(reduced.filter((particle) => particle.kind === "flame").every((particle) => particle.waveAmp === 0)).toBe(true);
   });
 
   it("emite flocos persistentes do krio como no efeito original", () => {

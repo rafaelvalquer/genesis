@@ -119,21 +119,32 @@ a .phase-card:hover { transform: translateY(-5px); border-color: var(--cyan); }.
 
 .loadout-page { padding-top: 36px; }.loadout-header { align-items: center; }.loadout-header .back-link { position: absolute; top: 88px; }.loadout-header > div:first-of-type { margin-left: 150px; }
 .loadout-layout { display: grid; grid-template-columns: 1fr 340px; gap: 26px; }.unit-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; align-content: start; }
-.unit-card { position: relative; display: grid; grid-template-rows: 150px 1fr; text-align: left; padding: 0; border: 1px solid var(--line); background: rgba(9,17,31,.9); cursor: pointer; overflow: hidden; min-height: 345px; transition: border-color .15s ease, transform .15s ease; }.unit-card:hover { transform: translateY(-3px); border-color: var(--line-bright); }.unit-card.active { border-color: var(--green); box-shadow: inset 0 0 34px rgba(52,211,153,.05); }
+.unit-card { position: relative; text-align: left; padding: 0; border: 1px solid var(--line); background: rgba(9,17,31,.9); overflow: hidden; min-height: 345px; transition: border-color .15s ease, transform .15s ease; }.unit-card:hover { transform: translateY(-3px); border-color: var(--line-bright); }.unit-card.active { border-color: var(--green); box-shadow: inset 0 0 34px rgba(52,211,153,.05); }
+.unit-select { width: 100%; min-height: 343px; display: grid; grid-template-rows: 150px 1fr; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.unit-info-button { position: absolute; z-index: 5; left: 12px; top: 12px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid var(--cyan); border-radius: 50%; background: rgba(4,13,23,.9); color: var(--cyan-soft); cursor: pointer; font: italic 800 14px Georgia, serif; box-shadow: 0 0 14px rgba(34,211,238,.14); }.unit-info-button:hover { background: var(--cyan); color: #031018; box-shadow: 0 0 18px rgba(34,211,238,.35); }
 .unit-check { position: absolute; z-index: 4; right: 12px; top: 12px; width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--line-bright); background: #09111f; }.unit-card.active .unit-check { background: var(--green); color: #03120d; border-color: var(--green); }
 .unit-portrait { position: relative; display: grid; place-items: center; background: radial-gradient(circle at 50% 75%, rgba(34,211,238,.18), transparent 48%), linear-gradient(145deg, #102235, #07101d); overflow: hidden; }.unit-portrait img { width: 120px; height: 145px; object-fit: contain; object-position: center bottom; position: relative; z-index: 2; }.unit-portrait > span { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; }
-.unit-info { padding: 17px; }.unit-info h2 { margin: 5px 0 8px; font-size: 21px; }.unit-info p { color: var(--muted); font-size: 12px; line-height: 1.5; min-height: 54px; }.unit-info > div { display: flex; gap: 7px; }.unit-info > div span { border: 1px solid var(--line); padding: 4px 6px; color: #9bb2c3; font-size: 9px; }
+.unit-info { display: block; padding: 17px; }.unit-info h2 { margin: 5px 0 8px; font-size: 21px; }.unit-info p { color: var(--muted); font-size: 12px; line-height: 1.5; min-height: 54px; }.unit-summary { display: flex; gap: 7px; }.unit-summary > span { border: 1px solid var(--line); padding: 4px 6px; color: #9bb2c3; font-size: 9px; }
 .mission-brief { position: sticky; top: 94px; align-self: start; border: 1px solid var(--line); background: var(--panel); padding: 24px; }.mission-brief h2 { margin: 8px 0 18px; font-size: 25px; }.mission-brief dl { margin: 0; }.mission-brief dl > div { display: flex; justify-content: space-between; padding: 11px 0; border-bottom: 1px solid rgba(28,58,81,.7); }.mission-brief dt { color: var(--muted); }.mission-brief dd { margin: 0; font-weight: 700; color: var(--cyan-soft); }.environment-note { display: flex; flex-direction: column; gap: 4px; padding: 14px; margin-top: 18px; background: rgba(167,139,250,.07); border-left: 2px solid var(--violet); }.environment-note span { color: var(--muted); font-size: 11px; }
 
 .app-shell:has(.play-page) .site-header { display: none; }.play-page { min-height: 100vh; background: #03070c; }.battle-shell { min-height: 100vh; display: flex; flex-direction: column; position: relative; background: radial-gradient(900px 400px at 70% 0, rgba(34,211,238,.07), transparent), #040a12; }
 .battle-topbar { min-height: 82px; display: grid; grid-template-columns: minmax(210px, .8fr) minmax(540px, 1.5fr) auto; align-items: center; gap: 20px; padding: 10px 18px; border-bottom: 1px solid var(--line); background: rgba(5,10,18,.94); }.battle-topbar h1 { font-size: 20px; margin: 4px 0 0; text-transform: uppercase; }.battle-stats { display: grid; grid-template-columns: repeat(5, 1fr); border: 1px solid var(--line); background: rgba(7,16,29,.8); }.battle-stats > div { min-height: 50px; display: flex; flex-direction: column; justify-content: center; padding: 6px 13px; border-right: 1px solid var(--line); }.battle-stats > div:last-child { border-right: 0; }.battle-stats span { color: var(--muted); font-size: 8px; letter-spacing: .11em; text-transform: uppercase; }.battle-stats strong { margin-top: 4px; font-size: 16px; }.cyan { color: var(--cyan); }.success { color: var(--green); }.danger { color: var(--danger); }
+.battle-stats .energy-pulse { animation: energy-gain .65s ease-out; }.battle-stats .energy-pulse strong { text-shadow: 0 0 16px var(--cyan); }
 .battle-actions { display: flex; gap: 7px; }.icon-button, .speed-button, .ghost-button { min-height: 38px; border: 1px solid var(--line-bright); background: #0d1c2b; cursor: pointer; }.icon-button, .speed-button { width: 42px; padding: 0; }.speed-button { color: var(--green); font-weight: 800; }.ghost-button { padding: 0 13px; color: var(--muted); }
 .battle-main { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); padding: 12px; gap: 12px; }.troop-rail { min-height: 0; padding: 12px; border: 1px solid var(--line); background: rgba(7,16,29,.94); display: flex; flex-direction: column; gap: 7px; }.rail-heading { display: flex; flex-direction: column; gap: 3px; padding: 2px 2px 8px; }.rail-heading span { color: var(--cyan); font: 700 11px "Chakra Petch"; letter-spacing: .18em; }.rail-heading small { color: var(--muted); }
-.troop-slot { min-height: 58px; border: 1px solid var(--line); background: #0a1726; display: grid; grid-template-columns: 5px 1fr auto; align-items: center; gap: 10px; padding: 7px 9px; text-align: left; cursor: pointer; }.troop-slot:hover { border-color: var(--line-bright); }.troop-slot.selected { border-color: var(--cyan); background: rgba(34,211,238,.08); box-shadow: inset 3px 0 var(--cyan); }.troop-color { width: 4px; height: 32px; }.troop-slot > span:nth-child(2) { display: flex; flex-direction: column; gap: 2px; }.troop-slot b { font-size: 12px; }.troop-slot small { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }.slot-cost { display: flex; flex-direction: column; align-items: flex-end; color: var(--amber); font-size: 11px; }
+@property --cooldown-progress { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+.troop-slot { min-height: 62px; border: 1px solid var(--line); background: #0a1726; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 7px 9px 7px 7px; text-align: left; cursor: pointer; }.troop-slot:hover { border-color: var(--line-bright); }.troop-slot.selected { border-color: var(--cyan); background: rgba(34,211,238,.08); box-shadow: inset 3px 0 var(--cyan); }.troop-slot.cooling-down:disabled { opacity: 1; border-color: color-mix(in srgb, var(--troop-color, var(--cyan)) 28%, var(--line)); background: linear-gradient(90deg, color-mix(in srgb, var(--troop-color, var(--cyan)) 7%, transparent), #08131f 45%); }.troop-slot.resource-locked:not(.cooling-down) { opacity: .42; filter: grayscale(.35); }.troop-portrait { position: relative; width: 42px; height: 46px; display: grid; place-items: center; overflow: hidden; border: 1px solid color-mix(in srgb, var(--troop-color) 48%, var(--line)); background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--troop-color) 18%, transparent), rgba(2,6,12,.92) 72%); box-shadow: inset 0 0 12px rgba(0,0,0,.55); }.troop-portrait img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; filter: drop-shadow(0 2px 3px rgba(0,0,0,.72)); }.cooldown-sweep { position: absolute; inset: 0; background: conic-gradient(from 0deg at 50% 50%, transparent 0deg var(--cooldown-progress), rgba(1,4,10,.88) var(--cooldown-progress) 360deg); border-radius: 50%; transition: --cooldown-progress .1s linear; }.cooldown-sweep::after { content: ""; position: absolute; inset: 0; border: 1px solid color-mix(in srgb, var(--troop-color) 58%, transparent); border-radius: 50%; box-shadow: inset 0 0 10px rgba(0,0,0,.8); }.troop-slot.cooldown-ending .troop-portrait { animation: cooldown-ready-pulse .4s ease-in-out infinite alternate; }.troop-details { min-width: 0; display: flex; flex-direction: column; gap: 2px; }.troop-slot b { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.troop-slot small { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }.slot-cost { display: flex; flex-direction: column; align-items: flex-end; color: var(--amber); font-size: 11px; }.troop-slot.cooling-down .slot-cost small { color: var(--troop-color, var(--cyan-soft)); font-variant-numeric: tabular-nums; }
 .remove-button { min-height: 38px; margin-top: 4px; border: 1px solid rgba(251,113,133,.3); background: rgba(251,113,133,.06); color: #fda4af; cursor: pointer; }.remove-button.active { background: rgba(251,113,133,.2); border-color: var(--danger); }.rail-tip { margin-top: auto; min-height: 56px; padding: 10px; border-left: 2px solid var(--amber); background: rgba(251,191,36,.06); color: #b7c8d4; font-size: 10px; line-height: 1.45; }
 .canvas-wrap { position: relative; min-height: 0; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--line); background: #02060a; }.canvas-wrap canvas { width: min(100%, calc((100vh - 118px) * 1.6667)); max-height: calc(100vh - 118px); aspect-ratio: 5 / 3; display: block; cursor: crosshair; box-shadow: 0 0 60px rgba(34,211,238,.08); }.wave-banner { position: absolute; z-index: 4; top: 10px; left: 50%; translate: -50% 0; border: 1px solid rgba(34,211,238,.4); background: rgba(3,10,18,.88); color: var(--cyan-soft); padding: 7px 18px; font: 700 9px "Chakra Petch"; letter-spacing: .16em; pointer-events: none; }.pause-overlay { position: absolute; inset: 0; z-index: 8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: rgba(2,6,12,.65); backdrop-filter: blur(4px); }.pause-overlay span { font: 700 22px "Chakra Petch"; letter-spacing: .18em; }.pause-overlay button { min-height: 42px; padding: 0 24px; border: 1px solid var(--cyan); background: rgba(34,211,238,.1); cursor: pointer; }.start-wave { position: absolute; z-index: 5; left: 50%; bottom: 22px; translate: -50% 0; min-width: 300px; min-height: 58px; border: 1px solid var(--cyan); background: linear-gradient(135deg, #0e7490, #155e75); box-shadow: 0 0 30px rgba(34,211,238,.22); cursor: pointer; font: 700 14px "Chakra Petch"; letter-spacing: .1em; }.start-wave span { display: block; color: #bae6fd; font: 500 9px Inter; letter-spacing: .04em; margin-top: 3px; }
 .battle-loader { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: radial-gradient(circle, #0b2635, #03070c 60%); }.loader-mark { width: 78px; height: 78px; display: grid; place-items: center; border: 1px solid var(--cyan); color: var(--cyan); font: 800 24px "Chakra Petch"; box-shadow: 0 0 28px rgba(34,211,238,.2); }.battle-loader h2 { margin: 24px 0 18px; text-transform: uppercase; }.progress-track { width: 360px; height: 4px; background: #173044; }.progress-track span { display: block; height: 100%; background: var(--cyan); box-shadow: 0 0 12px var(--cyan); transition: width .15s; }.battle-loader p { color: var(--muted); font-size: 11px; }
 .modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 30px; background: rgba(1,4,9,.78); backdrop-filter: blur(8px); }.decision-modal { width: min(640px, 90vw); border: 1px solid rgba(251,191,36,.45); background: #08111e; padding: 32px; box-shadow: 0 28px 90px rgba(0,0,0,.65); }.decision-modal h2 { margin: 8px 0 4px; font-size: 30px; }.decision-modal > p { color: var(--muted); }.decision-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 24px; }.decision-grid button { min-height: 120px; display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 18px; text-align: left; border: 1px solid var(--line-bright); background: #0d1b2b; cursor: pointer; }.decision-grid button:hover { border-color: var(--amber); background: rgba(251,191,36,.07); }.decision-grid b { color: var(--amber); font-size: 16px; }.decision-grid span { color: var(--muted); line-height: 1.5; }
+.troop-info-backdrop { z-index: 120; background: radial-gradient(circle at 35% 45%, rgba(8,145,178,.15), rgba(1,4,9,.9) 66%); }
+.troop-info-modal { position: relative; width: min(900px, calc(100vw - 36px)); max-height: calc(100vh - 36px); display: grid; grid-template-columns: minmax(270px, .85fr) minmax(360px, 1.15fr); overflow: auto; border: 1px solid color-mix(in srgb, var(--cyan) 55%, var(--line)); background: #08111e; box-shadow: 0 38px 120px rgba(0,0,0,.76), 0 0 48px rgba(34,211,238,.08); animation: result-arrive .28s cubic-bezier(.2,.8,.2,1) both; }
+.troop-info-close { position: absolute; z-index: 4; right: 16px; top: 16px; width: 38px; height: 38px; padding: 0; border: 1px solid var(--line-bright); border-radius: 50%; background: rgba(5,14,25,.9); color: var(--muted); cursor: pointer; font-size: 24px; line-height: 1; }.troop-info-close:hover { border-color: var(--danger); color: #fff; background: rgba(190,24,93,.22); }
+.troop-info-portrait { position: relative; min-height: 540px; display: grid; place-items: center; overflow: hidden; border-right: 1px solid var(--line); background: radial-gradient(circle at 50% 48%, color-mix(in srgb, var(--troop-color) 24%, transparent), transparent 46%), linear-gradient(145deg, #102235, #040a12); }.troop-info-portrait::after { content: ""; position: absolute; inset: auto 12% 58px; height: 3px; background: var(--troop-color); box-shadow: 0 0 24px var(--troop-color); }.troop-info-portrait img { position: relative; z-index: 1; width: min(92%, 360px); height: 430px; object-fit: contain; object-position: center bottom; filter: drop-shadow(0 18px 20px rgba(0,0,0,.7)); }.troop-info-portrait > span { position: absolute; z-index: 2; left: 24px; bottom: 24px; color: var(--troop-color); font: 700 10px "Chakra Petch"; letter-spacing: .16em; text-transform: uppercase; }
+.troop-info-content { padding: 44px 38px 36px; }.troop-info-content h2 { margin: 8px 0 10px; font-size: 36px; text-transform: uppercase; }.troop-info-content > p { color: #a9bdcd; line-height: 1.65; margin-bottom: 24px; }
+.troop-info-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0; border: 1px solid var(--line); background: var(--line); }.troop-info-stats > div { min-height: 68px; padding: 13px 15px; background: #0a1726; }.troop-info-stats dt, .troop-info-specials dt { color: var(--muted); font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }.troop-info-stats dd { margin: 7px 0 0; color: var(--cyan-soft); font: 700 13px "Chakra Petch"; }
+.troop-info-specials { margin-top: 22px; }.troop-info-specials dl { margin: 9px 0 0; border-top: 1px solid var(--line); }.troop-info-specials dl > div { display: flex; justify-content: space-between; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--line); }.troop-info-specials dd { margin: 0; color: var(--text); font-size: 11px; text-align: right; }
 
 .result-card { width: min(720px, 90vw); text-align: center; border: 1px solid var(--line-bright); background: #08111e; padding: 38px; box-shadow: 0 40px 120px rgba(0,0,0,.7); }.result-card.victory { border-color: rgba(52,211,153,.55); }.result-card.defeat { border-color: rgba(251,113,133,.55); }.result-emblem { width: 72px; height: 72px; display: grid; place-items: center; margin: 0 auto 18px; border: 1px solid currentColor; color: var(--green); font-size: 36px; transform: rotate(45deg); }.result-emblem::first-letter { transform: rotate(-45deg); }.result-card.defeat .result-emblem { color: var(--danger); }.result-card h1 { font-size: 38px; margin: 8px 0; text-transform: uppercase; }.result-card > p { color: var(--muted); }.result-card > .stars { font-size: 34px; margin: 10px 0 22px; }.result-stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); }.result-stats > div { padding: 15px; border-right: 1px solid var(--line); }.result-stats > div:last-child { border-right: 0; }.result-stats span { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }.result-stats b { display: block; margin-top: 5px; font: 700 20px "Chakra Petch"; }.result-actions { display: flex; justify-content: center; gap: 10px; margin-top: 28px; }
 
@@ -147,6 +158,64 @@ a .phase-card:hover .phase-art img { transform: scale(1.07); filter: saturate(1.
 .phase-art .terrain-lines { opacity: .3; background: linear-gradient(115deg, transparent 48%, rgba(103,232,249,.18) 49%, transparent 50%); background-size: 42px 42px; }
 .phase-icon { left: 18px; top: auto; bottom: 14px; translate: 0 0; display: grid; place-items: center; width: 34px; height: 34px; font-size: 18px; border: 1px solid rgba(103,232,249,.5); background: rgba(2,8,15,.72); backdrop-filter: blur(8px); }
 .phase-card.locked .phase-art img { filter: grayscale(1) brightness(.58); }
+
+/* Campaign chapters */
+.chapter-page { --chapter-primary: var(--cyan); --chapter-accent: var(--amber); }
+.chapter-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 18px; }
+.chapter-tabs button { position: relative; display: grid; grid-template-columns: 58px 1fr; gap: 14px; align-items: center; min-height: 104px; padding: 16px 18px; border: 1px solid var(--line); background: linear-gradient(145deg, rgba(12,24,39,.88), rgba(4,9,16,.97)); text-align: left; cursor: pointer; overflow: hidden; }
+.chapter-tabs button::after { content: ""; position: absolute; inset: auto 0 0; height: 2px; background: linear-gradient(90deg, transparent, var(--chapter-primary), var(--chapter-accent), transparent); opacity: 0; }
+.chapter-tabs button.active { border-color: color-mix(in srgb, var(--chapter-primary) 70%, transparent); box-shadow: 0 0 28px color-mix(in srgb, var(--chapter-primary) 13%, transparent); }
+.chapter-tabs button.active::after { opacity: 1; }
+.chapter-tabs button:disabled { cursor: not-allowed; filter: grayscale(.85); opacity: .48; }
+.chapter-tab-number { font: 700 30px "Chakra Petch"; color: var(--chapter-primary); border-right: 1px solid var(--line); }
+.chapter-tabs button > span:last-child { display: grid; gap: 3px; }
+.chapter-tabs small { color: var(--chapter-primary); font: 700 9px Inter; letter-spacing: .14em; }
+.chapter-tabs b { color: var(--text); font: 700 19px "Chakra Petch"; text-transform: uppercase; }
+.chapter-tabs em { color: var(--muted); font: 400 11px Inter; }
+.chapter-hero { position: relative; min-height: 286px; display: flex; align-items: flex-end; padding: 34px; margin-bottom: 22px; border: 1px solid color-mix(in srgb, var(--chapter-primary) 40%, var(--line)); overflow: hidden; background: #050912 var(--chapter-cover) center / cover no-repeat; isolation: isolate; }
+.chapter-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgba(3,7,13,.97) 0%, rgba(3,7,13,.77) 42%, rgba(3,7,13,.12) 78%), linear-gradient(0deg, rgba(3,7,13,.9), transparent 75%); }
+.chapter-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(120deg, color-mix(in srgb, var(--chapter-primary) 10%, transparent), transparent 38%, color-mix(in srgb, var(--chapter-accent) 12%, transparent)); mix-blend-mode: screen; }
+.chapter-hero h2 { margin: 7px 0 4px; color: white; font: 700 clamp(30px, 5vw, 54px) "Chakra Petch"; text-transform: uppercase; }
+.chapter-hero p { margin: 0; color: #cbd5e1; }
+.chapter-mechanic { display: grid; gap: 4px; width: min(520px, 100%); margin-top: 18px; padding: 12px 14px; border-left: 2px solid var(--chapter-primary); background: rgba(8,10,18,.72); }
+.chapter-mechanic b { color: var(--chapter-primary); font: 700 12px "Chakra Petch"; letter-spacing: .08em; text-transform: uppercase; }
+.chapter-mechanic span { color: #d8dee9; font-size: 11px; }
+.chapter-bestiary { margin: 0 0 26px; }
+.chapter-bestiary > header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 13px; }
+.chapter-bestiary > header h2 { margin: 5px 0 0; font-size: 25px; text-transform: uppercase; }
+.chapter-bestiary > header p { max-width: 430px; margin: 0; color: var(--muted); font-size: 11px; text-align: right; }
+.chapter-bestiary > div { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.chapter-bestiary article { position: relative; min-height: 340px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--enemy-color) 34%, var(--line)); background: #050810; isolation: isolate; }
+.chapter-bestiary article > img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .5s ease, filter .5s ease; }
+.chapter-bestiary article:hover > img { transform: scale(1.04); filter: saturate(1.1) brightness(1.04); }
+.enemy-concept-shade { position: absolute; z-index: -1; inset: 0; background: linear-gradient(180deg, transparent 20%, rgba(4,7,13,.28) 48%, rgba(4,7,13,.98) 83%), linear-gradient(120deg, color-mix(in srgb, var(--enemy-color) 12%, transparent), transparent 55%); }
+.chapter-bestiary article > div { position: absolute; inset: auto 0 0; padding: 18px; }
+.chapter-bestiary article > div > span { color: var(--enemy-color); font: 700 8px "Chakra Petch"; letter-spacing: .14em; text-transform: uppercase; }
+.chapter-bestiary h3 { margin: 4px 0 3px; color: white; font: 700 23px "Chakra Petch"; text-transform: uppercase; }
+.chapter-bestiary article p { min-height: 30px; margin: 0; color: #cbd5e1; font-size: 9px; line-height: 1.45; }
+.chapter-bestiary dl { display: grid; grid-template-columns: repeat(3, 1fr); margin: 12px 0 0; border-top: 1px solid rgba(255,255,255,.12); }
+.chapter-bestiary dl div { padding-top: 8px; }
+.chapter-bestiary dt { color: var(--muted); font-size: 7px; letter-spacing: .12em; }
+.chapter-bestiary dd { margin: 2px 0 0; color: var(--enemy-color); font: 700 12px "Chakra Petch"; }
+.chapter-2 .phase-card { border-color: rgba(127,255,212,.16); background: linear-gradient(165deg, rgba(23,25,39,.94), rgba(8,10,18,.99)); }
+.chapter-2 a .phase-card:hover { border-color: #7fffd4; box-shadow: 0 0 30px rgba(127,255,212,.08); }
+.chapter-2 .phase-number, .chapter-2 .eyebrow, .chapter-2 .campaign-counter b { color: #7fffd4; }
+.environment-glass .phase-art::after { background: radial-gradient(circle at 35% 20%, rgba(127,255,212,.22), transparent 30%), linear-gradient(125deg, transparent 36%, rgba(196,181,253,.2) 48%, transparent 60%); }
+.mechanic-warning { border-color: rgba(127,255,212,.34) !important; background: linear-gradient(145deg, rgba(127,255,212,.08), rgba(139,92,246,.08)) !important; }
+.mechanic-warning b { color: #7fffd4 !important; }
+.chapter-2-battle { --cyan: #7fffd4; --cyan-soft: #d1fae5; --amber: #ffcf70; }
+.chapter-2-battle .battle-topbar, .chapter-2-battle .battle-sidebar { border-color: rgba(127,255,212,.18); }
+.chapter-2-battle .wave-banner { border-color: rgba(127,255,212,.5); color: #d1fae5; box-shadow: 0 0 22px rgba(139,92,246,.14); }
+.chapter-2-battle .start-wave { border-color: #7fffd4; background: linear-gradient(135deg, #155e58, #4c1d95); box-shadow: 0 0 30px rgba(127,255,212,.18); }
+
+@media (max-width: 760px) {
+  .chapter-tabs { grid-template-columns: 1fr; }
+  .chapter-hero { min-height: 330px; padding: 24px; }
+  .chapter-bestiary > header { display: block; }
+  .chapter-bestiary > header p { margin-top: 8px; text-align: left; }
+  .chapter-bestiary > div { grid-template-columns: 1fr; }
+  .chapter-bestiary article { min-height: 430px; }
+}
 
 .loadout-page { position: relative; isolation: isolate; }
 .loadout-arena-backdrop { position: absolute; z-index: -1; pointer-events: none; left: 50%; top: 0; width: 100vw; height: 390px; transform: translateX(-50%); background-image: linear-gradient(180deg, rgba(3,8,15,.22), rgba(5,10,18,.62) 48%, var(--bg) 100%), linear-gradient(90deg, rgba(5,10,18,.25), transparent 55%), var(--arena-image); background-size: cover; background-position: center; opacity: .78; }
@@ -169,18 +238,81 @@ a .phase-card:hover .phase-art img { transform: scale(1.07); filter: saturate(1.
 .canvas-wrap canvas { box-shadow: 0 0 70px rgba(34,211,238,.1); }
 .troop-rail { background: linear-gradient(180deg, rgba(7,16,29,.96), rgba(4,10,18,.94)); box-shadow: 0 22px 70px rgba(0,0,0,.3); }
 
-html[data-color-mode="protanopia"] { filter: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'><filter id='p'><feColorMatrix values='0.567 0.433 0 0 0 0.558 0.442 0 0 0 0 0.242 0.758 0 0 0 0 0 1 0'/></filter></svg>#p"); }
-html[data-color-mode="deuteranopia"] { filter: saturate(.75) hue-rotate(18deg); }
-html[data-color-mode="contrast"] { filter: contrast(1.25) saturate(1.15); }
+html[data-color-mode="protanopia"], html[data-color-mode="deuteranopia"], html[data-color-mode="contrast"] { --line-bright: rgba(186,230,253,.68); }
 html[data-quality="low"] * { box-shadow: none !important; backdrop-filter: none !important; }
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
 
+.graphics-metrics { position: absolute; z-index: 7; right: 8px; bottom: 8px; display: flex; gap: 7px; padding: 5px 8px; border: 1px solid rgba(103,232,249,.25); background: rgba(2,6,12,.78); color: #94a3b8; font: 600 9px "Chakra Petch"; pointer-events: none; }
+.graphics-metrics b { color: var(--cyan-soft); }
+.test-page { min-height: calc(100vh - 72px); background: #03070c; }
+body:has(.test-page) { min-width: 0; }
+.test-page .battle-shell { min-height: calc(100vh - 72px); }
+.sandbox-battle .battle-main { grid-template-columns: 220px minmax(480px, 1fr) 310px; }
+.sandbox-battle .troop-rail, .sandbox-panel { max-height: calc(100vh - 178px); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--line-bright) transparent; }
+.sandbox-battle .troop-slot { min-height: 54px; }
+.sandbox-battle .canvas-wrap canvas { width: 100%; max-height: calc(100vh - 178px); }
+.sandbox-panel { min-height: 0; padding: 13px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(8,19,32,.98), rgba(4,10,18,.97)); box-shadow: 0 22px 70px rgba(0,0,0,.3); }
+.sandbox-panel button { cursor: pointer; }
+.sandbox-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
+.sandbox-panel-heading h2 { margin: 4px 0 0; font-size: 17px; }
+.sandbox-reset { min-height: 31px; border: 1px solid rgba(251,191,36,.35); background: rgba(251,191,36,.07); color: var(--amber); font-size: 9px; }
+.sandbox-mode-toggle { display: grid; grid-template-columns: 1fr 1fr; margin: 11px 0; }
+.sandbox-mode-toggle button, .sandbox-choice button { min-height: 32px; border: 1px solid var(--line); background: #081421; color: var(--muted); font: 700 9px "Chakra Petch"; text-transform: uppercase; }
+.sandbox-mode-toggle button.active, .sandbox-choice button.active { border-color: var(--cyan); background: rgba(34,211,238,.12); color: var(--cyan-soft); }
+.enemy-catalog { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.enemy-catalog button { min-width: 0; padding: 4px; border: 1px solid var(--line); background: #07111d; color: var(--muted); }
+.enemy-catalog button.selected { border-color: var(--enemy-color); background: color-mix(in srgb, var(--enemy-color) 12%, #07111d); box-shadow: inset 0 -2px var(--enemy-color); color: var(--text); }
+.enemy-catalog img { width: 100%; height: 43px; object-fit: contain; display: block; filter: drop-shadow(0 3px 4px rgba(0,0,0,.7)); }
+.enemy-catalog span { display: block; overflow: hidden; margin-top: 2px; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; }
+.sandbox-spawn-card { margin-top: 11px; padding: 10px; border: 1px solid var(--line); background: rgba(13,28,43,.72); }
+.sandbox-spawn-card > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sandbox-spawn-card > header > div { display: flex; flex-direction: column; gap: 3px; }.sandbox-spawn-card > header span { color: var(--muted); font-size: 7px; letter-spacing: .1em; }.sandbox-spawn-card > header b { color: var(--cyan-soft); }
+.sandbox-spawn-card dl { display: flex; margin: 0; }.sandbox-spawn-card dl div { padding: 0 5px; border-left: 1px solid var(--line); text-align: center; }.sandbox-spawn-card dt { color: var(--muted); font-size: 6px; }.sandbox-spawn-card dd { margin: 2px 0 0; font: 700 9px "Chakra Petch"; }
+.sandbox-choice { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; }.sandbox-choice > span { font-size: 9px; }.sandbox-choice > div { display: flex; }.sandbox-choice button { min-width: 30px; padding: 0 7px; }
+.sandbox-check { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 0; }.sandbox-check > span { display: flex; flex-direction: column; gap: 2px; }.sandbox-check b { font-size: 9px; }.sandbox-check small { color: var(--muted); font-size: 7px; }.sandbox-check input { width: 36px; height: 18px; accent-color: var(--cyan); }
+.sandbox-spawn-button { width: 100%; min-height: 38px; border: 1px solid var(--danger); background: linear-gradient(135deg, rgba(190,24,93,.68), rgba(127,29,29,.75)); color: #fff1f2; font: 700 10px "Chakra Petch"; letter-spacing: .08em; }
+.sandbox-balance { margin-top: 10px; border: 1px solid var(--line); padding: 9px; background: rgba(7,17,29,.72); }.sandbox-balance summary { color: var(--amber); cursor: pointer; font: 700 9px "Chakra Petch"; letter-spacing: .06em; text-transform: uppercase; }
+.sandbox-slider { display: block; padding-top: 9px; }.sandbox-slider > span { display: flex; justify-content: space-between; color: var(--muted); font-size: 8px; }.sandbox-slider output { color: var(--cyan); }.sandbox-slider input { width: 100%; margin: 5px 0 0; accent-color: var(--cyan); }
+.sandbox-cleanup { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }.sandbox-cleanup button { min-height: 34px; border: 1px solid rgba(251,113,133,.3); background: rgba(251,113,133,.06); color: #fda4af; font-size: 8px; }
+.phase-art::before { content: ""; position: absolute; z-index: 2; inset: -35% -15%; pointer-events: none; background: linear-gradient(105deg, transparent 35%, rgba(186,230,253,.14) 49%, transparent 63%); transform: translateX(-55%); transition: transform .8s ease; }
+a .phase-card:hover .phase-art::before { transform: translateX(55%); }
+.environment-storm .phase-art::after { content: ""; position: absolute; z-index: 2; inset: 0; pointer-events: none; background: repeating-linear-gradient(112deg, transparent 0 12px, rgba(186,230,253,.14) 13px, transparent 14px 25px); opacity: .2; animation: card-rain 1.4s linear infinite; }
+.result-backdrop { background: radial-gradient(circle at center, rgba(8,47,73,.42), rgba(1,4,10,.9) 68%); backdrop-filter: blur(7px) saturate(.8); }
+.result-card { animation: result-arrive .42s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes card-rain { to { background-position: -65px 120px; } }
+@keyframes energy-gain { 0% { background: rgba(34,211,238,.28); box-shadow: inset 0 0 20px rgba(34,211,238,.28); } 100% { background: transparent; box-shadow: inset 0 0 0 transparent; } }
+@keyframes result-arrive { from { opacity: 0; transform: translateY(18px) scale(.96); filter: blur(5px); } }
+
 @keyframes sweep { to { transform: rotate(1turn); } }
 @keyframes pulse { 50% { opacity: .35; scale: .65; } }
+@keyframes cooldown-ready-pulse { to { border-color: var(--troop-color); box-shadow: 0 0 14px color-mix(in srgb, var(--troop-color) 68%, transparent), inset 0 0 9px color-mix(in srgb, var(--troop-color) 26%, transparent); } }
 @media (max-width: 1300px) {
   .phase-grid { grid-template-columns: repeat(3, 1fr); }
   .unit-grid { grid-template-columns: repeat(2, 1fr); }
   .battle-main { grid-template-columns: 210px minmax(0, 1fr); }
   .troop-slot { min-height: 52px; }
+  .sandbox-battle .battle-main { grid-template-columns: 190px minmax(430px, 1fr) 270px; }
+  .enemy-catalog { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 1050px) {
+  body:has(.test-page) .site-header { padding-inline: 20px; }
+  body:has(.test-page) .site-header nav { gap: 20px; }
+  body:has(.test-page) .system-status { display: none; }
+  .sandbox-battle .battle-topbar { grid-template-columns: 1fr auto; }
+  .sandbox-battle .battle-stats { grid-column: 1 / -1; grid-row: 2; }
+  .sandbox-battle .battle-main { grid-template-columns: 190px minmax(0, 1fr); }
+  .sandbox-panel { grid-column: 1 / -1; max-height: none; }
+  .enemy-catalog { grid-template-columns: repeat(6, 1fr); }
+}
+@media (max-width: 700px) {
+  .troop-info-backdrop { padding: 12px; }
+  .troop-info-modal { width: calc(100vw - 24px); max-height: calc(100vh - 24px); grid-template-columns: 1fr; }
+  .troop-info-portrait { min-height: 250px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .troop-info-portrait img { width: 230px; height: 220px; }
+  .troop-info-portrait > span { left: 18px; bottom: 16px; }
+  .troop-info-portrait::after { bottom: 44px; }
+  .troop-info-content { padding: 26px 20px 24px; }
+  .troop-info-content h2 { font-size: 28px; padding-right: 38px; }
+  .troop-info-stats { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }

@@ -1,9 +1,10 @@
 import { canPlaceTroop, CELL, FIELD } from "./battleModel.js";
+import { TROOPS } from "./content.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
-  medium: { parallax: 0, particles: 0.58, atmosphere: 0.68, shadows: 0.8, detail: 0.7 },
-  high: { parallax: 0, particles: 1, atmosphere: 1, shadows: 1, detail: 1 },
+  medium: { parallax: 0.4, particles: 0.58, atmosphere: 0.68, shadows: 0.8, detail: 0.7 },
+  high: { parallax: 1, particles: 1, atmosphere: 1, shadows: 1, detail: 1 },
 };
 
 const staticBattlefieldCache = new Map();
@@ -120,6 +121,25 @@ function drawBackdrop(ctx, phase, blueprint) {
   horizon.addColorStop(1, rgba(phase.palette?.accent, 0.15));
   ctx.fillStyle = horizon;
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+
+  if (theme.material === "obsidian-glass") {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let index = 0; index < 18; index += 1) {
+      const x = pseudo(index, theme.seed + 610) * FIELD.width;
+      const y = pseudo(index, theme.seed + 620) * FIELD.height;
+      const radius = 28 + pseudo(index, theme.seed + 630) * 74;
+      ctx.fillStyle = rgba(index % 2 ? theme.edge : theme.detail, 0.018 + pseudo(index, 640) * 0.035);
+      ctx.beginPath();
+      ctx.moveTo(x, y - radius);
+      ctx.lineTo(x + radius * .8, y - radius * .12);
+      ctx.lineTo(x + radius * .25, y + radius * .72);
+      ctx.lineTo(x - radius * .65, y + radius * .36);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  }
 }
 
 function lanePath(ctx, lane) {
@@ -210,6 +230,25 @@ function drawAncientDetail(ctx, feature, lane, theme) {
   ctx.stroke();
 }
 
+function drawGlassDetail(ctx, feature, lane, theme) {
+  const y = lane.top + 18 + feature.offset * 52;
+  const radius = (13 + feature.size * 8);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = rgba(feature.flip ? theme.edge : theme.detail, 0.08);
+  ctx.strokeStyle = rgba(theme.edge, 0.26);
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(feature.x, y - radius);
+  ctx.lineTo(feature.x + radius * .7, y + radius * .15);
+  ctx.lineTo(feature.x + radius * .18, y + radius);
+  ctx.lineTo(feature.x - radius * .58, y + radius * .3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
 function drawLanes(ctx, blueprint, profile) {
   const { theme } = blueprint;
   for (const lane of blueprint.lanes) {
@@ -233,6 +272,7 @@ function drawLanes(ctx, blueprint, profile) {
       else if (theme.material === "earth") drawEarthDetail(ctx, feature, lane, theme);
       else if (theme.material === "rock") drawRockDetail(ctx, feature, lane, theme);
       else if (["chitin", "organic"].includes(theme.material)) drawOrganicDetail(ctx, feature, lane, theme, theme.material === "chitin");
+      else if (theme.material === "obsidian-glass") drawGlassDetail(ctx, feature, lane, theme);
       else drawAncientDetail(ctx, feature, lane, theme);
     }
 
@@ -411,6 +451,17 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
   drawDamageMarks(ctx, phase, intensity);
 
   ctx.save();
+  if (profile.parallax > 0) {
+    const drift = settings.reduceMotion ? 0 : Math.sin(motionTime / 3200) * 12 * profile.parallax;
+    ctx.globalAlpha = 0.12 * profile.parallax;
+    ctx.fillStyle = theme.detail;
+    for (let index = 0; index < 7; index += 1) {
+      const x = 75 + index * 155 + drift * (index % 2 ? 1 : -0.6);
+      const height = 24 + pseudo(index, theme.seed + 430) * 42;
+      ctx.beginPath(); ctx.moveTo(x - 55, 0); ctx.lineTo(x, height); ctx.lineTo(x + 62, 0); ctx.closePath(); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
   const basePulse = settings.reduceMotion ? 0.5 : (Math.sin(motionTime / 900) + 1) / 2;
   const baseGlow = ctx.createLinearGradient(0, 0, 145, 0);
   baseGlow.addColorStop(0, rgba(theme.edge, 0.15 + basePulse * 0.12));
@@ -441,11 +492,93 @@ export function shouldShowGrid({ selectedTroop, removeMode, hoveredCell }) {
 
 export function getGridCellState(session, row, col, selectedTroop, removeMode, hoveredCell) {
   const hovered = hoveredCell?.row === row && hoveredCell?.col === col;
-  const occupied = session.troops.some((troop) => !troop.dead && troop.row === row && troop.col === col);
-  if (removeMode) return { state: occupied ? "removable" : "neutral", hovered, occupied };
+  const troopOccupied = session.troops.some((troop) => !troop.dead && troop.row === row && troop.col === col);
+  const mineOccupied = session.mines.some((mine) => mine.active && mine.row === row && mine.col === col)
+    || session.projectiles.some((projectile) => projectile.active && projectile.kind === "mine" && projectile.targetRow === row && projectile.targetCol === col);
+  const occupied = troopOccupied || mineOccupied;
+  if (removeMode) return { state: troopOccupied ? "removable" : "neutral", hovered, occupied: troopOccupied };
   if (!selectedTroop) return { state: "neutral", hovered, occupied };
   const reason = canPlaceTroop(session, selectedTroop, row, col);
   return { state: reason ? "invalid" : "valid", hovered, occupied, reason };
+}
+
+export function getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode = false) {
+  if (!selectedTroop || !hoveredCell || removeMode || session.outcome) return null;
+  const config = TROOPS[selectedTroop];
+  if (!config) return null;
+  const { row, col } = hoveredCell;
+  const x = col * CELL.width + CELL.width / 2;
+  const y = row * CELL.height + CELL.height / 2;
+  const reason = canPlaceTroop(session, selectedTroop, row, col);
+  const hasAttackRange = config.range > 0 && !["none", "energy"].includes(config.attack);
+  return {
+    row, col, x, y, valid: !reason, reason,
+    color: reason ? "#fb7185" : config.color,
+    range: config.attack === "mine" ? {
+      kind: "mine",
+      x0: Math.min(FIELD.width, (col + 1) * CELL.width),
+      y0: 0,
+      x1: Math.min(FIELD.width, (col + 1 + config.mineRangeCols) * CELL.width),
+      y1: FIELD.height,
+    } : hasAttackRange ? {
+      x0: x,
+      y0: y,
+      x1: Math.min(FIELD.width, x + config.range * CELL.width),
+      y1: y,
+    } : null,
+  };
+}
+
+export function drawPlacementRange(ctx, preview) {
+  if (!preview?.range) return;
+  const { x0, y0, x1, y1 } = preview.range;
+  const color = preview.color;
+  ctx.save();
+  if (preview.range.kind === "mine") {
+    ctx.fillStyle = `${color}18`;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = preview.valid ? 0.8 : 0.58;
+    ctx.setLineDash([8, 6]);
+    ctx.fillRect(x0, y0, Math.max(0, x1 - x0), y1 - y0);
+    for (let row = 0; row <= FIELD.rows; row += 1) {
+      ctx.beginPath();
+      ctx.moveTo(x0, row * CELL.height);
+      ctx.lineTo(x1, row * CELL.height);
+      ctx.stroke();
+    }
+    for (let x = x0; x <= x1; x += CELL.width) {
+      ctx.beginPath();
+      ctx.moveTo(x, y0);
+      ctx.lineTo(x, y1);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+  const band = ctx.createLinearGradient(x0, y0, x1, y1);
+  band.addColorStop(0, `${color}2e`);
+  band.addColorStop(1, `${color}08`);
+  ctx.fillStyle = band;
+  ctx.fillRect(x0, y0 - 9, Math.max(0, x1 - x0), 18);
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = preview.valid ? 0.85 : 0.72;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1 - 11);
+  ctx.lineTo(x1, y1 + 11);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x0, y0, 4, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawPad(ctx, x, y, visual) {
@@ -563,6 +696,48 @@ export function drawArenaForeground(ctx, phase, settings, session, time) {
   if (effects.includes("smoke")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity, true);
   if (effects.includes("spores")) drawDriftingPoints(ctx, phase, Math.round(12 + 30 * profile.particles), motionTime, intensity, "spores");
   if (effects.includes("dust") || effects.includes("debris")) drawDriftingPoints(ctx, phase, Math.round(10 + 22 * profile.particles), motionTime, intensity, "dust");
+  if (effects.includes("glassDust")) drawDriftingPoints(ctx, phase, Math.round(14 + 34 * profile.particles), motionTime * 0.72, intensity, "spores");
+
+  if (effects.includes("refraction")) {
+    const drift = settings.reduceMotion ? 0 : Math.sin(motionTime / 1800) * 24;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    for (let index = 0; index < 4; index += 1) {
+      const x = 120 + index * 270 + drift * (index % 2 ? -1 : 1);
+      const gradient = ctx.createLinearGradient(x - 80, 0, x + 100, FIELD.height);
+      gradient.addColorStop(0, "transparent");
+      gradient.addColorStop(.48, rgba(index % 2 ? phase.palette.primary : phase.palette.accent, .025 * intensity));
+      gradient.addColorStop(1, "transparent");
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.moveTo(x - 60, 0); ctx.lineTo(x + 10, 0); ctx.lineTo(x + 130, FIELD.height); ctx.lineTo(x + 20, FIELD.height); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  if (effects.includes("shardStorm")) {
+    ctx.save();
+    ctx.strokeStyle = rgba(phase.palette.primary, .18 + intensity * .16);
+    ctx.lineWidth = 1.2;
+    const count = Math.round(12 + 34 * profile.particles);
+    for (let index = 0; index < count; index += 1) {
+      const x = (pseudo(index, 710) * FIELD.width + motionTime * (0.055 + pseudo(index, 711) * .035)) % (FIELD.width + 100) - 50;
+      const y = (pseudo(index, 712) * FIELD.height + motionTime * .08) % (FIELD.height + 50) - 25;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 8, y + 18); ctx.lineTo(x + 2, y + 14); ctx.closePath(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (effects.includes("mirrors")) {
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = rgba(phase.palette.accent, .035 * intensity);
+    for (let index = 0; index < 7; index += 1) {
+      const x = 110 + pseudo(index, phase.battlefieldTheme.seed + 760) * 820;
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 42, 0); ctx.lineTo(x - 8, FIELD.height); ctx.lineTo(x - 36, FIELD.height); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
 
   if (effects.includes("rain")) {
     ctx.strokeStyle = `rgba(170,225,255,${0.09 + intensity * 0.13})`;
@@ -576,6 +751,35 @@ export function drawArenaForeground(ctx, phase, settings, session, time) {
       ctx.lineTo(x - 19, y + 52);
       ctx.stroke();
     }
+  }
+
+  if (effects.includes("fissures") || effects.includes("veins")) {
+    const pulse = settings.reduceMotion ? .45 : .35 + (Math.sin(motionTime / 520) + 1) * .18;
+    ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.strokeStyle = rgba(phase.palette.accent, pulse * intensity); ctx.lineWidth = effects.includes("veins") ? 2.5 : 1.5;
+    for (let row = 0; row < FIELD.rows; row += 1) {
+      const y = row * CELL.height + 93;
+      ctx.beginPath(); ctx.moveTo(150, y);
+      for (let x = 210; x < 880; x += 70) ctx.lineTo(x, y + Math.sin(x * .04 + row + motionTime / 1000) * 5);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  if (effects.includes("portal")) {
+    const pulse = settings.reduceMotion ? .5 : .5 + Math.sin(motionTime / 360) * .16;
+    ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.strokeStyle = rgba(phase.palette.primary, .35 * pulse * intensity); ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(FIELD.width - 46, FIELD.height / 2, 28 + pulse * 7, 165 + pulse * 12, 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  }
+
+  if (effects.includes("bioluminescence") || effects.includes("pulse")) {
+    const pulse = settings.reduceMotion ? .4 : .38 + (Math.sin(motionTime / 620) + 1) * .18;
+    ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.fillStyle = rgba(phase.palette.accent, pulse * .14 * intensity);
+    for (let index = 0; index < 18; index += 1) {
+      const x = 80 + pseudo(index, phase.battlefieldTheme.seed + 330) * 860;
+      const y = 20 + pseudo(index, phase.battlefieldTheme.seed + 340) * 550;
+      ctx.beginPath(); ctx.arc(x, y, 2 + pseudo(index, 350) * 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
   }
 
   if (effects.includes("searchlights") && profile.atmosphere > 0.5) {

@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import GameCanvas from "./game/GameCanvas.jsx";
-import { getArenaUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
-import { getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
+import { getArenaUrl, getEnemyConceptUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
+import { CHAPTERS, ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
+import { getTroopInfo } from "./game/troopInfo.js";
 import {
   loadCampaign,
   loadSettings,
@@ -15,6 +17,17 @@ const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";
   const total = Math.floor(milliseconds / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+};
+
+const TEST_PHASE = {
+  ...PHASES[0],
+  id: "campo_de_provas",
+  name: "Campo de Provas",
+  subtitle: "Arena de testes e balanceamento",
+  energy: 150,
+  baseIntegrity: 100,
+  waves: [],
+  boss: false,
 };
 
 function Stars({ value = 0 }) {
@@ -36,6 +49,7 @@ function AppLayout({ children }) {
       <nav aria-label="Navegação principal">
         <NavLink to="/" end>Comando</NavLink>
         <NavLink to="/fases">Campanha</NavLink>
+        <NavLink to="/testes">Testes</NavLink>
         <NavLink to="/configuracoes">Configurações</NavLink>
       </nav>
       <span className="system-status"><i /> SISTEMA LOCAL</span>
@@ -46,6 +60,7 @@ function AppLayout({ children }) {
 
 function HomePage({ campaign, onReset }) {
   const current = PHASES[campaign.unlockedPhaseIndex];
+  const currentChapter = getChapterForPhase(current);
   const victories = Object.values(campaign.phaseStats).reduce((sum, stats) => sum + Number(stats.victories || 0), 0);
   const stars = Object.values(campaign.phaseStats).reduce((sum, stats) => sum + Number(stats.bestStars || 0), 0);
   return <main className="home-page">
@@ -53,81 +68,163 @@ function HomePage({ campaign, onReset }) {
       <div className="hero-copy">
         <span className="eyebrow">PROTOCOLO DE DEFESA AUTÔNOMA</span>
         <h1>O perímetro é<br /><em>a última fronteira.</em></h1>
-        <p>Monte seu esquadrão, controle cinco rotas e sobreviva a uma campanha de oito fases contra a Colmeia.</p>
+        <p>Monte seu esquadrão, controle cinco rotas e atravesse dois capítulos de uma campanha com dezesseis fases.</p>
         <div className="hero-actions">
           <Link className="primary-button" to={`/jogar/${current.id}`}>Continuar campanha <span>→</span></Link>
-          <Link className="secondary-button" to="/fases">Selecionar fase</Link>
+          <Link className="secondary-button" to={`/fases?capitulo=${currentChapter.number}`}>Selecionar fase</Link>
         </div>
         <div className="hero-meta"><span>SEM LOGIN</span><span>SAVE LOCAL</span><span>100% FRONT-END</span></div>
       </div>
       <div className="radar-card">
         <div className="radar-grid"><span className="radar-sweep" /><span className="blip b1" /><span className="blip b2" /><span className="blip b3" /><span className="blip b4" /></div>
-        <div className="radar-footer"><span><small>SETOR ATUAL</small><b>{current.name}</b></span><span className="threat-pill">AMEAÇA {campaign.unlockedPhaseIndex + 1}/8</span></div>
+        <div className="radar-footer"><span><small>CAPÍTULO {currentChapter.number} · SETOR ATUAL</small><b>{current.name}</b></span><span className="threat-pill">AMEAÇA {campaign.unlockedPhaseIndex + 1}/{PHASES.length}</span></div>
       </div>
     </section>
 
     <section className="command-grid">
-      <article className="status-card accent-cyan"><span className="card-code">CMP-01</span><small>Progresso da campanha</small><strong>{campaign.unlockedPhaseIndex + 1}<i>/8</i></strong><div className="mini-track"><span style={{ width: `${((campaign.unlockedPhaseIndex + 1) / 8) * 100}%` }} /></div></article>
+      <article className="status-card accent-cyan"><span className="card-code">CMP-01</span><small>Progresso da campanha</small><strong>{campaign.unlockedPhaseIndex + 1}<i>/{PHASES.length}</i></strong><div className="mini-track"><span style={{ width: `${((campaign.unlockedPhaseIndex + 1) / PHASES.length) * 100}%` }} /></div></article>
       <article className="status-card accent-green"><span className="card-code">VTR-02</span><small>Vitórias registradas</small><strong>{victories}</strong><p>Resultados salvos neste dispositivo</p></article>
-      <article className="status-card accent-amber"><span className="card-code">STR-03</span><small>Estrelas conquistadas</small><strong>{stars}<i>/24</i></strong><Stars value={Math.min(3, Math.ceil(stars / 8))} /></article>
-      <article className="next-operation"><div><span className="eyebrow amber">Próxima operação</span><h2>{current.name}</h2><p>{current.subtitle} · 4 ondas · energia inicial {current.energy}</p></div><Link to={`/jogar/${current.id}`}>INICIAR →</Link></article>
+      <article className="status-card accent-amber"><span className="card-code">STR-03</span><small>Estrelas conquistadas</small><strong>{stars}<i>/{PHASES.length * 3}</i></strong><Stars value={Math.min(3, Math.ceil(stars / PHASES.length))} /></article>
+      <article className="next-operation"><div><span className="eyebrow amber">Capítulo {currentChapter.number} · Próxima operação</span><h2>{current.name}</h2><p>{current.subtitle} · {current.waves.length} ondas · energia inicial {current.energy}</p></div><Link to={`/jogar/${current.id}`}>INICIAR →</Link></article>
     </section>
 
     <button className="text-button danger-text" onClick={onReset}>Apagar progresso local</button>
   </main>;
 }
 
-function PhaseSelectPage({ campaign }) {
-  return <main className="page-content">
+export function PhaseSelectPage({ campaign }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const chapterTwoUnlocked = campaign.unlockedPhaseIndex >= 8;
+  const requestedNumber = Number(searchParams.get("capitulo"));
+  const currentPhaseChapter = getChapterForPhase(PHASES[campaign.unlockedPhaseIndex]);
+  const requestedChapter = CHAPTERS.find((entry) => entry.number === requestedNumber);
+  const activeChapter = requestedChapter && (requestedChapter.number === 1 || chapterTwoUnlocked) ? requestedChapter : currentPhaseChapter;
+  const visiblePhases = activeChapter.phaseIds.map(getPhase).filter(Boolean);
+  return <main className={`page-content chapter-page chapter-${activeChapter.number}`} style={{ "--chapter-primary": activeChapter.palette.primary, "--chapter-accent": activeChapter.palette.accent, "--chapter-cover": `url(${getArenaUrl(activeChapter.coverArenaId)})` }}>
     <header className="page-heading"><div><span className="eyebrow">MAPA DE OPERAÇÕES</span><h1>Campanha</h1><p>Complete uma operação para abrir o próximo setor.</p></div><div className="campaign-counter"><b>{campaign.unlockedPhaseIndex + 1}</b><span>setores<br />acessíveis</span></div></header>
-    <section className="phase-grid">{PHASES.map((phase, index) => {
+    <section className="chapter-tabs" aria-label="Capítulos da campanha">{CHAPTERS.map((chapter) => {
+      const locked = chapter.number === 2 && !chapterTwoUnlocked;
+      const completeCount = chapter.phaseIds.filter((phaseId) => Number(campaign.phaseStats[phaseId]?.victories || 0) > 0).length;
+      return <button key={chapter.id} type="button" disabled={locked} className={chapter.id === activeChapter.id ? "active" : ""} onClick={() => setSearchParams({ capitulo: String(chapter.number) })}>
+        <span className="chapter-tab-number">0{chapter.number}</span><span><small>{locked ? "BLOQUEADO" : `${completeCount}/${chapter.phaseIds.length} CONCLUÍDAS`}</small><b>{chapter.name}</b><em>{chapter.subtitle}</em></span>
+      </button>;
+    })}</section>
+    <section className="chapter-hero"><div><span className="eyebrow">CAPÍTULO {activeChapter.number}</span><h2>{activeChapter.name}</h2><p>{activeChapter.subtitle}</p>{activeChapter.mechanic && <div className="chapter-mechanic"><b>◇ {activeChapter.mechanic.label}</b><span>{activeChapter.mechanic.description}</span></div>}</div></section>
+    {activeChapter.exclusiveEnemyIds?.length > 0 && <section className="chapter-bestiary" aria-labelledby="chapter-bestiary-title">
+      <header><div><span className="eyebrow">FAUNA EXCLUSIVA</span><h2 id="chapter-bestiary-title">Predadores do Mar de Vidro</h2></div><p>Quatro organismos cristalinos que não aparecem no Cerco da Colmeia.</p></header>
+      <div>{activeChapter.exclusiveEnemyIds.map((enemyId) => {
+        const enemy = ENEMIES[enemyId];
+        return <article key={enemy.id} style={{ "--enemy-color": enemy.color }}>
+          <img src={getEnemyConceptUrl(enemy.id)} alt={`Arte conceitual de ${enemy.label}`} />
+          <span className="enemy-concept-shade" />
+          <div><span>{enemy.role}</span><h3>{enemy.label}</h3><p>{enemy.description}</p><dl><div><dt>HP</dt><dd>{enemy.hp}</dd></div><div><dt>VEL</dt><dd>{enemy.speed}</dd></div><div><dt>DMG</dt><dd>{enemy.damage}</dd></div></dl></div>
+        </article>;
+      })}</div>
+    </section>}
+    <section className="phase-grid">{visiblePhases.map((phase) => {
+      const index = getPhaseIndex(phase.id);
       const locked = index > campaign.unlockedPhaseIndex;
       const stats = campaign.phaseStats[phase.id] || {};
       const enemyTypes = [...new Set(phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)))];
       const card = <article className={`phase-card environment-${phase.environment} ${locked ? "locked" : ""}`}>
         <div className="phase-number">{String(index + 1).padStart(2, "0")}</div>
         <div className="phase-art"><img src={getArenaUrl(phase.arenaId)} alt="" /><span className="arena-card-shade" /><span className="terrain-lines" /><span className="phase-icon">{phase.boss ? "◉" : locked ? "◇" : "⬡"}</span></div>
-        <div className="phase-body"><span className="eyebrow">{locked ? "SETOR BLOQUEADO" : phase.subtitle}</span><h2>{phase.name}</h2><div className="enemy-tags">{enemyTypes.map((type) => <span key={type}>{type}</span>)}</div><div className="phase-record"><Stars value={stats.bestStars || 0} /><span>Melhor tempo <b>{formatTime(stats.bestTimeMs)}</b></span><span>Integridade <b>{stats.bestIntegrity || 0}%</b></span></div></div>
-        <div className="phase-footer"><span>⚡ {phase.energy}</span><span>◫ 4 ondas</span><span>{phase.environment.toUpperCase()}</span></div>
+        <div className="phase-body"><span className="eyebrow">{locked ? "SETOR BLOQUEADO" : phase.subtitle}</span><h2>{phase.name}</h2><div className="enemy-tags">{enemyTypes.map((type) => <span key={type}>{ENEMIES[type]?.label || type}</span>)}</div><div className="phase-record"><Stars value={stats.bestStars || 0} /><span>Melhor tempo <b>{formatTime(stats.bestTimeMs)}</b></span><span>Integridade <b>{stats.bestIntegrity || 0}%</b></span></div></div>
+        <div className="phase-footer"><span>⚡ {phase.energy}</span><span>◫ {phase.waves.length} ondas</span><span>{phase.chapterMechanic ? `${Math.round(phase.chapterMechanic.chance * 100)}% ECOS` : phase.environment.toUpperCase()}</span></div>
       </article>;
       return locked ? <div key={phase.id}>{card}</div> : <Link key={phase.id} to={`/jogar/${phase.id}`} aria-label={`Jogar ${phase.name}`}>{card}</Link>;
     })}</section>
   </main>;
 }
 
-function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
+function TroopInfoModal({ troop, onClose, returnFocusRef }) {
+  const closeButtonRef = useRef(null);
+  const { stats, specials } = getTroopInfo(troop);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+      returnFocusRef.current?.focus();
+    };
+  }, [onClose, returnFocusRef]);
+
+  return createPortal(<div className="modal-backdrop troop-info-backdrop" onMouseDown={(event) => {
+    if (event.target === event.currentTarget) onClose();
+  }}>
+    <section className="troop-info-modal" role="dialog" aria-modal="true" aria-labelledby={`troop-info-title-${troop.id}`}>
+      <button ref={closeButtonRef} type="button" className="troop-info-close" aria-label={`Fechar informações de ${troop.label}`} onClick={onClose}>×</button>
+      <div className="troop-info-portrait" style={{ "--troop-color": troop.color }}>
+        <img src={getTroopPreviewUrl(troop.id)} alt={troop.label} />
+        <span>{troop.role}</span>
+      </div>
+      <div className="troop-info-content">
+        <span className="eyebrow">Dossiê da unidade</span>
+        <h2 id={`troop-info-title-${troop.id}`}>{troop.label}</h2>
+        <p>{troop.description}</p>
+        <dl className="troop-info-stats">{stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
+        {specials.length > 0 && <div className="troop-info-specials">
+          <span className="eyebrow amber">Características especiais</span>
+          <dl>{specials.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
+        </div>}
+      </div>
+    </section>
+  </div>, document.body);
+}
+
+export function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
   const phaseIndex = getPhaseIndex(phase.id);
+  const chapter = getChapterForPhase(phase);
   const available = getUnlockedTroops(phaseIndex);
-  return <main className="loadout-page" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary, "--arena-accent": phase.palette.accent }}>
+  const [infoTroop, setInfoTroop] = useState(null);
+  const infoTriggerRef = useRef(null);
+  const closeInfo = useCallback(() => setInfoTroop(null), []);
+  return <main className={`loadout-page chapter-${chapter.number}`} style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary, "--arena-accent": phase.palette.accent }}>
     <div className="loadout-arena-backdrop" aria-hidden="true" />
-    <header className="loadout-header"><button className="back-link" onClick={onBack}>← Voltar</button><div><span className="eyebrow">BRIEFING · {phase.id.replace("_", " ")}</span><h1>{phase.name}</h1><p>{phase.subtitle}. Escolha de uma a cinco unidades para a operação.</p></div><div className="selection-count"><strong>{selected.length}</strong><span>/ 5<br />selecionadas</span></div></header>
+    <header className="loadout-header"><button className="back-link" onClick={onBack}>← Voltar</button><div><span className="eyebrow">CAPÍTULO {chapter.number} · BRIEFING · {phase.id.replace("_", " ")}</span><h1>{phase.name}</h1><p>{phase.subtitle}. Escolha de uma a cinco unidades para a operação.</p></div><div className="selection-count"><strong>{selected.length}</strong><span>/ 5<br />selecionadas</span></div></header>
     <section className="loadout-layout">
       <div className="unit-grid">{available.map((troop) => {
         const active = selected.includes(troop.id);
-        return <button key={troop.id} className={`unit-card ${active ? "active" : ""}`} onClick={() => onToggle(troop.id)}>
-          <span className="unit-check">{active ? "✓" : "+"}</span>
-          <div className="unit-portrait"><img src={getTroopPreviewUrl(troop.id)} alt="" /><span style={{ background: troop.color }} /></div>
-          <div className="unit-info"><span className="eyebrow">{troop.role}</span><h2>{troop.label}</h2><p>{troop.description}</p><div><span>⚡ {troop.price}</span><span>SUP {troop.supply}</span><span>HP {troop.hp}</span></div></div>
-        </button>;
+        return <article key={troop.id} className={`unit-card ${active ? "active" : ""}`}>
+          <button type="button" className="unit-select" aria-pressed={active} aria-label={`${active ? "Remover" : "Selecionar"} ${troop.label}`} onClick={() => onToggle(troop.id)}>
+            <span className="unit-check">{active ? "✓" : "+"}</span>
+            <span className="unit-portrait"><img src={getTroopPreviewUrl(troop.id)} alt="" /><span style={{ background: troop.color }} /></span>
+            <span className="unit-info"><span className="eyebrow">{troop.role}</span><h2>{troop.label}</h2><p>{troop.description}</p><span className="unit-summary"><span>⚡ {troop.price}</span><span>SUP {troop.supply}</span><span>HP {troop.hp}</span></span></span>
+          </button>
+          <button type="button" className="unit-info-button" aria-label={`Informações de ${troop.label}`} onClick={(event) => {
+            infoTriggerRef.current = event.currentTarget;
+            setInfoTroop(troop);
+          }}>i</button>
+        </article>;
       })}</div>
       <aside className="mission-brief">
         <div className="brief-arena"><img src={getArenaUrl(phase.arenaId)} alt={`Campo de batalha ${phase.name}`} /><span>ARENA SINCRONIZADA</span></div>
         <span className="eyebrow amber">Parâmetros da missão</span><h2>Dados táticos</h2>
-        <dl><div><dt>Ondas</dt><dd>4</dd></div><div><dt>Energia</dt><dd>{phase.energy}</dd></div><div><dt>Integridade</dt><dd>100%</dd></div><div><dt>Cadência</dt><dd>{(phase.cadenceMs / 1000).toFixed(2)}s</dd></div><div><dt>Tempo-alvo</dt><dd>{formatTime(phase.targetDurationMs)}</dd></div></dl>
-        <div className="environment-note"><b>Ambiente · {phase.environment}</b><span>Tratamento visual, sem penalidades ocultas.</span></div>
+        <dl><div><dt>Ondas</dt><dd>{phase.waves.length}</dd></div><div><dt>Energia</dt><dd>{phase.energy}</dd></div><div><dt>Integridade</dt><dd>100%</dd></div><div><dt>Cadência</dt><dd>{(phase.cadenceMs / 1000).toFixed(2)}s</dd></div><div><dt>Tempo-alvo</dt><dd>{formatTime(phase.targetDurationMs)}</dd></div></dl>
+        <div className={`environment-note ${phase.chapterMechanic ? "mechanic-warning" : ""}`}><b>{phase.chapterMechanic ? "◇ Ecos de Vidro" : `Ambiente · ${phase.environment}`}</b><span>{phase.chapterMechanic ? `${Math.round(phase.chapterMechanic.chance * 100)}% de chance: hostis comuns podem retornar com 45% de vida, mais velozes e com dano reduzido.` : "Tratamento visual, sem penalidades ocultas."}</span></div>
         <button className="primary-button full" disabled={selected.length < 1 || selected.length > 5} onClick={onStart}>Confirmar loadout <span>→</span></button>
       </aside>
     </section>
+    {infoTroop && <TroopInfoModal troop={infoTroop} onClose={closeInfo} returnFocusRef={infoTriggerRef} />}
   </main>;
 }
 
 function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
   const victory = result.outcome === "victory";
+  const phaseIndex = getPhaseIndex(phase.id);
+  const nextLabel = phaseIndex === 7 ? "Ir ao Capítulo 2" : phaseIndex === PHASES.length - 1 ? "Ver campanha" : "Próxima fase";
   return <div className="modal-backdrop result-backdrop"><section className={`result-card ${victory ? "victory" : "defeat"}`}>
     <span className="result-emblem">{victory ? "✦" : "×"}</span><span className="eyebrow">{victory ? "OPERAÇÃO CONCLUÍDA" : "NÚCLEO COMPROMETIDO"}</span><h1>{victory ? "Perímetro assegurado" : "A defesa caiu"}</h1><p>{phase.name} · {result.enemiesDefeated} hostis eliminados</p>
     <Stars value={result.stars} />
     <div className="result-stats"><div><span>Tempo</span><b>{formatTime(result.durationMs)}</b></div><div><span>Integridade</span><b>{result.integrity}%</b></div><div><span>Energia</span><b>{result.energy}</b></div><div><span>Eliminações</span><b>{result.enemiesDefeated}</b></div></div>
-    <div className="result-actions"><button className="secondary-button" onClick={onRetry}>Repetir fase</button>{victory && <button className="primary-button" onClick={onNext}>{phase.id === "fase_08" ? "Ver campanha" : "Próxima fase"} <span>→</span></button>}<button className="text-button" onClick={onPhases}>Selecionar fases</button></div>
+    <div className="result-actions"><button className="secondary-button" onClick={onRetry}>Repetir fase</button>{victory && <button className="primary-button" onClick={onNext}>{nextLabel} <span>→</span></button>}<button className="text-button" onClick={onPhases}>Selecionar fases</button></div>
   </section></div>;
 }
 
@@ -154,14 +251,27 @@ function PlayPage({ campaign, setCampaign }) {
     setCampaign((current) => recordBattleResult(current, battleResult));
   }, [setCampaign]);
 
-  if (!phase || phaseIndex > campaign.unlockedPhaseIndex) return <Navigate to="/fases" replace />;
-  if (!started) return <LoadoutPicker phase={phase} selected={selected} onToggle={(troopId) => setSelected((current) => current.includes(troopId) ? current.filter((id) => id !== troopId) : current.length < 5 ? [...current, troopId] : current)} onStart={() => setStarted(true)} onBack={() => navigate("/fases")} />;
+  if (!phase || phaseIndex > campaign.unlockedPhaseIndex) return <Navigate to={`/fases?capitulo=${phaseIndex >= 8 ? 2 : 1}`} replace />;
+  if (!started) return <LoadoutPicker phase={phase} selected={selected} onToggle={(troopId) => setSelected((current) => current.includes(troopId) ? current.filter((id) => id !== troopId) : current.length < 5 ? [...current, troopId] : current)} onStart={() => setStarted(true)} onBack={() => navigate(`/fases?capitulo=${phase.chapterId === "chapter_02" ? 2 : 1}`)} />;
 
   const retry = () => { setResult(null); setAttempt((value) => value + 1); };
   const next = PHASES[Math.min(PHASES.length - 1, phaseIndex + 1)];
   return <main className="play-page">
-    <GameCanvas key={`${phase.id}:${attempt}`} phase={phase} unlockedTroops={selected} onFinish={handleFinish} onExit={() => navigate("/fases")} />
-    {result && <ResultScreen result={result} phase={phase} onRetry={retry} onNext={() => navigate(phaseIndex === PHASES.length - 1 ? "/fases" : `/jogar/${next.id}`)} onPhases={() => navigate("/fases")} />}
+    <GameCanvas key={`${phase.id}:${attempt}`} phase={phase} unlockedTroops={selected} onFinish={handleFinish} onExit={() => navigate(`/fases?capitulo=${phase.chapterId === "chapter_02" ? 2 : 1}`)} />
+    {result && <ResultScreen result={result} phase={phase} onRetry={retry} onNext={() => navigate(phaseIndex === PHASES.length - 1 ? "/fases?capitulo=2" : `/jogar/${next.id}`)} onPhases={() => navigate(`/fases?capitulo=${phase.chapterId === "chapter_02" ? 2 : 1}`)} />}
+  </main>;
+}
+
+function TestLabPage() {
+  const navigate = useNavigate();
+  const allTroops = useMemo(() => Object.keys(TROOPS), []);
+  return <main className="test-page">
+    <GameCanvas
+      phase={TEST_PHASE}
+      unlockedTroops={allTroops}
+      sandbox
+      onExit={() => navigate("/")}
+    />
   </main>;
 }
 
@@ -185,5 +295,5 @@ export default function App() {
   const handleReset = () => {
     if (window.confirm("Apagar todo o progresso local da campanha?")) setCampaign(resetCampaign());
   };
-  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<HomePage campaign={campaign} onReset={handleReset} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/configuracoes" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
+  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<HomePage campaign={campaign} onReset={handleReset} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
 }

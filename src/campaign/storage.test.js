@@ -11,6 +11,17 @@ describe("save local", () => {
     expect(migrateSave({ unlockedPhaseIndex: 99 }).unlockedPhaseIndex).toBe(PHASES.length - 1);
   });
 
+  it("migra a campanha antiga concluída e libera o Capítulo 2", () => {
+    const migrated = migrateSave({
+      version: 1,
+      unlockedPhaseIndex: 7,
+      currentPhaseId: "fase_08",
+      phaseStats: { fase_08: { victories: 1, bestStars: 3 } },
+    });
+    expect(migrated).toMatchObject({ version: 2, unlockedPhaseIndex: 8, currentPhaseId: "fase_09" });
+    expect(migrated.phaseStats.fase_08).toMatchObject({ victories: 1, bestStars: 3 });
+  });
+
   it("registra vitória, recordes e desbloqueia a fase seguinte", () => {
     const save = recordBattleResult(createDefaultSave(), {
       phaseId: "fase_01", outcome: "victory", stars: 3, durationMs: 1000, integrity: 90,

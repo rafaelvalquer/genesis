@@ -1,4 +1,4 @@
-import { ENEMIES, PHASES } from "./content.js";
+import { DECISIONS, DECISION_LEVELS, ENEMIES, PHASES } from "./content.js";
 
 export function createRng(seed = 1) {
   let value = Number(seed) >>> 0;
@@ -16,6 +16,10 @@ export function enemyThreat(entry) {
   return entry.variant === "alpha" ? base * 8 : base;
 }
 
+export function isGroundTrapEligible(enemy) {
+  return ENEMIES[enemy?.type]?.airborne !== true;
+}
+
 export function waveBudget(wave) {
   return wave.enemies.reduce((total, entry) => total + enemyThreat(entry) * entry.count, 0);
 }
@@ -24,11 +28,11 @@ export function phaseBudget(phase) {
   return phase.waves.reduce((total, waveEntry) => total + waveBudget(waveEntry), 0);
 }
 
-export function buildSpawnQueue(phase, waveIndex, seed = 1) {
+export function buildSpawnQueue(phase, waveIndex, seed = 1, countMultiplier = 1) {
   const waveEntry = phase.waves[waveIndex];
   if (!waveEntry) return [];
   const queue = waveEntry.enemies.flatMap((entry) =>
-    Array.from({ length: entry.count }, (_, index) => ({
+    Array.from({ length: Math.ceil(entry.count * countMultiplier) }, (_, index) => ({
       type: entry.type,
       variant: entry.variant || null,
       sourceIndex: index,
@@ -42,30 +46,40 @@ export function buildSpawnQueue(phase, waveIndex, seed = 1) {
   return queue;
 }
 
-export function calculateStars({ outcome, integrity, durationMs, targetDurationMs }) {
+export function calculateStars({ outcome, integrity, integrityMax = 100, durationMs, targetDurationMs }) {
   if (outcome !== "victory") return 0;
+  const integrityPercent = integrityMax > 0 ? integrity / integrityMax * 100 : 0;
   let stars = 1;
-  if (integrity >= 70) stars += 1;
-  if (integrity >= 40 && durationMs <= targetDurationMs) stars += 1;
+  if (integrityPercent >= 70) stars += 1;
+  if (integrityPercent >= 40 && durationMs <= targetDurationMs) stars += 1;
   return stars;
 }
 
-export function applyDecisionState(state, option) {
-  const supplyCost = Math.max(0, Number(option.cost?.supply || 0));
-  if (state.supply < supplyCost) return state;
-  const effect = option.effect || {};
-  return {
-    ...state,
-    energy: state.energy + Number(effect.energy || 0),
-    supply: Math.min(state.supplyMax, state.supply - supplyCost + Number(effect.supply || 0)),
-    integrity: Math.min(100, state.integrity + Number(effect.integrity || 0)),
-    modifiers: {
-      ...state.modifiers,
-      enemySpeed: state.modifiers.enemySpeed * Number(effect.enemySpeed || 1),
-      troopDamage: state.modifiers.troopDamage * Number(effect.troopDamage || 1),
-      slowDuration: state.modifiers.slowDuration * Number(effect.slowDuration || 1),
-    },
-  };
+const SPECIALIZATION_LOADOUTS = {
+  ballistic_specialization: ["marine", "sniper", "caçador"],
+  explosive_specialization: ["bombardeiro", "demolidora"],
+  energy_specialization: ["ranger", "krio", "guarda"],
+};
+
+export function decisionIsEligible({ id, integrity, integrityMax = 100, loadout = [] }) {
+  if (id === "repair_core" && integrity >= integrityMax * 0.9) return false;
+  const requiredTroops = SPECIALIZATION_LOADOUTS[id];
+  return !requiredTroops || requiredTroops.some((troopId) => loadout.includes(troopId));
+}
+
+export function getDecisionOptions({ level, integrity, integrityMax = 100, loadout = [], decisions = [], seed = 1 }) {
+  const chosen = new Set(decisions.map((entry) => typeof entry === "string" ? entry : entry.id));
+  const options = (DECISION_LEVELS[level] || [])
+    .filter((id) => !chosen.has(id))
+    .filter((id) => decisionIsEligible({ id, integrity, integrityMax, loadout }))
+    .map((id) => DECISIONS[id])
+    .filter(Boolean);
+  const rng = createRng((Number(seed) + Number(level) * 0x9e3779b9) >>> 0);
+  for (let index = options.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(rng() * (index + 1));
+    [options[index], options[swapIndex]] = [options[swapIndex], options[index]];
+  }
+  return options.slice(0, 2);
 }
 
 export function validateCampaignBalance(phases = PHASES) {
@@ -85,4 +99,3 @@ export function validateCampaignBalance(phases = PHASES) {
   });
   return problems;
 }
-

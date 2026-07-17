@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run test:unit && vite build && node scripts/check-assets.js",
+    "assets:enemies": "node scripts/process-enemy-variants.mjs",
+    "assets:mago-abissal": "node scripts/process-mago-abissal-sheets.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",
@@ -24,6 +26,7 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "jsdom": "^26.1.0",
+    "sharp": "^0.35.3",
     "vitest": "^3.2.4"
   }
 }

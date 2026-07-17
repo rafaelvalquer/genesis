@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { CHAPTERS, PHASES } from "../src/game/content.js";
 
 const root = path.resolve("dist/assets");
 if (!fs.existsSync(root)) throw new Error("Build sem diretório de assets.");
@@ -21,11 +22,18 @@ walk(root);
 const blocking = files
   .map((file) => ({ file, size: fs.statSync(file).size, limit: limits[path.extname(file).toLowerCase()] }))
   .filter((entry) => entry.limit && entry.size > entry.limit);
-const arenas = files.filter((file) => path.extname(file).toLowerCase() === ".webp");
+const arenas = files.filter((file) => {
+  const name = path.basename(file);
+  return path.extname(file).toLowerCase() === ".webp" && /^(fase_\d{2}|chapter_\d{2})[-.]/.test(name);
+});
+const expectedArenaCount = new Set([
+  ...PHASES.map((phase) => phase.arenaId),
+  ...CHAPTERS.map((chapter) => chapter.coverArenaId),
+]).size;
 const total = files.reduce((sum, file) => sum + fs.statSync(file).size, 0);
 
-if (arenas.length !== 8) {
-  console.error(`Build deve conter 8 arenas WebP; encontrou ${arenas.length}.`);
+if (arenas.length !== expectedArenaCount) {
+  console.error(`Build deve conter ${expectedArenaCount} arenas WebP; encontrou ${arenas.length}.`);
   process.exitCode = 1;
 }
 if (total > 60 * 1024 * 1024) {
