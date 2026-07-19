@@ -1,4 +1,4 @@
-import { FIELD } from "./battleModel.js";
+import { FIELD, VIEWPORT } from "./battleModel.js";
 import { colorModeFilter } from "./graphicsRuntime.js";
 
 function seeded(seed = 1) {
@@ -100,7 +100,7 @@ export function drawPostProcessing(ctx, phase, settings, session, now) {
 
 export function presentScene(ctx, scene, renderScale, camera, settings = {}) {
   ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-  ctx.clearRect(0, 0, FIELD.width, FIELD.height);
+  ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   ctx.save();
   ctx.translate(camera.x, camera.y);
   ctx.filter = colorModeFilter(settings.colorMode);

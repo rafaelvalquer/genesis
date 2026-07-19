@@ -49,6 +49,15 @@ describe("arenas cinematograficas", () => {
     expect(Object.keys(attack)).toHaveLength(8);
   });
 
+  it("carrega os vinte e quatro quadros da defesa Linha Zero", () => {
+    const idle = import.meta.glob("./assets/defense/pulsoDesmaterializacao/idle/frame*.png");
+    const attack = import.meta.glob("./assets/defense/pulsoDesmaterializacao/attack/frame*.png");
+    const dead = import.meta.glob("./assets/defense/pulsoDesmaterializacao/dead/frame*.png");
+    expect(Object.keys(idle)).toHaveLength(8);
+    expect(Object.keys(attack)).toHaveLength(8);
+    expect(Object.keys(dead)).toHaveLength(8);
+  });
+
   it("carrega oito quadros exclusivos de idle e ataque do cacador", () => {
     const idle = import.meta.glob("./assets/troop/cacador/idle/frame*.png");
     const attack = import.meta.glob("./assets/troop/cacador/attack/frame*.png");
@@ -61,6 +70,24 @@ describe("arenas cinematograficas", () => {
     const attack = import.meta.glob("./assets/troop/bombardeiro/attack/frame*.png");
     expect(Object.keys(idle)).toHaveLength(8);
     expect(Object.keys(attack)).toHaveLength(8);
+  });
+
+  it("carrega oito quadros largos de idle e ataque da Artilheira de Morteiro", () => {
+    const idle = import.meta.glob("./assets/troop/artilheiraMorteiro/idle/frame*.png");
+    const attack = import.meta.glob("./assets/troop/artilheiraMorteiro/attack/frame*.png");
+    expect(Object.keys(idle)).toHaveLength(8);
+    expect(Object.keys(attack)).toHaveLength(8);
+    expect(getTroopPreviewUrl("artilheiraMorteiro")).toMatch(/frame0.*\.png/i);
+  });
+
+  it("carrega os vinte e quatro quadros do Colosso de Impacto", () => {
+    const idle = import.meta.glob("./assets/troop/colossoImpacto/idle/frame*.png");
+    const attack = import.meta.glob("./assets/troop/colossoImpacto/attack/frame*.png");
+    const special = import.meta.glob("./assets/troop/colossoImpacto/special/frame*.png");
+    expect(Object.keys(idle)).toHaveLength(8);
+    expect(Object.keys(attack)).toHaveLength(8);
+    expect(Object.keys(special)).toHaveLength(8);
+    expect(getTroopPreviewUrl("colossoImpacto")).toMatch(/frame0.*\.png/i);
   });
 
   it("carrega oito quadros exclusivos de idle e ataque do incinerador", () => {
@@ -143,10 +170,11 @@ describe("arenas cinematograficas", () => {
   });
 
   it("nao carrega a arte panoramica no pacote da batalha", async () => {
-    const assets = await loadBattleAssets({ ...PHASES[0], waves: [] }, []);
+    const assets = await loadBattleAssets({ ...PHASES[0], waves: [] }, [], undefined, { skipDefenses: true });
     expect(assets).not.toHaveProperty("arenaImage");
     expect(assets).toHaveProperty("troops");
     expect(assets).toHaveProperty("enemies");
+    expect(assets).toHaveProperty("defenses");
   });
 
   it("escala a intensidade visual por onda sem ultrapassar os limites", () => {
@@ -167,24 +195,32 @@ describe("arenas cinematograficas", () => {
     placeTroop(session, "marine", 0, 1);
     expect(getGridCellState(session, 0, 1, "marine", false, null).state).toBe("invalid");
     expect(getGridCellState(session, 0, 1, null, true, null).state).toBe("removable");
-    expect(getGridCellState(session, 0, 9, "marine", false, null).state).toBe("invalid");
+    expect(getGridCellState(session, 0, 0, "marine", false, null).state).toBe("invalid");
+    expect(getGridCellState(session, 0, 10, "marine", false, null).state).toBe("invalid");
   });
 
   it("encaixa a previa no centro da celula e usa o alcance real da unidade", () => {
     const session = createBattleSession(PHASES[0], ["colono", "marine", "sniper"], 1);
-    expect(getPlacementPreviewGeometry(session, "colono", { row: 0, col: 0 })).toMatchObject({
-      x: 50, y: 60, valid: true, range: { x0: 50, y0: 60, x1: 140, y1: 60 },
+    expect(getPlacementPreviewGeometry(session, "colono", { row: 0, col: 1 })).toMatchObject({
+      x: 150, y: 60, valid: true, range: { x0: 150, y0: 60, x1: 240, y1: 60 },
     });
     expect(getPlacementPreviewGeometry(session, "marine", { row: 2, col: 1 })).toMatchObject({
       x: 150, y: 300, valid: true, range: { x0: 150, y0: 300, x1: 700, y1: 300 },
     });
-    expect(getPlacementPreviewGeometry(session, "sniper", { row: 4, col: 8 }).range.x1).toBe(1000);
+    expect(getPlacementPreviewGeometry(session, "sniper", { row: 4, col: 8 }).range.x1).toBe(1100);
   });
 
   it("mostra as três colunas e todas as linhas na prévia da Demolidora", () => {
     const session = createBattleSession(PHASES[5], ["demolidora"], 7);
     expect(getPlacementPreviewGeometry(session, "demolidora", { row: 2, col: 1 }).range).toEqual({
       kind: "mine", x0: 200, y0: 0, x1: 500, y1: 600,
+    });
+  });
+
+  it("mostra a zona cega e os quatro tiles válidos do morteiro", () => {
+    const session = createBattleSession(PHASES[8], ["artilheiraMorteiro"], 8);
+    expect(getPlacementPreviewGeometry(session, "artilheiraMorteiro", { row: 2, col: 1 }).range).toEqual({
+      kind: "mortar", x0: 400, y0: 240, x1: 800, y1: 360, blindX0: 200,
     });
   });
 

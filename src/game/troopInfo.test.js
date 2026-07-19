@@ -12,6 +12,7 @@ describe("apresentação das informações das tropas", () => {
     ["krio", 1420, "A cada 1,42 s"],
     ["ranger", 1500, "A cada 1,5 s"],
     ["bombardeiro", 2300, "A cada 2,3 s"],
+    ["artilheiraMorteiro", 3000, "A cada 3 s"],
     ["guarda", 1500, "A cada 1,5 s"],
   ])("apresenta a cadência rebalanceada de %s", (troopId, attackEveryMs, cadence) => {
     expect(TROOPS[troopId].attackEveryMs).toBe(attackEveryMs);
@@ -55,5 +56,16 @@ describe("apresentação das informações das tropas", () => {
       { label: "Campo minado", value: "Até 5 minas por Demolidora" },
       { label: "Defesa próxima", value: "2 de dano a cada 0,65 s · 2 células" },
     ]);
+  });
+
+  it("expõe a janela cega e o dano colateral do morteiro", () => {
+    expect(values("artilheiraMorteiro")).toMatchObject({
+      HP: "18", Energia: "22", Supply: "6", Alcance: "3–6 células",
+      Ataque: "Morteiro indireto", Dano: "28", Cadência: "A cada 3 s", Cooldown: "7 s",
+    });
+    expect(getTroopInfo(TROOPS.artilheiraMorteiro).specials).toContainEqual({
+      label: "Dano colateral",
+      value: "30% nos demais inimigos do tile",
+    });
   });
 });

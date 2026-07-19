@@ -34,4 +34,40 @@ describe("runtime grafico", () => {
     expect(getCameraOffset(createGraphicsRuntime(), 0, { cameraShake: true, reduceMotion: true })).toEqual({ x: 0, y: 0 });
     expect(colorModeFilter("contrast")).toContain("contrast");
   });
+
+  it("registra e expira reacoes da contencao para spawns", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [
+      { type: "spawn", x: 1140, enemy: { row: 0, variant: "alpha", x: 1140, y: 60 } },
+    ], 100, { quality: "high", cameraShake: false });
+    expect(runtime.containmentArcs).toMatchObject([{ row: 0, x: 1076, alpha: true }]);
+    expect(runtime.containmentInterferenceUntil).toBe(1200);
+    updateGraphicsRuntime(runtime, 1001, 16, {});
+    expect(runtime.containmentArcs).toHaveLength(0);
+  });
+
+  it("mantem feixe, desintegracao e marcas somente pelas duracoes visuais", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [
+      { type: "pulseFired", row: 2, x0: 96, y0: 300, x1: 1124, y1: 300, seed: 17 },
+      {
+        type: "enemyDisintegrated",
+        enemyId: "enemy_pulse",
+        row: 2,
+        x: 500,
+        y: 300,
+        entity: { id: "enemy_pulse", type: "medu", row: 2, x: 500, y: 300 },
+      },
+    ], 100, { quality: "high", cameraShake: true });
+    expect(runtime.pulseBeams).toHaveLength(1);
+    expect(runtime.disintegrations).toHaveLength(1);
+    expect(runtime.pulseScorches).toHaveLength(8);
+
+    updateGraphicsRuntime(runtime, 521, 16, {});
+    expect(runtime.pulseBeams).toHaveLength(0);
+    expect(runtime.disintegrations).toHaveLength(0);
+    expect(runtime.pulseScorches).toHaveLength(8);
+    updateGraphicsRuntime(runtime, 6101, 16, {});
+    expect(runtime.pulseScorches).toHaveLength(0);
+  });
 });

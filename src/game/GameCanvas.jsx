@@ -11,10 +11,16 @@ import {
   drawTacticalGrid,
   getPlacementPreviewGeometry,
 } from "./arenaRenderer.js";
-import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectiles, pushEventParticles } from "./projectileRenderer.js";
+import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectiles, drawStunnedEnemyEffect, pushEventParticles } from "./projectileRenderer.js";
 import {
-  getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getSpriteRect,
-  getTroopAnimation, getTroopFrameAnchor, isEnemyFrozen,
+  drawDematerializationPulses,
+  drawPulseBeams,
+  drawPulseDisintegrations,
+  drawPulseScorches,
+} from "./pulseRenderer.js";
+import {
+  getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect,
+  getMuzzleWorldPosition, getTroopAnimation, getTroopFrameAnchor, isEnemyFrozen, viewportPointToFieldPoint,
 } from "./visualGeometry.js";
 import {
   configureHiDPICanvas, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
@@ -25,24 +31,44 @@ import {
   drawWetReflections, presentScene,
 } from "./graphicsRenderer.js";
 import {
-  FIELD,
+  FIELD, VIEWPORT,
   cellFromPoint,
   clearSandboxEntities,
   createBattleSession,
   getSnapshot,
+  injureSandboxTroops,
+  activateTroopSpecial,
   placeTroop,
   removeTroop,
   selectDecision,
+  setEnergyPickupPointer,
   setSandboxSettings,
   spawnEnemy,
   startWave,
   stepBattle,
 } from "./battleModel.js";
+import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
 import { loadSettings } from "../campaign/storage.js";
 
-function drawSprite(ctx, image, entity, targetHeight, opacity = 1, filter = "none", anchor = null) {
+function drawSprite(ctx, image, entity, targetHeight, opacity = 1, filter = "none", anchor = null, flipX = false) {
   if (!image?.width || !image?.height) return false;
   const rect = getAnchoredSpriteRect(entity, targetHeight, image.width / image.height, anchor);
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.filter = filter;
+  if (flipX) {
+    ctx.translate(rect.x + rect.width / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, -rect.width / 2, rect.y, rect.width, rect.height);
+  } else {
+    ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  }
+  ctx.restore();
+  return true;
+}
+
+function drawSpriteInRect(ctx, image, rect, opacity = 1, filter = "none") {
+  if (!image?.width || !image?.height) return false;
   ctx.save();
   ctx.globalAlpha = opacity;
   ctx.filter = filter;
@@ -80,10 +106,10 @@ function drawAbyssCharge(ctx, enemy, config, elapsed, settings) {
   ctx.restore();
 }
 
-function drawHealth(ctx, entity, runtime, now, width = 54, offset = 47, accent = null) {
+function drawHealth(ctx, entity, runtime, now, width = 54, offset = 47, accent = null, battleElapsed = now) {
   const { ratio, trail } = getHealthVisual(runtime, entity, now);
   const x = entity.x - width / 2;
-  const y = entity.y - offset;
+  const y = Math.max(10, entity.y - offset);
   ctx.fillStyle = "rgba(2,6,23,.92)";
   ctx.fillRect(x - 2, y - 2, width + 4, 10);
   ctx.strokeStyle = accent || "rgba(186,230,253,.34)";
@@ -93,6 +119,172 @@ function drawHealth(ctx, entity, runtime, now, width = 54, offset = 47, accent =
   ctx.fillRect(x + 1, y + 1, (width - 2) * trail, 4);
   ctx.fillStyle = accent || (ratio > 0.55 ? "#34d399" : ratio > 0.25 ? "#fbbf24" : "#fb7185");
   ctx.fillRect(x + 1, y + 1, (width - 2) * ratio, 4);
+  if (entity.shieldMax > 0 && entity.shield > 0) {
+    const shieldRatio = Math.max(0, Math.min(1, entity.shield / entity.shieldMax));
+    ctx.fillStyle = "rgba(15,23,42,.95)";
+    ctx.fillRect(x - 1, y + 8, width + 2, 5);
+    ctx.fillStyle = "#a78bfa";
+    ctx.shadowBlur = 6;
+    ctx.shadowColor = "#7fffd4";
+    ctx.fillRect(x, y + 9, width * shieldRatio, 3);
+    ctx.shadowBlur = 0;
+  }
+  const healAge = battleElapsed - entity.lastNaniteHealAt;
+  if (Number.isFinite(healAge) && healAge >= 0 && healAge < 520) {
+    const fade = 1 - healAge / 520;
+    ctx.save();
+    ctx.strokeStyle = `rgba(52,211,153,${0.85 * fade})`;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = "#2dd4bf";
+    ctx.strokeRect(x - 3, y - 3, width + 6, 12);
+    ctx.restore();
+  }
+}
+
+function activeNaniteHealers(session, targetId) {
+  return session.troops.filter((troop) => !troop.dead
+    && troop.type === "medicaNanites"
+    && troop.state === "healing"
+    && troop.healTargetId === targetId);
+}
+
+function drawNaniteHealingBeams(ctx, session, settings) {
+  for (const medic of session.troops) {
+    if (medic.dead || medic.type !== "medicaNanites" || medic.state !== "healing" || !medic.healTargetId) continue;
+    const target = session.troops.find((troop) => troop.id === medic.healTargetId && !troop.dead);
+    if (!target) continue;
+    const config = TROOPS.medicaNanites;
+    const origin = getMuzzleWorldPosition(medic, config, 0);
+    const end = { x: target.x, y: target.y - 18 };
+    const sway = settings.reduceMotion ? 0 : Math.sin(session.elapsed / 120 + medic.col) * 2.5;
+    const drawBeam = () => {
+      ctx.beginPath();
+      ctx.moveTo(origin.x, origin.y);
+      ctx.quadraticCurveTo((origin.x + end.x) / 2, (origin.y + end.y) / 2 + sway, end.x, end.y);
+      ctx.stroke();
+    };
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(45,212,191,.16)";
+    ctx.lineWidth = 13;
+    drawBeam();
+    ctx.strokeStyle = "rgba(52,211,153,.7)";
+    ctx.lineWidth = 6;
+    drawBeam();
+    ctx.strokeStyle = "rgba(236,253,245,.95)";
+    ctx.lineWidth = 2;
+    drawBeam();
+    if (!settings.reduceMotion) {
+      for (let index = 0; index < 4; index += 1) {
+        const progress = ((session.elapsed / 700 + index / 4) % 1);
+        const x = origin.x + (end.x - origin.x) * progress;
+        const y = origin.y + (end.y - origin.y) * progress + Math.sin(progress * Math.PI) * sway;
+        ctx.fillStyle = index % 2 ? "#6ee7b7" : "#ecfdf5";
+        ctx.beginPath();
+        ctx.arc(x, y, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+function drawNaniteTargetEffect(ctx, entity, session, settings) {
+  if (!activeNaniteHealers(session, entity.id).length) return;
+  const pulse = settings.reduceMotion ? 1 : 0.94 + Math.sin(session.elapsed / 140) * 0.06;
+  ctx.save();
+  ctx.strokeStyle = "rgba(52,211,153,.82)";
+  ctx.fillStyle = "rgba(45,212,191,.08)";
+  ctx.lineWidth = 2;
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = "#34d399";
+  ctx.beginPath();
+  ctx.ellipse(entity.x, entity.y + 42, 31 * pulse, 9 * pulse, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(entity.x, entity.y - 9, 29, 43, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawNaniteCooldown(ctx, entity, session, settings) {
+  if (entity.type !== "medicaNanites" || entity.state !== "cooldown") return;
+  const duration = Math.max(1, TROOPS.medicaNanites.healCooldownMs);
+  const progress = Math.max(0, Math.min(1, 1 - (entity.cooldownEndsAt - session.elapsed) / duration));
+  ctx.save();
+  ctx.strokeStyle = "rgba(45,212,191,.28)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(entity.x, entity.y - 62, 10, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.strokeStyle = "#5eead4";
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = "#2dd4bf";
+  ctx.beginPath();
+  ctx.arc(entity.x, entity.y - 62, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+  ctx.stroke();
+  if (!settings.reduceMotion) {
+    ctx.fillStyle = "#ccfbf1";
+    ctx.font = "700 8px Chakra Petch, system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("RECARGA", entity.x, entity.y - 79);
+  }
+  ctx.restore();
+}
+
+function drawTroopSpecialReady(ctx, entity, elapsed, settings) {
+  const pulse = settings.reduceMotion ? 1 : 0.9 + Math.sin(elapsed / 130) * 0.1;
+  const glow = ctx.createRadialGradient(entity.x, entity.y - 36, 2, entity.x, entity.y - 36, 34 * pulse);
+  glow.addColorStop(0, "rgba(236,253,245,.98)");
+  glow.addColorStop(.28, "rgba(110,231,183,.82)");
+  glow.addColorStop(1, "rgba(16,185,129,0)");
+  ctx.save();
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(entity.x, entity.y - 36, 34 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(110,231,183,${.38 + pulse * .3})`;
+  ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = "#34d399";
+  ctx.beginPath();
+  ctx.ellipse(entity.x, entity.y + 39, 36 * pulse, 10 * pulse, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#d1fae5";
+  ctx.font = "700 9px Chakra Petch, system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("ESMAGAMENTO PRONTO", entity.x, entity.y - 105);
+  ctx.restore();
+}
+
+function drawPrismaticShield(ctx, entity, elapsed, settings) {
+  if (!(entity.shield > 0)) return;
+  const radiusX = 30 * (entity.scale || 1);
+  const radiusY = 42 * (entity.scale || 1);
+  const pulse = settings.reduceMotion ? 1 : 0.96 + Math.sin(elapsed / 180 + entity.row) * 0.04;
+  ctx.save();
+  ctx.translate(entity.x, entity.y - 14 * (entity.scale || 1));
+  ctx.scale(radiusX * pulse, radiusY * pulse);
+  ctx.strokeStyle = "rgba(167,139,250,.72)";
+  ctx.fillStyle = "rgba(127,255,212,.06)";
+  ctx.lineWidth = 1.4 / radiusX;
+  ctx.shadowBlur = 12 / radiusX;
+  ctx.shadowColor = "#7fffd4";
+  ctx.beginPath();
+  for (let index = 0; index < 8; index += 1) {
+    const angle = -Math.PI / 2 + index * Math.PI / 4;
+    const x = Math.cos(angle);
+    const y = Math.sin(angle);
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawProceduralGlassEnemy(ctx, entity, config, elapsed, filter = "none") {
@@ -183,6 +375,26 @@ function drawProceduralGlassEnemy(ctx, entity, config, elapsed, filter = "none")
     ctx.beginPath();
     ctx.arc(0, -13 * scale, 9 * scale * pulse, 0, Math.PI * 2);
     ctx.fill();
+  } else if (config.proceduralKind === "crisalio") {
+    polygon([[-38, -25], [-28, -52], [-13, -68], [13, -68], [30, -50], [40, -22], [31, 16], [-31, 16]], "#070913", "#a78bfa");
+    polygon([[-28, -35], [-48, -20], [-43, 14], [-25, 28], [-15, -7]], "#111522", "#7fffd4");
+    polygon([[28, -35], [48, -20], [43, 14], [25, 28], [15, -7]], "#111522", "#7fffd4");
+    for (let index = 0; index < 5; index += 1) {
+      const x = (index - 2) * 12;
+      polygon([[x - 6, -67], [x, -92 - Math.abs(index - 2) * 2], [x + 7, -67], [x, -55]], index % 2 ? "#7c3aed" : "#5eead4", "#e9d5ff");
+    }
+    ctx.strokeStyle = "#7fffd4";
+    ctx.lineWidth = 2.4 * scale;
+    for (let index = 0; index < 3; index += 1) {
+      const angle = elapsed / 760 + index * Math.PI * 2 / 3;
+      ctx.beginPath();
+      ctx.arc(0, -28 * scale, (28 + index * 8) * scale, angle, angle + 0.75);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#e9d5ff";
+    ctx.beginPath();
+    ctx.arc(0, -35 * scale, 7 * scale * pulse, 0, Math.PI * 2);
+    ctx.fill();
   }
   ctx.restore();
   return true;
@@ -198,20 +410,23 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const entity = death.entity;
     const config = death.kind === "troop" ? TROOPS[entity.type] : ENEMIES[entity.type];
     const groups = death.kind === "troop" ? assets.troops[entity.type] : assets.enemies[entity.type];
-    const frames = groups?.attack || groups?.walking || groups?.idle || groups?.defense || [];
-    const image = frames[Math.min(frames.length - 1, Math.floor(progress * Math.max(1, frames.length)))] || frames[0];
+    const state = groups?.attack ? "attack" : groups?.walking ? "walking" : groups?.idle ? "idle" : "defense";
+    const frames = groups?.[state] || [];
+    const frame = Math.min(frames.length - 1, Math.floor(progress * Math.max(1, frames.length)));
+    const image = frames[frame] || frames[0];
     const height = death.kind === "troop" ? config?.attackVisual?.height || 126 : 128 * (entity.scale || 1);
     ctx.save();
     ctx.translate(entity.x, entity.y);
     ctx.rotate((death.kind === "enemy" ? .22 : -.18) * progress);
-    const deathEntity = death.kind === "troop"
-      ? getTroopVisualEntity({ ...entity, x: 0, y: progress * 9 }, config)
-      : {
-        ...entity,
-        x: 0,
-        y: progress * 9 + (config?.spriteOffsetY || 0) * (entity.scale || 1),
-      };
-    drawSprite(ctx, image, deathEntity, height, Math.max(0, 1 - progress * progress), `grayscale(${progress * .6}) drop-shadow(0 0 5px ${phase.palette.accent})`);
+    const deathEntity = { ...entity, x: 0, y: progress * 9 };
+    const filter = `grayscale(${progress * .6}) drop-shadow(0 0 5px ${phase.palette.accent})`;
+    if (death.kind === "troop") {
+      drawSprite(ctx, image, getTroopVisualEntity(deathEntity, config), height, Math.max(0, 1 - progress * progress), filter, null, config?.flipX);
+    } else {
+      const aspectRatio = image?.width && image?.height ? image.width / image.height : 1;
+      const rect = getEnemySpriteRect(deathEntity, config, state, frame, aspectRatio);
+      drawSpriteInRect(ctx, image, rect, Math.max(0, 1 - progress * progress), filter);
+    }
     ctx.restore();
   }
 }
@@ -249,7 +464,7 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
   const filter = preview.valid
     ? `brightness(1.15) drop-shadow(0 0 8px ${config.color})`
     : "grayscale(.55) sepia(1) saturate(6) hue-rotate(310deg) brightness(.95) drop-shadow(0 0 7px #fb7185)";
-  if (!drawSprite(ctx, image, visualEntity, height, opacity, filter, frameAnchor)) {
+  if (!drawSprite(ctx, image, visualEntity, height, opacity, filter, frameAnchor, config.flipX)) {
     ctx.save();
     ctx.globalAlpha = opacity;
     ctx.fillStyle = preview.color;
@@ -258,19 +473,66 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
   }
 }
 
+function drawEnergyPickups(ctx, pickups, elapsed, settings) {
+  for (const pickup of pickups) {
+    const motionTime = settings.reduceMotion ? 0 : elapsed;
+    const bob = settings.reduceMotion ? 0 : Math.sin(motionTime / 280 + pickup.phase) * 5;
+    const pulse = settings.reduceMotion ? 1 : 0.92 + Math.sin(motionTime / 170 + pickup.phase) * 0.08;
+    const x = pickup.x;
+    const y = pickup.y + bob;
+    const halo = ctx.createRadialGradient(x - 2, y - 3, 1, x, y, 25 * pulse);
+    halo.addColorStop(0, "rgba(255,255,255,.98)");
+    halo.addColorStop(0.18, "rgba(254,240,138,.98)");
+    halo.addColorStop(0.46, "rgba(250,204,21,.72)");
+    halo.addColorStop(1, "rgba(245,158,11,0)");
+
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = halo;
+    ctx.shadowBlur = 20;
+    ctx.shadowColor = "#facc15";
+    ctx.beginPath();
+    ctx.arc(x, y, 25 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#fff7ae";
+    ctx.beginPath();
+    ctx.arc(x, y, 7 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.arc(x - 2, y - 2, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, now, interpolation) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
+  drawContainmentUnderlay(ctx, session.phase, session, runtime, now, settings);
+  ctx.save();
+  ctx.translate(0, VIEWPORT.fieldOffsetY);
   drawArenaBackground(ctx, session.phase, settings);
   drawArenaUnderlay(ctx, session.phase, settings, session, now);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);
   drawTacticalGrid(ctx, session, selectedTroop, removeMode, hoveredCell);
   drawPlacementRange(ctx, placementPreview);
   drawDecals(ctx, runtime, settings);
+  drawPulseScorches(ctx, runtime, now, settings);
 
   const baseGradient = ctx.createLinearGradient(0, 0, 48, 0);
   baseGradient.addColorStop(0, `${session.phase.palette.primary}55`);
   baseGradient.addColorStop(1, "transparent");
   ctx.fillStyle = baseGradient;
-  ctx.fillRect(0, 0, 58, FIELD.height);
+  ctx.fillRect(0, 0, FIELD.baseX + 40, FIELD.height);
+
+  drawDematerializationPulses(
+    ctx,
+    session.dematerializationPulses,
+    assets.defenses?.pulsoDesmaterializacao,
+    session.elapsed,
+    settings,
+  );
 
   const mineAssets = assets.troops.demolidora || {};
   drawMines(ctx, session.mines, mineAssets.mine?.[0], session.elapsed);
@@ -278,6 +540,7 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
     ...session.projectiles.map((entity) => interpolateEntity(entity, interpolation)),
     ...session.enemyProjectiles.map((entity) => interpolateEntity(entity, interpolation)),
   ], settings, mineAssets);
+  drawNaniteHealingBeams(ctx, session, settings);
 
   const sorted = [
     ...session.troops.map((entity) => ({ kind: "troop", entity })),
@@ -297,24 +560,28 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
       const troopAssets = assets.troops[entity.type] || {};
       const animation = getTroopAnimation(entity, config, session.elapsed, {
         idle: troopAssets.idle?.length, attack: troopAssets.attack?.length,
+        heal: troopAssets.heal?.length, cooldown: troopAssets.cooldown?.length,
         attackMine: troopAssets.attackMine?.length, attackGun: troopAssets.attackGun?.length,
-        defense: troopAssets.defense?.length,
+        defense: troopAssets.defense?.length, special: troopAssets.special?.length,
       });
       const frames = troopAssets[animation.state] || troopAssets.idle || [];
       const image = frames[animation.frame % Math.max(1, frames.length)];
       const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
       const visualEntity = getTroopVisualEntity(entity, config);
       const troopFilter = `drop-shadow(0 0 ${3 + reaction.flash * 5}px ${session.phase.palette.primary}) brightness(${1 + reaction.flash * .65})`;
-      if (!drawSprite(ctx, image, visualEntity, config.attackVisual?.height || (entity.type === "muralhaReforcada" ? 112 : 126), 1, troopFilter, frameAnchor)) {
+      if (!drawSprite(ctx, image, visualEntity, config.attackVisual?.height || (entity.type === "muralhaReforcada" ? 112 : 126), 1, troopFilter, frameAnchor, config.flipX)) {
         ctx.fillStyle = config.color;
         ctx.fillRect(visualEntity.x - 24, visualEntity.y - 34, 48, 68);
       }
-      drawHealth(ctx, logicalEntity, runtime, now, 54, 52);
+      if (config.specialEveryMs && !entity.specialRequested && session.elapsed >= entity.specialReadyAt) {
+        drawTroopSpecialReady(ctx, visualEntity, session.elapsed, settings);
+      }
+      drawNaniteTargetEffect(ctx, visualEntity, session, settings);
+      drawNaniteCooldown(ctx, visualEntity, session, settings);
+      drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
     } else {
       const config = ENEMIES[entity.type];
-      let visualEntity = config.spriteOffsetY
-        ? { ...entity, y: entity.y + config.spriteOffsetY * entity.scale }
-        : entity;
+      let visualEntity = entity;
       if (entity.attachedToTroopId) {
         visualEntity = { ...visualEntity, y: visualEntity.y + (config.attachmentOffsetY || 0) };
       } else if (entity.jumping) {
@@ -322,21 +589,24 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
         visualEntity = { ...visualEntity, y: visualEntity.y - config.jumpArcHeight * 4 * progress * (1 - progress) };
       }
       const frozen = isEnemyFrozen(entity, session.elapsed);
+      const stunned = session.elapsed < (entity.stunnedUntil || 0);
       const enemyAssets = assets.enemies[entity.type] || {};
       const animation = getEnemyAnimation(entity, config, session.elapsed, {
         idle: enemyAssets.idle?.length, walking: enemyAssets.walking?.length,
         attack: enemyAssets.attack?.length, jump: enemyAssets.jump?.length,
+        pulse: enemyAssets.pulse?.length,
       });
       const frames = enemyAssets[animation.state] || enemyAssets.walking || enemyAssets.idle || [];
       const image = frames[animation.frame % Math.max(1, frames.length)];
-      const enemyHeight = 128 * entity.scale;
+      const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
+      const enemyRect = getEnemySpriteRect(visualEntity, config, animation.state, animation.frame, enemyAspectRatio);
       const bossShift = entity.variant === "alpha" ? ` hue-rotate(${entity.bossPhase * 24}deg) saturate(${1.05 + entity.bossPhase * .18})` : "";
       const echoFilter = entity.isEcho ? " saturate(.65) brightness(1.28) hue-rotate(34deg) contrast(1.08)" : "";
       const baseFilter = frozen ? "saturate(.55) brightness(1.16)" : `brightness(${1 + reaction.flash * .75})${bossShift}${echoFilter}`;
-      let spriteDrawn = drawSprite(ctx, image, visualEntity, enemyHeight, entity.isEcho ? 0.72 : 1, `${baseFilter} drop-shadow(0 0 ${entity.isEcho ? 11 : 3 + reaction.flash * 6}px ${entity.isEcho ? "#7fffd4" : session.phase.palette.accent})`);
+      let spriteDrawn = drawSpriteInRect(ctx, image, enemyRect, entity.isEcho ? 0.72 : 1, `${baseFilter} drop-shadow(0 0 ${entity.isEcho ? 11 : 3 + reaction.flash * 6}px ${entity.isEcho ? "#7fffd4" : session.phase.palette.accent})`);
       if (!spriteDrawn) spriteDrawn = drawProceduralGlassEnemy(ctx, visualEntity, config, session.elapsed, baseFilter);
       if (frozen && spriteDrawn) {
-        drawSprite(ctx, image, visualEntity, enemyHeight, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
+        drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
       }
       if (!spriteDrawn) {
         ctx.fillStyle = frozen ? "#38bdf8" : config.color;
@@ -345,7 +615,9 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
         ctx.fill();
       }
       drawAbyssCharge(ctx, entity, config, session.elapsed, settings);
+      drawPrismaticShield(ctx, visualEntity, session.elapsed, settings);
       if (frozen) drawFrozenEnemyEffect(ctx, visualEntity, session.elapsed, settings);
+      if (stunned) drawStunnedEnemyEffect(ctx, visualEntity, session.elapsed, settings);
       if (entity.isEcho) {
         const radius = 31 * entity.scale;
         ctx.save();
@@ -367,23 +639,28 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
         ctx.fillStyle = "#fecdd3";
         ctx.font = "700 11px system-ui";
         ctx.textAlign = "center";
-        ctx.fillText(`${config.label.toUpperCase()} ALFA`, entity.x, entity.y - 76 * entity.scale);
+        ctx.fillText(`${config.label.toUpperCase()} ALFA`, visualEntity.x, Math.max(30, visualEntity.y - 76 * entity.scale));
       }
     }
   }
 
   drawTroopPlacementPreview(ctx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(ctx, runtime, assets, now, session.phase);
+  drawPulseDisintegrations(ctx, runtime, assets, now, settings);
   drawDeploymentEffects(ctx, runtime, now, settings);
   drawDynamicLights(ctx, runtime, now, settings);
   drawArenaForeground(ctx, session.phase, settings, session, now);
+  drawPulseBeams(ctx, runtime, now, settings);
+  drawEnergyPickups(ctx, session.energyPickups, session.elapsed, settings);
   particlesRef.current = drawParticles(ctx, particlesRef.current, now, settings);
   drawPostProcessing(ctx, session.phase, settings, session, now);
+  ctx.restore();
+  drawContainmentForeground(ctx, session.phase, session, runtime, now, settings);
 }
 
 function SandboxPanel({
   selectedEnemy, onSelectEnemy, row, onRow, count, onCount, alpha, onAlpha,
-  settings, onSetting, onRulesMode, onSpawn, onClear, onReset,
+  settings, onSetting, onRulesMode, onSpawn, onInjure, onClear, onReset,
 }) {
   const selected = ENEMIES[selectedEnemy];
   const slider = (key, label, min, max) => <label className="sandbox-slider" key={key}>
@@ -420,7 +697,7 @@ function SandboxPanel({
       {slider("troopDamageMultiplier", "Dano das tropas", 0.25, 3)}
       <label className="sandbox-check"><span><b>Base invulnerável</b><small>Rupturas não reduzem integridade</small></span><input type="checkbox" checked={settings.invulnerableBase} onChange={(event) => onSetting("invulnerableBase", event.target.checked)} /></label>
     </details>
-    <div className="sandbox-cleanup"><button onClick={() => onClear("enemies")}>Limpar hostis</button><button onClick={() => onClear("troops")}>Limpar tropas</button></div>
+    <div className="sandbox-cleanup"><button onClick={onInjure}>Ferir tropas −10 HP</button><button onClick={() => onClear("enemies")}>Limpar hostis</button><button onClick={() => onClear("troops")}>Limpar tropas</button></div>
   </aside>;
 }
 
@@ -521,8 +798,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     const ctx = canvas.getContext("2d");
     const renderScale = configureHiDPICanvas(canvas, settings, window.devicePixelRatio || 1);
     const scene = document.createElement("canvas");
-    scene.width = FIELD.width;
-    scene.height = FIELD.height;
+    scene.width = VIEWPORT.width;
+    scene.height = VIEWPORT.height;
     const sceneCtx = scene.getContext("2d");
     let animationId;
     let previous = performance.now();
@@ -537,7 +814,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, settings);
         consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
         if (events.some((event) => event.type === "spawn")) play("alert", 0.08);
+        if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
         if (events.some((event) => event.type === "shoot")) play("shoot", 0.18);
+        if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);
         const phaseEvent = events.find((event) => event.type === "bossPhase");
         if (phaseEvent) {
@@ -571,18 +850,39 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     return () => cancelAnimationFrame(animationId);
   }, [loading.ready, onFinish, play, removeMode, selectedTroop, settings, showGraphicsMetrics]);
 
-  const pointFromPointer = (event) => {
+  const canvasPointFromPointer = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
-    return cellFromPoint((event.clientX - rect.left) * FIELD.width / rect.width, (event.clientY - rect.top) * FIELD.height / rect.height);
+    const viewportX = (event.clientX - rect.left) * VIEWPORT.width / rect.width;
+    const viewportY = (event.clientY - rect.top) * VIEWPORT.height / rect.height;
+    return viewportPointToFieldPoint(viewportX, viewportY);
+  };
+
+  const pointFromPointer = (event) => {
+    const point = canvasPointFromPointer(event);
+    return point ? cellFromPoint(point.x, point.y) : null;
   };
 
   const handleCanvasMove = (event) => {
-    hoveredCellRef.current = pointFromPointer(event);
+    const point = canvasPointFromPointer(event);
+    hoveredCellRef.current = point ? cellFromPoint(point.x, point.y) : null;
+    setEnergyPickupPointer(sessionRef.current, point);
+  };
+
+  const releaseMouseTool = () => {
+    setSelectedTroop(null);
+    setRemoveMode(false);
+    setMessage("Mão livre: clique em um Colosso carregado para usar o Esmagamento Total.");
+  };
+
+  const handleCanvasContextMenu = (event) => {
+    event.preventDefault();
+    releaseMouseTool();
   };
 
   const handleCanvasClick = (event) => {
     if (snapshot.outcome) return;
     const point = pointFromPointer(event);
+    if (!point) return;
     if (removeMode) {
       const result = removeTroop(sessionRef.current, point.row, point.col);
       setMessage(result.ok ? `Unidade removida · +${result.refund} energia.` : result.reason);
@@ -593,7 +893,20 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setSnapshot(getSnapshot(sessionRef.current));
       return;
     }
-    if (!selectedTroop) return;
+    if (!selectedTroop) {
+      const troop = sessionRef.current.troops.find((entry) => !entry.dead && entry.row === point.row && entry.col === point.col);
+      if (!troop) return;
+      const result = activateTroopSpecial(sessionRef.current, troop.id);
+      setMessage(result.ok
+        ? result.queued ? "Esmagamento Total enfileirado após o golpe atual." : "Esmagamento Total ativado."
+        : result.reason);
+      if (result.ok) {
+        pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
+        consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+      }
+      setSnapshot(getSnapshot(sessionRef.current));
+      return;
+    }
     const result = placeTroop(sessionRef.current, selectedTroop, point.row, point.col);
     setMessage(result.ok ? `${TROOPS[selectedTroop].label} implantado.` : result.reason);
     if (result.ok) {
@@ -676,6 +989,14 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setMessage(target === "enemies" ? "Todos os hostis foram removidos." : "Todas as tropas foram removidas.");
   };
 
+  const handleInjureTroops = () => {
+    const events = injureSandboxTroops(sessionRef.current, 10);
+    consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
+    pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, settings);
+    setSnapshot(getSnapshot(sessionRef.current));
+    setMessage(events.length ? "Tropas vivas perderam 10 HP para teste de cura." : "Posicione tropas antes de aplicar dano.");
+  };
+
   if (!loading.ready) {
     return <div className="battle-loader" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary }}><div className="loader-scrim" /><div className="loader-content"><div className="loader-mark">GD</div><span className="eyebrow">{phase.name}</span><h2>Preparando campo tático</h2><div className="progress-track"><span style={{ width: `${loading.percent}%` }} /></div><p>{loading.percent}% · sincronizando arena, loadout e hostis</p></div></div>;
   }
@@ -697,6 +1018,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const speeds = sandbox ? [0.5, 1, 2, 4] : [1, 2];
             return speeds[(speeds.indexOf(value) + 1) % speeds.length];
           })}>{speed}×</button>
+          <button type="button" className="release-tool-button topbar-tool-button" onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
+          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !snapshot.outcome && <button className="start-wave topbar-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{phase.waves[snapshot.wave - 1].enemies.reduce((sum, entry) => sum + Math.ceil(entry.count * snapshot.nextWaveEnemyCountFactor), 0)} assinaturas</span></button>}
           <button className="ghost-button" onClick={onExit}>Sair</button>
         </div>
       </header>
@@ -729,16 +1052,18 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               <span className="slot-cost">{freeMode ? "∞" : `⚡${deployment.price}`}<small aria-hidden={coolingDown ? undefined : "true"}>{freeMode ? "LIVRE" : coolingDown ? `${cooldownSeconds}s` : `S${troop.supply}`}</small></span>
             </button>;
           })}
-          <button className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
+          <button type="button" className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
           <div className="rail-tip">{message}</div>
         </aside>
 
         <div className="canvas-wrap">
           <div className="wave-banner">{banner}</div>
-          <canvas ref={canvasRef} width={FIELD.width} height={FIELD.height} onClick={handleCanvasClick} onMouseMove={handleCanvasMove} onMouseLeave={() => { hoveredCellRef.current = null; }} aria-label="Campo de batalha em cinco rotas" />
+          <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
+            hoveredCellRef.current = null;
+            setEnergyPickupPointer(sessionRef.current, null);
+          }} aria-label="Campo de batalha em cinco rotas" />
           {graphicsMetrics && <div className="graphics-metrics"><b>{graphicsMetrics.fps.toFixed(0)} FPS</b><span>{graphicsMetrics.frameMs.toFixed(1)} ms</span><span>P {graphicsMetrics.particles}</span><span>D {graphicsMetrics.decals}</span><span>V {graphicsMetrics.visualEntities}</span></div>}
           {paused && <div className="pause-overlay"><span>SIMULAÇÃO PAUSADA</span><button onClick={() => setPaused(false)}>Continuar</button></div>}
-          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !snapshot.outcome && <button className="start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>Ameaça detectada · {phase.waves[snapshot.wave - 1].enemies.reduce((sum, entry) => sum + Math.ceil(entry.count * snapshot.nextWaveEnemyCountFactor), 0)} assinaturas</span></button>}
         </div>
 
         {sandbox && <SandboxPanel
@@ -754,6 +1079,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           onSetting={updateSandboxSetting}
           onRulesMode={changeRulesMode}
           onSpawn={handleSpawnEnemy}
+          onInjure={handleInjureTroops}
           onClear={handleClear}
           onReset={() => resetSandbox()}
         />}

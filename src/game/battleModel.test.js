@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { DECISIONS, ENEMIES, PHASES, TROOPS } from "./content.js";
 import {
-  clearSandboxEntities, createBattleSession, FIELD, getEffectiveTroopStats, placeTroop, removeTroop,
-  selectDecision, setSandboxSettings, spawnEnemy, startWave, stepBattle, trySpawnGlassEcho,
+  activateTroopSpecial, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getSnapshot, placeTroop, removeTroop,
+  selectDecision, setEnergyPickupPointer, setSandboxSettings, spawnEnemy, startWave, stepBattle,
+  trySpawnEnergyPickup, trySpawnGlassEcho,
 } from "./battleModel.js";
 import { getEnemyHitPoint, getMuzzleWorldPosition } from "./visualGeometry.js";
 
@@ -10,6 +11,320 @@ const meleeTarget = (x = 304, row = 0) => ({
   id: `melee_target_${row}_${x}`, type: "medu", row, x, y: row * 120 + 60,
   hp: 100, maxHp: 100, speed: 0, damage: 0, attackReadyAt: Infinity,
   slowUntil: 0, slowFactor: 1, baseDamage: 0, bossPhase: 0, dead: false,
+});
+
+describe("Pulso de Desmaterializacao", () => {
+  it("reserva a nova coluna e inicia um dispositivo pronto por rota", () => {
+    const session = createBattleSession(PHASES[0], ["marine"], 1201);
+    expect(FIELD).toMatchObject({
+      width: 1100,
+      cols: 11,
+      defenseCol: 0,
+      firstTroopCol: 1,
+      lastTroopCol: 9,
+      enemyEntryCol: 10,
+    });
+    expect(placeTroop(session, "marine", 0, 0)).toMatchObject({ ok: false });
+    for (let col = 1; col <= 9; col += 1) {
+      const sandbox = createBattleSession(PHASES[0], ["marine"], 1201 + col, { sandbox: true });
+      expect(placeTroop(sandbox, "marine", 0, col).ok).toBe(true);
+    }
+    expect(session.dematerializationPulses).toHaveLength(5);
+    expect(getSnapshot(session).dematerializationPulses).toEqual(
+      session.dematerializationPulses.map((pulse) => ({ ...pulse })),
+    );
+    expect(session.dematerializationPulses.every((pulse) => pulse.state === "ready")).toBe(true);
+  });
+
+  it("bloqueia a rota durante a carga e desintegra todos os tipos somente nela", () => {
+    const session = createBattleSession(PHASES[5], [], 1207, {
+      sandbox: true,
+      sandboxSettings: { invulnerableBase: false, enemySpeedMultiplier: 0 },
+    });
+    session.rng = () => 0;
+    const common = spawnEnemy(session, { type: "estilha", row: 2 }).enemies[0];
+    common.x = FIELD.baseX;
+    common.isEcho = true;
+    const alpha = spawnEnemy(session, { type: "obsidonte", row: 2, variant: "alpha" }).enemies[0];
+    alpha.x = 700;
+    alpha.shield = 999;
+    alpha.shieldMax = 999;
+    alpha.invulnerableUntil = Infinity;
+    const airborne = spawnEnemy(session, { type: "magoAbissal", row: 2 }).enemies[0];
+    airborne.x = 980;
+    const otherLane = spawnEnemy(session, { type: "medu", row: 3 }).enemies[0];
+    otherLane.x = 600;
+
+    const chargingEvents = stepBattle(session, 32);
+    expect(chargingEvents).toContainEqual(expect.objectContaining({
+      type: "pulseCharging",
+      row: 2,
+      fireAt: DEMATERIALIZATION_PULSE.chargeDurationMs + 32,
+    }));
+    expect(session.dematerializationPulses[2].state).toBe("charging");
+    expect(session.integrity).toBe(session.integrityMax);
+
+    const waiting = spawnEnemy(session, { type: "medu", row: 2 }).enemies[0];
+    waiting.x = FIELD.baseX;
+    stepBattle(session, DEMATERIALIZATION_PULSE.chargeDurationMs - 1);
+    expect(waiting.x).toBe(FIELD.baseX);
+    expect(session.integrity).toBe(session.integrityMax);
+
+    const firedEvents = stepBattle(session, 1);
+    expect(firedEvents).toContainEqual(expect.objectContaining({ type: "pulseFired", row: 2 }));
+    expect(firedEvents.filter((event) => event.type === "enemyDisintegrated")).toHaveLength(4);
+    expect(session.enemies).toEqual([otherLane]);
+    expect(session.energyPickups).toHaveLength(0);
+    expect(session.dematerializationPulses[2].state).toBe("spent");
+  });
+
+  it("permite dano normal depois do uso e nao ativa fora de batalha", () => {
+    const session = createBattleSession(PHASES[0], [], 1208, {
+      sandbox: true,
+      sandboxSettings: { invulnerableBase: false, enemySpeedMultiplier: 0 },
+    });
+    session.dematerializationPulses[0].state = "spent";
+    const breach = spawnEnemy(session, { type: "medu", row: 0 }).enemies[0];
+    breach.x = FIELD.baseX;
+    stepBattle(session, 1);
+    expect(session.integrity).toBe(session.integrityMax - ENEMIES.medu.baseDamage);
+
+    const preparing = createBattleSession(PHASES[0], [], 1209);
+    preparing.enemies.push({ ...meleeTarget(FIELD.baseX, 1), baseDamage: 10 });
+    expect(stepBattle(preparing, 32)).toEqual([]);
+    expect(preparing.dematerializationPulses[1].state).toBe("ready");
+  });
+});
+
+describe("esferas coletáveis de energia", () => {
+  const glassTypes = ["estilha", "vitrarca", "obsidonte", "refrator", "crisalio"];
+  const phase = { ...PHASES[0], id: "teste_esferas", waves: [] };
+  const source = (type = "estilha", overrides = {}) => ({
+    id: `source_${type}`, type, x: 420, y: 180, row: 1, ...overrides,
+  });
+
+  it("configura somente os cinco predadores do Mar de Vidro com 15%", () => {
+    expect(glassTypes.map((type) => ENEMIES[type].energyDropChance)).toEqual([0.15, 0.15, 0.15, 0.15, 0.15]);
+    expect(ENEMIES.magoAbissal.energyDropChance).toBeUndefined();
+  });
+
+  it("respeita a fronteira exata do RNG e cria uma única esfera por rolagem", () => {
+    const success = createBattleSession(phase, [], 1, { sandbox: true });
+    success.rng = () => 0.149999;
+    const events = [];
+    expect(trySpawnEnergyPickup(success, source(), events)).toMatchObject({ amount: 1, x: 420, y: 152 });
+    expect(success.energyPickups).toHaveLength(1);
+    expect(events).toEqual([expect.objectContaining({ type: "energyDropSpawned", amount: 1 })]);
+
+    const boundary = createBattleSession(phase, [], 2, { sandbox: true });
+    boundary.rng = () => 0.15;
+    expect(trySpawnEnergyPickup(boundary, source())).toBeNull();
+    expect(boundary.energyPickups).toHaveLength(0);
+  });
+
+  it("aceita monstros normais e Ecos de Vidro, mas rejeita Alfas e outros inimigos", () => {
+    for (const type of glassTypes) {
+      const session = createBattleSession(phase, [], 3, { sandbox: true });
+      session.rng = () => 0;
+      expect(trySpawnEnergyPickup(session, source(type))).not.toBeNull();
+      expect(trySpawnEnergyPickup(session, source(type, { isEcho: true }))).not.toBeNull();
+      expect(trySpawnEnergyPickup(session, source(type, { variant: "alpha" }))).toBeNull();
+    }
+    const other = createBattleSession(phase, [], 4, { sandbox: true });
+    other.rng = () => 0;
+    expect(trySpawnEnergyPickup(other, source("magoAbissal"))).toBeNull();
+  });
+
+  it("atrai dentro de 140 px, não acelera fora do raio e coleta a 24 px", () => {
+    const inside = createBattleSession(phase, [], 5, { sandbox: true });
+    inside.energyPickups = [{ id: "inside", x: 200, y: 200, vx: 0, vy: 0, amount: 1, ageMs: 0, phase: 0 }];
+    setEnergyPickupPointer(inside, { x: 300, y: 200 });
+    stepBattle(inside, 32);
+    expect(inside.energyPickups[0].x).toBeGreaterThan(200);
+
+    const outside = createBattleSession(phase, [], 6, { sandbox: true });
+    outside.energyPickups = [{ id: "outside", x: 200, y: 200, vx: 0, vy: 0, amount: 1, ageMs: 0, phase: 0 }];
+    setEnergyPickupPointer(outside, { x: 341, y: 200 });
+    stepBattle(outside, 32);
+    expect(outside.energyPickups[0]).toMatchObject({ x: 200, y: 200, vx: 0, vy: 0 });
+
+    const collect = createBattleSession(phase, [], 7, { sandbox: true });
+    collect.energy = collect.energyMax - 1;
+    collect.energyPickups = [{ id: "collect", x: 200, y: 200, vx: 0, vy: 0, amount: 1, ageMs: 0, phase: 0 }];
+    setEnergyPickupPointer(collect, { x: 223, y: 200 });
+    const events = stepBattle(collect, 32);
+    expect(collect.energy).toBe(collect.energyMax);
+    expect(collect.energyPickups).toHaveLength(0);
+    expect(events).toContainEqual(expect.objectContaining({ type: "energyCollected", amount: 1 }));
+  });
+
+  it("permanece quando a energia está cheia, expira em 10s e pausa durante decisões", () => {
+    const full = createBattleSession(phase, [], 8, { sandbox: true });
+    full.energyPickups = [{ id: "full", x: 200, y: 200, vx: 0, vy: 0, amount: 1, ageMs: 0, phase: 0 }];
+    setEnergyPickupPointer(full, { x: 200, y: 200 });
+    expect(stepBattle(full, 32)).not.toContainEqual(expect.objectContaining({ type: "energyCollected" }));
+    expect(full.energyPickups).toHaveLength(1);
+
+    full.pendingDecision = [{ id: "pause" }];
+    const pausedAge = full.energyPickups[0].ageMs;
+    stepBattle(full, 5000);
+    expect(full.energyPickups[0].ageMs).toBe(pausedAge);
+
+    full.pendingDecision = null;
+    full.energyPickupPointer = null;
+    stepBattle(full, 9968);
+    expect(full.energyPickups).toHaveLength(0);
+  });
+
+  it("limpa esferas e posição do ponteiro ao limpar ou reiniciar a sessão", () => {
+    const session = createBattleSession(phase, [], 9, { sandbox: true });
+    session.energyPickups = [{ id: "clear", x: 100, y: 100, vx: 0, vy: 0, amount: 1, ageMs: 0, phase: 0 }];
+    setEnergyPickupPointer(session, { x: 100, y: 100 });
+    clearSandboxEntities(session);
+    expect(session.energyPickups).toEqual([]);
+    expect(session.energyPickupPointer).toBeNull();
+    expect(createBattleSession(phase, [], 10).energyPickups).toEqual([]);
+  });
+});
+
+describe("Artilheira de Morteiro", () => {
+  const phase = { ...PHASES[8], id: "teste_morteiro", waves: [] };
+  const targetAt = (id, col, row = 0, xOffset = 10) => ({
+    ...meleeTarget(col * FIELD.width / 10 + xOffset, row),
+    id, hp: 100, maxHp: 100, scale: 1,
+  });
+
+  function createMortarSession(enemies) {
+    const session = createBattleSession(phase, ["artilheiraMorteiro"], 1201, { sandbox: true });
+    placeTroop(session, "artilheiraMorteiro", 0, 1);
+    session.enemies = enemies;
+    return session;
+  }
+
+  it("ignora a zona próxima e alvos além da sexta célula", () => {
+    const session = createMortarSession([
+      targetAt("near_1", 2),
+      targetAt("near_2", 3),
+      targetAt("far_7", 8),
+      targetAt("other_lane", 4, 1),
+    ]);
+    stepBattle(session, 32);
+    expect(session.projectiles).toHaveLength(0);
+  });
+
+  it("seleciona o tile elegível mais populoso e causa 100%/30% de dano", () => {
+    const primary = targetAt("primary", 4, 0, 10);
+    const collateral = targetAt("collateral", 4, 0, 35);
+    const sparse = targetAt("sparse", 7, 0, 10);
+    const session = createMortarSession([primary, collateral, sparse]);
+
+    stepBattle(session, 1);
+    expect(session.projectiles[0]).toMatchObject({
+      kind: "mortar", targetId: primary.id, targetRow: 0, targetCol: 4,
+      launched: false,
+    });
+    stepBattle(session, 480);
+    expect(session.projectiles[0].launched).toBe(true);
+    stepBattle(session, TROOPS.artilheiraMorteiro.projectileFlightMs);
+
+    expect(primary.hp).toBeCloseTo(100 - TROOPS.artilheiraMorteiro.damage);
+    expect(collateral.hp).toBeCloseTo(
+      100 - TROOPS.artilheiraMorteiro.damage * TROOPS.artilheiraMorteiro.collateralMultiplier,
+    );
+    expect(sparse.hp).toBe(100);
+  });
+
+  it("mantém a trajetória balística presa ao tile escolhido", () => {
+    const target = targetAt("arc_target", 7);
+    const session = createMortarSession([target]);
+    stepBattle(session, 1);
+    stepBattle(session, 480);
+    const projectile = session.projectiles[0];
+    const initialTarget = { x: projectile.targetX, y: projectile.targetY };
+    stepBattle(session, TROOPS.artilheiraMorteiro.projectileFlightMs / 2);
+    expect(projectile.y).toBeLessThan(Math.min(projectile.origin.y, initialTarget.y));
+    target.x = 250;
+    stepBattle(session, TROOPS.artilheiraMorteiro.projectileFlightMs / 2);
+    expect(projectile.targetX).toBe(initialTarget.x);
+    expect(projectile.targetY).toBe(initialTarget.y);
+    expect(target.hp).toBe(100);
+  });
+});
+
+describe("Colosso de Impacto", () => {
+  const phase = { ...PHASES[9], id: "teste_colosso", waves: [], energy: 200, supplyLimit: 30 };
+  const tileEnemy = (id, x = 190, row = 0) => ({ ...meleeTarget(x, row), id, hp: 50, maxHp: 50, scale: 1, stunnedUntil: 0 });
+
+  function createColossusSession(enemies = []) {
+    const session = createBattleSession(phase, ["colossoImpacto"], 881, { sandbox: true });
+    const result = placeTroop(session, "colossoImpacto", 0, 1);
+    session.enemies = enemies;
+    return { session, troop: result.troop };
+  }
+
+  it("tem estatisticas, recarga de implantacao e limite simultaneo previstos", () => {
+    expect(TROOPS.colossoImpacto).toMatchObject({ hp: 180, price: 22, supply: 8, deployCooldownMs: 10000, maxDeployed: 2, range: 0.9, unlockAt: 9 });
+    const session = createBattleSession(phase, ["colossoImpacto"], 882);
+    expect(placeTroop(session, "colossoImpacto", 0, 1).ok).toBe(true);
+    expect(placeTroop(session, "colossoImpacto", 1, 1).ok).toBe(true);
+    expect(placeTroop(session, "colossoImpacto", 2, 1)).toMatchObject({ ok: false });
+    const cooldownSession = createBattleSession(phase, ["colossoImpacto"], 883);
+    cooldownSession.waveActive = true;
+    const deployed = placeTroop(cooldownSession, "colossoImpacto", 0, 1);
+    expect(cooldownSession.deployCooldowns.colossoImpacto).toBe(TROOPS.colossoImpacto.deployCooldownMs);
+    expect(deployed.troop.specialReadyAt).toBe(TROOPS.colossoImpacto.specialEveryMs);
+  });
+
+  it("causa dano somente no quadro de impacto a todos os ocupantes do tile, incluindo aereos", () => {
+    const first = tileEnemy("first");
+    const incoming = { ...tileEnemy("incoming", 190), airborne: true };
+    const adjacent = tileEnemy("adjacent", 310);
+    const { session } = createColossusSession([first, adjacent]);
+    stepBattle(session, 1);
+    expect(first.hp).toBe(50);
+    session.enemies.push(incoming);
+    stepBattle(session, 399);
+    expect(first.hp).toBe(50);
+    stepBattle(session, 1);
+    expect(first.hp).toBe(45);
+    expect(incoming.hp).toBe(45);
+    expect(adjacent.hp).toBe(50);
+  });
+
+  it("mantem o especial carregado sem disparar automaticamente e exige uma onda ativa", () => {
+    const target = tileEnemy("normal_target");
+    const { session, troop } = createColossusSession([target]);
+    troop.specialReadyAt = 0;
+    stepBattle(session, 1);
+    expect(troop.lastAttackMode).toBe("normal");
+    expect(troop.specialReadyAt).toBe(0);
+    expect(activateTroopSpecial(session, troop.id)).toMatchObject({ ok: false });
+    session.waveActive = true;
+    expect(activateTroopSpecial(session, troop.id)).toMatchObject({ ok: true, queued: true });
+    expect(troop.specialReadyAt).toBe(Infinity);
+  });
+
+  it("executa o especial manual mesmo sem alvo e atordoa somente no quadro de impacto", () => {
+    const { session, troop } = createColossusSession();
+    session.waveActive = true;
+    troop.specialReadyAt = 0;
+    expect(activateTroopSpecial(session, troop.id)).toMatchObject({ ok: true, queued: false });
+    stepBattle(session, 1);
+    expect(troop.lastAttackMode).toBe("special");
+    expect(troop.specialReadyAt).toBe(session.elapsed + TROOPS.colossoImpacto.specialEveryMs);
+    stepBattle(session, 640);
+    expect(troop.pendingImpact).toBeNull();
+
+    const target = tileEnemy("special_target");
+    session.enemies.push(target);
+    troop.specialReadyAt = session.elapsed;
+    expect(activateTroopSpecial(session, troop.id)).toMatchObject({ ok: true });
+    stepBattle(session, 1280);
+    expect(target.hp).toBe(50);
+    stepBattle(session, 640);
+    expect(target.hp).toBe(36);
+    expect(target.stunnedUntil - session.elapsed).toBe(800);
+  });
 });
 
 describe("Ecos de Vidro", () => {
@@ -43,6 +358,110 @@ describe("Ecos de Vidro", () => {
     const second = createBattleSession(PHASES[15], ["colono"], 771);
     const run = (session) => Array.from({ length: 20 }, (_, index) => Boolean(trySpawnGlassEcho(session, { ...source, id: `source_${index}`, x: 700 - index }, [])));
     expect(run(first)).toEqual(run(second));
+  });
+});
+
+describe("Crisálio e Manto Prismático", () => {
+  const sandboxPhase = { ...PHASES[12], id: "teste_crisalio", waves: [] };
+
+  function createMantleSession() {
+    return createBattleSession(sandboxPhase, ["colono", "marine", "sniper"], 902, { sandbox: true });
+  }
+
+  it("pulsa após sete segundos e protege somente os quatro monstros permitidos em todas as rotas", () => {
+    const session = createMantleSession();
+    spawnEnemy(session, { type: "crisalio", row: 0 });
+    const affected = ["estilha", "vitrarca", "obsidonte", "refrator"].map((type, row) => (
+      spawnEnemy(session, { type, row: row + 1 }).enemies[0]
+    ));
+    const ordinary = spawnEnemy(session, { type: "medu", row: 4 }).enemies[0];
+
+    expect(stepBattle(session, 6999).some((event) => event.type === "prismaticPulse")).toBe(false);
+    const events = stepBattle(session, 1);
+
+    expect(events.filter((event) => event.type === "prismaticPulse")).toHaveLength(1);
+    affected.forEach((enemy) => {
+      const expected = Math.min(42, 18 + enemy.maxHp * 0.12);
+      expect(enemy.shield).toBeCloseTo(expected);
+      expect(enemy.shieldMax).toBeCloseTo(expected);
+    });
+    expect(ordinary.shield).toBe(0);
+    expect(session.enemies.find((enemy) => enemy.type === "crisalio").shield).toBe(0);
+  });
+
+  it("limita Alfas a 42, renova sem acumular e mantém uma única cadência com vários Crisálios", () => {
+    const session = createMantleSession();
+    const first = spawnEnemy(session, { type: "crisalio", row: 0 }).enemies[0];
+    const second = spawnEnemy(session, { type: "crisalio", row: 1 }).enemies[0];
+    const alpha = spawnEnemy(session, { type: "obsidonte", row: 2, variant: "alpha" }).enemies[0];
+
+    const firstPulse = stepBattle(session, 7000);
+    expect(firstPulse.filter((event) => event.type === "prismaticPulse")).toHaveLength(1);
+    expect(alpha.shield).toBe(42);
+    alpha.shield = 3;
+    first.dead = true;
+    expect(stepBattle(session, 6999).some((event) => event.type === "prismaticPulse")).toBe(false);
+    const secondPulse = stepBattle(session, 1);
+    expect(secondPulse.filter((event) => event.type === "prismaticPulse")).toHaveLength(1);
+    expect(second.lastShieldPulseAt).toBe(session.elapsed);
+    expect(alpha.shield).toBe(42);
+
+    second.dead = true;
+    const persisted = alpha.shield;
+    expect(stepBattle(session, 7000).some((event) => event.type === "prismaticPulse")).toBe(false);
+    expect(alpha.shield).toBe(persisted);
+  });
+
+  it("absorve o escudo antes da vida e transfere o excesso de dano", () => {
+    const session = createMantleSession();
+    const { troop } = placeTroop(session, "colono", 0, 1);
+    const target = spawnEnemy(session, { type: "estilha", row: 0 }).enemies[0];
+    target.x = troop.x + 40;
+    target.previousRenderX = target.x;
+    target.speed = 0;
+    target.shield = 5;
+    target.shieldMax = 5;
+    const hp = target.hp;
+
+    const events = stepBattle(session, 32);
+    expect(target.shield).toBe(0);
+    expect(target.hp).toBe(hp - (TROOPS.colono.damage - 5));
+    expect(events.some((event) => event.type === "shieldHit" && event.absorbed === 5)).toBe(true);
+    expect(events.some((event) => event.type === "shieldBreak")).toBe(true);
+  });
+
+  it("mantém a prioridade no primeiro inimigo da rota", () => {
+    const session = createMantleSession();
+    const { troop } = placeTroop(session, "marine", 0, 1);
+    const front = spawnEnemy(session, { type: "estilha", row: 0 }).enemies[0];
+    const support = spawnEnemy(session, { type: "crisalio", row: 0 }).enemies[0];
+    front.x = troop.x + 150;
+    support.x = troop.x + 220;
+    front.previousRenderX = front.x;
+    support.previousRenderX = support.x;
+    front.speed = 0;
+    support.speed = 0;
+
+    stepBattle(session, 32);
+    expect(session.projectiles[0].targetId).toBe(front.id);
+  });
+
+  it("causa dano corpo a corpo somente no instante de impacto", () => {
+    const session = createMantleSession();
+    const { troop } = placeTroop(session, "colono", 0, 2);
+    const support = spawnEnemy(session, { type: "crisalio", row: 0 }).enemies[0];
+    support.x = troop.x + 40;
+    support.previousRenderX = support.x;
+    const hp = troop.hp;
+
+    stepBattle(session, 1);
+    expect(support.meleeAttackPending).toBe(true);
+    expect(troop.hp).toBe(hp);
+    stepBattle(session, ENEMIES.crisalio.attackVisual.impactMs - 1);
+    expect(troop.hp).toBe(hp);
+    const events = stepBattle(session, 1);
+    expect(troop.hp).toBe(hp - ENEMIES.crisalio.damage);
+    expect(events.some((event) => event.type === "melee" && event.sourceEnemyId === support.id)).toBe(true);
   });
 });
 
@@ -81,7 +500,7 @@ describe("Campo de Provas", () => {
     const session = createBattleSession(testPhase, ["reator"], 22, { sandbox: true });
     const initialEnergy = session.energy;
     const initialSupply = session.supply;
-    for (let col = 0; col < 6; col += 1) expect(placeTroop(session, "reator", 0, col).ok).toBe(true);
+    for (let col = 1; col <= 6; col += 1) expect(placeTroop(session, "reator", 0, col).ok).toBe(true);
     expect(session.energy).toBe(initialEnergy);
     expect(session.supply).toBe(initialSupply);
     expect(session.deployCooldowns).toEqual({});
@@ -92,15 +511,16 @@ describe("Campo de Provas", () => {
       sandbox: true,
       sandboxSettings: { rulesMode: "real" },
     });
-    expect(placeTroop(session, "reator", 0, 0).ok).toBe(true);
+    expect(placeTroop(session, "reator", 0, 1).ok).toBe(true);
     expect(session.energy).toBe(150 - TROOPS.reator.price);
     expect(session.supply).toBe(20 - TROOPS.reator.supply);
     expect(session.deployCooldowns.reator).toBeGreaterThan(0);
-    expect(placeTroop(session, "reator", 0, 1).reason).toMatch(/recarregando/i);
+    expect(placeTroop(session, "reator", 0, 2).reason).toMatch(/recarregando/i);
   });
 
   it("aplica velocidade e dano temporários e respeita a invulnerabilidade da base", () => {
     const session = createBattleSession(testPhase, ["colono"], 24, { sandbox: true });
+    session.dematerializationPulses.forEach((pulse) => { pulse.state = "spent"; });
     setSandboxSettings(session, { enemySpeedMultiplier: 0, enemyDamageMultiplier: 3 });
     spawnEnemy(session, { type: "medu", row: 0 });
     const stoppedX = session.enemies[0].x;
@@ -123,7 +543,7 @@ describe("Campo de Provas", () => {
       sandbox: true,
       sandboxSettings: { rulesMode: "real" },
     });
-    placeTroop(session, "colono", 0, 0);
+    placeTroop(session, "colono", 0, 1);
     spawnEnemy(session, { type: "medu", row: 0 });
     clearSandboxEntities(session, "troops");
     expect(session.troops).toHaveLength(0);
@@ -136,6 +556,11 @@ describe("Campo de Provas", () => {
 });
 
 describe("sessão de batalha", () => {
+  it("mantém 20 supply no capítulo 1 e inicia o capítulo 2 com 30", () => {
+    expect(createBattleSession(PHASES[0], ["colono"], 1)).toMatchObject({ supply: 20, supplyMax: 20 });
+    expect(createBattleSession(PHASES[8], ["colono"], 1)).toMatchObject({ supply: 30, supplyMax: 30 });
+  });
+
   it("aplica os multiplicadores Alpha à configuração da variante", () => {
     const phase = {
       ...PHASES[3], cadenceMs: 1000,
@@ -224,10 +649,11 @@ describe("sessão de batalha", () => {
 
   it("faz o reator gerar energia durante a onda sem ultrapassar o limite", () => {
     const session = createBattleSession(PHASES[0], ["reator"], 1);
+    expect(TROOPS.reator.price).toBe(10);
     expect(TROOPS.reator.hp).toBeLessThan(TROOPS.colono.hp);
     expect(placeTroop(session, "reator", 0, 1).ok).toBe(true);
     expect(session.deployCooldowns.reator).toBeUndefined();
-    expect(session.energy).toBe(68);
+    expect(session.energy).toBe(70);
     startWave(session);
     session.queue = [];
     session.enemies = [{
@@ -238,7 +664,7 @@ describe("sessão de batalha", () => {
 
     expect(stepBattle(session, 5999).some((event) => event.type === "energyGenerated")).toBe(false);
     const events = stepBattle(session, 1);
-    expect(session.energy).toBe(69);
+    expect(session.energy).toBe(71);
     expect(events).toContainEqual(expect.objectContaining({ type: "energyGenerated", amount: 1 }));
 
     session.energy = session.energyMax;
@@ -272,19 +698,20 @@ describe("sessão de batalha", () => {
     const session = createBattleSession(PHASES[0], ["reator"], 2);
     placeTroop(session, "reator", 0, 1);
     stepBattle(session, 8000);
-    expect(session.energy).toBe(68);
+    expect(session.energy).toBe(70);
     expect(session.troops[0].energyAccumulator).toBe(0);
 
     startWave(session);
     session.queue = [];
     const events = stepBattle(session, 32);
-    expect(session.energy).toBe(76);
+    expect(session.energy).toBe(78);
     expect(events).toContainEqual(expect.objectContaining({ type: "energyGenerated", amount: 8, reason: "wave" }));
     expect(events.some((event) => event.type === "waveComplete")).toBe(true);
   });
 
   it("aplica dano de passagem e derrota somente com base zerada", () => {
     const session = createBattleSession(PHASES[0], ["colono"], 1);
+    session.dematerializationPulses.forEach((pulse) => { pulse.state = "spent"; });
     startWave(session);
     session.queue = [];
     session.enemies = Array.from({ length: 10 }, (_, index) => ({
@@ -546,7 +973,7 @@ describe("sessão de batalha", () => {
     }
   });
 
-  it("dispara a bola de fogo do guarda em linha, com alcance e cadencia limitados", () => {
+  it("dispara a bola de fogo do guarda em toda a rota, com cadencia limitada", () => {
     const session = createBattleSession(PHASES[7], ["guarda"], 10);
     placeTroop(session, "guarda", 0, 1);
     startWave(session);
@@ -566,7 +993,7 @@ describe("sessão de batalha", () => {
     expect(TROOPS.guarda.attackEveryMs).toBe(1500);
     expect(TROOPS.guarda.damage).toBe(9);
     expect(session.troops[0].attackReadyAt - session.troops[0].lastAttackAt).toBe(1500);
-    expect(projectile).toMatchObject({ kind: "fireball", visualKind: "fireball", row: 0, straightLane: true, vy: 0, maxDistance: 300 });
+    expect(projectile).toMatchObject({ kind: "fireball", visualKind: "fireball", row: 0, straightLane: true, vy: 0, maxDistance: 1000 });
     expect(projectile.origin.x).toBeCloseTo(muzzle.x);
     expect(projectile.origin.y).toBeCloseTo(muzzle.y);
     expect(firstEvents.some((event) => event.type === "shoot" && event.weapon === "fireball")).toBe(true);
@@ -594,7 +1021,7 @@ describe("sessão de batalha", () => {
     session.enemies = [target, otherLane];
     stepBattle(session, 32);
     target.dead = true;
-    for (let index = 0; index < 30 && session.projectiles.length; index += 1) stepBattle(session, 32);
+    for (let index = 0; index < 100 && session.projectiles.length; index += 1) stepBattle(session, 32);
     expect(session.projectiles).toHaveLength(0);
   });
 
@@ -737,9 +1164,9 @@ describe("Demolidora de Minas", () => {
 
   it("não consome cooldown sem destino e respeita o limite de cinco dispositivos", () => {
     const session = createBattleSession(sandboxPhase, ["demolidora"], 402, { sandbox: true });
-    const { troop } = placeTroop(session, "demolidora", 0, 0);
+    const { troop } = placeTroop(session, "demolidora", 0, 1);
     for (let row = 0; row < FIELD.rows; row += 1) {
-      for (let col = 1; col <= 3; col += 1) {
+      for (let col = 2; col <= 4; col += 1) {
         session.mines.push({ id: `block_${row}_${col}`, ownerId: "other", row, col, x: col * 100 + 50, y: row * 120 + 60, active: true });
       }
     }
@@ -756,7 +1183,7 @@ describe("Demolidora de Minas", () => {
 
   it("prioriza a pistola na mesma linha a duas células e retoma as minas depois", () => {
     const session = createBattleSession(sandboxPhase, ["demolidora"], 403, { sandbox: true });
-    const { troop } = placeTroop(session, "demolidora", 1, 0);
+    const { troop } = placeTroop(session, "demolidora", 1, 1);
     const enemy = meleeTarget(troop.x + 180, 1);
     session.enemies.push(enemy);
     stepBattle(session, 1);
@@ -772,7 +1199,7 @@ describe("Demolidora de Minas", () => {
 
   it("faz o lançamento percorrer uma parábola e arma a mina no destino", () => {
     const session = createBattleSession(sandboxPhase, ["demolidora"], 404, { sandbox: true });
-    placeTroop(session, "demolidora", 2, 0);
+    placeTroop(session, "demolidora", 2, 1);
     stepBattle(session, 1);
     const projectile = session.projectiles.find((entry) => entry.kind === "mine");
     const linearMidY = (projectile.origin.y + projectile.targetY) / 2;
@@ -820,13 +1247,13 @@ describe("Demolidora de Minas", () => {
   it("não instala entre ondas, limpa na remoção manual e preserva após a morte", () => {
     const phase = { ...PHASES[5], waves: [{ enemies: [] }] };
     const session = createBattleSession(phase, ["demolidora"], 406);
-    const { troop } = placeTroop(session, "demolidora", 0, 0);
+    const { troop } = placeTroop(session, "demolidora", 0, 1);
     stepBattle(session, 9000);
     expect(session.projectiles).toHaveLength(0);
     startWave(session);
     stepBattle(session, 1);
     expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(true);
-    removeTroop(session, 0, 0);
+    removeTroop(session, 0, 1);
     expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(false);
 
     session.mines.push({ id: "survivor", ownerId: troop.id, row: 1, col: 2, x: 250, y: 180, active: true });
@@ -982,10 +1409,10 @@ describe("decisões táticas aleatórias", () => {
     chooseDecision(session, "recycling", 3);
     expect(getEffectiveTroopStats(session, "marine")).toEqual({ price: 13, deployCooldownMs: 3750, refundRate: 0.75 });
 
-    const placed = placeTroop(session, "marine", 0, 0);
+    const placed = placeTroop(session, "marine", 0, 1);
     expect(placed.ok).toBe(true);
     expect(placed.troop.energyCost).toBe(13);
-    expect(removeTroop(session, 0, 0).refund).toBe(9);
+    expect(removeTroop(session, 0, 1).refund).toBe(9);
   });
 
   it("aplica Primeiro impacto uma vez e acelera o intervalo ofensivo", () => {
@@ -1039,7 +1466,7 @@ describe("decisões táticas aleatórias", () => {
       guardDamage: 1.2, krioSlowDuration: 1.25, guardRangeBonus: 0.5,
       targetingRange: 1.15, concussiveImpact: true,
     });
-    expect(TROOPS.guarda.range).toBe(3);
+    expect(TROOPS.guarda.range).toBe(10);
     expect(TROOPS.marine.damage).toBe(4);
   });
 
@@ -1051,7 +1478,7 @@ describe("decisões táticas aleatórias", () => {
     guardSession.queue = [];
     guardSession.enemies = [{ ...meleeTarget(430), id: "guard_energy_target" }];
     stepBattle(guardSession, 1);
-    expect(guardSession.projectiles[0]).toMatchObject({ kind: "fireball", damage: TROOPS.guarda.damage * 1.2, maxDistance: 350 });
+    expect(guardSession.projectiles[0]).toMatchObject({ kind: "fireball", damage: TROOPS.guarda.damage * 1.2, maxDistance: 1050 });
 
     const krioSession = createBattleSession(decisionPhase, ["krio"], 911);
     placeTroop(krioSession, "krio", 0, 1);
@@ -1089,6 +1516,7 @@ describe("decisões táticas aleatórias", () => {
 
   it("bloqueia duas invasões e aplica o protocolo após consumir o escudo", () => {
     const session = createBattleSession(decisionPhase, ["colono"], 908);
+    session.dematerializationPulses.forEach((pulse) => { pulse.state = "spent"; });
     chooseDecision(session, "emergency_shield");
     chooseDecision(session, "containment_protocol", 2);
     expect(startWave(session)).toBe(true);

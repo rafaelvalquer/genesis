@@ -48,7 +48,7 @@ export const TROOPS = {
   },
   reator: {
     id: "reator", label: "Reator de Energia", role: "Economia", spriteKey: "reator",
-    price: 12, supply: 4, deployCooldownMs: 20000, hp: 16, range: 0,
+    price: 10, supply: 4, deployCooldownMs: 20000, hp: 16, range: 0,
     attackEveryMs: 6000, damage: 0, attack: "energy", color: "#22d3ee", unlockAt: 0,
     maxDeployed: 5, energyPerPulse: 1, waveEnergyBonus: 8, spriteOffsetY: 10,
     idleVisual: {
@@ -85,6 +85,29 @@ export const TROOPS = {
       ],
     },
     description: "Três disparos rápidos contra alvos comuns.",
+  },
+  medicaNanites: {
+    id: "medicaNanites", label: "Médica de Nanites", role: "Suporte / Cura", spriteKey: "medicaNanites",
+    price: 18, supply: 5, deployCooldownMs: 6000, hp: 24, range: 5,
+    attack: "naniteBullet", damage: 2, attackEveryMs: 900, projectileSpeed: 230,
+    healRangeTiles: 5, maxHealingPerCharge: 20, healPulseAmount: 2,
+    healPulseEveryMs: 160, healCooldownMs: 5000,
+    color: "#2dd4bf", unlockAt: 0,
+    assetStates: ["idle", "heal", "attack", "cooldown"],
+    idleVisual: { durationMs: 1400, timeline: [{ atMs: 0, frame: 0 }] },
+    healVisual: {
+      state: "heal", height: 126, durationMs: 800, loop: true,
+      muzzle: { x: 0.82, y: 0.4 },
+    },
+    attackVisual: {
+      state: "attack", height: 126, durationMs: 420, releaseMs: 160,
+      effect: "naniteBullet",
+      shots: [{ atMs: 160, frame: 0, muzzle: { x: 0.84, y: 0.39 } }],
+    },
+    cooldownVisual: {
+      state: "cooldown", height: 126, durationMs: 1000, loop: true,
+    },
+    description: "Cura a tropa mais ferida à sua frente. Após restaurar até 20 de vida, precisa recarregar sua arma.",
   },
   muralhaReforcada: {
     id: "muralhaReforcada", label: "Muralha", role: "Defesa", spriteKey: "muralhaReforcada",
@@ -349,75 +372,156 @@ export const TROOPS = {
     },
     description: "Míssil teleguiado com dano em área.",
   },
+  artilheiraMorteiro: {
+    id: "artilheiraMorteiro", label: "Artilheira de Morteiro", role: "Artilharia indireta",
+    spriteKey: "artilheiraMorteiro",
+    price: 22, supply: 6, deployCooldownMs: 7000, hp: 18,
+    minRange: 3, range: 6, attackEveryMs: 3000, damage: 28,
+    collateralMultiplier: 0.3, projectileFlightMs: 850, projectileArcHeight: 150,
+    attack: "mortar", color: "#fbbf24", unlockAt: 8,
+    idleVisual: {
+      durationMs: 1600,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 200, frame: 1 },
+        { atMs: 400, frame: 2 }, { atMs: 600, frame: 3 },
+        { atMs: 800, frame: 4 }, { atMs: 1000, frame: 5 },
+        { atMs: 1200, frame: 6 }, { atMs: 1400, frame: 7 },
+      ],
+    },
+    attackVisual: {
+      height: 118, aspectRatio: 1.5, durationMs: 960, effect: "mortarShell",
+      frameAnchors: {
+        idle: [
+          { x: 0.5, y: 0.9727 }, { x: 0.5, y: 0.9688 },
+          { x: 0.4987, y: 0.9688 }, { x: 0.4987, y: 0.9688 },
+          { x: 0.4987, y: 0.9727 }, { x: 0.4987, y: 0.9688 },
+          { x: 0.5013, y: 0.9727 }, { x: 0.5, y: 0.9688 },
+        ],
+        attack: [
+          { x: 0.5, y: 0.9688 }, { x: 0.4987, y: 0.9688 },
+          { x: 0.4987, y: 0.9688 }, { x: 0.5, y: 0.9688 },
+          { x: 0.6367, y: 0.9688 }, { x: 0.4987, y: 0.9727 },
+          { x: 0.4987, y: 0.9727 }, { x: 0.5013, y: 0.9727 },
+        ],
+      },
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 120, frame: 1 },
+        { atMs: 240, frame: 2 }, { atMs: 360, frame: 3 },
+        { atMs: 480, frame: 4 }, { atMs: 600, frame: 5 },
+        { atMs: 720, frame: 6 }, { atMs: 840, frame: 7 },
+      ],
+      shots: [{ atMs: 480, frame: 4, muzzle: { x: 0.866, y: 0.105 } }],
+    },
+    description: "Morteiro automático que ignora inimigos próximos e bombardeia grupos distantes.",
+  },
+  colossoImpacto: {
+    id: "colossoImpacto", label: "Colosso de Impacto", role: "Tanque / Controle", spriteKey: "colossoImpacto",
+    price: 22, supply: 8, deployCooldownMs: 10000, hp: 180, range: 0.9,
+    attackEveryMs: 1800, damage: 5, attack: "tileMelee", color: "#34d399", unlockAt: 9,
+    specialDamage: 14, specialEveryMs: 16000, specialStunMs: 800, maxDeployed: 2,
+    healthBarOffset: 96, healthBarWidth: 68, assetStates: ["idle", "attack", "special"], flipX: true,
+    idleVisual: {
+      durationMs: 1600,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 200, frame: 1 }, { atMs: 400, frame: 2 }, { atMs: 600, frame: 3 },
+        { atMs: 800, frame: 4 }, { atMs: 1000, frame: 5 }, { atMs: 1200, frame: 6 }, { atMs: 1400, frame: 7 },
+      ],
+    },
+    attackVisuals: {
+      normal: {
+        state: "attack", height: 142, durationMs: 800, impactMs: 400,
+        timeline: [
+          { atMs: 0, frame: 0 }, { atMs: 100, frame: 1 }, { atMs: 200, frame: 2 }, { atMs: 300, frame: 3 },
+          { atMs: 400, frame: 4 }, { atMs: 500, frame: 5 }, { atMs: 600, frame: 6 }, { atMs: 700, frame: 7 },
+        ],
+      },
+      special: {
+        state: "special", height: 142, durationMs: 1280, impactMs: 640,
+        timeline: [
+          { atMs: 0, frame: 0 }, { atMs: 160, frame: 1 }, { atMs: 320, frame: 2 }, { atMs: 480, frame: 3 },
+          { atMs: 640, frame: 4 }, { atMs: 800, frame: 5 }, { atMs: 960, frame: 6 }, { atMs: 1120, frame: 7 },
+        ],
+      },
+    },
+    attackVisual: {
+      height: 142,
+      frameAnchors: {
+        idle: [{ x: 0.4941, y: 0.9688 }, { x: 0.4883, y: 0.9688 }, { x: 0.4902, y: 0.9688 }, { x: 0.4961, y: 0.9727 }, { x: 0.4922, y: 0.9648 }, { x: 0.4902, y: 0.9688 }, { x: 0.4883, y: 0.9648 }, { x: 0.4941, y: 0.9688 }],
+        attack: [{ x: 0.4883, y: 0.9688 }, { x: 0.5078, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.4922, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.4883, y: 0.9688 }, { x: 0.4961, y: 0.9688 }],
+        special: [{ x: 0.502, y: 0.9688 }, { x: 0.5, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9688 }, { x: 0.5059, y: 0.9688 }, { x: 0.4961, y: 0.9648 }, { x: 0.498, y: 0.9688 }, { x: 0.498, y: 0.9648 }],
+      },
+    },
+    description: "Frontline robot that holds a route and crushes every enemy in its tile.",
+  },
   guarda: {
     id: "guarda", label: "Guarda", role: "Artilheiro incendiário", spriteKey: "guarda",
-    price: 18, supply: 5, deployCooldownMs: 6000, hp: 29, range: 3,
+    price: 18, supply: 5, deployCooldownMs: 6000, hp: 29, range: 10,
     attackEveryMs: 1500, damage: 9, attack: "fireball", color: "#f59e0b", unlockAt: 1,
     attackVisual: { height: 126, durationMs: 420, effect: "fireball", shots: [{ atMs: 0, frame: 7, muzzle: { x: 0.97, y: 0.37 } }] },
     description: "Dispara projéteis incendiários contra o primeiro inimigo da rota.",
   },
 };
 
-const CRIX_FAMILY_SPRITE_OFFSET_Y = 22;
-const KRULAX_FAMILY_SPRITE_OFFSET_Y = 16;
-
 export const ENEMIES = {
   medu: {
     id: "medu", label: "Medu", role: "Comum", hp: 28, speed: 28, damage: 5,
     attackEveryMs: 1300, baseDamage: 10, threat: 10, color: "#ef4444", scale: 1,
+    description: "Batedor da colmeia que avança em formação e pressiona qualquer defesa desguarnecida.",
   },
   neurax: {
     id: "neurax", label: "Neurax", role: "Comum de força", hp: 36, speed: 23, damage: 8,
     attackEveryMs: 1500, baseDamage: 12, threat: 10, color: "#7c3aed", scale: 1,
+    description: "Variante robusta do Medu, criada para resistir ao fogo sustentado e romper a linha.",
   },
   oculis: {
     id: "oculis", label: "Oculis", role: "Comum veloz", hp: 24, speed: 36, damage: 5,
     attackEveryMs: 1050, baseDamage: 8, threat: 10, color: "#06b6d4", scale: 1,
+    description: "Explorador ágil que troca resistência por velocidade para alcançar o núcleo rapidamente.",
   },
   crix: {
     id: "crix", label: "Crix", role: "Corredor", hp: 24, speed: 46, damage: 4,
     attackEveryMs: 1000, baseDamage: 10, threat: 18, color: "#a855f7", scale: 1,
-    spriteOffsetY: CRIX_FAMILY_SPRITE_OFFSET_Y,
+    description: "Corredor quitinoso que explora brechas e força respostas rápidas em sua rota.",
   },
   vexar: {
     id: "vexar", label: "Vexar", role: "Corredor de força", hp: 30, speed: 39, damage: 6,
     attackEveryMs: 1150, baseDamage: 12, threat: 18, color: "#d946ef", scale: 1,
-    spriteOffsetY: CRIX_FAMILY_SPRITE_OFFSET_Y,
+    description: "Evolução de força do Crix, mais resistente e perigosa quando alcança as tropas.",
   },
   silex: {
     id: "silex", label: "Silex", role: "Corredor veloz", hp: 22, speed: 54, damage: 4,
     attackEveryMs: 850, baseDamage: 8, threat: 18, color: "#84cc16", scale: 1,
-    spriteOffsetY: CRIX_FAMILY_SPRITE_OFFSET_Y,
+    description: "A forma mais veloz da família Crix, frágil, mas capaz de atravessar uma rota em instantes.",
   },
   krulax: {
     id: "krulax", label: "Krulax", role: "Resistente", hp: 54, speed: 21, damage: 8,
     attackEveryMs: 1600, baseDamage: 15, threat: 14, color: "#f59e0b", scale: 1.08,
-    spriteOffsetY: KRULAX_FAMILY_SPRITE_OFFSET_Y,
+    description: "Organismo blindado que absorve disparos enquanto abre caminho para o restante do enxame.",
   },
   myrkon: {
     id: "myrkon", label: "Myrkon", role: "Resistente de força", hp: 70, speed: 17, damage: 12,
     attackEveryMs: 1800, baseDamage: 18, threat: 14, color: "#65a30d", scale: 1.08,
-    spriteOffsetY: KRULAX_FAMILY_SPRITE_OFFSET_Y,
+    description: "Massa de assalto pesada, lenta e preparada para sobreviver a grandes concentrações de dano.",
   },
   zhyra: {
     id: "zhyra", label: "Zhyra", role: "Resistente veloz", hp: 48, speed: 28, damage: 7,
     attackEveryMs: 1250, baseDamage: 12, threat: 14, color: "#ec4899", scale: 1.08,
-    spriteOffsetY: KRULAX_FAMILY_SPRITE_OFFSET_Y,
+    description: "Variante móvel do Krulax que conserva a carapaça resistente sem abrir mão da velocidade.",
   },
   krakhul: {
     id: "krakhul", label: "Krakhul", role: "Elite", hp: 110, speed: 16, damage: 14,
     attackEveryMs: 1800, baseDamage: 30, threat: 24, color: "#f43f5e", scale: 1.45,
-    spriteOffsetY: 14,
+    description: "Elite colossal da colmeia, capaz de suportar uma defesa inteira e devastar o núcleo.",
   },
   brakor: {
     id: "brakor", label: "Brakor", role: "Elite de força", hp: 135, speed: 13, damage: 19,
     attackEveryMs: 2050, baseDamage: 35, threat: 24, color: "#ef4444", scale: 1.45,
-    spriteOffsetY: 14,
+    description: "Forma de força do Krakhul, com carapaça ampliada e impacto destrutivo contra a base.",
   },
   aurakh: {
     id: "aurakh", label: "Aurakh", role: "Elite veloz", hp: 95, speed: 21, damage: 13,
     attackEveryMs: 1450, baseDamage: 25, threat: 24, color: "#facc15", scale: 1.45,
-    spriteOffsetY: 14,
+    description: "Elite veloz que combina massa, agressividade e avanço rápido para romper linhas frágeis.",
   },
   parasitaSaltador: {
     id: "parasitaSaltador", label: "Parasita Saltador", role: "Infiltrador / assassino",
@@ -426,6 +530,7 @@ export const ENEMIES = {
     assetStates: ["idle", "walking", "attack", "jump"],
     jumpDurationMs: 720, jumpArcHeight: 96, attackSlowFactor: 0.65,
     attachmentOffsetY: -34,
+    description: "Infiltrador que salta sobre a linha, prende-se a uma tropa e reduz sua velocidade de ataque.",
   },
   magoAbissal: {
     id: "magoAbissal", label: "Mago Abissal", role: "Suporte à distância", hp: 52, speed: 18, damage: 18,
@@ -433,32 +538,51 @@ export const ENEMIES = {
     attackEveryMs: 3200, baseDamage: 18, threat: 18, color: "#a855f7", scale: 1.18,
     spriteOffsetY: -10, airborne: true,
     attackVisual: { durationMs: 1300, releaseMs: 400, muzzle: { x: 0.22, y: 0.2 }, effect: "abyssOrb" },
+    description: "Conjurador flutuante que ataca de longe com orbes abissais após uma breve canalização.",
   },
   estilha: {
     id: "estilha", label: "Estilha", role: "Predador de vidro",
-    hp: 18, speed: 58, damage: 5, attackEveryMs: 700, baseDamage: 8, threat: 12,
+    hp: 18, speed: 58, damage: 5, attackEveryMs: 700, baseDamage: 8, threat: 12, energyDropChance: 0.15,
     color: "#7fffd4", scale: 0.68, proceduralKind: "estilha", chapterId: "chapter_02",
+    animationFrameMs: { idle: 105, walking: 70 },
+    attackVisual: { durationMs: 520 },
     description: "Uma lasca viva que atravessa a linha antes que o cristal termine de ressoar.",
   },
   vitrarca: {
     id: "vitrarca", label: "Vitrarca", role: "Duelista prismático",
-    hp: 62, speed: 26, damage: 11, attackEveryMs: 1300, baseDamage: 16, threat: 18,
+    hp: 62, speed: 26, damage: 11, attackEveryMs: 1300, baseDamage: 16, threat: 18, energyDropChance: 0.15,
     color: "#8b5cf6", scale: 1.12, proceduralKind: "vitrarca", chapterId: "chapter_02",
+    animationFrameMs: { idle: 115, walking: 90 },
+    attackVisual: { durationMs: 640 },
     description: "Um caçador equilibrado, protegido por espelhos vivos e lâminas de vidro-marinho.",
   },
   obsidonte: {
     id: "obsidonte", label: "Obsidonte", role: "Colosso de cerco",
-    hp: 180, speed: 10, damage: 24, attackEveryMs: 2200, baseDamage: 40, threat: 30,
+    hp: 180, speed: 10, damage: 24, attackEveryMs: 2200, baseDamage: 40, threat: 30, energyDropChance: 0.15,
     color: "#ffcf70", scale: 1.65, proceduralKind: "obsidonte", chapterId: "chapter_02",
+    animationFrameMs: { idle: 140, walking: 120 },
+    attackVisual: { durationMs: 900 },
     description: "Uma fortaleza ambulante de obsidiana, lenta e quase impossível de fragmentar.",
   },
   refrator: {
     id: "refrator", label: "Refrator", role: "Artilharia prismática",
     hp: 60, speed: 19, damage: 14, attack: "arcane", range: 5.3, chargeMs: 650, projectileSpeed: 170,
-    attackEveryMs: 2600, baseDamage: 16, threat: 20, color: "#7fffd4", scale: 1.05,
+    attackEveryMs: 2600, baseDamage: 16, threat: 20, energyDropChance: 0.15, color: "#7fffd4", scale: 1.05,
     spriteOffsetY: -8, airborne: true, proceduralKind: "refrator", chapterId: "chapter_02",
-    attackVisual: { durationMs: 1050, releaseMs: 320, muzzle: { x: 0.18, y: 0.28 }, effect: "prismBolt" },
+    animationFrameMs: { idle: 100, walking: 80 },
+    attackVisual: { durationMs: 1050, releaseMs: 320, muzzle: { x: 0.45, y: 0.34 }, effect: "prismBolt" },
     description: "Uma lente predatória que paira atrás do enxame e dispara luz solidificada.",
+  },
+  crisalio: {
+    id: "crisalio", label: "Crisálio", role: "Santuário prismático",
+    hp: 105, speed: 7, damage: 4, attackEveryMs: 2500, baseDamage: 20, threat: 30, energyDropChance: 0.15,
+    color: "#a78bfa", scale: 1.42, proceduralKind: "crisalio", chapterId: "chapter_02",
+    assetStates: ["walking", "attack", "idle", "pulse"],
+    attackVisual: { durationMs: 960, impactMs: 480 },
+    shieldPulseEveryMs: 7000, shieldPulseVisualMs: 960,
+    shieldBase: 18, shieldMaxHpFactor: 0.12, shieldCap: 42,
+    shieldTargetTypes: ["estilha", "vitrarca", "obsidonte", "refrator"],
+    description: "Um santuário ambulante de obsidiana cuja coroa renova o manto cristalino do Mar de Vidro.",
   },
 };
 
@@ -621,28 +745,54 @@ const replaceBaseEnemy = (enemies, type, replacement, count) => enemies.flatMap(
 });
 const phase = (id, name, subtitle, energy, cadenceMs, environment, targetDurationMs, waves, extra = {}) => {
   const phaseNumber = Number(id.slice(-2));
+  const chapterTwo = phaseNumber > 8;
   return ({
   id, name, subtitle, energy, baseIntegrity: 100, cadenceMs, environment,
-  chapterId: phaseNumber <= 8 ? "chapter_01" : "chapter_02",
-  chapterIndex: phaseNumber <= 8 ? phaseNumber - 1 : phaseNumber - 9,
+  chapterId: chapterTwo ? "chapter_02" : "chapter_01",
+  chapterIndex: chapterTwo ? phaseNumber - 9 : phaseNumber - 1,
+  supplyLimit: chapterTwo ? 30 : 20,
+  loadoutLimit: chapterTwo ? 6 : 5,
   targetDurationMs, waves, ...ARENAS[id], ...extra,
   });
 };
 
 const contentThreat = (entry) => (ENEMIES[entry.type]?.threat || 1) * (entry.variant === "alpha" ? 8 : 1);
-const budgetedWave = (target, types, extras = []) => {
+const BUDGETED_TYPE_CAPS = { magoAbissal: 4 };
+const budgetedWave = (target, types, extras = [], typeCaps = {}) => {
+  const caps = { ...BUDGETED_TYPE_CAPS, ...typeCaps };
   const remainingTarget = Math.max(0, target - extras.reduce((sum, entry) => sum + contentThreat(entry) * entry.count, 0));
-  const entries = types.map((type) => ({ type, count: Math.max(1, Math.floor(remainingTarget / types.length / contentThreat({ type }))) }));
-  let current = entries.reduce((sum, entry) => sum + contentThreat(entry) * entry.count, 0);
-  while (current < remainingTarget) {
-    const gap = remainingTarget - current;
-    const candidate = entries
-      .map((entry, index) => ({ index, threat: contentThreat(entry) }))
-      .filter(({ threat }) => threat <= gap)
-      .sort((left, right) => right.threat - left.threat)[0]
-      || entries.map((entry, index) => ({ index, threat: contentThreat(entry) })).sort((left, right) => left.threat - right.threat)[0];
-    entries[candidate.index].count += 1;
-    current += candidate.threat;
+  const entries = types.map((type) => ({
+    type,
+    count: Math.min(
+      caps[type] ?? Infinity,
+      Math.max(1, Math.floor(remainingTarget / types.length / contentThreat({ type }))),
+    ),
+  }));
+  const current = entries.reduce((sum, entry) => sum + contentThreat(entry) * entry.count, 0);
+  const availableBudget = Math.max(0, remainingTarget - current);
+  const additionsByBudget = Array(availableBudget + 1).fill(null);
+  additionsByBudget[0] = Array(entries.length).fill(0);
+  for (let budget = 0; budget <= availableBudget; budget += 1) {
+    const additions = additionsByBudget[budget];
+    if (!additions) continue;
+    entries.forEach((entry, index) => {
+      const nextBudget = budget + contentThreat(entry);
+      const cap = caps[entry.type] ?? Infinity;
+      if (nextBudget > availableBudget || entry.count + additions[index] >= cap || additionsByBudget[nextBudget]) return;
+      const nextAdditions = [...additions];
+      nextAdditions[index] += 1;
+      additionsByBudget[nextBudget] = nextAdditions;
+    });
+  }
+  let bestBudget = availableBudget;
+  while (bestBudget > 0 && !additionsByBudget[bestBudget]) bestBudget -= 1;
+  const bestAdditions = additionsByBudget[bestBudget] || [];
+  entries.forEach((entry, index) => { entry.count += bestAdditions[index] || 0; });
+  if (current + bestBudget < remainingTarget) {
+    const smallestAvailable = entries
+      .filter((entry) => entry.count < (caps[entry.type] ?? Infinity))
+      .sort((left, right) => contentThreat(left) - contentThreat(right))[0];
+    if (smallestAvailable) smallestAvailable.count += 1;
   }
   return wave([...entries, ...extras]);
 };
@@ -711,11 +861,11 @@ export const PHASES = [
     budgetedWave(900, ["estilha", "vitrarca", "silex", "parasitaSaltador"]),
     budgetedWave(1000, ["vitrarca", "zhyra", "magoAbissal"]),
     budgetedWave(1100, ["estilha", "vitrarca", "krakhul", "parasitaSaltador"]),
-    budgetedWave(1230, ["vitrarca", "magoAbissal", "krakhul"], [{ type: "oculis", variant: "alpha", count: 1 }]),
+    budgetedWave(1220, ["vitrarca", "magoAbissal", "krakhul"], [{ type: "oculis", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.12) }),
   phase("fase_11", "Jardim Estilhaçado", "Raízes de cristal cercam a linha", 160, 1520, "glass", 660000, [
     budgetedWave(900, ["estilha", "vitrarca", "silex", "parasitaSaltador"]),
-    budgetedWave(1000, ["vitrarca", "obsidonte", "neurax"]),
+    wave([{ type: "vitrarca", count: 18 }, { type: "obsidonte", count: 6 }, { type: "neurax", count: 50 }]),
     budgetedWave(1100, ["vitrarca", "obsidonte", "magoAbissal"]),
     budgetedWave(1200, ["estilha", "vitrarca", "obsidonte", "parasitaSaltador"]),
     budgetedWave(1354, ["vitrarca", "obsidonte", "magoAbissal"], [{ type: "myrkon", variant: "alpha", count: 1 }]),
@@ -728,32 +878,32 @@ export const PHASES = [
     budgetedWave(1500, ["estilha", "refrator", "parasitaSaltador"], [{ type: "zhyra", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.16) }),
   phase("fase_13", "Desfiladeiro Espelhado", "Cada reflexo esconde um avanço", 170, 1360, "glass", 720000, [
-    budgetedWave(1120, ["estilha", "vitrarca", "refrator"]),
+    budgetedWave(1120, ["estilha", "vitrarca", "refrator"], [], { vitrarca: 20, refrator: 6 }),
     budgetedWave(1250, ["estilha", "vitrarca", "obsidonte", "parasitaSaltador"]),
-    budgetedWave(1380, ["vitrarca", "obsidonte", "refrator", "magoAbissal"]),
+    budgetedWave(1380, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1510, ["estilha", "obsidonte", "refrator", "parasitaSaltador"]),
-    budgetedWave(1660, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "krakhul", variant: "alpha", count: 1 }]),
+    budgetedWave(1660, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }, { type: "krakhul", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.18) }),
   phase("fase_14", "Catedral Prismática", "A luz tornou-se uma arma", 175, 1280, "glass", 750000, [
-    budgetedWave(1250, ["estilha", "vitrarca", "refrator"]),
-    budgetedWave(1390, ["vitrarca", "obsidonte", "refrator", "magoAbissal"]),
+    budgetedWave(1250, ["estilha", "vitrarca", "refrator"], [], { vitrarca: 23, refrator: 7 }),
+    budgetedWave(1390, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1530, ["estilha", "obsidonte", "parasitaSaltador"]),
-    budgetedWave(1670, ["vitrarca", "obsidonte", "refrator", "magoAbissal"]),
-    budgetedWave(1830, ["estilha", "refrator", "parasitaSaltador"], [{ type: "brakor", variant: "alpha", count: 1 }]),
+    budgetedWave(1670, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(1850, ["estilha", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }, { type: "brakor", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.2) }),
   phase("fase_15", "Olho da Refração", "A tempestade multiplica o inimigo", 180, 1200, "glass", 780000, [
-    budgetedWave(1400, ["estilha", "vitrarca", "refrator", "parasitaSaltador"]),
-    budgetedWave(1550, ["vitrarca", "obsidonte", "refrator"]),
-    budgetedWave(1700, ["obsidonte", "refrator", "krakhul", "magoAbissal"]),
-    budgetedWave(1850, ["estilha", "obsidonte", "refrator", "parasitaSaltador"]),
-    budgetedWave(2040, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "aurakh", variant: "alpha", count: 1 }]),
+    budgetedWave(1400, ["estilha", "vitrarca", "refrator", "parasitaSaltador"], [], { vitrarca: 20, refrator: 8, parasitaSaltador: 22 }),
+    budgetedWave(1550, ["vitrarca", "obsidonte", "refrator"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(1700, ["obsidonte", "refrator", "krakhul", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(1850, ["estilha", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(2040, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 2 }, { type: "aurakh", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.22) }),
   phase("fase_16", "Trono dos Reflexos", "Quebre o oráculo do Mar de Vidro", 185, 1120, "glass", 810000, [
-    budgetedWave(1550, ["estilha", "vitrarca", "refrator", "parasitaSaltador"]),
-    budgetedWave(1720, ["vitrarca", "obsidonte", "refrator", "magoAbissal"]),
-    budgetedWave(1890, ["estilha", "obsidonte", "refrator", "parasitaSaltador"]),
-    budgetedWave(2070, ["vitrarca", "obsidonte", "refrator", "brakor"]),
-    budgetedWave(2260, ["estilha", "vitrarca", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "magoAbissal", variant: "alpha", count: 1 }]),
+    budgetedWave(1550, ["estilha", "vitrarca", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }], { vitrarca: 21, refrator: 9, parasitaSaltador: 23 }),
+    budgetedWave(1720, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(1890, ["estilha", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(2070, ["vitrarca", "obsidonte", "refrator", "brakor"], [{ type: "crisalio", count: 2 }]),
+    budgetedWave(2260, ["estilha", "vitrarca", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 2 }, { type: "magoAbissal", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.25) }),
 ];
 
@@ -766,7 +916,7 @@ export const CHAPTERS = [
   {
     id: "chapter_02", number: 2, name: "Mar de Vidro", subtitle: "O deserto devolve aquilo que destruímos",
     phaseIds: PHASES.slice(8, 16).map((entry) => entry.id), coverArenaId: "chapter_02",
-    exclusiveEnemyIds: ["estilha", "vitrarca", "obsidonte", "refrator"],
+    exclusiveEnemyIds: ["estilha", "vitrarca", "obsidonte", "refrator", "crisalio"],
     palette: { primary: "#7fffd4", accent: "#8b5cf6", shadow: "#080a12" },
     mechanic: { ...GLASS_ECHO_BASE, label: "Ecos de Vidro", description: "Hostis comuns podem retornar uma vez como reflexos frágeis e velozes." },
   },

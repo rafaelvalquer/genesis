@@ -1,5 +1,30 @@
-export const FIELD = { width: 1000, height: 600, rows: 5, cols: 10, baseX: 18 };
+import { ENEMY_FRAME_ANCHORS } from "./enemyAnchors.generated.js";
+
+export const FIELD = {
+  width: 1100,
+  height: 600,
+  rows: 5,
+  cols: 11,
+  baseX: 118,
+  spawnX: 1140,
+  combatOffsetX: 100,
+  defenseCol: 0,
+  firstTroopCol: 1,
+  lastTroopCol: 9,
+  enemyEntryCol: 10,
+};
 export const CELL = { width: FIELD.width / FIELD.cols, height: FIELD.height / FIELD.rows };
+export const VIEWPORT = {
+  width: FIELD.width,
+  height: FIELD.height + 80,
+  fieldOffsetY: 80,
+};
+
+export function viewportPointToFieldPoint(x, y) {
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  if (x < 0 || x >= VIEWPORT.width || y < VIEWPORT.fieldOffsetY || y >= VIEWPORT.height) return null;
+  return { x, y: y - VIEWPORT.fieldOffsetY };
+}
 
 const DEFAULT_TROOP_HEIGHT = 126;
 const DEFAULT_ENEMY_HEIGHT = 128;
@@ -32,6 +57,10 @@ export function getTroopFrameAnchor(troopConfig = {}, state = "idle", frame = 0)
 }
 
 export function getTroopAttackVisual(troop, troopConfig = {}) {
+  if (troop?.type === "medicaNanites") {
+    if (troop.state === "healing") return troopConfig.healVisual || troopConfig.attackVisual;
+    if (troop.state === "cooldown") return troopConfig.cooldownVisual || troopConfig.attackVisual;
+  }
   return troopConfig.attackVisuals?.[troop?.lastAttackMode] || troopConfig.attackVisual;
 }
 
@@ -50,6 +79,7 @@ export function getMuzzleWorldPosition(troop, troopConfig = {}, shotIndex = 0, a
   const frame = animationFrame == null ? (shot?.frame || 0) : animationFrame;
   const muzzle = frameMuzzles[Math.min(Math.max(0, frame), Math.max(0, frameMuzzles.length - 1))]
     || shot?.muzzle
+    || visual.muzzle
     || { x: 0.72, y: 0.52 };
   const state = visual.state || "attack";
   const anchor = getTroopFrameAnchor(troopConfig, state, frame);
@@ -67,24 +97,38 @@ export function getMuzzleWorldPosition(troop, troopConfig = {}, shotIndex = 0, a
   };
 }
 
-export function getEnemySpriteRect(enemy) {
-  return getSpriteRect(enemy, DEFAULT_ENEMY_HEIGHT * (enemy.scale || 1));
+export function getEnemyFrameAnchor(enemyConfig = {}, state = "idle", frame = 0) {
+  const states = ENEMY_FRAME_ANCHORS[enemyConfig.id];
+  const anchors = states?.[state] || states?.idle || states?.walking;
+  if (!anchors?.length) return enemyConfig.airborne ? { x: 0.5, y: 0.5 } : { x: 0.5, y: 1 };
+  return anchors[Math.min(Math.max(0, frame), anchors.length - 1)];
 }
 
-export function getEnemyHitPoint(enemy) {
-  const rect = getEnemySpriteRect(enemy);
+export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", frame = 0, aspectRatio = 1) {
+  const scale = enemy.scale || enemyConfig.scale || 1;
+  const height = DEFAULT_ENEMY_HEIGHT * scale;
+  const width = height * aspectRatio;
+  const anchor = getEnemyFrameAnchor(enemyConfig, state, frame);
+  const offsetY = enemyConfig.airborne ? (enemyConfig.spriteOffsetY || 0) * scale : 0;
+  const anchorY = enemy.y + (enemyConfig.airborne ? offsetY : CELL.height * 0.43);
   return {
-    x: rect.x + rect.width * 0.5,
+    x: enemy.x - width * anchor.x,
+    y: anchorY - height * anchor.y,
+    width,
+    height,
+  };
+}
+
+export function getEnemyHitPoint(enemy, enemyConfig = {}) {
+  const rect = getEnemySpriteRect(enemy, enemyConfig);
+  return {
+    x: enemy.x,
     y: rect.y + rect.height * 0.55,
   };
 }
 
 export function getEnemyMuzzleWorldPosition(enemy, enemyConfig = {}) {
-  const scale = enemy.scale || enemyConfig.scale || 1;
-  const visualEnemy = enemyConfig.spriteOffsetY
-    ? { ...enemy, y: enemy.y + enemyConfig.spriteOffsetY * scale }
-    : enemy;
-  const rect = getSpriteRect(visualEnemy, DEFAULT_ENEMY_HEIGHT * scale);
+  const rect = getEnemySpriteRect(enemy, enemyConfig, "attack", 0);
   const muzzle = enemyConfig.attackVisual?.muzzle || { x: 0.25, y: 0.25 };
   return { x: rect.x + rect.width * muzzle.x, y: rect.y + rect.height * muzzle.y };
 }
@@ -103,10 +147,31 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     return { state, frame: Math.floor(elapsed / 75) % count };
   }
 
+  const pulseAge = elapsed - enemy.lastShieldPulseAt;
+  if (enemyConfig.id === "crisalio" && Number.isFinite(pulseAge)
+    && pulseAge >= 0 && pulseAge < enemyConfig.shieldPulseVisualMs) {
+    const count = Math.max(1, frameCounts.pulse || 1);
+    return {
+      state: "pulse",
+      frame: Math.min(count - 1, Math.floor(pulseAge / enemyConfig.shieldPulseVisualMs * count)),
+    };
+  }
+
   if (enemyConfig.attack !== "arcane") {
-    const state = elapsed - enemy.lastAttackAt < 520 ? "attack" : "walking";
-    const count = Math.max(1, frameCounts[state] || frameCounts.walking || 1);
-    return { state, frame: Math.floor(elapsed / 75) % count };
+    const attackAge = elapsed - enemy.lastAttackAt;
+    const attackDurationMs = enemyConfig.attackVisual?.durationMs || 520;
+    if (Number.isFinite(attackAge) && attackAge >= 0 && attackAge < attackDurationMs) {
+      const count = Math.max(1, frameCounts.attack || 1);
+      return {
+        state: "attack",
+        frame: Math.min(count - 1, Math.floor(attackAge / attackDurationMs * count)),
+      };
+    }
+
+    const state = enemy.moving === false ? "idle" : "walking";
+    const count = Math.max(1, frameCounts[state] || frameCounts.walking || frameCounts.idle || 1);
+    const frameMs = enemyConfig.animationFrameMs?.[state] || 90;
+    return { state, frame: Math.floor(elapsed / frameMs) % count };
   }
 
   const attackCount = Math.max(1, frameCounts.attack || 1);
@@ -128,7 +193,8 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
 
   const state = enemy.moving ? "walking" : "idle";
   const count = Math.max(1, frameCounts[state] || frameCounts.idle || frameCounts.walking || 1);
-  return { state, frame: Math.floor(elapsed / 110) % count };
+  const frameMs = enemyConfig.animationFrameMs?.[state] || 110;
+  return { state, frame: Math.floor(elapsed / frameMs) % count };
 }
 
 export function isEnemyFrozen(enemy, elapsed) {
@@ -156,6 +222,17 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   }
 
   const visual = getTroopAttackVisual(troop, troopConfig);
+  if (troop.type === "medicaNanites" && ["healing", "cooldown"].includes(troop.state)) {
+    const state = troop.state === "healing" ? "heal" : "cooldown";
+    const count = Math.max(1, frameCounts[state] || 1);
+    const duration = Math.max(1, visual?.durationMs || 800);
+    const age = Math.max(0, elapsed - troop.stateStartedAt);
+    return { state, frame: Math.floor(age / (duration / count)) % count };
+  }
+  if (troop.type === "medicaNanites" && troop.state === "attacking") {
+    const count = Math.max(1, frameCounts.attack || 1);
+    return { state: "attack", frame: Math.floor(Math.max(0, elapsed - troop.stateStartedAt) / 85) % count };
+  }
   const attackState = visual?.state || "attack";
   if (troopConfig.attack === "flame" && troop.channelingAttack) {
     const count = Math.max(1, frameCounts[attackState] || frameCounts.attack || 1);

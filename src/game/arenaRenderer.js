@@ -67,7 +67,7 @@ export function getBattlefieldBlueprint(phase) {
   const features = Array.from({ length: 48 }, (_, index) => ({
     index,
     row: index % FIELD.rows,
-    x: 82 + random() * 830,
+    x: FIELD.combatOffsetX + 82 + random() * 830,
     offset: random(),
     size: 0.55 + random() * 0.9,
     flip: random() > 0.5,
@@ -144,10 +144,10 @@ function drawBackdrop(ctx, phase, blueprint) {
 
 function lanePath(ctx, lane) {
   ctx.beginPath();
-  ctx.moveTo(44, lane.top + 3);
+  ctx.moveTo(FIELD.baseX + 26, lane.top + 3);
   ctx.lineTo(FIELD.width - 38, lane.top - 2);
   ctx.lineTo(FIELD.width - 28, lane.bottom - 2);
-  ctx.lineTo(52, lane.bottom + 3);
+  ctx.lineTo(FIELD.baseX + 34, lane.bottom + 3);
   ctx.closePath();
 }
 
@@ -288,7 +288,7 @@ function drawLanes(ctx, blueprint, profile) {
     ctx.strokeStyle = rgba(theme.edge, 0.23);
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(49, lane.top + 2);
+    ctx.moveTo(FIELD.baseX + 31, lane.top + 2);
     ctx.lineTo(FIELD.width - 39, lane.top - 2);
     ctx.stroke();
   }
@@ -297,17 +297,17 @@ function drawLanes(ctx, blueprint, profile) {
 function drawBase(ctx, blueprint) {
   const { theme } = blueprint;
   ctx.save();
-  const baseGradient = ctx.createLinearGradient(0, 0, 76, 0);
+  const baseGradient = ctx.createLinearGradient(0, 0, FIELD.baseX + 4, 0);
   baseGradient.addColorStop(0, "#02060b");
   baseGradient.addColorStop(0.7, rgba(theme.laneAlt, 0.98));
   baseGradient.addColorStop(1, rgba(theme.edge, 0.18));
   ctx.fillStyle = baseGradient;
-  ctx.fillRect(0, 0, 72, FIELD.height);
+  ctx.fillRect(0, 0, FIELD.baseX, FIELD.height);
   ctx.strokeStyle = rgba(theme.edge, 0.72);
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.moveTo(70, 0);
-  ctx.lineTo(70, FIELD.height);
+  ctx.moveTo(FIELD.baseX, 0);
+  ctx.lineTo(FIELD.baseX, FIELD.height);
   ctx.stroke();
 
   for (const lane of blueprint.lanes) {
@@ -324,6 +324,12 @@ function drawBase(ctx, blueprint) {
       ctx.fillStyle = rgba(theme.detail, 0.7);
       ctx.fillRect(13, y + 8, 18, 4);
     }
+    ctx.strokeStyle = rgba(theme.edge, 0.28);
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(4, lane.row * CELL.height + 4, CELL.width - 8, CELL.height - 8);
+    ctx.fillStyle = rgba(theme.detail, 0.42);
+    ctx.fillRect(7, lane.row * CELL.height + CELL.height - 10, 22, 3);
+    ctx.fillRect(CELL.width - 29, lane.row * CELL.height + CELL.height - 10, 22, 3);
   }
   ctx.restore();
 }
@@ -387,9 +393,9 @@ function drawLaneLabels(ctx, blueprint, profile) {
   ctx.textAlign = "left";
   for (const lane of blueprint.lanes) {
     ctx.fillStyle = rgba(blueprint.theme.edge, 0.5);
-    ctx.fillText(`R${lane.row + 1}`, 78, lane.top + 16);
+    ctx.fillText(`R${lane.row + 1}`, FIELD.baseX + 8, lane.top + 16);
     ctx.fillStyle = rgba(blueprint.theme.detail, 0.35);
-    ctx.fillRect(98, lane.top + 10, 35, 2);
+    ctx.fillRect(FIELD.baseX + 28, lane.top + 10, 35, 2);
   }
   ctx.restore();
 }
@@ -430,7 +436,7 @@ function drawDamageMarks(ctx, phase, intensity) {
   ctx.strokeStyle = rgba(theme.detail, 0.12 + intensity * 0.12);
   ctx.lineWidth = 1.5;
   for (let index = 0; index < count; index += 1) {
-    const x = 130 + pseudo(index, theme.seed + 90) * 720;
+    const x = FIELD.combatOffsetX + 130 + pseudo(index, theme.seed + 90) * 720;
     const row = index % FIELD.rows;
     const y = row * CELL.height + 28 + pseudo(index, theme.seed + 100) * 55;
     ctx.beginPath();
@@ -456,7 +462,7 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     ctx.globalAlpha = 0.12 * profile.parallax;
     ctx.fillStyle = theme.detail;
     for (let index = 0; index < 7; index += 1) {
-      const x = 75 + index * 155 + drift * (index % 2 ? 1 : -0.6);
+      const x = FIELD.combatOffsetX + 75 + index * 155 + drift * (index % 2 ? 1 : -0.6);
       const height = 24 + pseudo(index, theme.seed + 430) * 42;
       ctx.beginPath(); ctx.moveTo(x - 55, 0); ctx.lineTo(x, height); ctx.lineTo(x + 62, 0); ctx.closePath(); ctx.fill();
     }
@@ -476,9 +482,9 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     for (let row = 0; row < FIELD.rows; row += 1) {
       const y = row * CELL.height + 88;
       ctx.beginPath();
-      for (let x = 85; x <= 920; x += 45) {
+      for (let x = FIELD.combatOffsetX + 85; x <= FIELD.combatOffsetX + 920; x += 45) {
         const offset = Math.sin(x / 74 + row * 1.8 + motionTime / 1700) * 4;
-        x === 85 ? ctx.moveTo(x, y + offset) : ctx.lineTo(x, y + offset);
+        x === FIELD.combatOffsetX + 85 ? ctx.moveTo(x, y + offset) : ctx.lineTo(x, y + offset);
       }
       ctx.stroke();
     }
@@ -520,6 +526,13 @@ export function getPlacementPreviewGeometry(session, selectedTroop, hoveredCell,
       y0: 0,
       x1: Math.min(FIELD.width, (col + 1 + config.mineRangeCols) * CELL.width),
       y1: FIELD.height,
+    } : config.attack === "mortar" ? {
+      kind: "mortar",
+      x0: Math.min(FIELD.width, (col + config.minRange) * CELL.width),
+      y0: row * CELL.height,
+      x1: Math.min(FIELD.width, (col + Math.floor(config.range) + 1) * CELL.width),
+      y1: (row + 1) * CELL.height,
+      blindX0: Math.min(FIELD.width, (col + 1) * CELL.width),
     } : hasAttackRange ? {
       x0: x,
       y0: y,
@@ -547,6 +560,24 @@ export function drawPlacementRange(ctx, preview) {
       ctx.stroke();
     }
     for (let x = x0; x <= x1; x += CELL.width) {
+      ctx.beginPath();
+      ctx.moveTo(x, y0);
+      ctx.lineTo(x, y1);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
+  if (preview.range.kind === "mortar") {
+    ctx.globalAlpha = preview.valid ? 0.8 : 0.58;
+    ctx.fillStyle = "rgba(248,113,113,.07)";
+    ctx.fillRect(preview.range.blindX0, y0, Math.max(0, x0 - preview.range.blindX0), y1 - y0);
+    ctx.fillStyle = `${color}20`;
+    ctx.strokeStyle = color;
+    ctx.setLineDash([8, 6]);
+    ctx.fillRect(x0, y0, Math.max(0, x1 - x0), y1 - y0);
+    ctx.strokeRect(x0, y0, Math.max(0, x1 - x0), y1 - y0);
+    for (let x = x0 + CELL.width; x < x1; x += CELL.width) {
       ctx.beginPath();
       ctx.moveTo(x, y0);
       ctx.lineTo(x, y1);

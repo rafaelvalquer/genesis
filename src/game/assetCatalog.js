@@ -5,6 +5,7 @@ const troopFrameModules = import.meta.glob([
   "!./assets/troop/muralhaReforcada/idle/**/*.png",
 ], { query: "?url", import: "default" });
 const enemyFrameModules = import.meta.glob("./assets/enemy/**/*.png", { query: "?url", import: "default" });
+const defenseFrameModules = import.meta.glob("./assets/defense/**/*.png", { query: "?url", import: "default" });
 const arenaUrls = import.meta.glob("./assets/arenas/*.webp", { eager: true, query: "?url", import: "default" });
 const audioUrls = import.meta.glob("./assets/sfx/*.{ogg,wav}", { eager: true, query: "?url", import: "default" });
 const previewUrls = import.meta.glob([
@@ -24,6 +25,7 @@ function modulesFor(modules, folder, state) {
 }
 
 function loadImage(url) {
+  if (import.meta.env.MODE === "test") return Promise.resolve({ src: url, width: 1, height: 1 });
   return new Promise((resolve) => {
     const image = new Image();
     image.onload = () => resolve(image);
@@ -64,7 +66,20 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
   const troopIds = [...new Set(loadout)];
   const enemyIds = [...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)))];
   const tasks = [];
-  const result = { troops: {}, enemies: {}, audio: {} };
+  const result = { troops: {}, enemies: {}, defenses: {}, audio: {} };
+
+  if (!options.skipDefenses) {
+    result.defenses.pulsoDesmaterializacao = {};
+    for (const state of ["idle", "attack", "dead"]) {
+      tasks.push(async () => {
+        result.defenses.pulsoDesmaterializacao[state] = await loadFrameSet(
+          defenseFrameModules,
+          "pulsoDesmaterializacao",
+          state,
+        );
+      });
+    }
+  }
 
   for (const troopId of troopIds) {
     const troop = TROOPS[troopId];

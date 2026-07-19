@@ -154,6 +154,39 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     const random = seeded(event.seed || 1);
     const color = event.color || (event.type.includes("Death") ? "#fb7185" : "#67e8f9");
 
+    if (event.type === "tileImpact") {
+      const special = event.mode === "special";
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: special ? "#fbbf24" : color, born: now, life: special ? 540 : 360, maxRadius: special ? 104 : 64 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: special ? "#fff7d6" : "#d1fae5", born: now, life: special ? 220 : 150, size: special ? 38 : 24 });
+      addSparks(particles, event, now, Math.max(8, Math.round((special ? 28 : 16) * quality.density)), random, {
+        color: special ? "#fbbf24" : "#a7f3d0", minSpeed: special ? 55 : 34, speed: special ? 155 : 98,
+        gravity: 180, life: special ? 560 : 390, size: special ? 2.8 : 2.1,
+      });
+      continue;
+    }
+
+    if (event.type === "prismaticPulse") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#a78bfa", born: now, life: 760, maxRadius: 145 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#ecfeff", born: now, life: 300, size: 34 });
+      addSparks(particles, event, now, Math.max(12, Math.round(30 * quality.density)), random, {
+        color: "#7fffd4", minSpeed: 35, speed: 130, life: 620, size: 2.2,
+      });
+      continue;
+    }
+
+    if (event.type === "shieldHit" || event.type === "shieldBreak") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y, color,
+        born: now, life: event.type === "shieldBreak" ? 360 : 190,
+        maxRadius: event.type === "shieldBreak" ? 48 : 24,
+      });
+      addSparks(particles, event, now, Math.max(3, Math.round((event.type === "shieldBreak" ? 16 : 6) * quality.density)), random, {
+        color: event.type === "shieldBreak" ? "#e9d5ff" : "#7fffd4",
+        minSpeed: 24, speed: event.type === "shieldBreak" ? 115 : 65, life: 360, size: 1.8,
+      });
+      continue;
+    }
+
     if (event.type === "echoSpawn") {
       particles.push({ kind: "ring", x: event.x, y: event.y, color: "#7fffd4", born: now, life: 520, maxRadius: 48 });
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#e9d5ff", born: now, life: 220, size: 22 });
@@ -184,6 +217,22 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       });
       continue;
     }
+    if (event.type === "energyCollected") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#fbbf24", born: now, life: 420, maxRadius: 54 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#fff7ae", born: now, life: 220, size: 26 });
+      addSparks(particles, event, now, Math.max(8, Math.round(18 * quality.density)), random, {
+        color: "#facc15", minSpeed: 32, speed: 112, life: 440, size: 2.2,
+      });
+      continue;
+    }
+    if (event.type === "naniteHealPulse") {
+      const count = settings.reduceMotion ? 1 : Math.max(3, Math.round(7 * quality.density));
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#34d399", born: now, life: 260, maxRadius: 24 });
+      addSparks(particles, event, now, count, random, {
+        color: "#6ee7b7", minSpeed: 12, speed: 42, life: 300, size: 1.5,
+      });
+      continue;
+    }
     if (event.type === "shotgun") {
       particles.push({ kind: "shotgun", ...event, color, born: now, life: 170 });
       particles.push({ kind: "muzzle", x: event.x0, y: event.y0, color: "#fff7d6", born: now, life: 95, size: 18 });
@@ -203,7 +252,7 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
     if (event.type === "shoot") {
-      const flashColor = event.weapon === "ice" ? "#d9fbff" : event.weapon === "abyssOrb" ? "#ead7ff" : event.weapon === "prismBolt" ? "#fff1b8" : ["microMissile", "fireball"].includes(event.weapon) ? "#ffcf8a" : "#fff7d6";
+      const flashColor = event.weapon === "naniteBullet" ? "#ccfbf1" : event.weapon === "ice" ? "#d9fbff" : event.weapon === "abyssOrb" ? "#ead7ff" : event.weapon === "prismBolt" ? "#fff1b8" : ["microMissile", "fireball"].includes(event.weapon) ? "#ffcf8a" : "#fff7d6";
       const flashSize = event.weapon === "sniperBullet" ? 22 : ["abyssOrb", "prismBolt"].includes(event.weapon) ? 24 : event.weapon === "fireball" ? 12 : 15;
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: flashColor, born: now, life: event.weapon === "sniperBullet" ? 125 : 90, size: flashSize });
       if (["marineBullet", "sniperBullet"].includes(event.weapon)) {
@@ -224,6 +273,10 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       } else if (event.weapon === "prismBolt") {
         addSparks(particles, event, now, Math.max(3, Math.round(8 * quality.density)), random, {
           color: "#7fffd4", minSpeed: 28, speed: 78, life: 260, size: 1.7,
+        });
+      } else if (event.weapon === "naniteBullet") {
+        addSparks(particles, event, now, settings.reduceMotion ? 1 : Math.max(2, Math.round(4 * quality.density)), random, {
+          forward: true, color: "#5eead4", minSpeed: 24, speed: 54, life: 180, size: 1.2,
         });
       }
       continue;
@@ -256,7 +309,8 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     }
     if (event.type === "projectileImpact") {
       const sniper = event.weapon === "sniperBullet";
-      addSparks(particles, event, now, Math.max(3, Math.round((sniper ? 14 : 7) * quality.density)), random, { color, minSpeed: 35, speed: sniper ? 145 : 80, life: sniper ? 410 : 260, size: sniper ? 2.3 : 1.7 });
+      const nanite = event.weapon === "naniteBullet";
+      addSparks(particles, event, now, settings.reduceMotion && nanite ? 1 : Math.max(3, Math.round((sniper ? 14 : nanite ? 4 : 7) * quality.density)), random, { color: nanite ? "#5eead4" : color, minSpeed: nanite ? 18 : 35, speed: sniper ? 145 : nanite ? 48 : 80, life: sniper ? 410 : 260, size: sniper ? 2.3 : nanite ? 1.3 : 1.7 });
       if (sniper) particles.push({ kind: "ring", x: event.x, y: event.y, color, born: now, life: 250, maxRadius: 34 });
       continue;
     }
@@ -323,6 +377,34 @@ function drawMarineBullet(ctx, projectile) {
   drawRoundBullet(ctx, projectile, {
     radius: 2.4, glowRadius: 5.5, rim: "#0ea5e9", glowEdge: "rgba(56,189,248,0)",
   });
+}
+
+function drawNaniteBullet(ctx, projectile) {
+  const angle = Math.atan2(projectile.vy, projectile.vx);
+  const trail = projectile.trail.slice(-4);
+  if (trail.length > 1) {
+    const gradient = ctx.createLinearGradient(trail[0].x, trail[0].y, projectile.x, projectile.y);
+    gradient.addColorStop(0, "rgba(45,212,191,0)");
+    gradient.addColorStop(1, "rgba(103,232,249,.72)");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    ctx.lineTo(projectile.x, projectile.y);
+    ctx.stroke();
+  }
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(angle);
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = "#2dd4bf";
+  ctx.fillStyle = "#ecfeff";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 6, 3.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#22d3ee";
+  ctx.lineWidth = 1.3;
+  ctx.stroke();
 }
 
 function drawSniperBullet(ctx, projectile) {
@@ -453,6 +535,26 @@ export function drawFrozenEnemyEffect(ctx, entity, elapsed, settings = {}) {
   });
 }
 
+export function drawStunnedEnemyEffect(ctx, entity, elapsed, settings = {}) {
+  const pulse = settings.reduceMotion ? 1 : 0.86 + Math.sin(elapsed / 110) * 0.14;
+  const scale = entity.scale || 1;
+  ctx.save();
+  ctx.strokeStyle = "rgba(250,204,21,.9)";
+  ctx.fillStyle = "rgba(254,240,138,.95)";
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = "#fbbf24";
+  for (let index = 0; index < 3; index += 1) {
+    const angle = elapsed / 220 + index * Math.PI * 2 / 3;
+    const x = entity.x + Math.cos(angle) * 22 * scale;
+    const y = entity.y - 48 * scale + Math.sin(angle) * 7 * scale;
+    ctx.beginPath();
+    ctx.arc(x, y, 3.2 * pulse * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawMissileSalvo(ctx, projectile, quality) {
   const angle = Math.atan2(projectile.vy, projectile.vx);
   const nx = -Math.sin(angle);
@@ -493,6 +595,46 @@ function drawMissileSalvo(ctx, projectile, quality) {
   });
 }
 
+function drawMortarShell(ctx, projectile, quality) {
+  const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
+  trail.forEach((point, index) => {
+    const ratio = (index + 1) / trail.length;
+    ctx.fillStyle = `rgba(148,163,184,${ratio * 0.18})`;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 2 + (1 - ratio) * 4, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.save();
+  ctx.globalAlpha = 0.32;
+  ctx.strokeStyle = projectile.color || "#fbbf24";
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.ellipse(projectile.targetX, projectile.targetY, 34, 11, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(projectile.rotation || 0);
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = "#fbbf24";
+  ctx.fillStyle = "#d6a54a";
+  ctx.beginPath();
+  ctx.moveTo(9, 0);
+  ctx.lineTo(3, -4);
+  ctx.lineTo(-7, -4);
+  ctx.lineTo(-9, 0);
+  ctx.lineTo(-7, 4);
+  ctx.lineTo(3, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = "#334155";
+  ctx.fillRect(-6, -3, 9, 6);
+  ctx.strokeStyle = "#f8fafc";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
 function drawPrismBolt(ctx, projectile, quality) {
   const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
   trail.forEach((point, index) => {
@@ -529,11 +671,13 @@ export function drawProjectiles(ctx, projectiles, settings = {}, assets = {}) {
     if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectile.x, projectile.y, projectile.rotation, assets.mine?.[0], 46);
     else if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectile);
     else if (projectile.visualKind === "marineBullet") drawMarineBullet(ctx, projectile);
+    else if (projectile.visualKind === "naniteBullet") drawNaniteBullet(ctx, projectile);
     else if (projectile.visualKind === "ice") drawIceProjectile(ctx, projectile);
     else if (projectile.visualKind === "fireball") drawFireball(ctx, projectile);
     else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectile, quality);
     else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectile, quality);
     else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectile, quality);
+    else if (projectile.visualKind === "mortarShell") drawMortarShell(ctx, projectile, quality);
     else drawTracer(ctx, projectile, 14, 2.5, "#ffffff");
     ctx.restore();
   }

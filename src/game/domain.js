@@ -57,7 +57,7 @@ export function calculateStars({ outcome, integrity, integrityMax = 100, duratio
 
 const SPECIALIZATION_LOADOUTS = {
   ballistic_specialization: ["marine", "sniper", "caçador"],
-  explosive_specialization: ["bombardeiro", "demolidora"],
+  explosive_specialization: ["bombardeiro", "demolidora", "artilheiraMorteiro"],
   energy_specialization: ["ranger", "krio", "guarda"],
 };
 

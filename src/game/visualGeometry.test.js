@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest";
 import { ENEMIES, TROOPS } from "./content.js";
 import {
   CELL,
+  VIEWPORT,
   getEnemyHitPoint,
   getEnemyAnimation,
+  getEnemyFrameAnchor,
   getEnemyMuzzleWorldPosition,
+  getEnemySpriteRect,
   getAnchoredSpriteRect,
   getMuzzleWorldPosition,
   getTroopAnimation,
@@ -12,6 +15,7 @@ import {
   getTroopSpriteRect,
   getWallDamageFrame,
   isEnemyFrozen,
+  viewportPointToFieldPoint,
 } from "./visualGeometry.js";
 
 describe("geometria visual dos disparos", () => {
@@ -147,6 +151,33 @@ describe("geometria visual dos disparos", () => {
     expect(TROOPS.colono.attackVisual.shots).toBeUndefined();
   });
 
+  it("percorre oito frames de ataque e usa idle ao parar os monstros do Mar de Vidro", () => {
+    const counts = { idle: 8, walking: 8, attack: 8 };
+    const estilha = { type: "estilha", lastAttackAt: 1000, moving: true };
+
+    expect(getEnemyAnimation(estilha, ENEMIES.estilha, 1000, counts))
+      .toEqual({ state: "attack", frame: 0 });
+    expect(getEnemyAnimation(estilha, ENEMIES.estilha, 1455, counts))
+      .toEqual({ state: "attack", frame: 7 });
+    expect(getEnemyAnimation({ ...estilha, moving: false }, ENEMIES.estilha, 1520, counts).state)
+      .toBe("idle");
+    expect(getEnemyAnimation({ ...estilha, lastAttackAt: -Infinity }, ENEMIES.estilha, 1600, counts).state)
+      .toBe("walking");
+  });
+
+  it("exibe os oito frames do pulso do Crisálio antes de retomar o movimento", () => {
+    const counts = { idle: 8, walking: 8, attack: 8, pulse: 8 };
+    const crisalio = {
+      type: "crisalio", lastAttackAt: -Infinity, lastShieldPulseAt: 1000, moving: true,
+    };
+    expect(getEnemyAnimation(crisalio, ENEMIES.crisalio, 1000, counts))
+      .toEqual({ state: "pulse", frame: 0 });
+    expect(getEnemyAnimation(crisalio, ENEMIES.crisalio, 1959, counts))
+      .toEqual({ state: "pulse", frame: 7 });
+    expect(getEnemyAnimation(crisalio, ENEMIES.crisalio, 1960, counts).state)
+      .toBe("walking");
+  });
+
   it.each([
     [0, 0],
     [174, 0],
@@ -241,6 +272,30 @@ describe("geometria visual dos disparos", () => {
     attackVisibleHeights.slice(5).forEach((height) => expect(height).toBeCloseTo(idleVisibleHeight, 1));
   });
 
+  it("mantem personagem e tripé do morteiro presos ao mesmo ponto no chão", () => {
+    const artilheira = { x: 360, y: 220 };
+    const config = TROOPS.artilheiraMorteiro;
+    for (const state of ["idle", "attack"]) {
+      config.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(
+          artilheira,
+          config.attackVisual.height,
+          config.attackVisual.aspectRatio,
+          anchor,
+        );
+        expect(getTroopFrameAnchor(config, state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(artilheira.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(artilheira.y + CELL.height * 0.43, 5);
+      });
+    }
+    expect(getTroopAnimation(
+      { type: config.id, lastAttackAt: 100 },
+      config,
+      580,
+      { idle: 8, attack: 8 },
+    )).toEqual({ state: "attack", frame: 4 });
+  });
+
   it("mantem os dezesseis frames do krio presos ao mesmo ponto no chao", () => {
     const krio = { x: 360, y: 220 };
     for (const state of ["idle", "attack"]) {
@@ -270,10 +325,44 @@ describe("geometria visual dos disparos", () => {
     }
   });
 
+  it("mantem os vinte e quatro frames do Colosso de Impacto no mesmo apoio", () => {
+    const colosso = { x: 360, y: 220 };
+    const config = TROOPS.colossoImpacto;
+    for (const state of ["idle", "attack", "special"]) {
+      config.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(colosso, 142, 1, anchor);
+        expect(getTroopFrameAnchor(config, state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(colosso.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(colosso.y + CELL.height * 0.43, 5);
+      });
+    }
+    expect(getTroopAnimation({ type: config.id, lastAttackAt: 100, lastAttackMode: "normal" }, config, 500, { attack: 8 })).toEqual({ state: "attack", frame: 4 });
+    expect(getTroopAnimation({ type: config.id, lastAttackAt: 100, lastAttackMode: "special" }, config, 740, { special: 8 })).toEqual({ state: "special", frame: 4 });
+  });
+
   it("ancora o destino visual no torso do inimigo", () => {
     const point = getEnemyHitPoint({ x: 500, y: 60, scale: 1 });
     expect(point.x).toBe(500);
     expect(point.y).toBeCloseTo(54);
+  });
+
+  it("separa a faixa de contencao das cinco rotas logicas", () => {
+    expect(VIEWPORT).toEqual({ width: 1100, height: 680, fieldOffsetY: 80 });
+    expect(viewportPointToFieldPoint(500, 79)).toBeNull();
+    expect(viewportPointToFieldPoint(500, 80)).toEqual({ x: 500, y: 0 });
+    expect(viewportPointToFieldPoint(500, 679)).toEqual({ x: 500, y: 599 });
+  });
+
+  it("mantem os pes do Obsidonte na rota sem empurrar o sprite grande", () => {
+    const enemy = { type: "obsidonte", x: 500, y: 60, scale: 1.65 };
+    ["idle", "walking", "attack"].forEach((state) => {
+      const anchor = getEnemyFrameAnchor(ENEMIES.obsidonte, state, 0);
+      const rect = getEnemySpriteRect(enemy, ENEMIES.obsidonte, state, 0);
+      expect(rect.y + rect.height * anchor.y).toBeCloseTo(enemy.y + CELL.height * 0.43, 5);
+    });
+    const idleRect = getEnemySpriteRect(enemy, ENEMIES.obsidonte, "idle", 0);
+    expect(idleRect.y).toBeLessThan(8);
+    expect(idleRect.y + VIEWPORT.fieldOffsetY).toBeGreaterThanOrEqual(0);
   });
 
   it("sincroniza carga, lançamento, recarga e caminhada do Mago Abissal", () => {

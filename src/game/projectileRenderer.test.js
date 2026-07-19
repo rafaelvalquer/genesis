@@ -35,6 +35,15 @@ describe("efeitos dos projeteis", () => {
     expect(particles.some((particle) => particle.kind === "flame")).toBe(true);
   });
 
+  it("emite partículas douradas ao coletar uma esfera de energia", () => {
+    const particles = pushEventParticles([], [
+      { type: "energyCollected", x: 240, y: 160, amount: 1, color: "#fbbf24", seed: 81 },
+    ], 1000, { quality: "high" });
+    expect(particles.some((particle) => particle.kind === "ring" && particle.color === "#fbbf24")).toBe(true);
+    expect(particles.some((particle) => particle.kind === "muzzle" && particle.color === "#fff7ae")).toBe(true);
+    expect(particles.some((particle) => particle.kind === "spark" && particle.color === "#facc15")).toBe(true);
+  });
+
   it("adapta o jato continuo aos perfis graficos e ao movimento reduzido", () => {
     const event = { type: "flame", x0: 10, y0: 40, x1: 180, y1: 40, seed: 33 };
     const low = createFlameStreamParticles(event, 0, { quality: "low" });

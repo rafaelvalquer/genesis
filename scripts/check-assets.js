@@ -4,6 +4,7 @@ import { CHAPTERS, PHASES } from "../src/game/content.js";
 
 const root = path.resolve("dist/assets");
 if (!fs.existsSync(root)) throw new Error("Build sem diretório de assets.");
+const totalBudgetMb = 64;
 
 const limits = {
   ".png": 700_000,
@@ -36,8 +37,8 @@ if (arenas.length !== expectedArenaCount) {
   console.error(`Build deve conter ${expectedArenaCount} arenas WebP; encontrou ${arenas.length}.`);
   process.exitCode = 1;
 }
-if (total > 60 * 1024 * 1024) {
-  console.error(`Build excede o orçamento total de 60 MB: ${(total / 1024 / 1024).toFixed(1)} MB.`);
+if (total > totalBudgetMb * 1024 * 1024) {
+  console.error(`Build excede o orçamento total de ${totalBudgetMb} MB: ${(total / 1024 / 1024).toFixed(1)} MB.`);
   process.exitCode = 1;
 }
 
