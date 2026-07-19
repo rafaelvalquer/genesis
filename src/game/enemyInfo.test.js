@@ -20,6 +20,7 @@ describe("apresentação das informações dos inimigos", () => {
 
   it("detalha ataques à distância e unidades flutuantes", () => {
     expect(values("magoAbissal").Alcance).toBe("4,5 células");
+    expect(values("refrator").Alcance).toBe("4 células");
     expect(getEnemyInfo(ENEMIES.magoAbissal).specials).toEqual([
       { label: "Locomoção", value: "Unidade flutuante" },
       { label: "Conjuração", value: "0,9 s antes do disparo" },

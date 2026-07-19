@@ -56,6 +56,10 @@ describe("campanha e ondas", () => {
     expect(PHASES.slice(8).every((phase) => phase.waves.length === 5)).toBe(true);
   });
 
+  it("inicia a fase 14 com 200 de energia", () => {
+    expect(PHASES.find((phase) => phase.id === "fase_14")?.energy).toBe(200);
+  });
+
   it("limita a quatro Magos Abissais por onda em todo o capítulo 2", () => {
     const chapterTwoWaves = PHASES.slice(8).flatMap((phase) => phase.waves);
     const magoCount = (wave) => wave.enemies
@@ -133,7 +137,7 @@ describe("campanha e ondas", () => {
     });
     expect(ENEMIES.refrator).toMatchObject({
       chapterId: "chapter_02", hp: 60, speed: 19, damage: 14, attack: "arcane",
-      range: 5.3, projectileSpeed: 170, proceduralKind: "refrator", airborne: true,
+      range: 4, projectileSpeed: 170, proceduralKind: "refrator", airborne: true,
     });
     expect(ENEMIES.crisalio).toMatchObject({
       chapterId: "chapter_02", hp: 105, speed: 7, damage: 4, attackEveryMs: 2500,
@@ -162,7 +166,7 @@ describe("campanha e ondas", () => {
       [0, 1, 1, 1, 2],
       [1, 1, 1, 2, 2],
     ]);
-    const expectedThreat = [1120, 1250, 1380, 1510, 1660, 1250, 1390, 1530, 1670, 1850, 1400, 1550, 1700, 1850, 2040, 1550, 1720, 1890, 2070, 2260];
+    const expectedThreat = [1120, 1250, 1300, 1510, 1660, 1250, 1390, 1530, 1670, 1850, 1400, 1550, 1700, 1850, 2040, 1550, 1720, 1890, 2070, 2260];
     const actualThreat = PHASES.slice(12, 16).flatMap((phase) => phase.waves.map((wave) => wave.enemies.reduce((sum, entry) => (
       sum + ENEMIES[entry.type].threat * entry.count * (entry.variant === "alpha" ? 8 : 1)
     ), 0)));

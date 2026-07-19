@@ -709,6 +709,60 @@ describe("sessão de batalha", () => {
     expect(events.some((event) => event.type === "waveComplete")).toBe(true);
   });
 
+  it("concede 20 de energia por onda a partir da missao dois, inclusive na onda final", () => {
+    expect(PHASES[0].waveCompletionEnergy).toBe(0);
+    expect(PHASES[1].waveCompletionEnergy).toBe(20);
+
+    const firstMission = createBattleSession({ ...PHASES[0], waves: [{ enemies: [] }] }, [], 21);
+    firstMission.energy = 40;
+    startWave(firstMission);
+    const firstMissionEvents = stepBattle(firstMission, 32);
+    expect(firstMission.energy).toBe(40);
+    expect(firstMissionEvents).not.toContainEqual(expect.objectContaining({ reason: "waveCompletion" }));
+
+    const secondMission = createBattleSession({ ...PHASES[1], waves: [{ enemies: [] }] }, [], 22);
+    secondMission.energy = 40;
+    startWave(secondMission);
+    const secondMissionEvents = stepBattle(secondMission, 32);
+    expect(secondMission.energy).toBe(60);
+    expect(secondMission.outcome).toBe("victory");
+    expect(secondMissionEvents).toContainEqual(expect.objectContaining({
+      type: "energyGenerated",
+      amount: 20,
+      reason: "waveCompletion",
+    }));
+  });
+
+  it("limita o bonus de onda ao maximo de energia e soma o bonus adicional do reator", () => {
+    const capped = createBattleSession({ ...PHASES[1], waves: [{ enemies: [] }] }, [], 23);
+    capped.energy = capped.energyMax - 8;
+    startWave(capped);
+    const cappedEvents = stepBattle(capped, 32);
+    expect(capped.energy).toBe(capped.energyMax);
+    expect(cappedEvents).toContainEqual(expect.objectContaining({
+      type: "energyGenerated",
+      amount: 8,
+      reason: "waveCompletion",
+    }));
+
+    const withReactor = createBattleSession({ ...PHASES[1], waves: [{ enemies: [] }] }, ["reator"], 24);
+    placeTroop(withReactor, "reator", 0, 1);
+    withReactor.energy = 40;
+    startWave(withReactor);
+    const reactorEvents = stepBattle(withReactor, 32);
+    expect(withReactor.energy).toBe(68);
+    expect(reactorEvents).toContainEqual(expect.objectContaining({
+      type: "energyGenerated",
+      amount: 20,
+      reason: "waveCompletion",
+    }));
+    expect(reactorEvents).toContainEqual(expect.objectContaining({
+      type: "energyGenerated",
+      amount: 8,
+      reason: "wave",
+    }));
+  });
+
   it("aplica dano de passagem e derrota somente com base zerada", () => {
     const session = createBattleSession(PHASES[0], ["colono"], 1);
     session.dematerializationPulses.forEach((pulse) => { pulse.state = "spent"; });
@@ -1127,6 +1181,7 @@ describe("Mago Abissal", () => {
   });
 
   it("faz o Refrator disparar um projétil prismático mais veloz", () => {
+    expect(ENEMIES.refrator.range).toBe(4);
     const session = createBattleSession(sandboxPhase, ["muralhaReforcada"], 913, { sandbox: true });
     placeTroop(session, "muralhaReforcada", 0, 5);
     const { enemies: [refrator] } = spawnEnemy(session, { type: "refrator", row: 0 });

@@ -1,6 +1,7 @@
+from collections import deque
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageChops, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +18,7 @@ STATES = {
 
 
 def split_cells(sheet: Image.Image) -> list[Image.Image]:
-    return [
+    cells = [
         sheet.crop((
             round((index % 4) * sheet.width / 4),
             round((index // 4) * sheet.height / 2),
@@ -26,6 +27,42 @@ def split_cells(sheet: Image.Image) -> list[Image.Image]:
         ))
         for index in range(8)
     ]
+    return [keep_largest_component(cell) for cell in cells]
+
+
+def keep_largest_component(frame: Image.Image) -> Image.Image:
+    alpha = frame.getchannel("A")
+    width, height = frame.size
+    foreground = bytearray(1 if value >= 24 else 0 for value in alpha.tobytes())
+    visited = bytearray(width * height)
+    largest: list[int] = []
+    for start, opaque in enumerate(foreground):
+        if not opaque or visited[start]:
+            continue
+        component = []
+        queue = deque([start])
+        visited[start] = 1
+        while queue:
+            index = queue.popleft()
+            component.append(index)
+            x, y = index % width, index // width
+            for next_y in range(max(0, y - 1), min(height, y + 2)):
+                for next_x in range(max(0, x - 1), min(width, x + 2)):
+                    neighbor = next_y * width + next_x
+                    if foreground[neighbor] and not visited[neighbor]:
+                        visited[neighbor] = 1
+                        queue.append(neighbor)
+        if len(component) > len(largest):
+            largest = component
+    if not largest:
+        raise SystemExit("empty sprite cell")
+    mask_data = bytearray(width * height)
+    for index in largest:
+        mask_data[index] = 255
+    mask = Image.frombytes("L", frame.size, bytes(mask_data)).filter(ImageFilter.MaxFilter(5))
+    cleaned = frame.copy()
+    cleaned.putalpha(ImageChops.multiply(alpha, mask))
+    return cleaned
 
 
 def visible_bbox(frame: Image.Image) -> tuple[int, int, int, int]:
@@ -61,8 +98,18 @@ def normalize_cell(cell: Image.Image, scale: float) -> Image.Image:
     bbox = visible_bbox(cell)
     support_x, support_y = support_point(cell, bbox)
     resized = cell.resize((round(cell.width * scale), round(cell.height * scale)), Image.Resampling.LANCZOS)
+    alpha = resized.getchannel("A")
+    sharpened_rgb = resized.convert("RGB").filter(
+        ImageFilter.UnsharpMask(radius=0.8, percent=110, threshold=2)
+    )
+    resized = Image.merge("RGBA", (*sharpened_rgb.split(), alpha))
     frame = Image.new("RGBA", FRAME_SIZE, (0, 0, 0, 0))
-    frame.alpha_composite(resized, (round(ROOT_POINT[0] - support_x * scale), round(ROOT_POINT[1] - support_y * scale)))
+    offset_x = round(ROOT_POINT[0] - support_x * scale)
+    min_offset_x = round(PADDING - bbox[0] * scale)
+    max_offset_x = round(FRAME_SIZE[0] - PADDING - bbox[2] * scale)
+    offset_x = max(min_offset_x, min(offset_x, max_offset_x))
+    offset_y = round(ROOT_POINT[1] - support_y * scale)
+    frame.alpha_composite(resized, (offset_x, offset_y))
     return frame
 
 
@@ -98,8 +145,13 @@ if __name__ == "__main__":
         anchors[state] = []
         for index, cell in enumerate(cells):
             frame = normalize_cell(cell, scale)
-            frame.save(output / f"frame{index}.png", optimize=True, compress_level=9)
             anchors[state].append(root_anchor(frame))
+            indexed = frame.quantize(
+                colors=192,
+                method=Image.Quantize.FASTOCTREE,
+                dither=Image.Dither.NONE,
+            )
+            indexed.save(output / f"frame{index}.png", optimize=True, compress_level=9)
     validate()
     print(f"Colosso de Impacto sprites written to {TARGET}")
     print(f"shared scale: {scale:.6f}")

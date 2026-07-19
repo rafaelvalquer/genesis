@@ -1,0 +1,41 @@
+{
+  "id": "lumiUrsa7",
+  "label": "Lumi e URSA-7",
+  "layout": {
+    "columns": 4,
+    "rows": 2,
+    "framesPerState": 8,
+    "frameWidth": 256,
+    "frameHeight": 256,
+    "anchor": {
+      "x": 112,
+      "y": 248
+    }
+  },
+  "states": {
+    "idle": {
+      "durationMs": 1600,
+      "loop": true
+    },
+    "attack": {
+      "durationMs": 640,
+      "loop": false,
+      "releaseMs": 320
+    },
+    "transitionIn": {
+      "durationMs": 720,
+      "loop": false
+    },
+    "defense": {
+      "durationMs": 1200,
+      "loop": true
+    },
+    "transitionOut": {
+      "durationMs": 720,
+      "loop": false
+    }
+  },
+  "sourcePattern": "lumi-ursa7-{state}-chroma.png",
+  "sheetPattern": "lumi-ursa7-{state}.png",
+  "framePattern": "frames/{state}/frame{index}.png"
+}

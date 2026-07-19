@@ -61,6 +61,13 @@ export function getTroopAttackVisual(troop, troopConfig = {}) {
     if (troop.state === "healing") return troopConfig.healVisual || troopConfig.attackVisual;
     if (troop.state === "cooldown") return troopConfig.cooldownVisual || troopConfig.attackVisual;
   }
+  if (troop?.type === "lumiUrsa7") {
+    if (troop.state === "idle") return troopConfig.idleVisual || troopConfig.attackVisual;
+    if (troop.state === "attack") return troopConfig.attackVisual;
+    if (troop.state === "transitionIn") return troopConfig.transitionInVisual || troopConfig.attackVisual;
+    if (troop.state === "defense") return troopConfig.defenseVisual || troopConfig.attackVisual;
+    if (troop.state === "transitionOut") return troopConfig.transitionOutVisual || troopConfig.attackVisual;
+  }
   return troopConfig.attackVisuals?.[troop?.lastAttackMode] || troopConfig.attackVisual;
 }
 
@@ -231,7 +238,24 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   }
   if (troop.type === "medicaNanites" && troop.state === "attacking") {
     const count = Math.max(1, frameCounts.attack || 1);
-    return { state: "attack", frame: Math.floor(Math.max(0, elapsed - troop.stateStartedAt) / 85) % count };
+    const duration = Math.max(1, troopConfig.attackVisual?.durationMs || 480);
+    const attackAge = elapsed - troop.lastAttackAt;
+    if (Number.isFinite(attackAge) && attackAge >= 0 && attackAge < duration) {
+      return {
+        state: "attack",
+        frame: Math.min(count - 1, Math.floor(attackAge / (duration / count))),
+      };
+    }
+  }
+  if (troop.type === "lumiUrsa7" && ["transitionIn", "defense", "transitionOut"].includes(troop.state)) {
+    const state = troop.state;
+    const count = Math.max(1, frameCounts[state] || 1);
+    const duration = Math.max(1, visual?.durationMs || 720);
+    const age = Math.max(0, elapsed - troop.stateStartedAt);
+    const frame = visual?.loop
+      ? Math.floor(age / (duration / count)) % count
+      : Math.min(count - 1, Math.floor(age / (duration / count)));
+    return { state, frame };
   }
   const attackState = visual?.state || "attack";
   if (troopConfig.attack === "flame" && troop.channelingAttack) {
@@ -284,4 +308,15 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
     return { state: "idle", frame: Math.min(count - 1, Math.max(0, frame)) };
   }
   return { state: "idle", frame: Math.floor(elapsed / 85) % count };
+}
+
+export function getRepulsorKnockbackOffset(entity, elapsed, reduceMotion = false) {
+  if (reduceMotion || !Number.isFinite(entity?.knockbackVisualOffset)
+    || !Number.isFinite(entity?.knockbackVisualStartedAt)
+    || !Number.isFinite(entity?.knockbackVisualEndsAt)) return 0;
+  const duration = entity.knockbackVisualEndsAt - entity.knockbackVisualStartedAt;
+  if (duration <= 0 || elapsed >= entity.knockbackVisualEndsAt) return 0;
+  const progress = Math.max(0, Math.min(1, (elapsed - entity.knockbackVisualStartedAt) / duration));
+  const eased = 1 - (1 - progress) ** 3;
+  return entity.knockbackVisualOffset * (1 - eased);
 }

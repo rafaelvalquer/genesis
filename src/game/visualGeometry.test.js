@@ -328,9 +328,11 @@ describe("geometria visual dos disparos", () => {
   it("mantem os vinte e quatro frames do Colosso de Impacto no mesmo apoio", () => {
     const colosso = { x: 360, y: 220 };
     const config = TROOPS.colossoImpacto;
+    expect(config.attackVisual.height).toBe(158);
+    expect(config.spriteOffsetY).toBe(8);
     for (const state of ["idle", "attack", "special"]) {
       config.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
-        const rect = getAnchoredSpriteRect(colosso, 142, 1, anchor);
+        const rect = getAnchoredSpriteRect(colosso, config.attackVisual.height, 1, anchor);
         expect(getTroopFrameAnchor(config, state, frame)).toEqual(anchor);
         expect(rect.x + rect.width * anchor.x).toBeCloseTo(colosso.x, 5);
         expect(rect.y + rect.height * anchor.y).toBeCloseTo(colosso.y + CELL.height * 0.43, 5);

@@ -91,23 +91,93 @@ export const TROOPS = {
     price: 18, supply: 5, deployCooldownMs: 6000, hp: 24, range: 5,
     attack: "naniteBullet", damage: 2, attackEveryMs: 900, projectileSpeed: 230,
     healRangeTiles: 5, maxHealingPerCharge: 20, healPulseAmount: 2,
-    healPulseEveryMs: 160, healCooldownMs: 5000,
+    healPulseEveryMs: 400, healStartThreshold: 0.75, healCooldownMs: 5000,
     color: "#2dd4bf", unlockAt: 0,
     assetStates: ["idle", "heal", "attack", "cooldown"],
-    idleVisual: { durationMs: 1400, timeline: [{ atMs: 0, frame: 0 }] },
+    idleVisual: {
+      durationMs: 1600,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 200, frame: 1 },
+        { atMs: 400, frame: 2 }, { atMs: 600, frame: 3 },
+        { atMs: 800, frame: 4 }, { atMs: 1000, frame: 5 },
+        { atMs: 1200, frame: 6 }, { atMs: 1400, frame: 7 },
+      ],
+    },
     healVisual: {
-      state: "heal", height: 126, durationMs: 800, loop: true,
+      state: "heal", height: 126, durationMs: 1600, loop: true,
       muzzle: { x: 0.82, y: 0.4 },
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 200, frame: 1 },
+        { atMs: 400, frame: 2 }, { atMs: 600, frame: 3 },
+        { atMs: 800, frame: 4 }, { atMs: 1000, frame: 5 },
+        { atMs: 1200, frame: 6 }, { atMs: 1400, frame: 7 },
+      ],
     },
     attackVisual: {
-      state: "attack", height: 126, durationMs: 420, releaseMs: 160,
+      state: "attack", height: 126, durationMs: 480, releaseMs: 180,
       effect: "naniteBullet",
-      shots: [{ atMs: 160, frame: 0, muzzle: { x: 0.84, y: 0.39 } }],
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 60, frame: 1 },
+        { atMs: 120, frame: 2 }, { atMs: 180, frame: 3 },
+        { atMs: 240, frame: 4 }, { atMs: 300, frame: 5 },
+        { atMs: 360, frame: 6 }, { atMs: 420, frame: 7 },
+      ],
+      shots: [{ atMs: 180, frame: 3, muzzle: { x: 0.84, y: 0.39 } }],
     },
     cooldownVisual: {
-      state: "cooldown", height: 126, durationMs: 1000, loop: true,
+      state: "cooldown", height: 126, durationMs: 1200, loop: true,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 150, frame: 1 },
+        { atMs: 300, frame: 2 }, { atMs: 450, frame: 3 },
+        { atMs: 600, frame: 4 }, { atMs: 750, frame: 5 },
+        { atMs: 900, frame: 6 }, { atMs: 1050, frame: 7 },
+      ],
     },
     description: "Cura a tropa mais ferida à sua frente. Após restaurar até 20 de vida, precisa recarregar sua arma.",
+  },
+  lumiUrsa7: {
+    id: "lumiUrsa7", label: "Lumi e URSA-7", role: "Controle / Defesa", spriteKey: "lumiUrsa7",
+    price: 22, supply: 7, deployCooldownMs: 7000, hp: 68, range: 2,
+    attack: "repulsor", damage: 7, attackEveryMs: 1900, projectileSpeed: 430,
+    repulsorRangeTiles: 2, pushDistanceTiles: 1, pushVisualDurationMs: 300,
+    stunChance: 0.1, stunMs: 2000,
+    defenseDamageFactor: 0.5, transitionInMs: 720, shieldActivationMs: 520,
+    defenseExitDelayMs: 350, transitionOutMs: 720,
+    color: "#38d4e8", unlockAt: 11,
+    healthBarOffset: 92, healthBarWidth: 72,
+    assetStates: ["idle", "attack", "transitionIn", "defense", "transitionOut"],
+    idleVisual: {
+      height: 164,
+      durationMs: 1600,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 200, frame: 1 },
+        { atMs: 400, frame: 2 }, { atMs: 600, frame: 3 },
+        { atMs: 800, frame: 4 }, { atMs: 1000, frame: 5 },
+        { atMs: 1200, frame: 6 }, { atMs: 1400, frame: 7 },
+      ],
+    },
+    attackVisual: {
+      state: "attack", height: 190, durationMs: 640, releaseMs: 320, effect: "repulsorFist",
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 80, frame: 1 },
+        { atMs: 160, frame: 2 }, { atMs: 240, frame: 3 },
+        { atMs: 320, frame: 4 }, { atMs: 400, frame: 5 },
+        { atMs: 480, frame: 6 }, { atMs: 560, frame: 7 },
+      ],
+      shots: [{ atMs: 320, frame: 4, muzzle: { x: 0.826, y: 0.563 } }],
+      frameAnchors: Object.fromEntries(
+        ["idle", "attack", "transitionIn", "defense", "transitionOut"]
+          .map((state) => [state, Array.from({ length: 8 }, () => ({ x: 0.4375, y: 0.96875 }))]),
+      ),
+    },
+    transitionInVisual: { state: "transitionIn", height: 164, durationMs: 720 },
+    defenseVisual: { state: "defense", height: 164, durationMs: 1200, loop: true },
+    transitionOutVisual: { state: "transitionOut", height: 164, durationMs: 720 },
+    defenseShieldVisual: {
+      offsetX: 2, offsetY: -4, radiusX: 67, radiusY: 61,
+      transitionOut: { offsetY: -10, radiusY: 69 },
+    },
+    description: "Empurra inimigos próximos e entra em modo defensivo quando a linha de frente é rompida.",
   },
   muralhaReforcada: {
     id: "muralhaReforcada", label: "Muralha", role: "Defesa", spriteKey: "muralhaReforcada",
@@ -419,7 +489,8 @@ export const TROOPS = {
     price: 22, supply: 8, deployCooldownMs: 10000, hp: 180, range: 0.9,
     attackEveryMs: 1800, damage: 5, attack: "tileMelee", color: "#34d399", unlockAt: 9,
     specialDamage: 14, specialEveryMs: 16000, specialStunMs: 800, maxDeployed: 2,
-    healthBarOffset: 96, healthBarWidth: 68, assetStates: ["idle", "attack", "special"], flipX: true,
+    healthBarOffset: 104, healthBarWidth: 74, spriteOffsetY: 8,
+    assetStates: ["idle", "attack", "special"], flipX: true,
     idleVisual: {
       durationMs: 1600,
       timeline: [
@@ -429,14 +500,14 @@ export const TROOPS = {
     },
     attackVisuals: {
       normal: {
-        state: "attack", height: 142, durationMs: 800, impactMs: 400,
+        state: "attack", height: 158, durationMs: 800, impactMs: 400,
         timeline: [
           { atMs: 0, frame: 0 }, { atMs: 100, frame: 1 }, { atMs: 200, frame: 2 }, { atMs: 300, frame: 3 },
           { atMs: 400, frame: 4 }, { atMs: 500, frame: 5 }, { atMs: 600, frame: 6 }, { atMs: 700, frame: 7 },
         ],
       },
       special: {
-        state: "special", height: 142, durationMs: 1280, impactMs: 640,
+        state: "special", height: 158, durationMs: 1280, impactMs: 640,
         timeline: [
           { atMs: 0, frame: 0 }, { atMs: 160, frame: 1 }, { atMs: 320, frame: 2 }, { atMs: 480, frame: 3 },
           { atMs: 640, frame: 4 }, { atMs: 800, frame: 5 }, { atMs: 960, frame: 6 }, { atMs: 1120, frame: 7 },
@@ -444,11 +515,11 @@ export const TROOPS = {
       },
     },
     attackVisual: {
-      height: 142,
+      height: 158,
       frameAnchors: {
-        idle: [{ x: 0.4941, y: 0.9688 }, { x: 0.4883, y: 0.9688 }, { x: 0.4902, y: 0.9688 }, { x: 0.4961, y: 0.9727 }, { x: 0.4922, y: 0.9648 }, { x: 0.4902, y: 0.9688 }, { x: 0.4883, y: 0.9648 }, { x: 0.4941, y: 0.9688 }],
-        attack: [{ x: 0.4883, y: 0.9688 }, { x: 0.5078, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.4922, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.4883, y: 0.9688 }, { x: 0.4961, y: 0.9688 }],
-        special: [{ x: 0.502, y: 0.9688 }, { x: 0.5, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9688 }, { x: 0.5059, y: 0.9688 }, { x: 0.4961, y: 0.9648 }, { x: 0.498, y: 0.9688 }, { x: 0.498, y: 0.9648 }],
+        idle: [{ x: 0.4961, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.4961, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.4961, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9688 }],
+        attack: [{ x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9648 }, { x: 0.5, y: 0.9688 }, { x: 0.5039, y: 0.9688 }, { x: 0.6543, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9688 }],
+        special: [{ x: 0.498, y: 0.9688 }, { x: 0.5117, y: 0.9648 }, { x: 0.502, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.5273, y: 0.9688 }, { x: 0.5098, y: 0.9688 }, { x: 0.4961, y: 0.9688 }, { x: 0.502, y: 0.9688 }],
       },
     },
     description: "Frontline robot that holds a route and crushes every enemy in its tile.",
@@ -566,7 +637,7 @@ export const ENEMIES = {
   },
   refrator: {
     id: "refrator", label: "Refrator", role: "Artilharia prismática",
-    hp: 60, speed: 19, damage: 14, attack: "arcane", range: 5.3, chargeMs: 650, projectileSpeed: 170,
+    hp: 60, speed: 19, damage: 14, attack: "arcane", range: 4, chargeMs: 650, projectileSpeed: 170,
     attackEveryMs: 2600, baseDamage: 16, threat: 20, energyDropChance: 0.15, color: "#7fffd4", scale: 1.05,
     spriteOffsetY: -8, airborne: true, proceduralKind: "refrator", chapterId: "chapter_02",
     animationFrameMs: { idle: 100, walking: 80 },
@@ -752,6 +823,7 @@ const phase = (id, name, subtitle, energy, cadenceMs, environment, targetDuratio
   chapterIndex: chapterTwo ? phaseNumber - 9 : phaseNumber - 1,
   supplyLimit: chapterTwo ? 30 : 20,
   loadoutLimit: chapterTwo ? 6 : 5,
+  waveCompletionEnergy: phaseNumber >= 2 ? 20 : 0,
   targetDurationMs, waves, ...ARENAS[id], ...extra,
   });
 };
@@ -877,14 +949,14 @@ export const PHASES = [
     budgetedWave(1360, ["obsidonte", "refrator", "aurakh", "magoAbissal"]),
     budgetedWave(1500, ["estilha", "refrator", "parasitaSaltador"], [{ type: "zhyra", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.16) }),
-  phase("fase_13", "Desfiladeiro Espelhado", "Cada reflexo esconde um avanço", 170, 1360, "glass", 720000, [
+  phase("fase_13", "Desfiladeiro Espelhado", "Cada reflexo esconde um avanço", 190, 1360, "glass", 720000, [
     budgetedWave(1120, ["estilha", "vitrarca", "refrator"], [], { vitrarca: 20, refrator: 6 }),
     budgetedWave(1250, ["estilha", "vitrarca", "obsidonte", "parasitaSaltador"]),
-    budgetedWave(1380, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
+    budgetedWave(1300, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1510, ["estilha", "obsidonte", "refrator", "parasitaSaltador"]),
     budgetedWave(1660, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }, { type: "krakhul", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.18) }),
-  phase("fase_14", "Catedral Prismática", "A luz tornou-se uma arma", 175, 1280, "glass", 750000, [
+  phase("fase_14", "Catedral Prismática", "A luz tornou-se uma arma", 200, 1280, "glass", 750000, [
     budgetedWave(1250, ["estilha", "vitrarca", "refrator"], [], { vitrarca: 23, refrator: 7 }),
     budgetedWave(1390, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1530, ["estilha", "obsidonte", "parasitaSaltador"]),

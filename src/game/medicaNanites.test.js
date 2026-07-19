@@ -9,6 +9,7 @@ import {
   selectNaniteHealTarget,
   stepBattle,
 } from "./battleModel.js";
+import { getTroopAnimation } from "./visualGeometry.js";
 
 const phase = { ...PHASES[0], id: "teste_medica_nanites", waves: [] };
 
@@ -37,9 +38,42 @@ describe("Médica de Nanites", () => {
     expect(TROOPS.medicaNanites).toMatchObject({
       hp: 24, range: 5, damage: 2, attackEveryMs: 900, projectileSpeed: 230,
       healRangeTiles: 5, maxHealingPerCharge: 20, healPulseAmount: 2,
-      healPulseEveryMs: 160, healCooldownMs: 5000,
+      healPulseEveryMs: 400, healStartThreshold: 0.75, healCooldownMs: 5000,
       assetStates: ["idle", "heal", "attack", "cooldown"],
     });
+    expect(TROOPS.medicaNanites.idleVisual).toMatchObject({ durationMs: 1600 });
+    expect(TROOPS.medicaNanites.healVisual).toMatchObject({ durationMs: 1600, loop: true });
+    expect(TROOPS.medicaNanites.attackVisual).toMatchObject({ durationMs: 480, releaseMs: 180 });
+    expect(TROOPS.medicaNanites.cooldownVisual).toMatchObject({ durationMs: 1200, loop: true });
+    expect(TROOPS.medicaNanites.attackVisual.shots[0]).toMatchObject({ atMs: 180, frame: 3 });
+  });
+
+  it("inicia cura estritamente abaixo de 75% e rejeita exatamente 75% ou mais", () => {
+    const session = createSession();
+    const medic = place(session, "medicaNanites", 0, 1);
+    const eligible = place(session, "marine", 0, 2);
+    const boundary = place(session, "marine", 0, 3);
+    eligible.hp = eligible.maxHp * 0.7499;
+    boundary.hp = boundary.maxHp * 0.75;
+
+    expect(selectNaniteHealTarget(session, medic)?.id).toBe(eligible.id);
+    eligible.hp = eligible.maxHp * 0.75;
+    expect(selectNaniteHealTarget(session, medic)).toBeNull();
+  });
+
+  it("mantém o alvo bloqueado e continua curando depois que ele ultrapassa 75%", () => {
+    const session = createSession();
+    const medic = place(session, "medicaNanites", 0, 1);
+    const target = place(session, "marine", 0, 2, 22);
+    stepBattle(session, 1);
+    expect(target.hp / target.maxHp).toBeGreaterThan(0.75);
+    expect(medic.healTargetId).toBe(target.id);
+
+    stepBattle(session, 399);
+    expect(target.hp).toBe(24);
+    stepBattle(session, 1);
+    expect(target.hp).toBe(26);
+    expect(medic).toMatchObject({ state: "healing", healTargetId: target.id, healedThisCharge: 4 });
   });
 
   it("seleciona somente aliados vivos, feridos, à frente, na mesma linha e até cinco tiles", () => {
@@ -80,11 +114,13 @@ describe("Médica de Nanites", () => {
     expect(medic).toMatchObject({ state: "healing", healTargetId: target.id, healedThisCharge: 2 });
 
     const moreWounded = place(session, "marine", 0, 2, 1);
-    stepBattle(session, 160);
+    stepBattle(session, 399);
     expect(medic.healTargetId).toBe(target.id);
     expect(moreWounded.hp).toBe(1);
+    expect(target.hp).toBe(52);
 
-    for (let pulse = 0; pulse < 8; pulse += 1) stepBattle(session, 160);
+    stepBattle(session, 1);
+    for (let pulse = 0; pulse < 8; pulse += 1) stepBattle(session, 400);
     expect(target.hp).toBe(70);
     expect(medic).toMatchObject({ state: "cooldown", healedThisCharge: 20, healTargetId: null });
   });
@@ -92,11 +128,12 @@ describe("Médica de Nanites", () => {
   it("nunca ultrapassa maxHp e inicia cooldown quando o alvo completa a vida", () => {
     const session = createSession();
     const medic = place(session, "medicaNanites", 0, 1);
-    const target = place(session, "marine", 0, 2);
-    target.hp = target.maxHp - 1;
+    const target = place(session, "marine", 0, 2, 10);
     stepBattle(session, 1);
+    target.hp = target.maxHp - 1;
+    stepBattle(session, 400);
     expect(target.hp).toBe(target.maxHp);
-    expect(medic).toMatchObject({ state: "cooldown", healedThisCharge: 1 });
+    expect(medic).toMatchObject({ state: "cooldown", healedThisCharge: 3 });
   });
 
   it("encerra o ciclo quando o alvo é removido e restaura a carga após 5 segundos", () => {
@@ -127,14 +164,14 @@ describe("Médica de Nanites", () => {
     const lockedId = medic.healTargetId;
     const threat = enemy("same_tile", 1, 1, { hp: 20, attackReadyAt: 10 });
     session.enemies.push(threat);
-    stepBattle(session, 160);
+    stepBattle(session, 400);
     expect(medic.state).toBe("attacking");
     expect(medic.healTargetId).toBe(lockedId);
     expect(medic.healedThisCharge).toBe(healedBeforeThreat);
     expect(medic.attackTargetId).toBe(threat.id);
 
     session.enemies = [];
-    stepBattle(session, 160);
+    stepBattle(session, 400);
     expect(medic.state).toBe("healing");
     expect(medic.healTargetId).toBe(target.id);
     expect(medic.healedThisCharge).toBe(healedBeforeThreat + 2);
@@ -175,9 +212,10 @@ describe("Médica de Nanites", () => {
   it("bloqueia cura, ataque e reação ofensiva durante cooldown", () => {
     const session = createSession();
     const medic = place(session, "medicaNanites", 3, 1);
-    const ally = place(session, "marine", 3, 2);
-    ally.hp = ally.maxHp - 1;
+    const ally = place(session, "marine", 3, 2, 10);
     stepBattle(session, 1);
+    ally.hp = ally.maxHp - 1;
+    stepBattle(session, 400);
     expect(medic.state).toBe("cooldown");
     const threat = enemy("cooldown_threat", 3, 1);
     session.enemies.push(threat);
@@ -207,13 +245,32 @@ describe("Médica de Nanites", () => {
     const session = createSession();
     const first = place(session, "medicaNanites", 4, 1);
     const second = place(session, "medicaNanites", 4, 2);
-    const target = place(session, "marine", 4, 3);
-    target.hp = target.maxHp - 3;
+    const target = place(session, "marine", 4, 3, 20);
     stepBattle(session, 1);
-    expect(target.hp).toBe(target.maxHp);
-    expect(first.healedThisCharge + second.healedThisCharge).toBe(3);
+    expect(target.hp).toBe(24);
+    expect(first.healedThisCharge).toBe(2);
+    expect(second.healedThisCharge).toBe(2);
+    expect(first.healTargetId).toBe(target.id);
+    expect(second.healTargetId).toBe(target.id);
     expect(target.hp).toBeLessThanOrEqual(target.maxHp);
-    expect(first.cooldownEndsAt).not.toBe(second.cooldownEndsAt);
-    expect([first.state, second.state]).toContain("cooldown");
+    expect(first.cooldownEndsAt).toBeNull();
+    expect(second.cooldownEndsAt).toBeNull();
+  });
+
+  it("sincroniza os oito frames com as novas durações e o disparo no frame 3", () => {
+    const config = TROOPS.medicaNanites;
+    const frameCounts = { idle: 8, heal: 8, attack: 8, cooldown: 8 };
+    const medic = {
+      type: "medicaNanites",
+      state: "healing",
+      stateStartedAt: 0,
+      lastAttackAt: -Infinity,
+    };
+    expect(getTroopAnimation(medic, config, 200, frameCounts)).toEqual({ state: "heal", frame: 1 });
+    medic.state = "cooldown";
+    expect(getTroopAnimation(medic, config, 150, frameCounts)).toEqual({ state: "cooldown", frame: 1 });
+    medic.state = "attacking";
+    medic.lastAttackAt = 0;
+    expect(getTroopAnimation(medic, config, 180, frameCounts)).toEqual({ state: "attack", frame: 3 });
   });
 });

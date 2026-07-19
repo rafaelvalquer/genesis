@@ -154,6 +154,22 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     const random = seeded(event.seed || 1);
     const color = event.color || (event.type.includes("Death") ? "#fb7185" : "#67e8f9");
 
+    if (event.type === "repulsorImpact") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#22d3ee", born: now, life: 360, maxRadius: 58 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#ecfeff", born: now, life: 170, size: 25 });
+      addSparks(particles, event, now, Math.max(6, Math.round(18 * quality.density)), random, {
+        color: event.stunned ? "#a5f3fc" : "#67e8f9",
+        minSpeed: 42, speed: 125, life: 420, size: 2,
+      });
+      if (!settings.reduceMotion && event.pushedToX > event.pushedFromX) {
+        particles.push({
+          kind: "repulsorWake", x0: event.pushedFromX, x1: event.pushedToX,
+          y: event.y, color: "#67e8f9", born: now, life: 300,
+        });
+      }
+      continue;
+    }
+
     if (event.type === "tileImpact") {
       const special = event.mode === "special";
       particles.push({ kind: "ring", x: event.x, y: event.y, color: special ? "#fbbf24" : color, born: now, life: special ? 540 : 360, maxRadius: special ? 104 : 64 });
@@ -663,12 +679,53 @@ function drawPrismBolt(ctx, projectile, quality) {
   ctx.stroke();
 }
 
+function drawRepulsorFist(ctx, projectile) {
+  const trail = projectile.trail || [];
+  if (trail.length > 1) {
+    const gradient = ctx.createLinearGradient(trail[0].x, trail[0].y, projectile.x, projectile.y);
+    gradient.addColorStop(0, "rgba(34,211,238,0)");
+    gradient.addColorStop(1, "rgba(165,243,252,.75)");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 7;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    for (const point of trail.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+  }
+
+  ctx.translate(projectile.x, projectile.y);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.shadowBlur = 18;
+  ctx.shadowColor = "#22d3ee";
+  ctx.strokeStyle = "#67e8f9";
+  ctx.fillStyle = "rgba(34,211,238,.68)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-9, -7, 19, 14, 5);
+  ctx.fill();
+  ctx.stroke();
+  for (let index = 0; index < 3; index += 1) {
+    ctx.beginPath();
+    ctx.roundRect(4 + index * 4, -8 + index * 0.7, 5, 6, 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = "rgba(236,254,255,.82)";
+  ctx.lineWidth = 1.5;
+  for (const radius of [13, 18]) {
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius, radius * 0.46, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+}
+
 export function drawProjectiles(ctx, projectiles, settings = {}, assets = {}) {
   const quality = profile(settings);
   for (const projectile of projectiles) {
     if (!projectile.launched) continue;
     ctx.save();
     if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectile.x, projectile.y, projectile.rotation, assets.mine?.[0], 46);
+    else if (projectile.visualKind === "repulsorFist") drawRepulsorFist(ctx, projectile);
     else if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectile);
     else if (projectile.visualKind === "marineBullet") drawMarineBullet(ctx, projectile);
     else if (projectile.visualKind === "naniteBullet") drawNaniteBullet(ctx, projectile);
@@ -717,6 +774,23 @@ function drawShotgun(ctx, particle, progress) {
     ctx.beginPath();
     ctx.moveTo(particle.x0, particle.y0);
     ctx.lineTo(endX, endY);
+    ctx.stroke();
+  }
+}
+
+function drawRepulsorWake(ctx, particle, progress) {
+  const alpha = Math.pow(1 - progress, 1.5);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = particle.color;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = particle.color;
+  ctx.lineWidth = 3 * alpha;
+  ctx.lineCap = "round";
+  for (let index = 0; index < 3; index += 1) {
+    const y = particle.y + (index - 1) * 8;
+    ctx.beginPath();
+    ctx.moveTo(particle.x0 - 12, y);
+    ctx.lineTo(particle.x1 - progress * 18, y);
     ctx.stroke();
   }
 }
@@ -863,6 +937,7 @@ export function drawParticles(ctx, particles, now, settings = {}) {
       ctx.fill();
     } else if (particle.kind === "laser") drawLaser(ctx, particle, progress, settings);
     else if (particle.kind === "shotgun") drawShotgun(ctx, particle, progress);
+    else if (particle.kind === "repulsorWake") drawRepulsorWake(ctx, particle, progress);
     else if (particle.kind === "flameJet") drawFlameJet(ctx, particle, progress, settings);
     else if (particle.kind === "flame") drawFlame(ctx, particle, progress, settings);
     else if (particle.kind === "flameRibbon") drawFlameRibbon(ctx, particle, progress);

@@ -1,6 +1,9 @@
 import { ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, isGroundTrapEligible } from "./domain.js";
-import { CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition, getMuzzleWorldPosition, getTroopAnimation } from "./visualGeometry.js";
+import {
+  CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
+  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
+} from "./visualGeometry.js";
 
 export { CELL, FIELD, VIEWPORT } from "./visualGeometry.js";
 
@@ -41,6 +44,10 @@ function isOffensiveConfig(config) {
 
 function isNaniteMedic(config) {
   return config?.id === "medicaNanites";
+}
+
+function isLumiUrsa7(config) {
+  return config?.id === "lumiUrsa7";
 }
 
 function usesTargetingSystems(config) {
@@ -162,6 +169,8 @@ export function placeTroop(session, troopId, row, col) {
     lastAttackMode: null, pendingImpact: null, specialRequested: false, attackBusyUntil: 0,
     specialReadyAt: config.specialEveryMs ? session.elapsed + config.specialEveryMs : Infinity,
     state: "idle", stateStartedAt: session.elapsed,
+    stateEndsAt: Infinity, defenseActive: false, defenseThreatId: null, defenseExitAt: null,
+    pendingRepulsorShot: null, lastRepulsorAt: -Infinity,
     healTargetId: null, healedThisCharge: 0, lastHealPulseAt: -Infinity,
     attackTargetId: null, cooldownStartedAt: null, cooldownEndsAt: null,
     attackSpeedFactor: 1, attachedParasiteId: null,
@@ -187,7 +196,8 @@ export function removeTroop(session, row, col) {
   releaseParasiteFromTroop(session, troop);
   const config = TROOPS[troop.type];
   session.mines = session.mines.filter((mine) => mine.ownerId !== troop.id);
-  session.projectiles = session.projectiles.filter((projectile) => projectile.kind !== "mine" || projectile.sourceTroopId !== troop.id);
+  session.projectiles = session.projectiles.filter((projectile) =>
+    projectile.sourceTroopId !== troop.id || !["mine", "repulsorFist"].includes(projectile.kind));
   const refund = Math.floor(Number(troop.energyCost ?? config.price) * session.modifiers.refundRate);
   session.energy = Math.min(session.energyMax, session.energy + refund);
   session.supply = Math.min(session.supplyMax, session.supply + config.supply);
@@ -736,12 +746,26 @@ function updatePrismaticMantle(session, events) {
 
 function damageTroop(session, troop, amount, events) {
   if (!troop || troop.dead) return;
+  const config = TROOPS[troop.type];
+  const defenseFactor = isLumiUrsa7(config) && troop.defenseActive ? config.defenseDamageFactor : 1;
   const lastLineFactor = troop.col <= 1 ? session.modifiers.lastLineDamageTaken : 1;
-  troop.hp -= amount * lastLineFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+  troop.hp -= amount * defenseFactor * lastLineFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+  if (defenseFactor < 1) {
+    events.push({
+      type: "shieldHit",
+      targetId: troop.id,
+      x: troop.x,
+      y: troop.y - 46,
+      color: config.color,
+      seed: nextEffectSeed(session),
+    });
+  }
   events.push({ type: "troopHit", targetId: troop.id, x: troop.x, y: troop.y });
   if (troop.hp <= 0) {
     troop.hp = 0;
     troop.dead = true;
+    troop.defenseActive = false;
+    troop.pendingRepulsorShot = null;
     releaseParasiteFromTroop(session, troop);
     events.push({ type: "troopDeath", x: troop.x, y: troop.y, entity: { ...troop } });
   }
@@ -963,11 +987,13 @@ function enemiesInTroopTile(session, troop) {
 }
 
 export function selectNaniteHealTarget(session, medic, config = TROOPS.medicaNanites) {
+  const healStartThreshold = config.healStartThreshold ?? 1;
   return session.troops
     .filter((troop) => troop.id !== medic.id
       && !troop.dead
       && troop.hp > 0
       && troop.hp < troop.maxHp
+      && troop.hp / troop.maxHp < healStartThreshold
       && troop.row === medic.row
       && troop.col > medic.col
       && troop.col - medic.col <= config.healRangeTiles)
@@ -1095,6 +1121,137 @@ function updateNaniteMedic(session, medic, config, events) {
   setNaniteMedicState(medic, "idle", session.elapsed);
 }
 
+export function findAdjacentLumiThreat(session, troop) {
+  const frontCol = troop.col + 1;
+  const protectedTile = session.troops.some((ally) =>
+    !ally.dead && ally.id !== troop.id && ally.row === troop.row && ally.col === frontCol);
+  if (protectedTile) return null;
+  return session.enemies
+    .filter((enemy) => !enemy.dead
+      && enemy.row === troop.row
+      && !ENEMIES[enemy.type]?.airborne
+      && enemyColumn(enemy) === frontCol)
+    .sort((left, right) => left.x - right.x)[0] || null;
+}
+
+export function findRepulsorTarget(session, troop, config = TROOPS.lumiUrsa7) {
+  return session.enemies
+    .filter((enemy) => !enemy.dead
+      && enemy.row === troop.row
+      && !ENEMIES[enemy.type]?.airborne
+      && enemy.x > troop.x
+      && enemy.x - troop.x <= config.repulsorRangeTiles * CELL.width)
+    .sort((left, right) => left.x - right.x)[0] || null;
+}
+
+export function getLumiKnockbackFactor(enemy) {
+  if (!enemy || enemy.variant === "alpha") return 0;
+  const role = ENEMIES[enemy.type]?.role || "";
+  if (role.includes("Elite")) return 0.25;
+  if (role.includes("Colosso") || role.includes("Santuário")) return 0.35;
+  if (role.includes("Resistente") || role.includes("Duelista")) return 0.75;
+  return 1;
+}
+
+function setLumiState(troop, state, elapsed, durationMs = Infinity) {
+  if (troop.state !== state) troop.stateStartedAt = elapsed;
+  troop.state = state;
+  troop.stateEndsAt = Number.isFinite(durationMs) ? elapsed + durationMs : Infinity;
+}
+
+function cancelPendingRepulsor(session, troop) {
+  if (!troop.pendingRepulsorShot) return;
+  const projectile = session.projectiles.find((entry) => entry.id === troop.pendingRepulsorShot);
+  if (projectile && !projectile.launched) projectile.active = false;
+  troop.pendingRepulsorShot = null;
+}
+
+function startLumiDefense(session, troop, config, threat) {
+  cancelPendingRepulsor(session, troop);
+  troop.attackTargetId = null;
+  troop.defenseThreatId = threat.id;
+  troop.defenseExitAt = null;
+  troop.defenseActive = false;
+  setLumiState(troop, "transitionIn", session.elapsed, config.transitionInMs);
+}
+
+function startRepulsorAttack(session, troop, config, target) {
+  const origin = getMuzzleWorldPosition(troop, config, 0);
+  const projectileId = id("projectile");
+  session.projectiles.push({
+    id: projectileId, kind: "repulsorFist", visualKind: "repulsorFist",
+    troopType: troop.type, sourceTroopId: troop.id, targetId: target.id, row: troop.row,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    origin: { ...origin }, ageMs: 0, trail: [{ x: origin.x, y: origin.y }],
+    vx: config.projectileSpeed, vy: 0, damage: config.damage * attackDamageMultiplier(session, troop),
+    pushDistanceTiles: config.pushDistanceTiles, stunChance: config.stunChance, stunMs: config.stunMs,
+    pushVisualDurationMs: config.pushVisualDurationMs,
+    color: config.color, active: true, launched: false, seed: nextEffectSeed(session),
+    launchAt: session.elapsed + config.attackVisual.releaseMs,
+  });
+  troop.pendingRepulsorShot = projectileId;
+  troop.attackTargetId = target.id;
+  troop.lastAttackAt = session.elapsed;
+  troop.lastRepulsorAt = session.elapsed;
+  troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+  troop.attackBusyUntil = session.elapsed + config.attackVisual.durationMs;
+  setLumiState(troop, "attack", session.elapsed, config.attackVisual.durationMs);
+}
+
+function updateLumiUrsa7(session, troop, config) {
+  const threat = findAdjacentLumiThreat(session, troop);
+  if (troop.state === "transitionIn") {
+    troop.defenseActive = session.elapsed - troop.stateStartedAt >= config.shieldActivationMs;
+    if (session.elapsed >= troop.stateEndsAt) {
+      troop.defenseActive = true;
+      setLumiState(troop, "defense", session.elapsed);
+    }
+    return;
+  }
+  if (troop.state === "defense") {
+    troop.defenseActive = true;
+    if (threat) {
+      troop.defenseThreatId = threat.id;
+      troop.defenseExitAt = null;
+      return;
+    }
+    if (troop.defenseExitAt == null) troop.defenseExitAt = session.elapsed + config.defenseExitDelayMs;
+    if (session.elapsed >= troop.defenseExitAt) {
+      troop.defenseThreatId = null;
+      setLumiState(troop, "transitionOut", session.elapsed, config.transitionOutMs);
+    }
+    return;
+  }
+  if (troop.state === "transitionOut") {
+    troop.defenseActive = true;
+    if (threat) {
+      troop.defenseThreatId = threat.id;
+      troop.defenseExitAt = null;
+      setLumiState(troop, "defense", session.elapsed);
+      return;
+    }
+    if (session.elapsed >= troop.stateEndsAt) {
+      troop.defenseActive = false;
+      troop.defenseThreatId = null;
+      troop.defenseExitAt = null;
+      setLumiState(troop, "idle", session.elapsed);
+    }
+    return;
+  }
+  if (threat) {
+    startLumiDefense(session, troop, config, threat);
+    return;
+  }
+  if (troop.state === "attack" && session.elapsed < troop.attackBusyUntil) return;
+  const target = findRepulsorTarget(session, troop, config);
+  if (target && session.elapsed >= troop.attackReadyAt) {
+    startRepulsorAttack(session, troop, config, target);
+    return;
+  }
+  troop.attackTargetId = null;
+  setLumiState(troop, "idle", session.elapsed);
+}
+
 export function isTroopSpecialReady(session, troop) {
   const config = TROOPS[troop?.type];
   return Boolean(config?.specialEveryMs && !troop.dead && !troop.specialRequested
@@ -1180,6 +1337,10 @@ function updateTroops(session, events, dt) {
       updateNaniteMedic(session, troop, config, events);
       continue;
     }
+    if (isLumiUrsa7(config)) {
+      updateLumiUrsa7(session, troop, config, events);
+      continue;
+    }
     if (config.attack === "flame") {
       updateFlameChannel(session, troop, config, events, dt);
       continue;
@@ -1220,6 +1381,71 @@ function updateProjectiles(session, dt, events) {
       });
     }
     projectile.ageMs += dt;
+    if (projectile.kind === "repulsorFist") {
+      const target = session.enemies.find((enemy) => enemy.id === projectile.targetId && !enemy.dead);
+      const source = session.troops.find((troop) => troop.id === projectile.sourceTroopId && !troop.dead);
+      if (!target) {
+        projectile.active = false;
+        if (source?.pendingRepulsorShot === projectile.id) source.pendingRepulsorShot = null;
+        continue;
+      }
+      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+      projectile.previousX = projectile.x;
+      projectile.previousY = projectile.y;
+      projectile.previousRenderX = projectile.x;
+      projectile.previousRenderY = projectile.y;
+      projectile.x += projectile.vx * dt / 1000;
+      projectile.y += projectile.vy * dt / 1000;
+      projectile.trail.push({ x: projectile.x, y: projectile.y });
+      if (projectile.trail.length > 8) projectile.trail.shift();
+      const crossedTarget = projectile.previousX <= targetPoint.x + 24 && projectile.x >= targetPoint.x - 24;
+      const closeToTarget = Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y) <= 32;
+      if (!crossedTarget && !closeToTarget) {
+        if (projectile.x <= FIELD.width + 80) continue;
+        projectile.active = false;
+        if (source?.pendingRepulsorShot === projectile.id) source.pendingRepulsorShot = null;
+        continue;
+      }
+
+      damageEnemy(session, target, projectile.damage, events);
+      const pushedFromX = target.x;
+      let stunned = false;
+      if (!target.dead) {
+        const existingVisualOffset = getRepulsorKnockbackOffset(target, session.elapsed);
+        const knockbackFactor = getLumiKnockbackFactor(target);
+        target.x = Math.min(
+          FIELD.spawnX,
+          target.x + CELL.width * projectile.pushDistanceTiles * knockbackFactor,
+        );
+        const pushedDistance = target.x - pushedFromX;
+        target.previousX = target.x;
+        target.previousRenderX = target.x;
+        if (pushedDistance > 0) {
+          target.knockbackVisualOffset = existingVisualOffset - pushedDistance;
+          target.knockbackVisualStartedAt = session.elapsed;
+          target.knockbackVisualEndsAt = session.elapsed + (projectile.pushVisualDurationMs ?? 300);
+        }
+        if (knockbackFactor > 0 && session.rng() < projectile.stunChance) {
+          stunEnemy(session, target, projectile.stunMs);
+          stunned = true;
+        }
+      }
+      events.push({
+        type: "repulsorImpact",
+        sourceTroopId: projectile.sourceTroopId,
+        targetId: target.id,
+        x: target.x,
+        y: targetPoint.y,
+        pushedFromX,
+        pushedToX: target.x,
+        stunned,
+        color: projectile.color,
+        seed: projectile.seed,
+      });
+      projectile.active = false;
+      if (source?.pendingRepulsorShot === projectile.id) source.pendingRepulsorShot = null;
+      continue;
+    }
     if (projectile.kind === "mortar") {
       projectile.ageMs = Math.max(0, session.elapsed - projectile.launchAt);
       const progress = Math.min(1, projectile.ageMs / projectile.flightMs);
@@ -1766,6 +1992,20 @@ export function stepBattle(session, dt = 32) {
     if (!session.sandbox && !session.outcome && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0) {
       session.waveActive = false;
       const completedWave = session.waveIndex;
+      const waveCompletionEnergy = Math.max(0, Number(session.phase.waveCompletionEnergy) || 0);
+      const waveCompletionAmount = Math.min(waveCompletionEnergy, Math.max(0, session.energyMax - session.energy));
+      if (waveCompletionAmount > 0) {
+        session.energy += waveCompletionAmount;
+        session.lastEnergyGainAt = session.elapsed;
+        events.push({
+          type: "energyGenerated",
+          x: FIELD.baseX,
+          y: FIELD.height / 2,
+          amount: waveCompletionAmount,
+          reason: "waveCompletion",
+          color: "#22d3ee",
+        });
+      }
       const reactor = session.troops.find((troop) => !troop.dead && TROOPS[troop.type].attack === "energy");
       if (reactor) {
         const config = TROOPS[reactor.type];

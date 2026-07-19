@@ -20,7 +20,8 @@ import {
 } from "./pulseRenderer.js";
 import {
   getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect,
-  getMuzzleWorldPosition, getTroopAnimation, getTroopFrameAnchor, isEnemyFrozen, viewportPointToFieldPoint,
+  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
+  isEnemyFrozen, viewportPointToFieldPoint,
 } from "./visualGeometry.js";
 import {
   configureHiDPICanvas, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
@@ -49,6 +50,64 @@ import {
 } from "./battleModel.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
 import { loadSettings } from "../campaign/storage.js";
+
+export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
+  if (!fieldPoint) return null;
+  const cell = cellFromPoint(fieldPoint.x, fieldPoint.y);
+  if (!cell) return null;
+  if (removeMode) return { type: "remove", cell };
+  const manualSpecialTroop = session.troops
+    .filter((entry) => !entry.dead && TROOPS[entry.type]?.specialEveryMs)
+    .map((troop) => {
+      const visualY = troop.y + (TROOPS[troop.type]?.spriteOffsetY || 0);
+      return {
+        troop,
+        visualY,
+        distance: ((fieldPoint.x - troop.x) / 82) ** 2 + ((fieldPoint.y - (visualY - 31)) / 98) ** 2,
+      };
+    })
+    .filter(({ troop, visualY }) => (
+      fieldPoint.x >= troop.x - 82
+      && fieldPoint.x <= troop.x + 82
+      && fieldPoint.y >= visualY - 120
+      && fieldPoint.y <= visualY + 66
+    ))
+    .sort((left, right) => left.distance - right.distance)[0]?.troop;
+  if (manualSpecialTroop) {
+    return { type: "special", cell, troop: manualSpecialTroop };
+  }
+  const troopInCell = session.troops.find((entry) => !entry.dead && entry.row === cell.row && entry.col === cell.col);
+  if (troopInCell && !selectedTroop) {
+    return { type: "special", cell, troop: troopInCell };
+  }
+  if (selectedTroop) return { type: "place", cell, troopType: selectedTroop };
+  return null;
+}
+
+export function ColossusSpecialButtons({ session, onActivate }) {
+  if (!session?.waveActive || session.outcome) return null;
+  const readyColossi = session.troops.filter((troop) => (
+    !troop.dead
+    && troop.type === "colossoImpacto"
+    && !troop.specialRequested
+    && session.elapsed >= troop.specialReadyAt
+  ));
+  return readyColossi.map((troop) => (
+    <button
+      key={troop.id}
+      type="button"
+      className="colossus-special-button"
+      style={{
+        left: `${troop.x / FIELD.width * 100}%`,
+        top: `${(VIEWPORT.fieldOffsetY + troop.y - 76) / VIEWPORT.height * 100}%`,
+      }}
+      aria-label={`Ativar Esmagamento Total do Colosso na rota ${troop.row + 1}`}
+      onClick={() => onActivate(troop.id)}
+    >
+      <span>◆</span> ATIVAR ESMAGAMENTO
+    </button>
+  ));
+}
 
 function drawSprite(ctx, image, entity, targetHeight, opacity = 1, filter = "none", anchor = null, flipX = false) {
   if (!image?.width || !image?.height) return false;
@@ -230,6 +289,45 @@ function drawNaniteCooldown(ctx, entity, session, settings) {
     ctx.font = "700 8px Chakra Petch, system-ui";
     ctx.textAlign = "center";
     ctx.fillText("RECARGA", entity.x, entity.y - 79);
+  }
+  ctx.restore();
+}
+
+function drawLumiDefenseShield(ctx, entity, config, elapsed, settings) {
+  if (entity.type !== "lumiUrsa7" || !entity.defenseActive) return;
+  const base = config.defenseShieldVisual || {};
+  const stateOverride = entity.state === "transitionOut" ? base.transitionOut || {} : {};
+  const offsetX = stateOverride.offsetX ?? base.offsetX ?? 0;
+  const offsetY = stateOverride.offsetY ?? base.offsetY ?? -4;
+  const radiusX = stateOverride.radiusX ?? base.radiusX ?? 67;
+  const radiusY = stateOverride.radiusY ?? base.radiusY ?? 61;
+  const pulse = settings.reduceMotion ? 1 : 1 + Math.sin(elapsed / 170) * 0.035;
+  ctx.save();
+  ctx.translate(entity.x + offsetX, entity.y + offsetY);
+  ctx.scale(pulse, pulse);
+  ctx.globalCompositeOperation = "lighter";
+  const glow = ctx.createRadialGradient(0, 3, 25, 0, 0, Math.max(radiusX, radiusY) + 4);
+  glow.addColorStop(0, "rgba(34,211,238,0)");
+  glow.addColorStop(0.72, "rgba(34,211,238,.08)");
+  glow.addColorStop(1, "rgba(103,232,249,.24)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, radiusX, radiusY, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(103,232,249,.72)";
+  ctx.shadowBlur = 14;
+  ctx.shadowColor = "#22d3ee";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, radiusX - 2, radiusY - 2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  if (!settings.reduceMotion) {
+    ctx.setLineDash([8, 10]);
+    ctx.globalAlpha = 0.42;
+    ctx.rotate(elapsed / 2600);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radiusX - 8, radiusY - 8, 0, 0, Math.PI * 2);
+    ctx.stroke();
   }
   ctx.restore();
 }
@@ -449,11 +547,15 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
     attackMine: troopAssets.attackMine?.length,
     attackGun: troopAssets.attackGun?.length,
     defense: troopAssets.defense?.length,
+    transitionIn: troopAssets.transitionIn?.length,
+    transitionOut: troopAssets.transitionOut?.length,
   });
   const frames = troopAssets[animation.state] || troopAssets.idle || troopAssets.defense || [];
   const image = frames[animation.frame % Math.max(1, frames.length)];
   const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
-  const height = config.attackVisual?.height || (selectedTroop === "muralhaReforcada" ? 112 : 126);
+  const height = getTroopAttackVisual(entity, config)?.height
+    || config.attackVisual?.height
+    || (selectedTroop === "muralhaReforcada" ? 112 : 126);
 
   ctx.save();
   ctx.globalAlpha = preview.valid ? 0.32 : 0.18;
@@ -544,7 +646,16 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
 
   const sorted = [
     ...session.troops.map((entity) => ({ kind: "troop", entity })),
-    ...session.enemies.map((entity) => ({ kind: "enemy", entity: interpolateEntity(entity, interpolation) })),
+    ...session.enemies.map((entity) => {
+      const interpolated = interpolateEntity(entity, interpolation);
+      return {
+        kind: "enemy",
+        entity: {
+          ...interpolated,
+          x: interpolated.x + getRepulsorKnockbackOffset(entity, session.elapsed, settings.reduceMotion),
+        },
+      };
+    }),
   ].sort((left, right) => left.entity.row - right.entity.row || left.entity.x - right.entity.x);
   drawWetReflections(ctx, session.phase, sorted.map((item) => item.entity), settings);
 
@@ -563,16 +674,19 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
         heal: troopAssets.heal?.length, cooldown: troopAssets.cooldown?.length,
         attackMine: troopAssets.attackMine?.length, attackGun: troopAssets.attackGun?.length,
         defense: troopAssets.defense?.length, special: troopAssets.special?.length,
+        transitionIn: troopAssets.transitionIn?.length, transitionOut: troopAssets.transitionOut?.length,
       });
       const frames = troopAssets[animation.state] || troopAssets.idle || [];
       const image = frames[animation.frame % Math.max(1, frames.length)];
       const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
       const visualEntity = getTroopVisualEntity(entity, config);
+      const visual = getTroopAttackVisual(entity, config);
       const troopFilter = `drop-shadow(0 0 ${3 + reaction.flash * 5}px ${session.phase.palette.primary}) brightness(${1 + reaction.flash * .65})`;
-      if (!drawSprite(ctx, image, visualEntity, config.attackVisual?.height || (entity.type === "muralhaReforcada" ? 112 : 126), 1, troopFilter, frameAnchor, config.flipX)) {
+      if (!drawSprite(ctx, image, visualEntity, visual?.height || config.attackVisual?.height || (entity.type === "muralhaReforcada" ? 112 : 126), 1, troopFilter, frameAnchor, config.flipX)) {
         ctx.fillStyle = config.color;
         ctx.fillRect(visualEntity.x - 24, visualEntity.y - 34, 48, 68);
       }
+      drawLumiDefenseShield(ctx, visualEntity, config, session.elapsed, settings);
       if (config.specialEveryMs && !entity.specialRequested && session.elapsed >= entity.specialReadyAt) {
         drawTroopSpecialReady(ctx, visualEntity, session.elapsed, settings);
       }
@@ -857,11 +971,6 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     return viewportPointToFieldPoint(viewportX, viewportY);
   };
 
-  const pointFromPointer = (event) => {
-    const point = canvasPointFromPointer(event);
-    return point ? cellFromPoint(point.x, point.y) : null;
-  };
-
   const handleCanvasMove = (event) => {
     const point = canvasPointFromPointer(event);
     hoveredCellRef.current = point ? cellFromPoint(point.x, point.y) : null;
@@ -879,12 +988,29 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     releaseMouseTool();
   };
 
+  const activateColossusSpecial = (troopId) => {
+    const result = activateTroopSpecial(sessionRef.current, troopId);
+    setMessage(result.ok
+      ? result.queued ? "Esmagamento Total enfileirado após o golpe atual." : "Esmagamento Total ativado."
+      : result.reason);
+    if (result.ok) {
+      pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
+      consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+    }
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
   const handleCanvasClick = (event) => {
     if (snapshot.outcome) return;
-    const point = pointFromPointer(event);
-    if (!point) return;
-    if (removeMode) {
-      const result = removeTroop(sessionRef.current, point.row, point.col);
+    const action = resolveCanvasClickAction(
+      sessionRef.current,
+      canvasPointFromPointer(event),
+      selectedTroop,
+      removeMode,
+    );
+    if (!action) return;
+    if (action.type === "remove") {
+      const result = removeTroop(sessionRef.current, action.cell.row, action.cell.col);
       setMessage(result.ok ? `Unidade removida · +${result.refund} energia.` : result.reason);
       if (result.ok) {
         consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
@@ -893,22 +1019,12 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setSnapshot(getSnapshot(sessionRef.current));
       return;
     }
-    if (!selectedTroop) {
-      const troop = sessionRef.current.troops.find((entry) => !entry.dead && entry.row === point.row && entry.col === point.col);
-      if (!troop) return;
-      const result = activateTroopSpecial(sessionRef.current, troop.id);
-      setMessage(result.ok
-        ? result.queued ? "Esmagamento Total enfileirado após o golpe atual." : "Esmagamento Total ativado."
-        : result.reason);
-      if (result.ok) {
-        pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
-        consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
-      }
-      setSnapshot(getSnapshot(sessionRef.current));
+    if (action.type === "special") {
+      activateColossusSpecial(action.troop.id);
       return;
     }
-    const result = placeTroop(sessionRef.current, selectedTroop, point.row, point.col);
-    setMessage(result.ok ? `${TROOPS[selectedTroop].label} implantado.` : result.reason);
+    const result = placeTroop(sessionRef.current, action.troopType, action.cell.row, action.cell.col);
+    setMessage(result.ok ? `${TROOPS[action.troopType].label} implantado.` : result.reason);
     if (result.ok) {
       play("deploy", 0.55);
       pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
@@ -1058,10 +1174,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
         <div className="canvas-wrap">
           <div className="wave-banner">{banner}</div>
-          <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
-            hoveredCellRef.current = null;
-            setEnergyPickupPointer(sessionRef.current, null);
-          }} aria-label="Campo de batalha em cinco rotas" />
+          <div className="battle-canvas-stage">
+            <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
+              hoveredCellRef.current = null;
+              setEnergyPickupPointer(sessionRef.current, null);
+            }} aria-label="Campo de batalha em cinco rotas" />
+            <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />
+          </div>
           {graphicsMetrics && <div className="graphics-metrics"><b>{graphicsMetrics.fps.toFixed(0)} FPS</b><span>{graphicsMetrics.frameMs.toFixed(1)} ms</span><span>P {graphicsMetrics.particles}</span><span>D {graphicsMetrics.decals}</span><span>V {graphicsMetrics.visualEntities}</span></div>}
           {paused && <div className="pause-overlay"><span>SIMULAÇÃO PAUSADA</span><button onClick={() => setPaused(false)}>Continuar</button></div>}
         </div>
