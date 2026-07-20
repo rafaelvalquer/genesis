@@ -133,9 +133,12 @@ describe("arenas cinematograficas", () => {
   });
 
   it("inclui animações completas para as oito variantes inimigas", () => {
-    const enemyFrames = import.meta.glob("./assets/enemy/{vexar,silex,neurax,oculis,brakor,aurakh,myrkon,zhyra}/{idle,walking,attack}/frame*.png");
+    const enemyFrames = import.meta.glob("./assets/enemy/{vexar,silex,neurax,oculis,brakor,aurakh,krulax,myrkon,zhyra}/{idle,walking,attack}/frame*.png");
     const keys = Object.keys(enemyFrames);
-    for (const id of ["vexar", "silex", "neurax", "oculis", "brakor", "aurakh", "myrkon", "zhyra"]) {
+    const redesigned = keys.filter((key) =>
+      ["/krulax/", "/myrkon/", "/zhyra/"].some((id) => key.includes(id)));
+    expect(redesigned).toHaveLength(3 * 3 * 8);
+    for (const id of ["vexar", "silex", "neurax", "oculis", "brakor", "aurakh", "krulax", "myrkon", "zhyra"]) {
       for (const state of ["idle", "walking", "attack"]) {
         expect(keys.some((key) => key.includes(`/${id}/${state}/frame0.png`))).toBe(true);
       }
@@ -149,6 +152,37 @@ describe("arenas cinematograficas", () => {
     expect(Object.keys(idle)).toHaveLength(8);
     expect(Object.keys(walking)).toHaveLength(8);
     expect(Object.keys(attack)).toHaveLength(12);
+  });
+
+  it("carrega os 24 quadros do Escavador de Sílica", () => {
+    const idle = import.meta.glob("./assets/enemy/silicaDigger/idle/frame*.png");
+    const walking = import.meta.glob("./assets/enemy/silicaDigger/walking/frame*.png");
+    const attack = import.meta.glob("./assets/enemy/silicaDigger/attack/frame*.png");
+    expect(Object.keys(idle)).toHaveLength(8);
+    expect(Object.keys(walking)).toHaveLength(8);
+    expect(Object.keys(attack)).toHaveLength(8);
+    expect(getEnemyPreviewUrl("silicaDigger")).toMatch(/frame0.*\.png/i);
+  });
+
+  it("carrega os 32 quadros do Rasga-Dunas", () => {
+    const idle = import.meta.glob("./assets/enemy/duneRipper/idle/frame*.png");
+    const walking = import.meta.glob("./assets/enemy/duneRipper/walking/frame*.png");
+    const attack = import.meta.glob("./assets/enemy/duneRipper/attack/frame*.png");
+    const roar = import.meta.glob("./assets/enemy/duneRipper/roar/frame*.png");
+    expect(Object.keys(idle)).toHaveLength(8);
+    expect(Object.keys(walking)).toHaveLength(8);
+    expect(Object.keys(attack)).toHaveLength(8);
+    expect(Object.keys(roar)).toHaveLength(8);
+    expect(getEnemyPreviewUrl("duneRipper")).toMatch(/frame0.*\.png/i);
+  });
+
+  it("carrega os 40 quadros novos do Besouro-Aríete", () => {
+    const states = ["idle", "walking", "chargePrep", "charge", "attack"];
+    for (const state of states) {
+      const frames = import.meta.glob("./assets/enemy/ramBeetle/*/frame*.png");
+      expect(Object.keys(frames).filter((key) => key.includes(`/ramBeetle/${state}/`))).toHaveLength(8);
+    }
+    expect(getEnemyPreviewUrl("ramBeetle")).toMatch(/frame0.*\.png/i);
   });
 
   it("mantem somente os oito quadros cartoon atuais por estado", () => {

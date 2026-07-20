@@ -1,12 +1,14 @@
-import { PHASES } from "./content.js";
+import { ENEMIES, PHASES } from "./content.js";
 
 const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
 const formatDuration = (milliseconds) => `${formatNumber(milliseconds / 1000)} s`;
 
-export function getEnemyUnlockAt(enemyId) {
-  return PHASES.findIndex((phase) => phase.waves.some((wave) => (
+export function getEnemyUnlockAt(enemyId, enemy = ENEMIES[enemyId]) {
+  const phaseIndex = PHASES.findIndex((phase) => phase.waves.some((wave) => (
     wave.enemies.some((entry) => entry.type === enemyId)
   )));
+  if (phaseIndex >= 0) return phaseIndex;
+  return Number.isInteger(enemy?.encyclopediaUnlockAt) ? enemy.encyclopediaUnlockAt : -1;
 }
 
 export function getEnemyInfo(enemy) {
@@ -38,6 +40,44 @@ export function getEnemyInfo(enemy) {
     label: "Escudo",
     value: `${enemy.shieldBase} base + ${Math.round(enemy.shieldMaxHpFactor * 100)}% do HP, limite ${enemy.shieldCap}`,
   });
+  if (enemy.swarmMinCount && enemy.swarmSpeedFactor) specials.push({
+    label: "Impulso de enxame",
+    value: `Com ${enemy.swarmMinCount}+ no mesmo tile: +${Math.round((enemy.swarmSpeedFactor - 1) * 100)}% de velocidade`,
+  });
+  if (enemy.id === "duneRipper") specials.push({
+    label: "Grito da Ninhada",
+    value: `Até ${enemy.summonCount} Escavadores a cada ${formatDuration(enemy.summonEveryMs)}; máximo de ${enemy.maximumLivingSummons} vivos`,
+  });
+  if (enemy.chargeDamage) specials.push({
+    label: "Investida inicial",
+    value: `${formatNumber(enemy.chargeDamage)} de dano após ${formatDuration(enemy.chargePrepMs)}`,
+  });
+  if (enemy.recoverMs) specials.push({
+    label: "Recuperação",
+    value: `${formatDuration(enemy.recoverMs)} sem se mover ou atacar`,
+  });
+  if (enemy.id === "ramBeetle") specials.push({
+    label: "Ataque normal",
+    value: `${formatNumber(enemy.damage)} de dano a cada ${formatDuration(enemy.attackEveryMs)}`,
+  });
+  if (enemy.id === "workerQueen") {
+    specials.push({
+      label: "Teia Inibidora",
+      value: `${enemy.webDamage} de dano; reduz a cadência em ${Math.round((1 - enemy.webSlowFactor) * 100)}% por ${formatDuration(enemy.webSlowDurationMs)}`,
+    });
+    specials.push({
+      label: "Postura de ovos",
+      value: `${enemy.eggsPerLay} ovos a cada ${formatDuration(enemy.eggLayEveryMs)}; eclosão em ${formatDuration(ENEMIES.workerQueenEgg.hatchAfterMs)}`,
+    });
+    specials.push({
+      label: "Limites da ninhada",
+      value: `Até ${enemy.maximumLivingEggs} ovos e ${enemy.maximumLivingSummons} Escavadores vinculados`,
+    });
+    specials.push({
+      label: "Mordida da Matriarca",
+      value: `${enemy.meleeDamage} de dano a cada ${formatDuration(enemy.meleeAttackEveryMs)} no mesmo tile`,
+    });
+  }
 
   return { stats, specials };
 }

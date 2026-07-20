@@ -219,10 +219,99 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
 
+    if (event.type === "duneRipperRoar") {
+      const mouth = { ...event, x: event.x - 34, y: event.y - 30 };
+      particles.push({
+        kind: "ring", x: mouth.x, y: mouth.y, color: "#22d3ee",
+        born: now, life: 680, maxRadius: settings.reduceMotion ? 54 : 118,
+      });
+      particles.push({
+        kind: "muzzle", x: mouth.x, y: mouth.y, color: "#cffafe",
+        born: now, life: 260, size: 28,
+      });
+      addSparks(particles, mouth, now, settings.reduceMotion ? 3 : Math.max(8, Math.round(18 * quality.density)), random, {
+        color: "#67e8f9", minSpeed: 24, speed: 96, life: 520, size: 2.1,
+      });
+      for (let index = 0; index < event.summonCount; index += 1) {
+        const crackX = event.spawnX - index * 18;
+        const crackY = event.spawnY + 38;
+        particles.push({
+          kind: "ring", x: crackX, y: crackY, color: "#d6a65f",
+          born: now, life: 520, maxRadius: settings.reduceMotion ? 13 : 22,
+        });
+        addSparks(particles, {
+          ...event, x: crackX, y: crackY, color: "#d6a65f",
+        }, now, settings.reduceMotion ? 2 : Math.max(5, Math.round(10 * quality.density)), random, {
+          color: "#d6a65f", minSpeed: 18, speed: 72, gravity: 170, life: 540, size: 2.5,
+        });
+      }
+      continue;
+    }
+
+    if (event.type === "workerQueenEggDeposited" || event.type === "workerQueenEggHatched") {
+      const hatched = event.type === "workerQueenEggHatched";
+      particles.push({
+        kind: "ring", x: event.x, y: event.y + 24,
+        color: hatched ? "#22d3ee" : "#f59e0b",
+        born: now, life: hatched ? 560 : 360, maxRadius: hatched ? 42 : 24,
+      });
+      addSparks(particles, event, now, settings.reduceMotion ? 3 : Math.max(7, Math.round((hatched ? 18 : 10) * quality.density)), random, {
+        color: hatched ? "#67e8f9" : "#fbbf24",
+        minSpeed: 18, speed: hatched ? 105 : 62, gravity: 120,
+        life: hatched ? 620 : 420, size: 2.2,
+      });
+      continue;
+    }
+
+    if (event.type === "inhibitorWebImpact") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y,
+        color: "#f5e7c6", born: now, life: 360, maxRadius: 34,
+      });
+      addSparks(particles, event, now, settings.reduceMotion ? 4 : Math.max(10, Math.round(22 * quality.density)), random, {
+        color: "#f5e7c6", minSpeed: 12, speed: 58, gravity: 35, life: 560, size: 2,
+      });
+      continue;
+    }
+
     if (event.type === "abyssCharge") {
       particles.push({ kind: "ring", x: event.x, y: event.y, color, born: now, life: 520, maxRadius: 30 });
       addSparks(particles, event, now, Math.max(4, Math.round(10 * quality.density)), random, {
         color: "#d8b4fe", minSpeed: 18, speed: 52, life: 480, size: 1.6,
+      });
+      continue;
+    }
+
+    if (event.type === "ramChargePrep" || event.type === "ramChargeStarted") {
+      const started = event.type === "ramChargeStarted";
+      particles.push({
+        kind: "ring", x: event.x - 20, y: event.y + 30,
+        color: started ? "#fb923c" : "#d6a65f", born: now,
+        life: started ? 280 : 520, maxRadius: started ? 48 : 32,
+      });
+      addSparks(particles, { ...event, y: event.y + 34 }, now, Math.max(6, Math.round((started ? 18 : 11) * quality.density)), random, {
+        color: started ? "#fbbf24" : "#c79a5b",
+        minSpeed: 18, speed: started ? 105 : 58, gravity: 150,
+        life: started ? 420 : 560, size: started ? 2.6 : 2.1,
+      });
+      continue;
+    }
+
+    if (event.type === "ramImpact" || event.type === "ramChargeMissed") {
+      const impact = event.type === "ramImpact";
+      particles.push({
+        kind: "ring", x: event.x, y: event.y + 18,
+        color: impact ? "#f59e0b" : "#b88952", born: now,
+        life: impact ? 460 : 300, maxRadius: impact ? 76 : 42,
+      });
+      addSparks(particles, { ...event, y: event.y + 26 }, now, Math.max(8, Math.round((impact ? 30 : 14) * quality.density)), random, {
+        color: random() < 0.35 ? "#fed7aa" : "#c98b4b",
+        minSpeed: 35, speed: impact ? 155 : 85, gravity: 210,
+        life: impact ? 560 : 390, size: impact ? 3 : 2.2,
+      });
+      if (impact && settings.quality !== "low") particles.push({
+        kind: "smoke", x: event.x, y: event.y + 24, vx: -12, vy: -20,
+        color: "#9a6a45", born: now, life: 520, size: 15,
       });
       continue;
     }
@@ -686,6 +775,27 @@ function drawPrismBolt(ctx, projectile, quality) {
   ctx.stroke();
 }
 
+function drawInhibitorWeb(ctx, projectile) {
+  const angle = Math.atan2(projectile.vy || 0, projectile.vx || -1);
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(angle);
+  ctx.shadowBlur = 12;
+  ctx.shadowColor = "#f59e0b";
+  ctx.fillStyle = "rgba(245,231,198,.94)";
+  ctx.strokeStyle = "rgba(255,251,235,.92)";
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+  for (let index = 0; index < 6; index += 1) {
+    const angleOffset = index * Math.PI / 3;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(-7, Math.sin(angleOffset) * 8, -18, Math.cos(angleOffset) * 5);
+    ctx.stroke();
+  }
+}
+
 function drawRepulsorFist(ctx, projectile) {
   const trail = projectile.trail || [];
   if (trail.length > 1) {
@@ -740,6 +850,7 @@ export function drawProjectiles(ctx, projectiles, settings = {}, assets = {}) {
     else if (projectile.visualKind === "fireball") drawFireball(ctx, projectile);
     else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectile, quality);
     else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectile, quality);
+    else if (projectile.visualKind === "inhibitorWeb") drawInhibitorWeb(ctx, projectile);
     else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectile, quality);
     else if (projectile.visualKind === "mortarShell") drawMortarShell(ctx, projectile, quality);
     else drawTracer(ctx, projectile, 14, 2.5, "#ffffff");

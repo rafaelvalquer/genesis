@@ -148,6 +148,76 @@ export function getEnemyMuzzleWorldPosition(enemy, enemyConfig = {}) {
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "workerQueenEgg") {
+    const hatching = elapsed >= enemy.eggHatchAt - enemyConfig.hatchVisualMs;
+    const state = hatching ? "hatch" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    if (hatching) {
+      const progress = Math.min(0.999, Math.max(0, (elapsed - (enemy.eggHatchAt - enemyConfig.hatchVisualMs))
+        / Math.max(1, enemyConfig.hatchVisualMs)));
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    return { state, frame: Math.floor(Math.max(0, elapsed - (enemy.eggCreatedAt || 0))
+      / (enemyConfig.animationFrameMs?.idle || 165)) % count };
+  }
+
+  if (enemyConfig.id === "workerQueen") {
+    const stunned = elapsed < (enemy.stunnedUntil || 0);
+    const state = stunned ? "stunned" : enemy.queenState || (enemy.moving ? "walking" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || frameCounts.walking || 1);
+    const age = Math.max(0, elapsed - (enemy.queenStateStartedAt || 0));
+    const duration = ({
+      spawn: enemyConfig.spawnDurationMs,
+      webAttack: enemyConfig.webAttackVisual.durationMs,
+      eggLay: enemyConfig.eggLayVisual.durationMs,
+      meleeAttack: enemyConfig.meleeAttackVisual.durationMs,
+    })[state];
+    if (Number.isFinite(duration)) {
+      const progress = Math.min(0.999, age / Math.max(1, duration));
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 150)) % count };
+  }
+
+  if (enemyConfig.id === "duneRipper") {
+    const state = enemy.duneState || (enemy.moving ? "walking" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || frameCounts.walking || 1);
+    const age = Math.max(0, elapsed - (enemy.duneStateStartedAt || 0));
+    if (state === "attack" || state === "roar") {
+      const duration = state === "attack"
+        ? enemyConfig.attackVisual.durationMs
+        : enemyConfig.roarDurationMs;
+      const progress = Math.min(0.999, age / Math.max(1, duration));
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    const frameMs = enemyConfig.animationFrameMs?.[state] || 110;
+    return { state, frame: Math.floor(age / frameMs) % count };
+  }
+
+  if (enemyConfig.id === "ramBeetle") {
+    const state = enemy.ramState || (enemy.moving ? "walking" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || frameCounts.walking || 1);
+    const age = Math.max(0, elapsed - (enemy.ramStateStartedAt || 0));
+    if (state === "chargePrep") {
+      const progress = Math.min(0.999, age / Math.max(1, enemyConfig.chargePrepMs));
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    if (state === "attack") {
+      const progress = Math.min(0.999, age / Math.max(1, enemyConfig.attackVisual.durationMs));
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    if (state === "idle" && enemy.ramIdleMode === "recover") {
+      const progress = Math.min(0.999, age / Math.max(1, enemyConfig.recoverMs));
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    if (state === "idle" && count > 1) {
+      const cooldownFrames = Math.min(2, count);
+      return { state, frame: count - cooldownFrames + Math.floor(age / 220) % cooldownFrames };
+    }
+    const frameMs = enemyConfig.animationFrameMs?.[state] || 90;
+    return { state, frame: Math.floor(age / frameMs) % count };
+  }
+
   if (enemy.jumping) {
     const count = Math.max(1, frameCounts.jump || frameCounts.walking || 1);
     const progress = Math.max(0, Math.min(0.999, Number(enemy.jumpProgress) || 0));

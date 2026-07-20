@@ -27,30 +27,40 @@ const ENEMIES = {
   obsidonte: ["idle", "walking", "attack"],
   refrator: ["idle", "walking", "attack"],
   crisalio: ["idle", "walking", "attack", "pulse"],
+  silicaDigger: ["idle", "walking", "attack"],
+  duneRipper: ["idle", "walking", "attack", "roar"],
+  krulax: ["idle", "walking", "attack"],
+  myrkon: ["idle", "walking", "attack"],
+  zhyra: ["idle", "walking", "attack"],
 };
 const AIRBORNE_ENEMIES = new Set(["medu", "neurax", "oculis", "refrator"]);
 const EXTRA_PADDED_ENEMIES = new Set([
-  "medu", "neurax", "oculis", "crix", "vexar", "silex",
+  "medu", "neurax", "oculis", "crix", "vexar", "silex", "silicaDigger", "duneRipper",
+  "krulax", "myrkon", "zhyra",
 ]);
+const GREEN_CHROMA_ENEMIES = new Set(["zhyra"]);
+const CARTOON_PALETTE_ENEMIES = new Set(["krulax", "myrkon", "zhyra", "duneRipper"]);
 const LEGACY_CHROMA_ENEMIES = new Set([
-  "estilha", "vitrarca", "obsidonte", "refrator", "crisalio",
+  "estilha", "vitrarca", "obsidonte", "refrator", "crisalio", "silicaDigger", "duneRipper",
 ]);
 
-function removeLegacyMagentaChroma(data) {
+function removeLegacyMagentaChroma(data, aggressive = false) {
   for (let offset = 0; offset < data.length; offset += 4) {
     const red = data[offset];
     const green = data[offset + 1];
     const blue = data[offset + 2];
     const magentaDominance = Math.min(red, blue) - green;
+    const transparentAt = aggressive ? 70 : 112;
+    const transition = aggressive ? 45 : 76;
     const alpha = Math.max(
       0,
-      Math.min(255, Math.round(((112 - magentaDominance) / 76) * 255)),
+      Math.min(255, Math.round(((transparentAt - magentaDominance) / transition) * 255)),
     );
     data[offset + 3] = Math.min(data[offset + 3], alpha);
   }
 }
 
-function removeMagentaChroma(data, info) {
+function removeBorderChroma(data, info, greenChroma = false) {
   const visited = new Uint8Array(info.width * info.height);
   const queue = [];
   const isBackground = (pixel) => {
@@ -58,10 +68,15 @@ function removeMagentaChroma(data, info) {
     const red = data[offset];
     const green = data[offset + 1];
     const blue = data[offset + 2];
-    return red >= 188 && blue >= 138
-      && red + blue >= 365
-      && Math.abs(red - blue) <= 105
-      && green <= Math.max(red, blue);
+    if (greenChroma) {
+      return green >= 130
+        && green >= red + 38
+        && green >= blue + 38;
+    }
+    return red >= 140 && blue >= 90
+      && red + blue >= 250
+      && Math.abs(red - blue) <= 120
+      && Math.min(red, blue) >= green + 32;
   };
   const enqueue = (pixel) => {
     if (visited[pixel] || !isBackground(pixel)) return;
@@ -158,6 +173,35 @@ function removeSmallEdgeLeaks(data, info) {
   }
 }
 
+function removeChromaFringe(data, info, greenChroma = false) {
+  for (let pass = 0; pass < 2; pass += 1) {
+    const alpha = new Uint8Array(info.width * info.height);
+    for (let pixel = 0; pixel < alpha.length; pixel += 1) {
+      alpha[pixel] = data[pixel * 4 + 3];
+    }
+    for (let pixel = 0; pixel < alpha.length; pixel += 1) {
+      if (alpha[pixel] === 0) continue;
+      const x = pixel % info.width;
+      const y = Math.floor(pixel / info.width);
+      const touchesTransparency = [
+        x > 0 ? pixel - 1 : -1,
+        x + 1 < info.width ? pixel + 1 : -1,
+        y > 0 ? pixel - info.width : -1,
+        y + 1 < info.height ? pixel + info.width : -1,
+      ].some((neighbour) => neighbour >= 0 && alpha[neighbour] === 0);
+      if (!touchesTransparency) continue;
+      const offset = pixel * 4;
+      const red = data[offset];
+      const green = data[offset + 1];
+      const blue = data[offset + 2];
+      const isChroma = greenChroma
+        ? green >= 115 && green >= red + 30 && green >= blue + 30
+        : red >= 120 && blue >= 75 && Math.min(red, blue) >= green + 25;
+      if (isChroma) data[offset + 3] = 0;
+    }
+  }
+}
+
 function alphaBounds(data, info, threshold = 80) {
   let left = info.width;
   let right = -1;
@@ -195,8 +239,14 @@ async function extractCell(sheet, metadata, index, enemy) {
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  if (LEGACY_CHROMA_ENEMIES.has(enemy)) removeLegacyMagentaChroma(data);
-  else removeMagentaChroma(data, info);
+  if (LEGACY_CHROMA_ENEMIES.has(enemy)) {
+    removeLegacyMagentaChroma(data, enemy === "silicaDigger" || enemy === "duneRipper");
+  }
+  else {
+    const greenChroma = GREEN_CHROMA_ENEMIES.has(enemy);
+    removeBorderChroma(data, info, greenChroma);
+    removeChromaFringe(data, info, greenChroma);
+  }
   removeSmallEdgeLeaks(data, info);
   return sharp(data, { raw: info })
     .trim({ background: { r: 255, g: 0, b: 255, alpha: 0 } })
@@ -310,7 +360,13 @@ async function writeEnemy(enemy, states, cells, scale) {
       ));
       const encoded = await sharp(normalized)
         .png(EXTRA_PADDED_ENEMIES.has(enemy)
-          ? { compressionLevel: 9 }
+          ? enemy === "silicaDigger"
+            ? { palette: true, colours: 48, quality: 90, compressionLevel: 9, dither: 0.45 }
+            : enemy === "duneRipper"
+              ? { palette: true, colours: 192, quality: 96, compressionLevel: 9, dither: 0.55 }
+            : CARTOON_PALETTE_ENEMIES.has(enemy)
+              ? { palette: true, colours: 96, quality: 94, compressionLevel: 9, dither: 0.7 }
+            : { compressionLevel: 9 }
           : { palette: true, colours: 96, quality: 92, compressionLevel: 9 })
         .toBuffer();
       frames.push(encoded);
@@ -401,13 +457,19 @@ async function validateEnemy(enemy, states) {
 }
 
 let grandTotal = 0;
-for (const [enemy, states] of Object.entries(ENEMIES)) {
+const requestedEnemy = process.argv.find((argument) => argument.startsWith("--enemy="))?.slice(8);
+const selectedEnemies = Object.entries(ENEMIES)
+  .filter(([enemy]) => !requestedEnemy || enemy === requestedEnemy);
+if (requestedEnemy && selectedEnemies.length === 0) {
+  throw new Error(`Unknown enemy: ${requestedEnemy}`);
+}
+for (const [enemy, states] of selectedEnemies) {
   const { cells, scale } = await readEnemy(enemy, states);
   await writeEnemy(enemy, states, cells, scale);
   const bytes = await validateEnemy(enemy, states);
   grandTotal += bytes;
   console.log(`${enemy}: ${states.length * FRAME_COUNT} frames, ${bytes} bytes`);
 }
-const frameTotal = Object.values(ENEMIES)
+const frameTotal = selectedEnemies.map(([, states]) => states)
   .reduce((total, states) => total + states.length * FRAME_COUNT, 0);
 console.log(`Cartoon enemies: ${frameTotal} frames, ${grandTotal} bytes total.`);

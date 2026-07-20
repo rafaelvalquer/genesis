@@ -178,6 +178,7 @@ export function placeTroop(session, troopId, row, col) {
     healTargetId: null, healedThisCharge: 0, lastHealPulseAt: -Infinity,
     attackTargetId: null, cooldownStartedAt: null, cooldownEndsAt: null,
     attackSpeedFactor: 1, attachedParasiteId: null,
+    webSlowUntil: 0, webSlowFactor: 1,
     channelTickAccumulator: 0, firstImpactAvailable: session.modifiers.firstImpact,
     previousRenderX: col * CELL.width + CELL.width / 2,
     previousRenderY: row * CELL.height + CELL.height / 2, dead: false,
@@ -378,10 +379,39 @@ function createEnemy(session, queued) {
     shield: 0, shieldMax: 0, lastShieldPulseAt: -Infinity,
     meleeAttackPending: false, meleeAttackStartedAt: -Infinity,
     meleeImpactAt: Infinity, meleeTargetId: null,
+    ramState: queued.type === "ramBeetle" ? "walking" : null,
+    ramStateStartedAt: queued.type === "ramBeetle" ? session.elapsed : -Infinity,
+    ramStateEndsAt: Infinity, ramIdleMode: null, ramChargeConsumed: false,
+    ramChargeTargetId: null, ramChargeEndX: null,
+    ramAttackPending: false, ramAttackImpactAt: Infinity, ramAttackTargetId: null,
+    duneState: queued.type === "duneRipper" ? "walking" : null,
+    duneStateStartedAt: queued.type === "duneRipper" ? session.elapsed : -Infinity,
+    duneStateEndsAt: Infinity,
+    duneAttackApplied: false, duneAttackImpactAt: Infinity, duneAttackTargetId: null,
+    duneRoarSummoned: false,
+    duneNextSummonAt: queued.type === "duneRipper"
+      ? session.elapsed + base.firstSummonDelayMs
+      : Infinity,
+    queenState: queued.type === "workerQueen" ? "spawn" : null,
+    queenStateStartedAt: queued.type === "workerQueen" ? session.elapsed : -Infinity,
+    queenStateEndsAt: queued.type === "workerQueen" ? session.elapsed + base.spawnDurationMs : Infinity,
+    queenActionApplied: false,
+    queenTargetId: null,
+    queenEggsDeposited: false,
+    queenNextEggLayAt: queued.type === "workerQueen"
+      ? session.elapsed + base.firstEggLayDelayMs
+      : Infinity,
+    queenWebReadyAt: queued.type === "workerQueen" ? session.elapsed : Infinity,
+    eggOwnerId: queued.eggOwnerId || null,
+    eggCreatedAt: queued.type === "workerQueenEgg" ? session.elapsed : null,
+    eggHatchAt: queued.type === "workerQueenEgg" ? session.elapsed + base.hatchAfterMs : Infinity,
+    summoned: Boolean(queued.summoned),
+    summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
     scale: base.scale * (alpha ? 1.45 : 1) * (echo ? 0.94 : 1),
     previousRenderX: FIELD.spawnX, previousRenderY: 0, dead: false,
   };
+  if (base.stationary) enemy.moving = false;
   enemy.y = enemy.row * CELL.height + CELL.height / 2;
   enemy.previousRenderY = enemy.y;
   session.enemies.push(enemy);
@@ -393,7 +423,8 @@ function createEnemy(session, queued) {
 
 export function trySpawnGlassEcho(session, source, events = []) {
   const mechanic = session.phase.chapterMechanic;
-  if (mechanic?.id !== "glass_echoes" || source?.isEcho || source?.variant === "alpha") return null;
+  if (mechanic?.id !== "glass_echoes" || source?.isEcho || source?.variant === "alpha"
+    || ENEMIES[source?.type]?.canEcho === false) return null;
   const activeEchoes = session.enemies.filter((enemy) => enemy.isEcho && !enemy.dead).length;
   if (activeEchoes >= mechanic.maxAlive || session.rng() >= mechanic.chance) return null;
   const echo = createEnemy(session, {
@@ -443,7 +474,7 @@ export function spawnEnemy(session, {
   type, row = 0, count = 1, variant, groupInTile = false,
 } = {}) {
   if (!session.sandbox) return { ok: false, reason: "Spawn manual disponível apenas no Campo de Provas.", enemies: [], events: [] };
-  if (!ENEMIES[type]) return { ok: false, reason: "Inimigo desconhecido.", enemies: [], events: [] };
+  if (!ENEMIES[type] || ENEMIES[type].hiddenFromCatalog) return { ok: false, reason: "Inimigo desconhecido.", enemies: [], events: [] };
   const amount = clamp(Math.floor(Number(count) || 1), 1, 50);
   const targetRow = clamp(Math.floor(Number(row) || 0), 0, FIELD.rows - 1);
   const enemies = [];
@@ -575,6 +606,26 @@ function setTroopAttackSpeedFactor(troop, nextFactor, elapsed) {
   troop.attackSpeedFactor = nextFactor;
 }
 
+function refreshTroopAttackSpeedFactor(session, troop) {
+  const parasiteFactor = troop.attachedParasiteId
+    ? ENEMIES.parasitaSaltador.attackSlowFactor
+    : 1;
+  const webFactor = session.elapsed < (troop.webSlowUntil || 0)
+    ? troop.webSlowFactor || 1
+    : 1;
+  if (session.elapsed >= (troop.webSlowUntil || 0)) {
+    troop.webSlowUntil = 0;
+    troop.webSlowFactor = 1;
+  }
+  setTroopAttackSpeedFactor(troop, Math.min(parasiteFactor, webFactor), session.elapsed);
+}
+
+function applyWebSlow(session, troop, factor, durationMs) {
+  troop.webSlowFactor = factor;
+  troop.webSlowUntil = session.elapsed + durationMs;
+  refreshTroopAttackSpeedFactor(session, troop);
+}
+
 function attackIntervalFor(session, troop, config, interval) {
   const trainingSpeed = isOffensiveConfig(config) ? session.modifiers.attackSpeed : 1;
   return interval / ((troop.attackSpeedFactor || 1) * trainingSpeed);
@@ -595,7 +646,8 @@ function attackDamageMultiplier(session, troop, { explosive = false } = {}) {
 }
 
 function applyConcussiveImpact(session, enemy) {
-  if (!session.modifiers.concussiveImpact || enemy.dead || !isGroundTrapEligible(enemy)) return;
+  if (!session.modifiers.concussiveImpact || enemy.dead || ENEMIES[enemy.type]?.controlImmune || !isGroundTrapEligible(enemy)) return;
+  interruptWorkerQueenEggLay(session, enemy);
   enemy.x = Math.min(FIELD.width + 40, enemy.x + 50);
   enemy.previousRenderX = enemy.x;
 }
@@ -605,7 +657,7 @@ function detachParasite(session, enemy) {
   const troop = session.troops.find((entry) => entry.id === enemy.attachedToTroopId);
   if (troop?.attachedParasiteId === enemy.id) {
     troop.attachedParasiteId = null;
-    setTroopAttackSpeedFactor(troop, 1, session.elapsed);
+    refreshTroopAttackSpeedFactor(session, troop);
   }
   enemy.attachedToTroopId = null;
   enemy.moving = true;
@@ -619,7 +671,7 @@ function releaseParasiteFromTroop(session, troop) {
     parasite.moving = true;
   }
   troop.attachedParasiteId = null;
-  setTroopAttackSpeedFactor(troop, 1, session.elapsed);
+  refreshTroopAttackSpeedFactor(session, troop);
 }
 
 function attachParasite(session, enemy, troop, config) {
@@ -632,7 +684,7 @@ function attachParasite(session, enemy, troop, config) {
   enemy.y = troop.y;
   enemy.moving = false;
   troop.attachedParasiteId = enemy.id;
-  setTroopAttackSpeedFactor(troop, config.attackSlowFactor, session.elapsed);
+  refreshTroopAttackSpeedFactor(session, troop);
   return true;
 }
 
@@ -660,7 +712,7 @@ function damageEnemy(session, enemy, amount, events) {
     enemy.hp = 0;
     enemy.dead = true;
     detachParasite(session, enemy);
-    session.killed += 1;
+    if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     events.push({ type: enemy.variant === "alpha" ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy } });
     trySpawnGlassEcho(session, enemy, events);
     trySpawnEnergyPickup(session, enemy, events);
@@ -716,14 +768,41 @@ function updateEnergyPickups(session, dt, events) {
   session.energyPickups = remaining;
 }
 
-function stunEnemy(session, enemy, durationMs) {
-  if (!enemy || enemy.dead || durationMs <= 0) return;
+export function stunEnemy(session, enemy, durationMs) {
+  if (!enemy || enemy.dead || durationMs <= 0 || ENEMIES[enemy.type]?.controlImmune) return;
   const previousUntil = Math.max(session.elapsed, Number(enemy.stunnedUntil) || 0);
   const nextUntil = Math.max(previousUntil, session.elapsed + durationMs);
   const pausedFor = nextUntil - previousUntil;
   enemy.stunnedUntil = nextUntil;
-  for (const field of ["attackReadyAt", "castReadyAt", "meleeImpactAt"]) {
+  if (enemy.type === "silicaDigger" && enemy.meleeAttackPending) {
+    enemy.meleeAttackPending = false;
+    enemy.meleeAttackStartedAt = -Infinity;
+    enemy.meleeImpactAt = Infinity;
+    enemy.meleeTargetId = null;
+    enemy.lastAttackAt = -Infinity;
+  }
+  if (enemy.type === "duneRipper" && enemy.duneState === "roar") {
+    if (!enemy.duneRoarSummoned) {
+      enemy.duneNextSummonAt = session.elapsed + ENEMIES.duneRipper.interruptedSummonRetryMs;
+    }
+    enemy.duneState = "idle";
+    enemy.duneStateStartedAt = session.elapsed;
+    enemy.duneStateEndsAt = Infinity;
+    enemy.duneRoarSummoned = false;
+  }
+  if (enemy.type === "workerQueen") interruptWorkerQueenEggLay(session, enemy);
+  for (const field of [
+    "attackReadyAt", "castReadyAt", "meleeImpactAt", "ramStateEndsAt", "ramAttackImpactAt",
+    "duneStateEndsAt", "duneAttackImpactAt",
+  ]) {
     if (Number.isFinite(enemy[field]) && enemy[field] >= session.elapsed) enemy[field] += pausedFor;
+  }
+  if (enemy.type === "ramBeetle" && Number.isFinite(enemy.ramStateStartedAt)) {
+    enemy.ramStateStartedAt += pausedFor;
+  }
+  if (enemy.type === "duneRipper" && enemy.duneState === "attack"
+    && Number.isFinite(enemy.duneStateStartedAt)) {
+    enemy.duneStateStartedAt += pausedFor;
   }
   if (enemy.jumping && Number.isFinite(enemy.jumpStartedAt)) enemy.jumpStartedAt += pausedFor;
   enemy.moving = false;
@@ -1344,6 +1423,7 @@ function updateTileMelee(session, troop, config, events) {
 function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead) continue;
+    refreshTroopAttackSpeedFactor(session, troop);
     const baseConfig = TROOPS[troop.type];
     const config = effectiveCombatConfig(session, troop, baseConfig);
     if (config.attack === "energy") {
@@ -1448,10 +1528,13 @@ function updateProjectiles(session, dt, events) {
       if (!target.dead) {
         const existingVisualOffset = getRepulsorKnockbackOffset(target, session.elapsed);
         const knockbackFactor = getLumiKnockbackFactor(target);
-        target.x = Math.min(
-          FIELD.spawnX,
-          target.x + CELL.width * projectile.pushDistanceTiles * knockbackFactor,
-        );
+        if (!ENEMIES[target.type]?.controlImmune) {
+          interruptWorkerQueenEggLay(session, target);
+          target.x = Math.min(
+            FIELD.spawnX,
+            target.x + CELL.width * projectile.pushDistanceTiles * knockbackFactor,
+          );
+        }
         const pushedDistance = target.x - pushedFromX;
         target.previousX = target.x;
         target.previousRenderX = target.x;
@@ -1610,7 +1693,7 @@ function updateProjectiles(session, dt, events) {
           color: projectile.color, seed: projectile.seed,
         });
       }
-      if (projectile.kind === "ice" && !target.dead) {
+      if (projectile.kind === "ice" && !target.dead && !ENEMIES[target.type]?.controlImmune) {
         target.slowFactor = projectile.slowFactor;
         target.slowUntil = session.elapsed + projectile.slowMs * session.modifiers.slowDuration * session.modifiers.krioSlowDuration;
       }
@@ -1694,10 +1777,27 @@ function updateDematerializationPulses(session, events) {
   session.enemies = session.enemies.filter((enemy) => !enemy.dead);
 }
 
+export function getSilicaDiggerSwarmSpeedFactor(session, enemy) {
+  const config = ENEMIES[enemy?.type];
+  if (!enemy || enemy.dead || enemy.type !== "silicaDigger") return 1;
+  if (session.elapsed < (enemy.stunnedUntil || 0)) return 1;
+  const tile = Math.floor(enemy.x / CELL.width);
+  const grouped = session.enemies.filter((candidate) => (
+    !candidate.dead
+    && candidate.type === enemy.type
+    && candidate.row === enemy.row
+    && session.elapsed >= (candidate.stunnedUntil || 0)
+    && Math.floor(candidate.x / CELL.width) === tile
+  )).length;
+  return grouped >= config.swarmMinCount ? config.swarmSpeedFactor : 1;
+}
+
 function moveEnemy(session, enemy, dt, events) {
   enemy.moving = true;
   const slow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
-  enemy.x -= enemy.speed * session.modifiers.enemySpeed * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
+  const swarmSpeed = getSilicaDiggerSwarmSpeedFactor(session, enemy);
+  enemy.x -= enemy.speed * swarmSpeed * session.modifiers.enemySpeed
+    * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
   if (enemy.x > FIELD.baseX) return;
 
   const pulse = pulseForRow(session, enemy.row);
@@ -1722,6 +1822,269 @@ function moveEnemy(session, enemy, dt, events) {
   events.push({ type: "breach", damage: breachDamage, x: FIELD.baseX, y: enemy.y });
 }
 
+function setWorkerQueenState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.queenState === state && !Number.isFinite(durationMs)
+    && !Number.isFinite(enemy.queenStateEndsAt)) {
+    enemy.moving = state === "walking";
+    return;
+  }
+  enemy.queenState = state;
+  enemy.queenStateStartedAt = session.elapsed;
+  enemy.queenStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.queenActionApplied = false;
+  enemy.queenTargetId = null;
+  enemy.moving = state === "walking";
+}
+
+function interruptWorkerQueenEggLay(session, enemy) {
+  if (enemy?.type !== "workerQueen" || enemy.queenState !== "eggLay") return false;
+  if (!enemy.queenEggsDeposited) {
+    enemy.queenNextEggLayAt = session.elapsed + ENEMIES.workerQueen.interruptedEggLayRetryMs;
+  }
+  enemy.queenEggsDeposited = false;
+  setWorkerQueenState(session, enemy, "idle");
+  return true;
+}
+
+function countWorkerQueenEggs(session, queen) {
+  return session.enemies.filter((candidate) => (
+    !candidate.dead
+    && candidate.type === "workerQueenEgg"
+    && candidate.eggOwnerId === queen.id
+  )).length;
+}
+
+function countWorkerQueenSummons(session, queen) {
+  return session.enemies.filter((candidate) => (
+    !candidate.dead
+    && candidate.type === "silicaDigger"
+    && candidate.summonerId === queen.id
+  )).length;
+}
+
+function workerQueenEggPositions(enemy, config) {
+  return Array.from({ length: config.eggsPerLay }, (_, index) => (
+    enemy.x + (config.eggSpawnStartTiles + index * config.eggSpawnSpacingTiles) * CELL.width
+  ));
+}
+
+function canWorkerQueenLayEggs(session, enemy, config) {
+  const livingEggs = countWorkerQueenEggs(session, enemy);
+  const livingSummons = countWorkerQueenSummons(session, enemy);
+  const positions = workerQueenEggPositions(enemy, config);
+  return livingEggs + config.eggsPerLay <= config.maximumLivingEggs
+    && livingSummons + livingEggs + config.eggsPerLay <= config.maximumLivingSummons
+    && positions.every((x) => x <= FIELD.spawnX);
+}
+
+function depositWorkerQueenEggs(session, enemy, config, events) {
+  if (enemy.queenEggsDeposited) return;
+  const eggs = workerQueenEggPositions(enemy, config).map((x) => createEnemy(session, {
+    type: "workerQueenEgg",
+    row: enemy.row,
+    x,
+    eggOwnerId: enemy.id,
+  })).filter(Boolean);
+  eggs.forEach((egg) => {
+    egg.previousRenderX = egg.x;
+    events.push({
+      type: "workerQueenEggDeposited",
+      sourceEnemyId: enemy.id,
+      eggId: egg.id,
+      x: egg.x,
+      y: egg.y,
+      color: ENEMIES.workerQueenEgg.color,
+      seed: nextEffectSeed(session),
+    });
+  });
+  enemy.queenEggsDeposited = true;
+  enemy.queenActionApplied = true;
+  enemy.queenNextEggLayAt = enemy.queenStateEndsAt + config.eggLayEveryMs;
+}
+
+function launchWorkerQueenWeb(session, enemy, target, config, events) {
+  const origin = getEnemyMuzzleWorldPosition(enemy, {
+    ...config,
+    attackVisual: config.webAttackVisual,
+  });
+  const targetY = target.y - 18;
+  const distance = Math.max(1, origin.x - target.x);
+  const flightSeconds = Math.max(0.1, distance / config.webProjectileSpeed);
+  const seed = nextEffectSeed(session);
+  session.enemyProjectiles.push({
+    id: id("enemy_projectile"),
+    kind: "inhibitorWeb",
+    visualKind: "inhibitorWeb",
+    sourceEnemyId: enemy.id,
+    targetTroopId: target.id,
+    row: enemy.row,
+    x: origin.x,
+    y: origin.y,
+    previousX: origin.x,
+    previousY: origin.y,
+    previousRenderX: origin.x,
+    previousRenderY: origin.y,
+    vx: -config.webProjectileSpeed,
+    vy: (targetY - origin.y) / flightSeconds,
+    damage: config.webDamage,
+    webSlowFactor: config.webSlowFactor,
+    webSlowDurationMs: config.webSlowDurationMs,
+    color: "#f5e7c6",
+    active: true,
+    launched: true,
+    trail: [{ x: origin.x, y: origin.y }],
+    ageMs: 0,
+    seed,
+  });
+  events.push({
+    type: "shoot",
+    weapon: "inhibitorWeb",
+    faction: "enemy",
+    sourceEnemyId: enemy.id,
+    x: origin.x,
+    y: origin.y,
+    color: "#f5e7c6",
+    seed,
+  });
+}
+
+function beginWorkerQueenAction(session, enemy, state, durationMs, target = null) {
+  setWorkerQueenState(session, enemy, state, durationMs);
+  enemy.queenTargetId = target?.id || null;
+}
+
+function workerQueenSameTileTarget(session, enemy, config) {
+  const target = closestTroopForEnemy(session, enemy);
+  return target && enemy.x - target.x <= config.meleeAttackRangeTiles * CELL.width
+    ? target
+    : null;
+}
+
+function updateWorkerQueen(session, enemy, config, dt, events) {
+  if (enemy.queenState === "spawn") {
+    enemy.moving = false;
+    if (session.elapsed < enemy.queenStateEndsAt) return;
+    setWorkerQueenState(session, enemy, "walking");
+  }
+
+  if (enemy.queenState === "eggLay") {
+    enemy.moving = false;
+    const sameTileTarget = workerQueenSameTileTarget(session, enemy, config);
+    if (sameTileTarget) {
+      interruptWorkerQueenEggLay(session, enemy);
+      beginWorkerQueenAction(session, enemy, "meleeAttack", config.meleeAttackVisual.durationMs, sameTileTarget);
+      enemy.attackReadyAt = session.elapsed + config.meleeAttackEveryMs;
+      return;
+    }
+    if (!enemy.queenEggsDeposited
+      && session.elapsed >= enemy.queenStateStartedAt + config.eggLayVisual.depositMs) {
+      depositWorkerQueenEggs(session, enemy, config, events);
+    }
+    if (session.elapsed < enemy.queenStateEndsAt) return;
+    enemy.queenEggsDeposited = false;
+    setWorkerQueenState(session, enemy, "idle");
+  }
+
+  if (enemy.queenState === "webAttack") {
+    enemy.moving = false;
+    if (!enemy.queenActionApplied
+      && session.elapsed >= enemy.queenStateStartedAt + config.webAttackVisual.releaseMs) {
+      const target = session.troops.find((troop) => (
+        troop.id === enemy.queenTargetId
+        && !troop.dead
+        && troop.row === enemy.row
+        && enemy.x - troop.x <= config.webRangeTiles * CELL.width
+      ));
+      if (target) launchWorkerQueenWeb(session, enemy, target, config, events);
+      enemy.queenActionApplied = true;
+      enemy.queenWebReadyAt = session.elapsed + config.webAttackEveryMs;
+    }
+    if (session.elapsed < enemy.queenStateEndsAt) return;
+    setWorkerQueenState(session, enemy, "idle");
+  }
+
+  if (enemy.queenState === "meleeAttack") {
+    enemy.moving = false;
+    if (!enemy.queenActionApplied
+      && session.elapsed >= enemy.queenStateStartedAt + config.meleeAttackVisual.impactMs) {
+      const target = session.troops.find((troop) => (
+        troop.id === enemy.queenTargetId
+        && !troop.dead
+        && troop.row === enemy.row
+        && enemy.x - troop.x <= config.meleeAttackRangeTiles * CELL.width
+      ));
+      if (target) {
+        damageTroop(session, target, config.meleeDamage, events);
+        events.push({ type: "melee", x: target.x, y: target.y, sourceEnemyId: enemy.id });
+      }
+      enemy.queenActionApplied = true;
+    }
+    if (session.elapsed < enemy.queenStateEndsAt) return;
+    setWorkerQueenState(session, enemy, "idle");
+  }
+
+  const sameTileTarget = workerQueenSameTileTarget(session, enemy, config);
+  if (sameTileTarget) {
+    enemy.moving = false;
+    setWorkerQueenState(session, enemy, "idle");
+    if (session.elapsed >= enemy.attackReadyAt) {
+      beginWorkerQueenAction(session, enemy, "meleeAttack", config.meleeAttackVisual.durationMs, sameTileTarget);
+      enemy.attackReadyAt = session.elapsed + config.meleeAttackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+    }
+    return;
+  }
+
+  if (session.elapsed >= enemy.queenNextEggLayAt) {
+    if (canWorkerQueenLayEggs(session, enemy, config)) {
+      enemy.queenEggsDeposited = false;
+      beginWorkerQueenAction(session, enemy, "eggLay", config.eggLayVisual.durationMs);
+      return;
+    }
+    enemy.queenNextEggLayAt = session.elapsed + config.eggLayRetryMs;
+  }
+
+  const rangedTarget = closestTroopForEnemy(session, enemy, config.holdRangeTiles);
+  if (rangedTarget) {
+    enemy.moving = false;
+    setWorkerQueenState(session, enemy, "idle");
+    if (session.elapsed >= enemy.queenWebReadyAt) {
+      beginWorkerQueenAction(session, enemy, "webAttack", config.webAttackVisual.durationMs, rangedTarget);
+    }
+    return;
+  }
+
+  setWorkerQueenState(session, enemy, "walking");
+  moveEnemy(session, enemy, dt, events);
+}
+
+function updateWorkerQueenEgg(session, egg, config, events) {
+  egg.moving = false;
+  if (session.elapsed < egg.eggHatchAt) return;
+  const summon = createEnemy(session, {
+    type: "silicaDigger",
+    row: egg.row,
+    x: egg.x,
+    summoned: true,
+    summonerId: egg.eggOwnerId,
+  });
+  if (summon) {
+    summon.previousRenderX = summon.x;
+    summon.previousRenderY = summon.y;
+  }
+  egg.dead = true;
+  events.push({
+    type: "workerQueenEggHatched",
+    eggId: egg.id,
+    sourceEnemyId: egg.eggOwnerId,
+    x: egg.x,
+    y: egg.y,
+    summon: summon ? { ...summon } : null,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
+}
+
 function closestTroopForEnemy(session, enemy, range = Infinity) {
   return session.troops
     .filter((troop) => !troop.dead
@@ -1733,6 +2096,295 @@ function closestTroopForEnemy(session, enemy, range = Infinity) {
 
 function troopBlockDistance(troop) {
   return troop?.type === "colossoImpacto" ? 48 : 54;
+}
+
+function setDuneState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.duneState === state && !Number.isFinite(durationMs)
+    && !Number.isFinite(enemy.duneStateEndsAt)) {
+    enemy.moving = state === "walking";
+    return;
+  }
+  enemy.duneState = state;
+  enemy.duneStateStartedAt = session.elapsed;
+  enemy.duneStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.moving = state === "walking";
+}
+
+function countLivingDiggerSummons(session, enemy) {
+  return session.enemies.filter((candidate) => (
+    !candidate.dead
+    && candidate.type === "silicaDigger"
+    && candidate.summonerId === enemy.id
+  )).length;
+}
+
+function duneBlockingTarget(session, enemy, config) {
+  const target = closestTroopForEnemy(session, enemy);
+  const range = config.attackRangeTiles * CELL.width;
+  return target && enemy.x - target.x <= range ? target : null;
+}
+
+function tryBeginDuneRoar(session, enemy, config) {
+  if (session.elapsed < enemy.duneNextSummonAt) return false;
+  const living = countLivingDiggerSummons(session, enemy);
+  if (living >= config.maximumLivingSummons) {
+    enemy.duneNextSummonAt = session.elapsed + config.summonRetryMs;
+    return false;
+  }
+  setDuneState(session, enemy, "roar", config.roarDurationMs);
+  enemy.duneRoarSummoned = false;
+  return true;
+}
+
+function beginDuneAttack(session, enemy, target, config) {
+  setDuneState(session, enemy, "attack", config.attackVisual.durationMs);
+  enemy.duneAttackApplied = false;
+  enemy.duneAttackImpactAt = session.elapsed + config.attackVisual.impactMs;
+  enemy.duneAttackTargetId = target.id;
+  enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+  enemy.lastAttackAt = session.elapsed;
+}
+
+function summonDuneRipperBrood(session, enemy, config, events) {
+  const living = countLivingDiggerSummons(session, enemy);
+  const amount = Math.min(config.summonCount, config.maximumLivingSummons - living);
+  if (amount <= 0) {
+    enemy.duneNextSummonAt = session.elapsed + config.summonRetryMs;
+    setDuneState(session, enemy, "idle");
+    return;
+  }
+  const summons = [];
+  for (let index = 0; index < amount; index += 1) {
+    const summon = createEnemy(session, {
+      type: "silicaDigger",
+      row: enemy.row,
+      x: FIELD.spawnX + index * 12,
+      summoned: true,
+      summonerId: enemy.id,
+    });
+    if (!summon) continue;
+    summon.previousRenderX = summon.x;
+    summons.push(summon);
+  }
+  enemy.duneRoarSummoned = true;
+  enemy.duneNextSummonAt = enemy.duneStateEndsAt + config.summonEveryMs;
+  events.push({
+    type: "duneRipperRoar",
+    enemyId: enemy.id,
+    row: enemy.row,
+    x: enemy.x,
+    y: enemy.y,
+    spawnX: Math.min(FIELD.width - 24, FIELD.spawnX),
+    spawnY: enemy.row * CELL.height + CELL.height / 2,
+    summonCount: summons.length,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
+}
+
+function updateDuneRipper(session, enemy, config, dt, events) {
+  if (enemy.duneState === "roar") {
+    enemy.moving = false;
+    if (!enemy.duneRoarSummoned
+      && session.elapsed >= enemy.duneStateStartedAt + config.roarSummonAtMs) {
+      summonDuneRipperBrood(session, enemy, config, events);
+    }
+    if (enemy.duneState !== "roar" || session.elapsed < enemy.duneStateEndsAt) return;
+    const blockingTarget = duneBlockingTarget(session, enemy, config);
+    setDuneState(session, enemy, blockingTarget ? "idle" : "walking");
+    return;
+  }
+
+  if (enemy.duneState === "attack") {
+    enemy.moving = false;
+    if (!enemy.duneAttackApplied && session.elapsed >= enemy.duneAttackImpactAt) {
+      const target = session.troops.find((troop) => (
+        troop.id === enemy.duneAttackTargetId
+        && !troop.dead
+        && troop.row === enemy.row
+        && enemy.x - troop.x <= config.attackRangeTiles * CELL.width
+      ));
+      if (target) {
+        damageTroop(session, target, enemy.damage, events);
+        events.push({ type: "melee", x: target.x, y: target.y, sourceEnemyId: enemy.id });
+      }
+      enemy.duneAttackApplied = true;
+      enemy.duneAttackImpactAt = Infinity;
+      enemy.duneAttackTargetId = null;
+    }
+    if (session.elapsed < enemy.duneStateEndsAt) return;
+    if (tryBeginDuneRoar(session, enemy, config)) return;
+    const blockingTarget = duneBlockingTarget(session, enemy, config);
+    setDuneState(session, enemy, blockingTarget ? "idle" : "walking");
+    return;
+  }
+
+  const blockingTarget = duneBlockingTarget(session, enemy, config);
+  if (tryBeginDuneRoar(session, enemy, config)) return;
+  if (blockingTarget) {
+    setDuneState(session, enemy, "idle");
+    if (session.elapsed >= enemy.attackReadyAt) beginDuneAttack(session, enemy, blockingTarget, config);
+    return;
+  }
+  setDuneState(session, enemy, "walking");
+  moveEnemy(session, enemy, dt, events);
+}
+
+function setRamState(session, enemy, state, durationMs = Infinity, idleMode = null) {
+  if (enemy.ramState === state && (state !== "idle" || enemy.ramIdleMode === idleMode)) {
+    enemy.moving = state === "walking" || state === "charge";
+    return;
+  }
+  enemy.ramState = state;
+  enemy.ramStateStartedAt = session.elapsed;
+  enemy.ramStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.ramIdleMode = idleMode;
+  enemy.moving = state === "walking" || state === "charge";
+}
+
+function enterRamRecovery(session, enemy, config) {
+  enemy.ramChargeTargetId = null;
+  enemy.ramChargeEndX = null;
+  setRamState(session, enemy, "idle", config.recoverMs, "recover");
+}
+
+function beginRamNormalAttack(session, enemy, target, config) {
+  setRamState(session, enemy, "attack", config.attackVisual.durationMs);
+  enemy.ramAttackPending = true;
+  enemy.ramAttackImpactAt = session.elapsed + config.attackVisual.impactMs;
+  enemy.ramAttackTargetId = target.id;
+  enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+  enemy.lastAttackAt = session.elapsed;
+}
+
+function ramBlockingTarget(session, enemy) {
+  const target = closestTroopForEnemy(session, enemy);
+  return target && enemy.x - target.x <= troopBlockDistance(target) ? target : null;
+}
+
+function updateRamBeetle(session, enemy, config, dt, events) {
+  if (enemy.ramState === "chargePrep") {
+    const target = session.troops.find((troop) => (
+      troop.id === enemy.ramChargeTargetId
+      && !troop.dead
+      && troop.row === enemy.row
+      && troop.x <= enemy.x
+    ));
+    if (!target) {
+      enemy.ramChargeTargetId = null;
+      setRamState(session, enemy, "walking");
+      return;
+    }
+    enemy.moving = false;
+    if (session.elapsed < enemy.ramStateEndsAt) return;
+    enemy.ramChargeConsumed = true;
+    enemy.ramChargeEndX = Math.max(FIELD.baseX, enemy.x - config.chargeRange * CELL.width);
+    setRamState(session, enemy, "charge");
+    events.push({
+      type: "ramChargeStarted", sourceEnemyId: enemy.id,
+      x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session),
+    });
+    return;
+  }
+
+  if (enemy.ramState === "charge") {
+    const previousX = enemy.x;
+    const slow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
+    const distance = config.chargeSpeed
+      * session.modifiers.enemySpeed
+      * (session.sandboxSettings?.enemySpeedMultiplier ?? 1)
+      * slow * dt / 1000;
+    const nextX = Math.max(enemy.ramChargeEndX, previousX - distance);
+    const collision = session.troops
+      .filter((troop) => !troop.dead && troop.row === enemy.row && troop.x <= previousX)
+      .map((troop) => ({ troop, boundary: troop.x + troopBlockDistance(troop) }))
+      .filter(({ boundary }) => boundary <= previousX && boundary >= nextX)
+      .sort((left, right) => right.boundary - left.boundary)[0];
+    enemy.moving = true;
+    if (collision) {
+      enemy.x = collision.boundary;
+      damageTroop(session, collision.troop, config.chargeDamage, events);
+      events.push({
+        type: "ramImpact", sourceEnemyId: enemy.id, targetId: collision.troop.id,
+        x: collision.troop.x, y: collision.troop.y, color: config.color,
+        damage: config.chargeDamage, shake: 5, seed: nextEffectSeed(session),
+      });
+      enterRamRecovery(session, enemy, config);
+      return;
+    }
+    enemy.x = nextX;
+    if (enemy.x <= enemy.ramChargeEndX) {
+      events.push({
+        type: "ramChargeMissed", sourceEnemyId: enemy.id,
+        x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session),
+      });
+      enterRamRecovery(session, enemy, config);
+    }
+    return;
+  }
+
+  if (enemy.ramState === "idle" && enemy.ramIdleMode === "recover") {
+    enemy.moving = false;
+    if (session.elapsed < enemy.ramStateEndsAt) return;
+    enemy.ramIdleMode = "cooldown";
+    enemy.ramStateStartedAt = session.elapsed;
+    enemy.ramStateEndsAt = Infinity;
+    enemy.attackReadyAt = session.elapsed;
+  }
+
+  if (enemy.ramState === "attack") {
+    enemy.moving = false;
+    if (enemy.ramAttackPending && session.elapsed >= enemy.ramAttackImpactAt) {
+      const target = session.troops.find((troop) => (
+        troop.id === enemy.ramAttackTargetId
+        && !troop.dead
+        && troop.row === enemy.row
+        && enemy.x - troop.x <= troopBlockDistance(troop)
+      ));
+      if (target) {
+        damageTroop(session, target, enemy.damage, events);
+        events.push({ type: "melee", x: target.x, y: target.y, sourceEnemyId: enemy.id });
+      }
+      enemy.ramAttackPending = false;
+      enemy.ramAttackImpactAt = Infinity;
+      enemy.ramAttackTargetId = null;
+    }
+    if (session.elapsed < enemy.ramStateEndsAt) return;
+    setRamState(session, enemy, "idle", Infinity, "cooldown");
+  }
+
+  const blockingTarget = ramBlockingTarget(session, enemy);
+  if (enemy.ramState === "idle") {
+    enemy.moving = false;
+    if (!blockingTarget) {
+      setRamState(session, enemy, "walking");
+      moveEnemy(session, enemy, dt, events);
+      return;
+    }
+    if (session.elapsed >= enemy.attackReadyAt) beginRamNormalAttack(session, enemy, blockingTarget, config);
+    return;
+  }
+
+  if (!enemy.ramChargeConsumed) {
+    const target = closestTroopForEnemy(session, enemy, config.chargeRange);
+    if (target) {
+      enemy.ramChargeTargetId = target.id;
+      setRamState(session, enemy, "chargePrep", config.chargePrepMs);
+      events.push({
+        type: "ramChargePrep", sourceEnemyId: enemy.id,
+        x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session),
+      });
+      return;
+    }
+  }
+
+  if (blockingTarget) {
+    setRamState(session, enemy, "idle", Infinity, "cooldown");
+    if (session.elapsed >= enemy.attackReadyAt) beginRamNormalAttack(session, enemy, blockingTarget, config);
+    return;
+  }
+  setRamState(session, enemy, "walking");
+  moveEnemy(session, enemy, dt, events);
 }
 
 function updateJumpingParasite(session, enemy, config) {
@@ -1844,6 +2496,9 @@ function updateEnemyProjectiles(session, dt, events) {
     projectile.trail.push({ x: projectile.x, y: projectile.y });
     if (projectile.trail.length > 14) projectile.trail.shift();
 
+    const intendedTarget = projectile.targetTroopId
+      ? session.troops.find((troop) => troop.id === projectile.targetTroopId && !troop.dead)
+      : null;
     const target = session.troops
       .filter((troop) => !troop.dead
         && troop.row === projectile.row
@@ -1852,10 +2507,24 @@ function updateEnemyProjectiles(session, dt, events) {
       .sort((left, right) => right.x - left.x)[0] || null;
     if (target) {
       damageTroop(session, target, projectile.damage, events);
-      events.push({
-        type: "abyssImpact", weapon: projectile.visualKind, x: target.x, y: target.y - 18,
-        color: projectile.color, seed: projectile.seed,
-      });
+      if (projectile.kind === "inhibitorWeb") {
+        if (!intendedTarget || intendedTarget.id === target.id) {
+          applyWebSlow(session, target, projectile.webSlowFactor, projectile.webSlowDurationMs);
+        }
+        events.push({
+          type: "inhibitorWebImpact",
+          targetId: target.id,
+          x: target.x,
+          y: target.y - 18,
+          color: projectile.color,
+          seed: projectile.seed,
+        });
+      } else {
+        events.push({
+          type: "abyssImpact", weapon: projectile.visualKind, x: target.x, y: target.y - 18,
+          color: projectile.color, seed: projectile.seed,
+        });
+      }
       projectile.active = false;
     } else if (projectile.x <= FIELD.baseX || projectile.y < -80 || projectile.y > FIELD.height + 80) {
       projectile.active = false;
@@ -1865,7 +2534,7 @@ function updateEnemyProjectiles(session, dt, events) {
 }
 
 function updateEnemies(session, dt, events) {
-  for (const enemy of session.enemies) {
+  for (const enemy of [...session.enemies]) {
     if (enemy.dead) continue;
     enemy.previousRenderX = enemy.x;
     enemy.previousRenderY = enemy.y;
@@ -1890,7 +2559,27 @@ function updateEnemies(session, dt, events) {
       continue;
     }
 
-    if (enemy.type === "crisalio" && enemy.meleeAttackPending) {
+    if (enemy.type === "duneRipper") {
+      updateDuneRipper(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (enemy.type === "ramBeetle") {
+      updateRamBeetle(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (enemy.type === "workerQueenEgg") {
+      updateWorkerQueenEgg(session, enemy, config, events);
+      continue;
+    }
+
+    if (enemy.type === "workerQueen") {
+      updateWorkerQueen(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (enemy.meleeAttackPending) {
       enemy.moving = false;
       if (session.elapsed >= enemy.meleeImpactAt) {
         const target = session.troops.find((troop) => troop.id === enemy.meleeTargetId && !troop.dead);
@@ -1934,7 +2623,7 @@ function updateEnemies(session, dt, events) {
     if (target && enemy.x - target.x <= troopBlockDistance(target)) {
       enemy.moving = false;
       if (session.elapsed >= enemy.attackReadyAt) {
-        if (enemy.type === "crisalio") {
+        if (config.attackVisual?.impactMs) {
           enemy.meleeAttackPending = true;
           enemy.meleeAttackStartedAt = session.elapsed;
           enemy.meleeImpactAt = session.elapsed + config.attackVisual.impactMs;
@@ -1961,7 +2650,7 @@ function updateMines(session, events) {
     const cellLeft = mine.col * CELL.width;
     const cellRight = cellLeft + CELL.width;
     const trigger = session.enemies.find((enemy) => {
-      if (enemy.dead || enemy.row !== mine.row || !isGroundTrapEligible(enemy)) return false;
+      if (enemy.dead || enemy.row !== mine.row || ENEMIES[enemy.type]?.triggersGroundTraps === false || !isGroundTrapEligible(enemy)) return false;
       const previousX = Number.isFinite(enemy.previousRenderX) ? enemy.previousRenderX : enemy.x;
       return Math.min(previousX, enemy.x) <= cellRight && Math.max(previousX, enemy.x) >= cellLeft;
     });

@@ -16,6 +16,7 @@ describe("apresentação das informações dos inimigos", () => {
     });
     expect(getEnemyUnlockAt("medu")).toBe(0);
     expect(getEnemyUnlockAt("crisalio")).toBe(12);
+    expect(getEnemyUnlockAt("silicaDigger")).toBe(0);
   });
 
   it("detalha ataques à distância e unidades flutuantes", () => {
@@ -35,6 +36,31 @@ describe("apresentação das informações dos inimigos", () => {
     expect(getEnemyInfo(ENEMIES.crisalio).specials).toEqual([
       { label: "Manto prismático", value: "Renova escudos aliados a cada 7 s" },
       { label: "Escudo", value: "18 base + 12% do HP, limite 42" },
+    ]);
+  });
+
+  it("detalha o impulso do Escavador de Sílica", () => {
+    expect(getEnemyInfo(ENEMIES.silicaDigger).specials).toEqual([
+      { label: "Impulso de enxame", value: "Com 3+ no mesmo tile: +25% de velocidade" },
+    ]);
+  });
+
+  it("detalha o Grito da Ninhada do Rasga-Dunas", () => {
+    expect(getEnemyUnlockAt("duneRipper", ENEMIES.duneRipper)).toBe(16);
+    expect(getEnemyInfo(ENEMIES.duneRipper).specials).toEqual([
+      {
+        label: "Grito da Ninhada",
+        value: "Até 3 Escavadores a cada 8 s; máximo de 6 vivos",
+      },
+    ]);
+  });
+
+  it("detalha a investida e a recuperação do Besouro-Aríete", () => {
+    expect(getEnemyUnlockAt("ramBeetle", ENEMIES.ramBeetle)).toBe(16);
+    expect(getEnemyInfo(ENEMIES.ramBeetle).specials).toEqual([
+      { label: "Investida inicial", value: "55 de dano após 0,65 s" },
+      { label: "Recuperação", value: "2 s sem se mover ou atacar" },
+      { label: "Ataque normal", value: "12 de dano a cada 2,2 s" },
     ]);
   });
 });

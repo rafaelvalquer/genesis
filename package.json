@@ -9,6 +9,8 @@
     "assets:enemies": "node scripts/process-enemy-variants.mjs",
     "assets:enemy-anchors": "node scripts/generate-enemy-anchors.mjs --write",
     "assets:chapter2-cartoon-enemies": "node scripts/process-chapter2-cartoon-enemies.mjs",
+    "assets:ram-beetle": "node scripts/process-ram-beetle-sheets.mjs",
+    "assets:worker-queen": "node scripts/process-worker-queen-sheets.mjs",
     "assets:mago-abissal": "node scripts/process-mago-abissal-sheets.mjs",
     "assets:crisalio": "node scripts/process-crisalio-sheets.mjs",
     "assets:check-crisalio": "node scripts/check-crisalio-frames.mjs",

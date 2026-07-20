@@ -127,6 +127,7 @@ describe("Enciclopédia", () => {
     expect(screen.getByRole("tab", { name: /Inimigos/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Ver informações de Medu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ver informações de Crix" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ver informações de Escavador de Sílica" })).toBeInTheDocument();
     expect(screen.queryByText("Crisálio")).not.toBeInTheDocument();
   });
 
@@ -142,5 +143,17 @@ describe("Enciclopédia", () => {
     expect(screen.getByRole("heading", { name: "Crisálio" })).toBeInTheDocument();
     expect(screen.getByAltText("Retrato de Crisálio")).toHaveAttribute("src", expect.stringMatching(/frame0.*\.png/i));
     expect(screen.getByText("Renova escudos aliados a cada 7 s")).toBeInTheDocument();
+  });
+
+  it("libera o Besouro-Aríete com o capítulo 3 sem colocá-lo em fases", () => {
+    const { rerender } = render(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 15, phaseStats: {} }} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: /Inimigos/ }));
+    expect(screen.queryByRole("button", { name: "Ver informações de Besouro-Aríete" })).not.toBeInTheDocument();
+
+    rerender(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 16, phaseStats: {} }} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Ver informações de Besouro-Aríete" }));
+    expect(screen.getByRole("heading", { name: "Besouro-Aríete" })).toBeInTheDocument();
+    expect(screen.getByText("55 de dano após 0,65 s")).toBeInTheDocument();
+    expect(screen.getByAltText("Retrato de Besouro-Aríete")).toHaveAttribute("src", expect.stringMatching(/frame0.*\.png/i));
   });
 });

@@ -34,7 +34,7 @@ import {
   drawWetReflections, presentScene,
 } from "./graphicsRenderer.js";
 import {
-  FIELD, VIEWPORT,
+  CELL, FIELD, VIEWPORT,
   cellFromPoint,
   clearSandboxEntities,
   createBattleSession,
@@ -166,6 +166,24 @@ function drawAbyssCharge(ctx, enemy, config, elapsed, settings) {
   ctx.beginPath();
   ctx.arc(origin.x, origin.y, radius * 0.55, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
+}
+
+function drawSilicaDiggerSand(ctx, enemy, elapsed, settings) {
+  if (enemy.type !== "silicaDigger" || !enemy.moving || settings.reduceMotion) return;
+  const seed = Number(/\d+/.exec(enemy.id)?.[0] || 0);
+  const phase = elapsed / 65 + seed * 0.73;
+  ctx.save();
+  ctx.fillStyle = "rgba(245, 158, 11, .42)";
+  for (let index = 0; index < 3; index += 1) {
+    const cycle = (phase + index * 1.7) % 5;
+    const x = enemy.x - 25 + cycle * 5;
+    const y = enemy.y + CELL.height * 0.39 - Math.sin(cycle / 5 * Math.PI) * 7;
+    ctx.globalAlpha = Math.max(0, 0.55 - cycle * 0.09);
+    ctx.beginPath();
+    ctx.ellipse(x, y, 2.6 - index * 0.35, 1.4 - index * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
@@ -512,25 +530,64 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const entity = death.entity;
     const config = death.kind === "troop" ? TROOPS[entity.type] : ENEMIES[entity.type];
     const groups = death.kind === "troop" ? assets.troops[entity.type] : assets.enemies[entity.type];
-    const state = groups?.attack ? "attack" : groups?.walking ? "walking" : groups?.idle ? "idle" : "defense";
+    const dedicatedDeathState = death.kind === "enemy"
+      ? (entity.type === "workerQueenEgg" ? "destroy" : groups?.death ? "death" : null)
+      : null;
+    const state = dedicatedDeathState
+      || (groups?.attack ? "attack" : groups?.walking ? "walking" : groups?.idle ? "idle" : "defense");
     const frames = groups?.[state] || [];
     const frame = Math.min(frames.length - 1, Math.floor(progress * Math.max(1, frames.length)));
     const image = frames[frame] || frames[0];
     const height = death.kind === "troop" ? config?.attackVisual?.height || 126 : 128 * (entity.scale || 1);
     ctx.save();
     ctx.translate(entity.x, entity.y);
-    ctx.rotate((death.kind === "enemy" ? .22 : -.18) * progress);
+    if (!dedicatedDeathState) ctx.rotate((death.kind === "enemy" ? .22 : -.18) * progress);
     const deathEntity = { ...entity, x: 0, y: progress * 9 };
-    const filter = `grayscale(${progress * .6}) drop-shadow(0 0 5px ${phase.palette.accent})`;
+    const filter = dedicatedDeathState
+      ? `drop-shadow(0 0 7px ${phase.palette.accent})`
+      : `grayscale(${progress * .6}) drop-shadow(0 0 5px ${phase.palette.accent})`;
     if (death.kind === "troop") {
       drawSprite(ctx, image, getTroopVisualEntity(deathEntity, config), height, Math.max(0, 1 - progress * progress), filter, null, config?.flipX);
     } else {
       const aspectRatio = image?.width && image?.height ? image.width / image.height : 1;
       const rect = getEnemySpriteRect(deathEntity, config, state, frame, aspectRatio);
-      drawSpriteInRect(ctx, image, rect, Math.max(0, 1 - progress * progress), filter);
+      drawSpriteInRect(ctx, image, rect, dedicatedDeathState ? Math.max(0, 1 - progress * .45) : Math.max(0, 1 - progress * progress), filter);
     }
     ctx.restore();
   }
+}
+
+function drawWorkerQueenWebDebuff(ctx, troop, elapsed, settings) {
+  const remaining = (troop.webSlowUntil || 0) - elapsed;
+  if (remaining <= 0) return;
+  const duration = ENEMIES.workerQueen.webSlowDurationMs;
+  const fade = Math.min(1, remaining / 420, (duration - remaining + 180) / 180);
+  const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 95) * 2;
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, fade) * 0.9;
+  ctx.strokeStyle = "#f5e7c6";
+  ctx.fillStyle = "rgba(245,231,198,.2)";
+  ctx.shadowBlur = 7;
+  ctx.shadowColor = "#f59e0b";
+  ctx.lineWidth = 2;
+  for (const offset of [-18, -7, 7, 18]) {
+    ctx.beginPath();
+    ctx.moveTo(troop.x - 29, troop.y - 48 + offset * .35);
+    ctx.quadraticCurveTo(troop.x + pulse, troop.y - 35 + offset, troop.x + 29, troop.y - 44 + offset * .3);
+    ctx.stroke();
+  }
+  ctx.beginPath();
+  ctx.arc(troop.x, troop.y - 70, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  for (let spoke = 0; spoke < 6; spoke += 1) {
+    const angle = spoke * Math.PI / 3;
+    ctx.moveTo(troop.x, troop.y - 70);
+    ctx.lineTo(troop.x + Math.cos(angle) * 9, troop.y - 70 + Math.sin(angle) * 9);
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed, settings) {
@@ -698,6 +755,7 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
       drawNaniteTargetEffect(ctx, visualEntity, session, settings);
       drawNaniteCooldown(ctx, visualEntity, session, settings);
       drawExecutorComboIndicator(ctx, visualEntity, session.elapsed, settings);
+      drawWorkerQueenWebDebuff(ctx, logicalEntity, session.elapsed, settings);
       drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
     } else {
       const config = ENEMIES[entity.type];
@@ -710,12 +768,32 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
       }
       const frozen = isEnemyFrozen(entity, session.elapsed);
       const stunned = session.elapsed < (entity.stunnedUntil || 0);
+      if (entity.type === "duneRipper" && entity.duneState === "roar"
+        && !settings.reduceMotion && !stunned) {
+        const roarAge = session.elapsed - entity.duneStateStartedAt;
+        visualEntity = {
+          ...visualEntity,
+          x: visualEntity.x + Math.sin(roarAge / 24) * 1.8,
+          y: visualEntity.y + Math.cos(roarAge / 31) * 0.8,
+        };
+      }
       const enemyAssets = assets.enemies[entity.type] || {};
-      const animation = getEnemyAnimation(entity, config, session.elapsed, {
+      let animation = getEnemyAnimation(entity, config, session.elapsed, {
         idle: enemyAssets.idle?.length, walking: enemyAssets.walking?.length,
         attack: enemyAssets.attack?.length, jump: enemyAssets.jump?.length,
-        pulse: enemyAssets.pulse?.length,
+        pulse: enemyAssets.pulse?.length, chargePrep: enemyAssets.chargePrep?.length,
+        charge: enemyAssets.charge?.length, roar: enemyAssets.roar?.length,
+        spawn: enemyAssets.spawn?.length, webAttack: enemyAssets.webAttack?.length,
+        eggLay: enemyAssets.eggLay?.length, meleeAttack: enemyAssets.meleeAttack?.length,
+        hit: enemyAssets.hit?.length, stunned: enemyAssets.stunned?.length,
+        hatch: enemyAssets.hatch?.length, destroy: enemyAssets.destroy?.length,
       });
+      if (entity.type === "workerQueen" && reaction.flash > 0.12 && enemyAssets.hit?.length) {
+        animation = {
+          state: "hit",
+          frame: Math.min(enemyAssets.hit.length - 1, Math.floor((1 - reaction.flash) * enemyAssets.hit.length)),
+        };
+      }
       const frames = enemyAssets[animation.state] || enemyAssets.walking || enemyAssets.idle || [];
       const image = frames[animation.frame % Math.max(1, frames.length)];
       const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
@@ -723,6 +801,7 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
       const bossShift = entity.variant === "alpha" ? ` hue-rotate(${entity.bossPhase * 24}deg) saturate(${1.05 + entity.bossPhase * .18})` : "";
       const echoFilter = entity.isEcho ? " saturate(.65) brightness(1.28) hue-rotate(34deg) contrast(1.08)" : "";
       const baseFilter = frozen ? "saturate(.55) brightness(1.16)" : `brightness(${1 + reaction.flash * .75})${bossShift}${echoFilter}`;
+      drawSilicaDiggerSand(ctx, visualEntity, session.elapsed, settings);
       let spriteDrawn = drawSpriteInRect(ctx, image, enemyRect, entity.isEcho ? 0.72 : 1, `${baseFilter} drop-shadow(0 0 ${entity.isEcho ? 11 : 3 + reaction.flash * 6}px ${entity.isEcho ? "#7fffd4" : session.phase.palette.accent})`);
       if (!spriteDrawn) spriteDrawn = drawProceduralGlassEnemy(ctx, visualEntity, config, session.elapsed, baseFilter);
       if (frozen && spriteDrawn) {
@@ -794,7 +873,7 @@ function SandboxPanel({
       <button className={settings.rulesMode === "free" ? "active" : ""} onClick={() => onRulesMode("free")}>Livre</button>
       <button className={settings.rulesMode === "real" ? "active" : ""} onClick={() => onRulesMode("real")}>Regras reais</button>
     </div>
-    <div className="enemy-catalog" aria-label="Catálogo de inimigos">{Object.values(ENEMIES).map((enemy) => <button
+    <div className="enemy-catalog" aria-label="Catálogo de inimigos">{Object.values(ENEMIES).filter((enemy) => !enemy.hiddenFromCatalog).map((enemy) => <button
       key={enemy.id}
       className={selectedEnemy === enemy.id ? "selected" : ""}
       style={{ "--enemy-color": enemy.color }}
@@ -950,6 +1029,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "shoot")) play("shoot", 0.18);
         if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);
+        if (events.some((event) => event.type === "ramImpact")) play("melee", 0.65);
+        if (events.some((event) => event.type === "duneRipperRoar")) play("alert", 0.45);
         if (events.some((event) => event.type === "executorSlash" && event.combo === 1)) play("executorSlash1", 0.45);
         if (events.some((event) => event.type === "executorSlash" && event.combo === 2)) play("executorSlash2", 0.5);
         if (events.some((event) => event.type === "executorFinisher")) play("executorFinisher", 0.7);

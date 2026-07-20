@@ -140,11 +140,11 @@ const ENCYCLOPEDIA_CATEGORIES = {
   enemies: {
     label: "Inimigos",
     eyebrow: "ARQUIVO DE AMEAÇAS",
-    entries: () => Object.values(ENEMIES),
+    entries: () => Object.values(ENEMIES).filter((entry) => !entry.hiddenFromCatalog),
     getImage: (entry) => getEnemyPreviewUrl(entry.id),
     getInfo: getEnemyInfo,
     isUnlocked: (entry, campaign) => {
-      const unlockAt = getEnemyUnlockAt(entry.id);
+      const unlockAt = getEnemyUnlockAt(entry.id, entry);
       return unlockAt >= 0 && unlockAt <= campaign.unlockedPhaseIndex;
     },
   },

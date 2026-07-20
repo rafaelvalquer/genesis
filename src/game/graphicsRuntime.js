@@ -36,7 +36,8 @@ export function createGraphicsRuntime() {
 function eventShake(type) {
   return ({ hit: 0.5, shieldHit: 0.35, shieldBreak: 1.4, troopHit: 1.2, projectileImpact: 1, fireImpact: 1.8, iceImpact: 1.5,
     explosion: 5, breach: 7, enemyDeath: 2, troopDeath: 3.5, bossPhase: 8, bossDeath: 12, tileImpact: 4,
-    pulseFired: 9, enemyDisintegrated: 1.5 })[type] || 0;
+    pulseFired: 9, enemyDisintegrated: 1.5, duneRipperRoar: 2.2,
+    inhibitorWebImpact: 0.8, workerQueenEggHatched: 1.6 })[type] || 0;
 }
 
 function lightFor(event, now) {
@@ -46,6 +47,11 @@ function lightFor(event, now) {
     explosion: { radius: 135, life: 420 }, bossPhase: { radius: 220, life: 650 },
     echoSpawn: { radius: 88, life: 520 }, prismaticPulse: { radius: 180, life: 760 },
     shieldBreak: { radius: 70, life: 360 }, tileImpact: { radius: event.lightRadius || 100, life: 330 },
+    ramImpact: { radius: 96, life: 360 },
+    duneRipperRoar: { radius: 145, life: 620 },
+    inhibitorWebImpact: { radius: 54, life: 340 },
+    workerQueenEggDeposited: { radius: 46, life: 380 },
+    workerQueenEggHatched: { radius: 82, life: 560 },
     executorSlash: { radius: 56, life: 150 },
     executorFinisher: { radius: event.lightRadius || 92, life: 380 },
     pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 },
@@ -55,7 +61,7 @@ function lightFor(event, now) {
 }
 
 function decalFor(event, now) {
-  const kind = ({ projectileImpact: "bullet", fireImpact: "scorch", iceImpact: "frost", explosion: "crater", tileImpact: "crater", troopDeath: "debris", enemyDeath: "stain" })[event.type];
+  const kind = ({ projectileImpact: "bullet", fireImpact: "scorch", iceImpact: "frost", explosion: "crater", tileImpact: "crater", ramImpact: "crater", troopDeath: "debris", enemyDeath: "stain" })[event.type];
   if (!kind) return null;
   return { kind, x: event.x, y: event.y + (kind === "stain" ? 25 : 18), born: now, seed: event.seed || Math.round(event.x * 17 + event.y * 31), color: event.color };
 }

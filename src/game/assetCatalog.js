@@ -72,6 +72,15 @@ export function getEnemyPreviewUrl(enemyId) {
   return match?.[1] || getEnemyConceptUrl(enemyId);
 }
 
+function enemyAssetDependencies(enemyIds) {
+  const expanded = new Set(enemyIds);
+  if (expanded.has("workerQueen")) {
+    expanded.add("workerQueenEgg");
+    expanded.add("silicaDigger");
+  }
+  return [...expanded];
+}
+
 export function getEnemyConceptUrl(enemyId) {
   const match = Object.entries(enemyConceptUrls).find(([key]) => key.endsWith(`/concepts/${enemyId}.webp`));
   return match?.[1] || "";
@@ -79,7 +88,9 @@ export function getEnemyConceptUrl(enemyId) {
 
 export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {
   const troopIds = [...new Set(loadout)];
-  const enemyIds = [...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)))];
+  const enemyIds = enemyAssetDependencies([
+    ...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))),
+  ]);
   const tasks = [];
   const result = { troops: {}, enemies: {}, defenses: {}, audio: {} };
 
