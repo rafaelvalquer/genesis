@@ -240,10 +240,16 @@ a .phase-card:hover .phase-art img { transform: scale(1.07); filter: saturate(1.
 .chapter-2 a .phase-card:hover { border-color: #7fffd4; box-shadow: 0 0 30px rgba(127,255,212,.08); }
 .chapter-2 .phase-number, .chapter-2 .eyebrow, .chapter-2 .campaign-counter b { color: #7fffd4; }
 .environment-glass .phase-art::after { background: radial-gradient(circle at 35% 20%, rgba(127,255,212,.22), transparent 30%), linear-gradient(125deg, transparent 36%, rgba(196,181,253,.2) 48%, transparent 60%); }
+.chapter-3 .phase-card { border-color: rgba(245,158,11,.2); background: linear-gradient(165deg, rgba(48,25,11,.95), rgba(20,9,5,.99)); }
+.chapter-3 a .phase-card:hover { border-color: #f59e0b; box-shadow: 0 0 30px rgba(249,115,22,.12); }
+.chapter-3 .phase-number, .chapter-3 .eyebrow, .chapter-3 .campaign-counter b { color: #fbbf24; }
+.environment-chitin .phase-art::after { background: radial-gradient(circle at 22% 70%, rgba(34,211,238,.2), transparent 25%), linear-gradient(125deg, transparent 38%, rgba(245,158,11,.2) 50%, transparent 64%); }
 .mechanic-warning { border-color: rgba(127,255,212,.34) !important; background: linear-gradient(145deg, rgba(127,255,212,.08), rgba(139,92,246,.08)) !important; }
 .mechanic-warning b { color: #7fffd4 !important; }
 .chapter-2-battle { --cyan: #7fffd4; --cyan-soft: #d1fae5; --amber: #ffcf70; }
 .chapter-2-battle .battle-topbar, .chapter-2-battle .battle-sidebar { border-color: rgba(127,255,212,.18); }
+.chapter-3-battle { --cyan: #f59e0b; --cyan-soft: #fef3c7; --amber: #22d3ee; }
+.chapter-3-battle .battle-topbar, .chapter-3-battle .battle-sidebar { border-color: rgba(245,158,11,.22); }
 .wave-banner {
   isolation: isolate;
   min-width: 230px;
@@ -444,3 +450,13 @@ a .phase-card:hover .phase-art::before { transform: translateX(55%); }
   .troop-info-stats { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; } }
+.unit-title {
+  display: block;
+  margin-top: -0.2rem;
+  color: #fb923c;
+  font-family: "Chakra Petch", sans-serif;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ENEMIES, TROOPS } from "./content.js";
-import { getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets } from "./assetCatalog.js";
+import {
+  getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, resolveTroopFrame,
+} from "./assetCatalog.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
 import {
   drawArenaBackground,
@@ -37,6 +39,7 @@ import {
   clearSandboxEntities,
   createBattleSession,
   getSnapshot,
+  forceExecutorCombo,
   injureSandboxTroops,
   activateTroopSpecial,
   placeTroop,
@@ -48,6 +51,7 @@ import {
   startWave,
   stepBattle,
 } from "./battleModel.js";
+import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
 import { loadSettings } from "../campaign/storage.js";
 
@@ -675,9 +679,10 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
         attackMine: troopAssets.attackMine?.length, attackGun: troopAssets.attackGun?.length,
         defense: troopAssets.defense?.length, special: troopAssets.special?.length,
         transitionIn: troopAssets.transitionIn?.length, transitionOut: troopAssets.transitionOut?.length,
+        attack1: troopAssets.attack1?.length, attack2: troopAssets.attack2?.length,
+        attack3: troopAssets.attack3?.length,
       });
-      const frames = troopAssets[animation.state] || troopAssets.idle || [];
-      const image = frames[animation.frame % Math.max(1, frames.length)];
+      const image = resolveTroopFrame(troopAssets, animation.state, animation.frame);
       const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
       const visualEntity = getTroopVisualEntity(entity, config);
       const visual = getTroopAttackVisual(entity, config);
@@ -692,6 +697,7 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
       }
       drawNaniteTargetEffect(ctx, visualEntity, session, settings);
       drawNaniteCooldown(ctx, visualEntity, session, settings);
+      drawExecutorComboIndicator(ctx, visualEntity, session.elapsed, settings);
       drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
     } else {
       const config = ENEMIES[entity.type];
@@ -774,7 +780,8 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
 
 function SandboxPanel({
   selectedEnemy, onSelectEnemy, row, onRow, count, onCount, alpha, onAlpha,
-  settings, onSetting, onRulesMode, onSpawn, onInjure, onClear, onReset,
+  grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo,
+  onInjure, onClear, onReset,
 }) {
   const selected = ENEMIES[selectedEnemy];
   const slider = (key, label, min, max) => <label className="sandbox-slider" key={key}>
@@ -799,9 +806,14 @@ function SandboxPanel({
       <div className="sandbox-choice"><span>Rota</span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={row === value ? "active" : ""} onClick={() => onRow(value)}>{value + 1}</button>)}</div></div>
       <div className="sandbox-choice"><span>Quantidade</span><div>{[1, 5, 10].map((value) => <button key={value} className={count === value ? "active" : ""} onClick={() => onCount(value)}>{value}</button>)}</div></div>
       <label className="sandbox-check"><span><b>Variante Alpha</b><small>8× HP, maior escala e dano</small></span><input type="checkbox" checked={alpha} onChange={(event) => onAlpha(event.target.checked)} /></label>
+      <label className="sandbox-check"><span><b>Agrupar no mesmo tile</b><small>Gera o grupo na mesma coluna lógica</small></span><input type="checkbox" checked={grouped} onChange={(event) => onGrouped(event.target.checked)} /></label>
           <button className="sandbox-spawn-button" onClick={onSpawn}>
             {count > 1 ? `GERAR ${count} HOSTIS` : "GERAR 1 HOSTIL"}
           </button>
+    </section>
+    <section className="sandbox-spawn-card">
+      <header><div><span>VÓRTICE</span><b>Controle de combo</b></div></header>
+      <div className="sandbox-choice"><span>Próximo golpe</span><div>{[1, 2, 3].map((step) => <button key={step} onClick={() => onForceCombo(step)}>Combo {step}</button>)}</div></div>
     </section>
     <details className="sandbox-balance" open>
       <summary>Balanceamento temporário</summary>
@@ -838,6 +850,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [spawnRow, setSpawnRow] = useState(0);
   const [spawnCount, setSpawnCount] = useState(1);
   const [spawnAlpha, setSpawnAlpha] = useState(false);
+  const [spawnGrouped, setSpawnGrouped] = useState(false);
   const [selectedTroop, setSelectedTroop] = useState(null);
   const [removeMode, setRemoveMode] = useState(false);
   const [graphicsMetrics, setGraphicsMetrics] = useState(null);
@@ -866,12 +879,17 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       audio.loop = loop;
       return audio;
     };
+    const buildFirst = (base) => build(`${base}.ogg`) || build(`${base}.wav`);
     audioRef.current = {
       theme: build("wave_theme.ogg", true),
       alert: build("wave_alert.ogg"),
       deploy: build("deploy.ogg"),
       shoot: [1, 2, 3, 4].map((index) => build(`shoot_ball_${index}.wav`)).filter(Boolean),
       melee: [1, 2, 3, 4].map((index) => build(`melee_${index}.wav`)).filter(Boolean),
+      executorSlash1: buildFirst("executor_slash_1"),
+      executorSlash2: buildFirst("executor_slash_2"),
+      executorFinisher: buildFirst("executor_finisher"),
+      executorComboReset: buildFirst("executor_combo_reset"),
     };
   }, []);
 
@@ -932,6 +950,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "shoot")) play("shoot", 0.18);
         if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);
+        if (events.some((event) => event.type === "executorSlash" && event.combo === 1)) play("executorSlash1", 0.45);
+        if (events.some((event) => event.type === "executorSlash" && event.combo === 2)) play("executorSlash2", 0.5);
+        if (events.some((event) => event.type === "executorFinisher")) play("executorFinisher", 0.7);
+        if (events.some((event) => event.type === "executorComboReset")) play("executorComboReset", 0.25);
         const phaseEvent = events.find((event) => event.type === "bossPhase");
         if (phaseEvent) {
           const alpha = sessionRef.current.enemies.find((enemy) => enemy.variant === "alpha");
@@ -1085,6 +1107,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       row: spawnRow,
       count: spawnCount,
       variant: spawnAlpha ? "alpha" : undefined,
+      groupInTile: spawnGrouped,
     });
     if (!result.ok) {
       setMessage(result.reason);
@@ -1095,6 +1118,14 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setSnapshot(getSnapshot(sessionRef.current));
     setBanner(`${ENEMIES[selectedEnemy].label.toUpperCase()}${spawnAlpha ? " ALFA" : ""} · ROTA ${spawnRow + 1}`);
     setMessage(`${spawnCount} ${ENEMIES[selectedEnemy].label}${spawnCount > 1 ? "s" : ""} gerado${spawnCount > 1 ? "s" : ""} na rota ${spawnRow + 1}.`);
+  };
+
+  const handleForceExecutorCombo = (step) => {
+    const result = forceExecutorCombo(sessionRef.current, step);
+    setMessage(result.ok
+      ? `Vórtice preparado para o Combo ${result.step} contra ${ENEMIES[result.target.type]?.label || "o alvo"}.`
+      : result.reason);
+    setSnapshot(getSnapshot(sessionRef.current));
   };
 
   const handleClear = (target) => {
@@ -1118,7 +1149,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   }
 
   return (
-    <section className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
+    <section className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
         <div><span className="eyebrow">{phase.subtitle}</span><h1>{phase.name}</h1></div>
         <div className="battle-stats">
@@ -1194,10 +1225,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           onCount={setSpawnCount}
           alpha={spawnAlpha}
           onAlpha={setSpawnAlpha}
+          grouped={spawnGrouped}
+          onGrouped={setSpawnGrouped}
           settings={sandboxSettingsState}
           onSetting={updateSandboxSetting}
           onRulesMode={changeRulesMode}
           onSpawn={handleSpawnEnemy}
+          onForceCombo={handleForceExecutorCombo}
           onInjure={handleInjureTroops}
           onClear={handleClear}
           onReset={() => resetSandbox()}

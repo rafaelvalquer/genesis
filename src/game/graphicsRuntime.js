@@ -46,6 +46,8 @@ function lightFor(event, now) {
     explosion: { radius: 135, life: 420 }, bossPhase: { radius: 220, life: 650 },
     echoSpawn: { radius: 88, life: 520 }, prismaticPulse: { radius: 180, life: 760 },
     shieldBreak: { radius: 70, life: 360 }, tileImpact: { radius: event.lightRadius || 100, life: 330 },
+    executorSlash: { radius: 56, life: 150 },
+    executorFinisher: { radius: event.lightRadius || 92, life: 380 },
     pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 },
   }[event.type];
   if (!values) return null;

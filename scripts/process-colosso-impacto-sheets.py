@@ -10,6 +10,7 @@ TARGET = ROOT / "src" / "game" / "assets" / "troop" / "colossoImpacto"
 FRAME_SIZE = (256, 256)
 ROOT_POINT = (128, 248)
 PADDING = 8
+TARGET_VISIBLE_HEIGHT = 222
 STATES = {
     "idle": SHEETS / "colosso-impacto-idle.png",
     "attack": SHEETS / "colosso-impacto-attack.png",
@@ -86,11 +87,12 @@ def support_point(frame: Image.Image, bbox: tuple[int, int, int, int]) -> tuple[
     return (min(support) + max(support)) / 2, bottom
 
 
-def common_scale(cells: list[Image.Image]) -> float:
-    boxes = [visible_bbox(cell) for cell in cells]
+def frame_scale(cell: Image.Image) -> float:
+    box = visible_bbox(cell)
     return min(
-        (FRAME_SIZE[0] - PADDING * 2) / max(box[2] - box[0] for box in boxes),
-        (FRAME_SIZE[1] - PADDING * 2) / max(box[3] - box[1] for box in boxes),
+        (FRAME_SIZE[0] - PADDING * 2) / (box[2] - box[0]),
+        (FRAME_SIZE[1] - PADDING * 2) / (box[3] - box[1]),
+        TARGET_VISIBLE_HEIGHT / (box[3] - box[1]),
     )
 
 
@@ -135,17 +137,20 @@ def validate() -> None:
 
 if __name__ == "__main__":
     cells_by_state = {state: split_cells(Image.open(path).convert("RGBA")) for state, path in STATES.items()}
-    scale = common_scale([cell for cells in cells_by_state.values() for cell in cells])
     anchors = {}
+    scales = {}
     for state, cells in cells_by_state.items():
         output = TARGET / state
         output.mkdir(parents=True, exist_ok=True)
         for old_frame in output.glob("frame*.png"):
             old_frame.unlink()
         anchors[state] = []
+        scales[state] = []
         for index, cell in enumerate(cells):
+            scale = frame_scale(cell)
             frame = normalize_cell(cell, scale)
             anchors[state].append(root_anchor(frame))
+            scales[state].append(round(scale, 6))
             indexed = frame.quantize(
                 colors=192,
                 method=Image.Quantize.FASTOCTREE,
@@ -154,6 +159,6 @@ if __name__ == "__main__":
             indexed.save(output / f"frame{index}.png", optimize=True, compress_level=9)
     validate()
     print(f"Colosso de Impacto sprites written to {TARGET}")
-    print(f"shared scale: {scale:.6f}")
     for state, state_anchors in anchors.items():
+        print(f"{state} scales: {scales[state]}")
         print(f"{state} anchors: {state_anchors}")

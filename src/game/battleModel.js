@@ -4,6 +4,9 @@ import {
   CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
   getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
 } from "./visualGeometry.js";
+import {
+  forceExecutorComboStep, isExecutorArco, updateExecutorArco,
+} from "./executorArco.js";
 
 export { CELL, FIELD, VIEWPORT } from "./visualGeometry.js";
 
@@ -51,7 +54,7 @@ function isLumiUrsa7(config) {
 }
 
 function usesTargetingSystems(config) {
-  return config && !["none", "energy", "melee", "mine", "tileMelee"].includes(config.attack);
+  return config && !["none", "energy", "melee", "mine", "tileMelee", "arcCombo"].includes(config.attack);
 }
 
 export function getEffectiveTroopStats(session, troopId) {
@@ -167,6 +170,7 @@ export function placeTroop(session, troopId, row, col) {
     attackReadyAt: 0, mineReadyAt: 0, gunReadyAt: 0, energyAccumulator: 0,
     lastAttackAt: -Infinity, channelingAttack: false, attackStartedAt: -Infinity,
     lastAttackMode: null, pendingImpact: null, specialRequested: false, attackBusyUntil: 0,
+    comboStep: 0, comboTargetId: null, comboExpiresAt: null, pendingComboImpact: null,
     specialReadyAt: config.specialEveryMs ? session.elapsed + config.specialEveryMs : Infinity,
     state: "idle", stateStartedAt: session.elapsed,
     stateEndsAt: Infinity, defenseActive: false, defenseThreatId: null, defenseExitAt: null,
@@ -435,16 +439,22 @@ export function setEnergyPickupPointer(session, point) {
   return true;
 }
 
-export function spawnEnemy(session, { type, row = 0, count = 1, variant } = {}) {
+export function spawnEnemy(session, {
+  type, row = 0, count = 1, variant, groupInTile = false,
+} = {}) {
   if (!session.sandbox) return { ok: false, reason: "Spawn manual disponível apenas no Campo de Provas.", enemies: [], events: [] };
   if (!ENEMIES[type]) return { ok: false, reason: "Inimigo desconhecido.", enemies: [], events: [] };
   const amount = clamp(Math.floor(Number(count) || 1), 1, 50);
   const targetRow = clamp(Math.floor(Number(row) || 0), 0, FIELD.rows - 1);
   const enemies = [];
   const events = [];
+  let groupOriginX = null;
   for (let index = 0; index < amount; index += 1) {
     const enemy = createEnemy(session, { type, row: targetRow, variant: variant === "alpha" ? "alpha" : undefined });
-    enemy.x += index * 34;
+    if (groupOriginX == null) groupOriginX = enemy.x;
+    enemy.x = groupInTile
+      ? groupOriginX + (index - (amount - 1) / 2) * 4
+      : enemy.x + index * 34;
     enemy.previousRenderX = enemy.x;
     enemies.push(enemy);
     events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
@@ -522,6 +532,11 @@ function closestEnemy(session, troop, config) {
 
 function enemyColumn(enemy) {
   return clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1);
+}
+
+export function forceExecutorCombo(session, step) {
+  if (!session.sandbox) return { ok: false, reason: "Controle disponível apenas no Campo de Provas." };
+  return forceExecutorComboStep(session, step, TROOPS.executorArco, enemyColumn);
 }
 
 function mortarTargetGroup(session, troop, config) {
@@ -986,6 +1001,15 @@ function enemiesInTroopTile(session, troop) {
     && enemyColumn(enemy) === troop.col);
 }
 
+function enemiesInTileMeleeRange(session, troop, config) {
+  const rearOverlap = CELL.width / 2;
+  const forwardRange = Math.max(0, Number(config.range) || 0) * CELL.width;
+  return session.enemies.filter((enemy) => !enemy.dead
+    && enemy.row === troop.row
+    && enemy.x >= troop.x - rearOverlap
+    && enemy.x <= troop.x + forwardRange);
+}
+
 export function selectNaniteHealTarget(session, medic, config = TROOPS.medicaNanites) {
   const healStartThreshold = config.healStartThreshold ?? 1;
   return session.troops
@@ -1294,7 +1318,7 @@ function startTileMeleeAttack(session, troop, config, mode) {
 function updateTileMelee(session, troop, config, events) {
   if (troop.pendingImpact && session.elapsed >= troop.pendingImpact.impactAt) {
     const impact = troop.pendingImpact;
-    const occupants = enemiesInTroopTile(session, troop);
+    const occupants = enemiesInTileMeleeRange(session, troop, config);
     occupants.forEach((enemy) => {
       damageEnemy(session, enemy, impact.damage, events);
       if (impact.stunMs) stunEnemy(session, enemy, impact.stunMs);
@@ -1313,7 +1337,7 @@ function updateTileMelee(session, troop, config, events) {
     startTileMeleeAttack(session, troop, config, "special");
     return;
   }
-  if (session.elapsed < troop.attackReadyAt || !enemiesInTroopTile(session, troop).length) return;
+  if (session.elapsed < troop.attackReadyAt || !enemiesInTileMeleeRange(session, troop, config).length) return;
   startTileMeleeAttack(session, troop, config, "normal");
 }
 
@@ -1339,6 +1363,17 @@ function updateTroops(session, events, dt) {
     }
     if (isLumiUrsa7(config)) {
       updateLumiUrsa7(session, troop, config, events);
+      continue;
+    }
+    if (isExecutorArco(config)) {
+      updateExecutorArco(session, troop, config, events, {
+        color: config.color,
+        enemyColumn,
+        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events),
+        damageMultiplier: () => attackDamageMultiplier(session, troop),
+        nextEffectSeed: () => nextEffectSeed(session),
+        recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+      });
       continue;
     }
     if (config.attack === "flame") {

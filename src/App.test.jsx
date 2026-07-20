@@ -52,6 +52,14 @@ describe("informações das tropas no loadout", () => {
     expect(screen.getByRole("button", { name: "Selecionar Incinerador" })).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("exibe o título do Vórtice no card e no dossiê", () => {
+    renderLoadout(PHASES[8]);
+    const card = screen.getByRole("button", { name: "Selecionar Vórtice" });
+    expect(within(card).getByText("Executor de Arco")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Informações de Vórtice" }));
+    expect(within(screen.getByRole("dialog", { name: "Vórtice" })).getByText("Executor de Arco")).toBeInTheDocument();
+  });
+
   it("abre o dossiê correto sem alterar a seleção", () => {
     const { onToggle } = renderLoadout();
     fireEvent.click(screen.getByRole("button", { name: "Informações de Marine" }));

@@ -92,7 +92,7 @@ export const TROOPS = {
     attack: "naniteBullet", damage: 2, attackEveryMs: 900, projectileSpeed: 230,
     healRangeTiles: 5, maxHealingPerCharge: 20, healPulseAmount: 2,
     healPulseEveryMs: 400, healStartThreshold: 0.75, healCooldownMs: 5000,
-    color: "#2dd4bf", unlockAt: 0,
+    color: "#2dd4bf", unlockAt: 10,
     assetStates: ["idle", "heal", "attack", "cooldown"],
     idleVisual: {
       durationMs: 1600,
@@ -157,7 +157,7 @@ export const TROOPS = {
       ],
     },
     attackVisual: {
-      state: "attack", height: 190, durationMs: 640, releaseMs: 320, effect: "repulsorFist",
+      state: "attack", height: 202, durationMs: 640, releaseMs: 320, effect: "repulsorFist",
       timeline: [
         { atMs: 0, frame: 0 }, { atMs: 80, frame: 1 },
         { atMs: 160, frame: 2 }, { atMs: 240, frame: 3 },
@@ -484,6 +484,55 @@ export const TROOPS = {
     },
     description: "Morteiro automático que ignora inimigos próximos e bombardeia grupos distantes.",
   },
+  executorArco: {
+    id: "executorArco", label: "Vórtice", title: "Executor de Arco",
+    role: "Combo / Anti-elite", spriteKey: "executorArco",
+    price: 19, supply: 5, deployCooldownMs: 6000, hp: 42, range: 1.25,
+    attack: "arcCombo", damage: 6,
+    combo1Damage: 6, combo2Damage: 7, combo3Damage: 24,
+    combo3CollateralFactor: 0.30, comboWindowMs: 1800,
+    color: "#fb923c", unlockAt: 8,
+    assetStates: ["idle", "attack1", "attack2", "attack3"],
+    idleVisual: {
+      height: 146, durationMs: 1600,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 200, frame: 1 },
+        { atMs: 400, frame: 2 }, { atMs: 600, frame: 3 },
+        { atMs: 800, frame: 4 }, { atMs: 1000, frame: 5 },
+        { atMs: 1200, frame: 6 }, { atMs: 1400, frame: 7 },
+      ],
+    },
+    attackVisuals: {
+      combo1: {
+        state: "attack1", height: 146, durationMs: 480, impactMs: 240, recoveryMs: 520,
+        timeline: [
+          { atMs: 0, frame: 0 }, { atMs: 60, frame: 1 },
+          { atMs: 120, frame: 2 }, { atMs: 180, frame: 3 },
+          { atMs: 240, frame: 4 }, { atMs: 300, frame: 5 },
+          { atMs: 360, frame: 6 }, { atMs: 420, frame: 7 },
+        ],
+      },
+      combo2: {
+        state: "attack2", height: 146, durationMs: 520, impactMs: 260, recoveryMs: 520,
+        timeline: [
+          { atMs: 0, frame: 0 }, { atMs: 65, frame: 1 },
+          { atMs: 130, frame: 2 }, { atMs: 195, frame: 3 },
+          { atMs: 260, frame: 4 }, { atMs: 325, frame: 5 },
+          { atMs: 390, frame: 6 }, { atMs: 455, frame: 7 },
+        ],
+      },
+      combo3: {
+        state: "attack3", height: 146, durationMs: 720, impactMs: 400, recoveryMs: 1050,
+        timeline: [
+          { atMs: 0, frame: 0 }, { atMs: 90, frame: 1 },
+          { atMs: 180, frame: 2 }, { atMs: 270, frame: 3 },
+          { atMs: 360, frame: 4 }, { atMs: 450, frame: 5 },
+          { atMs: 540, frame: 6 }, { atMs: 630, frame: 7 },
+        ],
+      },
+    },
+    description: "Duelista de ataque rápido que bloqueia um alvo em um combo de três golpes. A finalização causa dano elevado e 30% aos demais inimigos no mesmo tile.",
+  },
   colossoImpacto: {
     id: "colossoImpacto", label: "Colosso de Impacto", role: "Tanque / Controle", spriteKey: "colossoImpacto",
     price: 22, supply: 8, deployCooldownMs: 10000, hp: 180, range: 0.9,
@@ -517,9 +566,9 @@ export const TROOPS = {
     attackVisual: {
       height: 158,
       frameAnchors: {
-        idle: [{ x: 0.4961, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.4961, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.4961, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9688 }],
-        attack: [{ x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9648 }, { x: 0.5, y: 0.9688 }, { x: 0.5039, y: 0.9688 }, { x: 0.6543, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.5, y: 0.9688 }],
-        special: [{ x: 0.498, y: 0.9688 }, { x: 0.5117, y: 0.9648 }, { x: 0.502, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.5273, y: 0.9688 }, { x: 0.5098, y: 0.9688 }, { x: 0.4961, y: 0.9688 }, { x: 0.502, y: 0.9688 }],
+        idle: [{ x: 0.4961, y: 0.9648 }, { x: 0.5, y: 0.9688 }, { x: 0.498, y: 0.9648 }, { x: 0.498, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.5, y: 0.9648 }, { x: 0.5, y: 0.9688 }, { x: 0.498, y: 0.9648 }],
+        attack: [{ x: 0.498, y: 0.9688 }, { x: 0.4883, y: 0.9688 }, { x: 0.5, y: 0.9688 }, { x: 0.4961, y: 0.9688 }, { x: 0.6543, y: 0.9688 }, { x: 0.4648, y: 0.9688 }, { x: 0.498, y: 0.9688 }, { x: 0.498, y: 0.9648 }],
+        special: [{ x: 0.498, y: 0.9648 }, { x: 0.457, y: 0.9648 }, { x: 0.4609, y: 0.9688 }, { x: 0.502, y: 0.9688 }, { x: 0.4805, y: 0.9688 }, { x: 0.4609, y: 0.9688 }, { x: 0.4883, y: 0.9727 }, { x: 0.502, y: 0.9648 }],
       },
     },
     description: "Frontline robot that holds a route and crushes every enemy in its tile.",
@@ -536,32 +585,46 @@ export const TROOPS = {
 export const ENEMIES = {
   medu: {
     id: "medu", label: "Medu", role: "Comum", hp: 28, speed: 28, damage: 5,
-    attackEveryMs: 1300, baseDamage: 10, threat: 10, color: "#ef4444", scale: 1,
+    attackEveryMs: 1300, baseDamage: 10, threat: 10, color: "#ef4444", scale: 1.01,
+    spriteOffsetY: -20,
+    visualStateScale: { idle: 1, walking: 1.16, attack: 1.1 },
     description: "Batedor da colmeia que avança em formação e pressiona qualquer defesa desguarnecida.",
   },
   neurax: {
     id: "neurax", label: "Neurax", role: "Comum de força", hp: 36, speed: 23, damage: 8,
-    attackEveryMs: 1500, baseDamage: 12, threat: 10, color: "#7c3aed", scale: 1,
+    attackEveryMs: 1500, baseDamage: 12, threat: 10, color: "#7c3aed", scale: 1.01,
+    spriteOffsetY: -20,
+    visualStateScale: { idle: 1, walking: 1.13, attack: 1.26 },
     description: "Variante robusta do Medu, criada para resistir ao fogo sustentado e romper a linha.",
   },
   oculis: {
     id: "oculis", label: "Oculis", role: "Comum veloz", hp: 24, speed: 36, damage: 5,
-    attackEveryMs: 1050, baseDamage: 8, threat: 10, color: "#06b6d4", scale: 1,
+    attackEveryMs: 1050, baseDamage: 8, threat: 10, color: "#06b6d4", scale: 1.01,
+    spriteOffsetY: -20,
+    visualStateScale: { idle: 1, walking: 1.08, attack: 1.03 },
     description: "Explorador ágil que troca resistência por velocidade para alcançar o núcleo rapidamente.",
   },
   crix: {
     id: "crix", label: "Crix", role: "Corredor", hp: 24, speed: 46, damage: 4,
-    attackEveryMs: 1000, baseDamage: 10, threat: 18, color: "#a855f7", scale: 1,
+    attackEveryMs: 1000, baseDamage: 10, threat: 18, color: "#a855f7", scale: 1.12,
+    spriteOffsetY: -26,
+    visualStateScale: { idle: 1, walking: 1.15, attack: 1.21 },
     description: "Corredor quitinoso que explora brechas e força respostas rápidas em sua rota.",
   },
   vexar: {
     id: "vexar", label: "Vexar", role: "Corredor de força", hp: 30, speed: 39, damage: 6,
-    attackEveryMs: 1150, baseDamage: 12, threat: 18, color: "#d946ef", scale: 1,
+    attackEveryMs: 1150, baseDamage: 12, threat: 18, color: "#d946ef", scale: 1.12,
+    spriteOffsetY: -26,
+    visualStateScale: { idle: 1, walking: 1.23, attack: 1.4 },
+    visualStateOffsetY: { attack: -8 },
     description: "Evolução de força do Crix, mais resistente e perigosa quando alcança as tropas.",
   },
   silex: {
     id: "silex", label: "Silex", role: "Corredor veloz", hp: 22, speed: 54, damage: 4,
-    attackEveryMs: 850, baseDamage: 8, threat: 18, color: "#84cc16", scale: 1,
+    attackEveryMs: 850, baseDamage: 8, threat: 18, color: "#84cc16", scale: 1.12,
+    spriteOffsetY: -26,
+    visualStateScale: { idle: 1, walking: 1.19, attack: 1.22 },
+    visualStateOffsetY: { attack: -8 },
     description: "A forma mais veloz da família Crix, frágil, mas capaz de atravessar uma rota em instantes.",
   },
   krulax: {
@@ -738,6 +801,46 @@ export const ARENAS = {
     ambientEffects: ["glassDust", "refraction", "shardStorm", "mirrors", "pulse"], waveIntensity: [0.48, 0.64, 0.8, 0.96, 1],
     battlefieldTheme: { id: "reflection-throne", seed: 1616, material: "obsidian-glass", base: "mirror-citadel", entrance: "black-prism", lane: "#14131f", laneAlt: "#262238", edge: "#e9d5ff", detail: "#ffcf70" },
   },
+  fase_17: {
+    arenaId: "fase_17", palette: { primary: "#22d3ee", accent: "#f59e0b", shadow: "#1c0a03", haze: "#d97706" },
+    ambientEffects: ["dust", "heat", "bioluminescence"], waveIntensity: [0.34, 0.5, 0.66, 0.82, 1],
+    battlefieldTheme: { id: "chitin-threshold", seed: 1717, material: "organic-silica", base: "dune-basin", entrance: "sand-rift", lane: "#6b3b1f", laneAlt: "#7c4827", edge: "#f59e0b", detail: "#22d3ee" },
+  },
+  fase_18: {
+    arenaId: "fase_18", palette: { primary: "#67e8f9", accent: "#fbbf24", shadow: "#190b04", haze: "#f3d19c" },
+    ambientEffects: ["dust", "bones", "heat"], waveIntensity: [0.36, 0.52, 0.68, 0.84, 1],
+    battlefieldTheme: { id: "sun-ossuary", seed: 1818, material: "bone-silica", base: "rib-basin", entrance: "fossil-arch", lane: "#704225", laneAlt: "#825032", edge: "#f3d19c", detail: "#67e8f9" },
+  },
+  fase_19: {
+    arenaId: "fase_19", palette: { primary: "#a3e635", accent: "#fb923c", shadow: "#210a03", haze: "#d97706" },
+    ambientEffects: ["dust", "fissures", "veins"], waveIntensity: [0.38, 0.54, 0.7, 0.86, 1],
+    battlefieldTheme: { id: "amber-crater", seed: 1919, material: "amber-silica", base: "crater-shell", entrance: "mineral-rift", lane: "#71351f", laneAlt: "#884329", edge: "#fb923c", detail: "#a3e635" },
+  },
+  fase_20: {
+    arenaId: "fase_20", palette: { primary: "#22d3ee", accent: "#a78bfa", shadow: "#170b08", haze: "#c76a2a" },
+    ambientEffects: ["dust", "spores", "bioluminescence"], waveIntensity: [0.4, 0.56, 0.72, 0.88, 1],
+    battlefieldTheme: { id: "shallow-galleries", seed: 2020, material: "dry-chitin", base: "cave-shelf", entrance: "buried-mouth", lane: "#61402c", laneAlt: "#75503a", edge: "#22d3ee", detail: "#a78bfa" },
+  },
+  fase_21: {
+    arenaId: "fase_21", palette: { primary: "#a3e635", accent: "#f97316", shadow: "#1b0803", haze: "#ea580c" },
+    ambientEffects: ["dust", "resin", "heat", "veins"], waveIntensity: [0.32, 0.46, 0.6, 0.74, 0.88, 1],
+    battlefieldTheme: { id: "buried-nursery", seed: 2121, material: "nest-chitin", base: "egg-basin", entrance: "cocoon-ridge", lane: "#6f321c", laneAlt: "#853d22", edge: "#f97316", detail: "#a3e635" },
+  },
+  fase_22: {
+    arenaId: "fase_22", palette: { primary: "#67e8f9", accent: "#fbbf24", shadow: "#180a03", haze: "#f59e0b" },
+    ambientEffects: ["dust", "crystals", "heat", "bioluminescence"], waveIntensity: [0.34, 0.48, 0.62, 0.76, 0.9, 1],
+    battlefieldTheme: { id: "needle-grove", seed: 2222, material: "organic-crystal", base: "thorn-ring", entrance: "crystal-pass", lane: "#68401f", laneAlt: "#7d4d26", edge: "#fbbf24", detail: "#67e8f9" },
+  },
+  fase_23: {
+    arenaId: "fase_23", palette: { primary: "#22d3ee", accent: "#fb923c", shadow: "#210b04", haze: "#f97316" },
+    ambientEffects: ["dust", "shardStorm", "bones", "heat"], waveIntensity: [0.36, 0.5, 0.64, 0.78, 0.92, 1],
+    battlefieldTheme: { id: "living-dust-valley", seed: 2323, material: "storm-silica", base: "wind-basin", entrance: "dust-wall", lane: "#6d321d", laneAlt: "#834126", edge: "#fb923c", detail: "#22d3ee" },
+  },
+  fase_24: {
+    arenaId: "fase_24", palette: { primary: "#67e8f9", accent: "#f59e0b", shadow: "#160604", haze: "#a855f7" },
+    ambientEffects: ["dust", "pulse", "veins", "bones", "bioluminescence"], waveIntensity: [0.4, 0.54, 0.68, 0.82, 0.94, 1],
+    battlefieldTheme: { id: "chitin-throne", seed: 2424, material: "ancient-chitin", base: "crown-basin", entrance: "horn-gate", lane: "#632d20", laneAlt: "#783a29", edge: "#f59e0b", detail: "#67e8f9" },
+  },
 };
 
 export const DECISIONS = {
@@ -816,13 +919,13 @@ const replaceBaseEnemy = (enemies, type, replacement, count) => enemies.flatMap(
 });
 const phase = (id, name, subtitle, energy, cadenceMs, environment, targetDurationMs, waves, extra = {}) => {
   const phaseNumber = Number(id.slice(-2));
-  const chapterTwo = phaseNumber > 8;
+  const chapterNumber = Math.ceil(phaseNumber / 8);
   return ({
   id, name, subtitle, energy, baseIntegrity: 100, cadenceMs, environment,
-  chapterId: chapterTwo ? "chapter_02" : "chapter_01",
-  chapterIndex: chapterTwo ? phaseNumber - 9 : phaseNumber - 1,
-  supplyLimit: chapterTwo ? 30 : 20,
-  loadoutLimit: chapterTwo ? 6 : 5,
+  chapterId: `chapter_${String(chapterNumber).padStart(2, "0")}`,
+  chapterIndex: (phaseNumber - 1) % 8,
+  supplyLimit: chapterNumber >= 3 ? 40 : chapterNumber === 2 ? 30 : 20,
+  loadoutLimit: chapterNumber >= 2 ? 6 : 5,
   waveCompletionEnergy: phaseNumber >= 2 ? 20 : 0,
   targetDurationMs, waves, ...ARENAS[id], ...extra,
   });
@@ -963,20 +1066,80 @@ export const PHASES = [
     budgetedWave(1670, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1850, ["estilha", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }, { type: "brakor", variant: "alpha", count: 1 }]),
   ], { boss: true, chapterMechanic: glassMechanic(0.2) }),
-  phase("fase_15", "Olho da Refração", "A tempestade multiplica o inimigo", 180, 1200, "glass", 780000, [
+  phase("fase_15", "Olho da Refração", "A tempestade multiplica o inimigo", 230, 1380, "glass", 780000, [
     budgetedWave(1400, ["estilha", "vitrarca", "refrator", "parasitaSaltador"], [], { vitrarca: 20, refrator: 8, parasitaSaltador: 22 }),
     budgetedWave(1550, ["vitrarca", "obsidonte", "refrator"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1700, ["obsidonte", "refrator", "krakhul", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
     budgetedWave(1850, ["estilha", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }]),
-    budgetedWave(2040, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 2 }, { type: "aurakh", variant: "alpha", count: 1 }]),
+    budgetedWave(2040, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }, { type: "aurakh", variant: "alpha", count: 1 }]),
+  ], { boss: true, chapterMechanic: glassMechanic(0.2) }),
+  phase("fase_16", "Trono dos Reflexos", "Quebre o oráculo do Mar de Vidro", 250, 1280, "glass", 810000, [
+    budgetedWave(1530, ["estilha", "vitrarca", "refrator", "parasitaSaltador"], [], { vitrarca: 24, refrator: 5, parasitaSaltador: 26 }),
+    budgetedWave(1700, ["vitrarca", "obsidonte", "brakor", "refrator"], [{ type: "crisalio", count: 1 }], { refrator: 5 }),
+    budgetedWave(1870, ["estilha", "vitrarca", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }], { refrator: 5 }),
+    budgetedWave(2050, ["vitrarca", "obsidonte", "refrator", "brakor"], [{ type: "crisalio", count: 1 }], { refrator: 5 }),
+    budgetedWave(2250, ["estilha", "vitrarca", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }, { type: "magoAbissal", variant: "alpha", count: 1 }], { refrator: 6 }),
   ], { boss: true, chapterMechanic: glassMechanic(0.22) }),
-  phase("fase_16", "Trono dos Reflexos", "Quebre o oráculo do Mar de Vidro", 185, 1120, "glass", 810000, [
-    budgetedWave(1550, ["estilha", "vitrarca", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }], { vitrarca: 21, refrator: 9, parasitaSaltador: 23 }),
-    budgetedWave(1720, ["vitrarca", "obsidonte", "refrator", "magoAbissal"], [{ type: "crisalio", count: 1 }]),
-    budgetedWave(1890, ["estilha", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 1 }]),
-    budgetedWave(2070, ["vitrarca", "obsidonte", "refrator", "brakor"], [{ type: "crisalio", count: 2 }]),
-    budgetedWave(2260, ["estilha", "vitrarca", "obsidonte", "refrator", "parasitaSaltador"], [{ type: "crisalio", count: 2 }, { type: "magoAbissal", variant: "alpha", count: 1 }]),
-  ], { boss: true, chapterMechanic: glassMechanic(0.25) }),
+  phase("fase_17", "Limiar das Dunas", "O enxame emerge sob a sílica viva", 270, 920, "chitin", 720000, [
+    budgetedWave(1700, ["silex", "zhyra"]),
+    budgetedWave(1900, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2100, ["silex", "zhyra"]),
+    budgetedWave(2300, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2600, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_18", "Ossário do Sol", "Sombras antigas cobrem a marcha", 290, 880, "chitin", 750000, [
+    budgetedWave(1900, ["silex", "zhyra"]),
+    budgetedWave(2100, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2300, ["silex", "zhyra"]),
+    budgetedWave(2500, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2900, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_19", "Cratera de Âmbar", "Veios orgânicos cercam a linha", 315, 840, "chitin", 780000, [
+    budgetedWave(2100, ["silex", "zhyra"]),
+    budgetedWave(2300, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2500, ["silex", "zhyra"]),
+    budgetedWave(2700, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3300, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_20", "Galerias Rasas", "A areia respira sobre as cavernas", 340, 800, "chitin", 810000, [
+    budgetedWave(2320, ["silex", "zhyra"]),
+    budgetedWave(2500, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2700, ["silex", "zhyra"]),
+    budgetedWave(2900, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3800, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_21", "Berçário Sepultado", "Seis marés rompem o ninho", 370, 760, "chitin", 900000, [
+    budgetedWave(2200, ["silex", "zhyra"]),
+    budgetedWave(2400, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2600, ["silex", "zhyra"]),
+    budgetedWave(2800, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3100, ["silex", "zhyra"]),
+    budgetedWave(4300, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_22", "Bosque de Agulhas", "Cristais orgânicos fecham o horizonte", 405, 720, "chitin", 960000, [
+    budgetedWave(2500, ["silex", "zhyra"]),
+    budgetedWave(2700, ["silex", "zhyra", "brakor"]),
+    budgetedWave(2900, ["silex", "zhyra"]),
+    budgetedWave(3100, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3400, ["silex", "zhyra"]),
+    budgetedWave(4800, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_23", "Vale da Poeira Viva", "O céu incandescente engole o campo", 440, 680, "chitin", 1020000, [
+    budgetedWave(2800, ["silex", "zhyra"]),
+    budgetedWave(3000, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3200, ["silex", "zhyra"]),
+    budgetedWave(3400, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3700, ["silex", "zhyra"]),
+    budgetedWave(5300, ["silex", "zhyra", "brakor"]),
+  ]),
+  phase("fase_24", "Trono de Quitina", "Resista à maré sob a coroa ancestral", 480, 640, "chitin", 1080000, [
+    budgetedWave(3100, ["silex", "zhyra"]),
+    budgetedWave(3300, ["silex", "zhyra", "brakor"]),
+    budgetedWave(3500, ["silex", "zhyra"]),
+    budgetedWave(3700, ["silex", "zhyra", "brakor"]),
+    budgetedWave(4000, ["silex", "zhyra"]),
+    budgetedWave(6000, ["silex", "zhyra", "brakor"]),
+  ], { boss: true }),
 ];
 
 export const CHAPTERS = [
@@ -991,6 +1154,11 @@ export const CHAPTERS = [
     exclusiveEnemyIds: ["estilha", "vitrarca", "obsidonte", "refrator", "crisalio"],
     palette: { primary: "#7fffd4", accent: "#8b5cf6", shadow: "#080a12" },
     mechanic: { ...GLASS_ECHO_BASE, label: "Ecos de Vidro", description: "Hostis comuns podem retornar uma vez como reflexos frágeis e velozes." },
+  },
+  {
+    id: "chapter_03", number: 3, name: "Dunas de Quitina", subtitle: "A sílica viva se move sob nossos pés",
+    phaseIds: PHASES.slice(16, 24).map((entry) => entry.id), coverArenaId: "fase_24",
+    palette: { primary: "#f59e0b", accent: "#22d3ee", shadow: "#1c0a03" },
   },
 ];
 

@@ -355,6 +355,43 @@ describe("geometria visual dos disparos", () => {
     expect(viewportPointToFieldPoint(500, 679)).toEqual({ x: 500, y: 599 });
   });
 
+  it("aplica o deslocamento vertical aos inimigos terrestres redesenhados", () => {
+    const enemy = { type: "crix", x: 500, y: 180, scale: ENEMIES.crix.scale };
+    const anchor = getEnemyFrameAnchor(ENEMIES.crix, "idle", 0);
+    const rect = getEnemySpriteRect(enemy, ENEMIES.crix, "idle", 0);
+    expect(rect.y + rect.height * anchor.y)
+      .toBeCloseTo(enemy.y + CELL.height * 0.43 - 26 * ENEMIES.crix.scale, 5);
+  });
+
+  it("reduz e baixa Medu, Neurax e Oculis em todos os estados", () => {
+    for (const type of ["medu", "neurax", "oculis"]) {
+      const config = ENEMIES[type];
+      const enemy = { type, x: 500, y: 180, scale: config.scale };
+      expect(config.scale).toBeCloseTo(1.12 * 0.9, 2);
+      for (const state of ["idle", "walking", "attack"]) {
+        const anchor = getEnemyFrameAnchor(config, state, 0);
+        const rect = getEnemySpriteRect(enemy, config, state, 0);
+        const anchorY = rect.y + rect.height * anchor.y;
+        const previousAnchorY = enemy.y + CELL.height * 0.43 - 26 * 1.12;
+        expect(anchorY - previousAnchorY).toBeCloseTo(9, 0);
+      }
+    }
+  });
+
+  it("eleva somente o ataque de Vexar e Silex", () => {
+    for (const type of ["vexar", "silex"]) {
+      const config = ENEMIES[type];
+      const enemy = { type, x: 500, y: 180, scale: config.scale };
+      const idleAnchor = getEnemyFrameAnchor(config, "idle", 0);
+      const attackAnchor = getEnemyFrameAnchor(config, "attack", 0);
+      const idleRect = getEnemySpriteRect(enemy, config, "idle", 0);
+      const attackRect = getEnemySpriteRect(enemy, config, "attack", 0);
+      const idleY = idleRect.y + idleRect.height * idleAnchor.y;
+      const attackY = attackRect.y + attackRect.height * attackAnchor.y;
+      expect(attackY).toBeCloseTo(idleY - 8 * config.scale, 5);
+    }
+  });
+
   it("mantem os pes do Obsidonte na rota sem empurrar o sprite grande", () => {
     const enemy = { type: "obsidonte", x: 500, y: 60, scale: 1.65 };
     ["idle", "walking", "attack"].forEach((state) => {

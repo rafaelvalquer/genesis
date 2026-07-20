@@ -12,9 +12,28 @@ import {
 } from "./domain.js";
 
 describe("campanha e ondas", () => {
-  it("remove offsets terrestres da familia Crix", () => {
+  it("eleva visualmente as familias Medu e Crix na rota", () => {
+    expect([ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis].map((enemy) => enemy.spriteOffsetY))
+      .toEqual([-20, -20, -20]);
     expect([ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex].map((enemy) => enemy.spriteOffsetY))
-      .toEqual([undefined, undefined, undefined]);
+      .toEqual([-26, -26, -26]);
+    expect([
+      ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis,
+      ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex,
+    ].map((enemy) => enemy.scale)).toEqual([1.01, 1.01, 1.01, 1.12, 1.12, 1.12]);
+    expect([
+      ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis,
+      ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex,
+    ].map((enemy) => enemy.visualStateScale)).toEqual([
+      { idle: 1, walking: 1.16, attack: 1.1 },
+      { idle: 1, walking: 1.13, attack: 1.26 },
+      { idle: 1, walking: 1.08, attack: 1.03 },
+      { idle: 1, walking: 1.15, attack: 1.21 },
+      { idle: 1, walking: 1.23, attack: 1.4 },
+      { idle: 1, walking: 1.19, attack: 1.22 },
+    ]);
+    expect(ENEMIES.vexar.visualStateOffsetY).toEqual({ attack: -8 });
+    expect(ENEMIES.silex.visualStateOffsetY).toEqual({ attack: -8 });
   });
 
   it("remove offsets terrestres da familia Krulax", () => {
@@ -24,21 +43,23 @@ describe("campanha e ondas", () => {
 
   it("libera os defensores na nova ordem da campanha", () => {
     const expectedByPhase = [
-      ["reator", "colono", "medicaNanites", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "marine", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "marine", "sniper", "incinerador", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "marine", "sniper", "incinerador", "ranger", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "muralhaReforcada"],
-      ["reator", "colono", "medicaNanites", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "krio", "muralhaReforcada"],
+      ["reator", "colono", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "marine", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "muralhaReforcada"],
+      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "krio", "muralhaReforcada"],
     ];
     expectedByPhase.forEach((expected, phaseIndex) => {
       expect(getUnlockedTroops(phaseIndex).map((troop) => troop.id)).toEqual(expected);
     });
+    expect(getUnlockedTroops(9).some((troop) => troop.id === "medicaNanites")).toBe(false);
+    expect(getUnlockedTroops(10).some((troop) => troop.id === "medicaNanites")).toBe(true);
   });
 
-  it("mantém orçamento crescente em todas as dezesseis fases", () => {
+  it("mantém orçamento crescente em todas as vinte e quatro fases", () => {
     expect(validateCampaignBalance()).toEqual([]);
     for (let index = 1; index < PHASES.length; index += 1) {
       expect(phaseBudget(PHASES[index])).toBeGreaterThanOrEqual(phaseBudget(PHASES[index - 1]) * 1.1);
@@ -46,14 +67,26 @@ describe("campanha e ondas", () => {
     }
   });
 
-  it("organiza dezesseis fases em dois capítulos de oito operações", () => {
-    expect(CHAPTERS).toHaveLength(2);
-    expect(PHASES).toHaveLength(16);
-    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8]);
+  it("organiza vinte e quatro fases em três capítulos de oito operações", () => {
+    expect(CHAPTERS).toHaveLength(3);
+    expect(PHASES).toHaveLength(24);
+    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8]);
     expect(getChapterForPhase("fase_08")?.id).toBe("chapter_01");
     expect(getChapterForPhase("fase_09")?.id).toBe("chapter_02");
+    expect(getChapterForPhase("fase_17")?.id).toBe("chapter_03");
     expect(PHASES.slice(0, 8).every((phase) => phase.waves.length === 4)).toBe(true);
-    expect(PHASES.slice(8).every((phase) => phase.waves.length === 5)).toBe(true);
+    expect(PHASES.slice(8, 20).every((phase) => phase.waves.length === 5)).toBe(true);
+    expect(PHASES.slice(20, 24).every((phase) => phase.waves.length === 6)).toBe(true);
+  });
+
+  it("configura as Dunas de Quitina como campanha de enxame sem novas criaturas", () => {
+    const chapterThree = PHASES.slice(16, 24);
+    const allowedTypes = new Set(["silex", "brakor", "zhyra"]);
+    expect(CHAPTERS[2]).toMatchObject({ id: "chapter_03", name: "Dunas de Quitina" });
+    expect(chapterThree.every((phase) => phase.supplyLimit === 40)).toBe(true);
+    expect(chapterThree.map((phase) => phase.energy)).toEqual([270, 290, 315, 340, 370, 405, 440, 480]);
+    expect(chapterThree.every((phase) => phase.waves.flatMap((wave) => wave.enemies).every((entry) => allowedTypes.has(entry.type)))).toBe(true);
+    expect(chapterThree.every((phase) => phase.chapterMechanic === undefined)).toBe(true);
   });
 
   it("inicia a fase 14 com 200 de energia", () => {
@@ -61,7 +94,7 @@ describe("campanha e ondas", () => {
   });
 
   it("limita a quatro Magos Abissais por onda em todo o capítulo 2", () => {
-    const chapterTwoWaves = PHASES.slice(8).flatMap((phase) => phase.waves);
+    const chapterTwoWaves = PHASES.slice(8, 16).flatMap((phase) => phase.waves);
     const magoCount = (wave) => wave.enemies
       .filter((entry) => entry.type === "magoAbissal")
       .reduce((sum, entry) => sum + entry.count, 0);
@@ -76,8 +109,22 @@ describe("campanha e ondas", () => {
       .filter((entry) => entry.type === type)
       .reduce((sum, entry) => sum + entry.count, 0);
 
-    expect(lateChapterOpenings.map((wave) => count(wave, "refrator"))).toEqual([6, 7, 8, 9]);
+    expect(lateChapterOpenings.map((wave) => count(wave, "refrator"))).toEqual([6, 7, 8, 5]);
     expect(lateChapterOpenings.every((wave) => count(wave, "estilha") >= count(wave, "refrator") * 5)).toBe(true);
+  });
+
+  it("prioriza combatentes corpo a corpo nas ondas da fase 16", () => {
+    const rangedTypes = new Set(["refrator", "magoAbissal"]);
+    const waves = PHASES[15].waves;
+    const rangedCount = (wave) => wave.enemies
+      .filter((entry) => rangedTypes.has(entry.type))
+      .reduce((sum, entry) => sum + entry.count, 0);
+    const totalCount = (wave) => wave.enemies.reduce((sum, entry) => sum + entry.count, 0);
+
+    expect(waves.map(rangedCount)).toEqual([5, 5, 5, 5, 7]);
+    expect(waves.every((wave) => rangedCount(wave) / totalCount(wave) <= 0.1)).toBe(true);
+    expect(waves.slice(0, 4).every((wave) => wave.enemies.every((entry) => entry.type !== "magoAbissal"))).toBe(true);
+    expect(waves[4].enemies).toContainEqual(expect.objectContaining({ type: "magoAbissal", variant: "alpha", count: 1 }));
   });
 
   it("gera a quantidade exata por tipo e uma ordem reproduzível", () => {
@@ -150,7 +197,7 @@ describe("campanha e ondas", () => {
     expect(isGroundTrapEligible({ type: "refrator" })).toBe(false);
     const chapterOneTypes = new Set(PHASES.slice(0, 8).flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))));
     CHAPTERS[1].exclusiveEnemyIds.forEach((enemyId) => expect(chapterOneTypes.has(enemyId)).toBe(false));
-    PHASES.slice(8).forEach((phase) => {
+    PHASES.slice(8, 16).forEach((phase) => {
       const types = new Set(phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)));
       expect(CHAPTERS[1].exclusiveEnemyIds.some((enemyId) => types.has(enemyId))).toBe(true);
     });
@@ -163,14 +210,29 @@ describe("campanha e ondas", () => {
     expect(counts).toEqual([
       [0, 0, 1, 0, 1],
       [0, 1, 0, 1, 1],
-      [0, 1, 1, 1, 2],
-      [1, 1, 1, 2, 2],
+      [0, 1, 1, 1, 1],
+      [0, 1, 1, 1, 1],
     ]);
-    const expectedThreat = [1120, 1250, 1300, 1510, 1660, 1250, 1390, 1530, 1670, 1850, 1400, 1550, 1700, 1850, 2040, 1550, 1720, 1890, 2070, 2260];
+    const expectedThreat = [1120, 1250, 1300, 1510, 1660, 1250, 1390, 1530, 1670, 1850, 1400, 1550, 1700, 1850, 2040, 1530, 1700, 1870, 2050, 2250];
     const actualThreat = PHASES.slice(12, 16).flatMap((phase) => phase.waves.map((wave) => wave.enemies.reduce((sum, entry) => (
       sum + ENEMIES[entry.type].threat * entry.count * (entry.variant === "alpha" ? 8 : 1)
     ), 0)));
     actualThreat.forEach((value, index) => expect(value).toBeGreaterThanOrEqual(expectedThreat[index]));
+  });
+
+  it("alivia a pressão da fase 16 sem quebrar a progressão final", () => {
+    const phase15 = PHASES[14];
+    const phase16 = PHASES[15];
+    const crisalios = phase16.waves.map((wave) => (
+      wave.enemies.find((entry) => entry.type === "crisalio")?.count || 0
+    ));
+
+    expect(phase16.cadenceMs).toBe(1280);
+    expect(phase16.chapterMechanic.chance).toBe(0.22);
+    expect(crisalios).toEqual([0, 1, 1, 1, 1]);
+    expect(phaseBudget(phase16)).toBeGreaterThanOrEqual(phaseBudget(phase15) * 1.1);
+    expect(waveBudget(phase16.waves.at(-1)))
+      .toBeGreaterThanOrEqual(waveBudget(phase15.waves.at(-1)) * 1.1);
   });
 
   it("registra e distribui o Parasita Saltador a partir da fase 3", () => {
@@ -188,7 +250,7 @@ describe("campanha e ondas", () => {
       expect(phase.waves[0].enemies.some((entry) => entry.type === "parasitaSaltador")).toBe(false);
       expect(phase.waves[2].enemies.some((entry) => entry.type === "parasitaSaltador")).toBe(false);
     });
-    PHASES.slice(8).forEach((phase) => {
+    PHASES.slice(8, 16).forEach((phase) => {
       expect(phase.waves.some((wave) => wave.enemies.some((entry) => entry.type === "parasitaSaltador"))).toBe(true);
     });
   });
@@ -209,7 +271,7 @@ describe("campanha e ondas", () => {
     expect(PHASES.slice(4, 8).map(phaseBudget)).toEqual([1614, 2124, 2728, 3592]);
     expect(PHASES.slice(4, 8).map((phase) => waveBudget(phase.waves.at(-1)))).toEqual([472, 632, 792, 1004]);
     expect(PHASES.slice(4, 8).flatMap((phase) => phase.waves.at(-1).enemies).some((entry) => entry.type === "magoAbissal")).toBe(false);
-    expect(PHASES.slice(8).every((phase) => phase.waves.some((wave) => wave.enemies.some((entry) => entry.type === "magoAbissal")))).toBe(true);
+    expect(PHASES.slice(8, 16).every((phase) => phase.waves.some((wave) => wave.enemies.some((entry) => entry.type === "magoAbissal")))).toBe(true);
   });
 
   it("introduz famílias em 50/25/25 e mantém os Alphas finais planejados", () => {
@@ -241,7 +303,7 @@ describe("campanha e ondas", () => {
       expect(waveBudget(phase.waves.at(-1))).toBe(expectedFinalBudgets[index]);
     });
     const chapterTwoAlphas = ["vexar", "oculis", "myrkon", "zhyra", "krakhul", "brakor", "aurakh", "magoAbissal"];
-    PHASES.slice(8).forEach((phase, index) => {
+    PHASES.slice(8, 16).forEach((phase, index) => {
       expect(phase.boss).toBe(true);
       expect(phase.waves.at(-1).enemies.filter((entry) => entry.variant === "alpha"))
         .toEqual([{ type: chapterTwoAlphas[index], variant: "alpha", count: 1 }]);

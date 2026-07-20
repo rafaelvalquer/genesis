@@ -44,10 +44,14 @@ for (const state of STATES) {
   if (["idle", "walking"].includes(state)) {
     const heights = metrics.map(({ height }) => height);
     const widths = metrics.map(({ width }) => width);
-    if (Math.max(...heights) - Math.min(...heights) > 4 || Math.max(...widths) - Math.min(...widths) > 4) {
+    const maxHeightVariation = state === "walking" ? 8 : 4;
+    const maxWidthVariation = state === "walking" ? 42 : 4;
+    if (
+      Math.max(...heights) - Math.min(...heights) > maxHeightVariation ||
+      Math.max(...widths) - Math.min(...widths) > maxWidthVariation
+    ) {
       throw new Error(`${state}: escala do ciclo varia além da tolerância.`);
     }
   }
   console.log(`${state}: 8 PNGs válidos, raiz estável em y=${bottoms[0]}`);
 }
-

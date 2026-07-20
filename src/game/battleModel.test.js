@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DECISIONS, ENEMIES, PHASES, TROOPS } from "./content.js";
 import {
-  activateTroopSpecial, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getSnapshot, placeTroop, removeTroop,
+  activateTroopSpecial, CELL, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getSnapshot, placeTroop, removeTroop,
   selectDecision, setEnergyPickupPointer, setSandboxSettings, spawnEnemy, startWave, stepBattle,
   trySpawnEnergyPickup, trySpawnGlassEcho,
 } from "./battleModel.js";
@@ -275,20 +275,22 @@ describe("Colosso de Impacto", () => {
     expect(deployed.troop.specialReadyAt).toBe(TROOPS.colossoImpacto.specialEveryMs);
   });
 
-  it("causa dano somente no quadro de impacto a todos os ocupantes do tile, incluindo aereos", () => {
-    const first = tileEnemy("first");
-    const incoming = { ...tileEnemy("incoming", 190), airborne: true };
-    const adjacent = tileEnemy("adjacent", 310);
-    const { session } = createColossusSession([first, adjacent]);
+  it("causa dano no quadro de impacto a todos no campo de ataque, incluindo aereos", () => {
+    const { session, troop } = createColossusSession();
+    const first = tileEnemy("first", troop.x - CELL.width / 2);
+    const forwardEdge = { ...tileEnemy("forward_edge", troop.x + TROOPS.colossoImpacto.range * CELL.width), airborne: true };
+    const outside = tileEnemy("outside", forwardEdge.x + 1);
+    const otherLane = tileEnemy("other_lane", troop.x, 1);
+    session.enemies = [first, forwardEdge, outside, otherLane];
     stepBattle(session, 1);
     expect(first.hp).toBe(50);
-    session.enemies.push(incoming);
     stepBattle(session, 399);
     expect(first.hp).toBe(50);
     stepBattle(session, 1);
     expect(first.hp).toBe(45);
-    expect(incoming.hp).toBe(45);
-    expect(adjacent.hp).toBe(50);
+    expect(forwardEdge.hp).toBe(45);
+    expect(outside.hp).toBe(50);
+    expect(otherLane.hp).toBe(50);
   });
 
   it("mantem o especial carregado sem disparar automaticamente e exige uma onda ativa", () => {
@@ -315,15 +317,20 @@ describe("Colosso de Impacto", () => {
     stepBattle(session, 640);
     expect(troop.pendingImpact).toBeNull();
 
-    const target = tileEnemy("special_target");
-    session.enemies.push(target);
+    const target = tileEnemy("special_target", troop.x - CELL.width / 2);
+    const forwardEdge = tileEnemy("special_forward_edge", troop.x + TROOPS.colossoImpacto.range * CELL.width);
+    const outside = tileEnemy("special_outside", forwardEdge.x + 1);
+    session.enemies.push(target, forwardEdge, outside);
     troop.specialReadyAt = session.elapsed;
     expect(activateTroopSpecial(session, troop.id)).toMatchObject({ ok: true });
     stepBattle(session, 1280);
     expect(target.hp).toBe(50);
     stepBattle(session, 640);
     expect(target.hp).toBe(36);
+    expect(forwardEdge.hp).toBe(36);
+    expect(outside.hp).toBe(50);
     expect(target.stunnedUntil - session.elapsed).toBe(800);
+    expect(forwardEdge.stunnedUntil - session.elapsed).toBe(800);
   });
 });
 
@@ -556,9 +563,17 @@ describe("Campo de Provas", () => {
 });
 
 describe("sessão de batalha", () => {
-  it("mantém 20 supply no capítulo 1 e inicia o capítulo 2 com 30", () => {
+  it("aumenta o supply de 20 para 30 e então 40 entre os capítulos", () => {
     expect(createBattleSession(PHASES[0], ["colono"], 1)).toMatchObject({ supply: 20, supplyMax: 20 });
     expect(createBattleSession(PHASES[8], ["colono"], 1)).toMatchObject({ supply: 30, supplyMax: 30 });
+    expect(createBattleSession(PHASES[16], ["colono"], 1)).toMatchObject({ supply: 40, supplyMax: 40 });
+  });
+
+  it("inicia os finais dos capítulos 2 e 3 com a energia configurada", () => {
+    expect(createBattleSession(PHASES[14], ["colono"], 15).energy).toBe(230);
+    expect(createBattleSession(PHASES[15], ["colono"], 16).energy).toBe(250);
+    expect(createBattleSession(PHASES[16], ["colono"], 17).energy).toBe(270);
+    expect(createBattleSession(PHASES[23], ["colono"], 24).energy).toBe(480);
   });
 
   it("aplica os multiplicadores Alpha à configuração da variante", () => {

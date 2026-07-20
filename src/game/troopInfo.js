@@ -12,6 +12,7 @@ const ATTACK_LABELS = {
   fireball: "Projétil incendiário",
   mine: "Armadilha magnética",
   tileMelee: "Impacto no tile",
+  arcCombo: "Combo corpo a corpo",
 };
 
 const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
@@ -25,12 +26,17 @@ export function getTroopInfo(troop) {
   else if (troop.burst) damage = `${formatNumber(troop.damage)} por disparo`;
   else if (troop.pellets) damage = `${formatNumber(troop.damage)} por pellet`;
   else if (troop.attack === "flame") damage = `${formatNumber(troop.damage)} por tick`;
+  else if (troop.attack === "arcCombo") {
+    damage = `${formatNumber(troop.combo1Damage)} → ${formatNumber(troop.combo2Damage)} → ${formatNumber(troop.combo3Damage)}`;
+  }
 
   const cadence = doesNotAttack
     ? "Não ataca"
     : generatesEnergy
       ? `${troop.energyPerPulse} energia a cada ${formatDuration(troop.attackEveryMs)}`
-      : `A cada ${formatDuration(troop.attackEveryMs)}`;
+      : troop.attack === "arcCombo"
+        ? `${formatDuration(troop.attackVisuals.combo1.recoveryMs)} / ${formatDuration(troop.attackVisuals.combo2.recoveryMs)} / ${formatDuration(troop.attackVisuals.combo3.recoveryMs)}`
+        : `A cada ${formatDuration(troop.attackEveryMs)}`;
 
   const range = troop.minRange != null
     ? `${formatNumber(troop.minRange)}–${formatNumber(troop.range)} células`
@@ -53,6 +59,14 @@ export function getTroopInfo(troop) {
   if (troop.collateralMultiplier != null) specials.push({
     label: "Dano colateral",
     value: `${Math.round(troop.collateralMultiplier * 100)}% nos demais inimigos do tile`,
+  });
+  if (troop.combo3CollateralFactor != null) specials.push({
+    label: "Finalização",
+    value: `${Math.round(troop.combo3CollateralFactor * 100)}% nos demais inimigos do mesmo tile`,
+  });
+  if (troop.comboWindowMs != null) specials.push({
+    label: "Janela do combo",
+    value: formatDuration(troop.comboWindowMs),
   });
   if (troop.slowFactor != null) specials.push({
     label: "Lentidão",

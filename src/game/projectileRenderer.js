@@ -1,3 +1,5 @@
+import { createExecutorParticles, drawExecutorParticle } from "./executorArcoRenderer.js";
+
 const QUALITY = {
   low: { density: 0.3, trail: 0.45, budget: 140 },
   medium: { density: 0.62, trail: 0.72, budget: 260 },
@@ -153,6 +155,11 @@ export function pushEventParticles(particles, events, now, settings = {}) {
   for (const event of events) {
     const random = seeded(event.seed || 1);
     const color = event.color || (event.type.includes("Death") ? "#fb7185" : "#67e8f9");
+    const executorParticles = createExecutorParticles(event, now, settings);
+    if (executorParticles) {
+      particles.push(...executorParticles);
+      continue;
+    }
 
     if (event.type === "repulsorImpact") {
       particles.push({ kind: "ring", x: event.x, y: event.y, color: "#22d3ee", born: now, life: 360, maxRadius: 58 });
@@ -891,7 +898,9 @@ export function drawParticles(ctx, particles, now, settings = {}) {
     const seconds = (now - particle.born) / 1000;
     ctx.save();
     ctx.globalAlpha = 1 - progress;
-    if (particle.kind === "spark" || particle.kind === "snow") {
+    if (drawExecutorParticle(ctx, particle, progress)) {
+      // Dedicated Vórtice particles draw themselves while sharing this lifecycle.
+    } else if (particle.kind === "spark" || particle.kind === "snow") {
       const sway = particle.kind === "snow" && !settings.reduceMotion
         ? Math.sin((particle.phase || 0) + seconds * (particle.phaseSpeed || 6)) * (particle.sway || 0)
         : 0;

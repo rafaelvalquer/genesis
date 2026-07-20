@@ -15,8 +15,8 @@ import {
 describe("arenas cinematograficas", () => {
   it("atribui uma arena exclusiva e carregavel a cada fase", () => {
     const arenaIds = PHASES.map((phase) => phase.arenaId);
-    expect(new Set(arenaIds).size).toBe(16);
-    expect(Object.keys(ARENAS)).toHaveLength(16);
+    expect(new Set(arenaIds).size).toBe(24);
+    expect(Object.keys(ARENAS)).toHaveLength(24);
     for (const phase of PHASES) {
       expect(getArenaUrl(phase.arenaId)).toMatch(/fase_\d{2}.*\.webp/i);
       expect(phase.ambientEffects.length).toBeGreaterThan(0);
@@ -151,9 +151,19 @@ describe("arenas cinematograficas", () => {
     expect(Object.keys(attack)).toHaveLength(12);
   });
 
-  it("gera dezesseis campos procedurais deterministas com cinco rotas", () => {
+  it("mantem somente os oito quadros cartoon atuais por estado", () => {
+    const enemyFrames = import.meta.glob("./assets/enemy/{medu,neurax,oculis,crix,vexar,silex}/{idle,walking,attack}/frame*.png");
+    const keys = Object.keys(enemyFrames);
+    for (const id of ["medu", "neurax", "oculis", "crix", "vexar", "silex"]) {
+      for (const state of ["idle", "walking", "attack"]) {
+        expect(keys.filter((key) => key.includes(`/${id}/${state}/`))).toHaveLength(8);
+      }
+    }
+  });
+
+  it("gera vinte e quatro campos procedurais deterministas com cinco rotas", () => {
     const themeIds = PHASES.map((phase) => phase.battlefieldTheme.id);
-    expect(new Set(themeIds).size).toBe(16);
+    expect(new Set(themeIds).size).toBe(24);
     for (const phase of PHASES) {
       const first = getBattlefieldBlueprint(phase);
       const second = getBattlefieldBlueprint(phase);

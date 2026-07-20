@@ -11,7 +11,12 @@ import {
   spawnEnemy,
   stepBattle,
 } from "./battleModel.js";
-import { getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation } from "./visualGeometry.js";
+import {
+  getMuzzleWorldPosition,
+  getRepulsorKnockbackOffset,
+  getTroopAnimation,
+  getTroopAttackVisual,
+} from "./visualGeometry.js";
 
 const phase = { ...PHASES[0], id: "teste_lumi_ursa7", waves: [] };
 
@@ -85,7 +90,7 @@ describe("Lumi e URSA-7", () => {
     const config = TROOPS.lumiUrsa7;
     const troop = { type: "lumiUrsa7", x: 300, y: 240, state: "attack", lastAttackAt: 0 };
     expect(config.idleVisual.height).toBe(164);
-    expect(config.attackVisual.height).toBe(190);
+    expect(config.attackVisual.height).toBe(202);
     expect(config.defenseVisual.height).toBe(164);
     const muzzle = getMuzzleWorldPosition(troop, config, 0, 4);
     const scale = config.attackVisual.height / 128;
@@ -270,5 +275,25 @@ describe("Lumi e URSA-7", () => {
       .toEqual({ state: "defense", frame: 0 });
     expect(getTroopAnimation({ ...troop, state: "transitionOut" }, config, 820, counts))
       .toEqual({ state: "transitionOut", frame: 7 });
+  });
+
+  it("reproduz os frames de ataque uma vez e retorna ao idle sem reduzir a escala", () => {
+    const config = TROOPS.lumiUrsa7;
+    const troop = { type: "lumiUrsa7", state: "attack", lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 8 };
+    const frames = [0, 80, 160, 240, 320, 400, 480, 560]
+      .map((age) => getTroopAnimation(troop, config, 100 + age, counts).frame);
+
+    expect(frames).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(getTroopAnimation(
+      { ...troop, state: "idle", stateStartedAt: 740 },
+      config,
+      740,
+      counts,
+    )).toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAttackVisual(
+      { ...troop, state: "idle", stateStartedAt: 740 },
+      config,
+    )).toBe(config.idleVisual);
   });
 });

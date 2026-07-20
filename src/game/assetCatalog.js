@@ -37,7 +37,22 @@ function loadImage(url) {
 async function loadFrameSet(modules, folder, state) {
   const entries = modulesFor(modules, folder, state);
   const urls = await Promise.all(entries.map(([, load]) => load()));
-  return (await Promise.all(urls.map(loadImage))).filter(Boolean);
+  const images = await Promise.all(urls.map(loadImage));
+  const frames = [];
+  entries.forEach(([key], index) => {
+    frames[frameNumber(key)] = images[index];
+  });
+  return frames;
+}
+
+export function resolveTroopFrame(troopAssets, state, frame) {
+  const stateFrames = troopAssets?.[state] || [];
+  const idleFrames = troopAssets?.idle || [];
+  return stateFrames[frame]
+    || idleFrames[frame]
+    || stateFrames.find(Boolean)
+    || idleFrames.find(Boolean)
+    || null;
 }
 
 export function getTroopPreviewUrl(troopId) {

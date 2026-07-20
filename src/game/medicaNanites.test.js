@@ -39,6 +39,7 @@ describe("Médica de Nanites", () => {
       hp: 24, range: 5, damage: 2, attackEveryMs: 900, projectileSpeed: 230,
       healRangeTiles: 5, maxHealingPerCharge: 20, healPulseAmount: 2,
       healPulseEveryMs: 400, healStartThreshold: 0.75, healCooldownMs: 5000,
+      unlockAt: 10,
       assetStates: ["idle", "heal", "attack", "cooldown"],
     });
     expect(TROOPS.medicaNanites.idleVisual).toMatchObject({ durationMs: 1600 });

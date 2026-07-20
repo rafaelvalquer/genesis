@@ -68,6 +68,10 @@ export function getTroopAttackVisual(troop, troopConfig = {}) {
     if (troop.state === "defense") return troopConfig.defenseVisual || troopConfig.attackVisual;
     if (troop.state === "transitionOut") return troopConfig.transitionOutVisual || troopConfig.attackVisual;
   }
+  if (troop?.type === "executorArco") {
+    if (troop.state === "idle") return troopConfig.idleVisual;
+    return troopConfig.attackVisuals?.[troop.lastAttackMode] || troopConfig.idleVisual;
+  }
   return troopConfig.attackVisuals?.[troop?.lastAttackMode] || troopConfig.attackVisual;
 }
 
@@ -113,11 +117,14 @@ export function getEnemyFrameAnchor(enemyConfig = {}, state = "idle", frame = 0)
 
 export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", frame = 0, aspectRatio = 1) {
   const scale = enemy.scale || enemyConfig.scale || 1;
-  const height = DEFAULT_ENEMY_HEIGHT * scale;
+  const visualStateScale = enemyConfig.visualStateScale?.[state] || 1;
+  const height = DEFAULT_ENEMY_HEIGHT * scale * visualStateScale;
   const width = height * aspectRatio;
   const anchor = getEnemyFrameAnchor(enemyConfig, state, frame);
-  const offsetY = enemyConfig.airborne ? (enemyConfig.spriteOffsetY || 0) * scale : 0;
-  const anchorY = enemy.y + (enemyConfig.airborne ? offsetY : CELL.height * 0.43);
+  const offsetY = (enemyConfig.spriteOffsetY || 0) * scale;
+  const stateOffsetY = (enemyConfig.visualStateOffsetY?.[state] || 0) * scale;
+  const anchorY = enemy.y + offsetY + stateOffsetY
+    + (enemyConfig.airborne ? 0 : CELL.height * 0.43);
   return {
     x: enemy.x - width * anchor.x,
     y: anchorY - height * anchor.y,
@@ -256,6 +263,21 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
       ? Math.floor(age / (duration / count)) % count
       : Math.min(count - 1, Math.floor(age / (duration / count)));
     return { state, frame };
+  }
+  if (troop.type === "lumiUrsa7" && troop.state === "idle") {
+    const count = Math.max(1, frameCounts.idle || 1);
+    const idleVisual = troopConfig.idleVisual || {};
+    const duration = Math.max(1, idleVisual.durationMs || 1600);
+    const age = Math.max(0, elapsed - troop.stateStartedAt);
+    const cycleAge = age % duration;
+    const timeline = idleVisual.timeline || [];
+    if (!timeline.length) return { state: "idle", frame: Math.floor(cycleAge / (duration / count)) % count };
+    let frame = timeline[0].frame;
+    for (let index = 1; index < timeline.length; index += 1) {
+      if (cycleAge < timeline[index].atMs) break;
+      frame = timeline[index].frame;
+    }
+    return { state: "idle", frame: Math.min(count - 1, Math.max(0, frame)) };
   }
   const attackState = visual?.state || "attack";
   if (troopConfig.attack === "flame" && troop.channelingAttack) {

@@ -70,7 +70,7 @@ function HomePage({ campaign, onReset }) {
       <div className="hero-copy">
         <span className="eyebrow">PROTOCOLO DE DEFESA AUTÔNOMA</span>
         <h1>O perímetro é<br /><em>a última fronteira.</em></h1>
-        <p>Monte seu esquadrão, controle cinco rotas e atravesse dois capítulos de uma campanha com dezesseis fases.</p>
+        <p>Monte seu esquadrão, controle cinco rotas e atravesse três capítulos de uma campanha com vinte e quatro fases.</p>
         <div className="hero-actions">
           <Link className="primary-button" to={`/jogar/${current.id}`}>Continuar campanha <span>→</span></Link>
           <Link className="secondary-button" to={`/fases?capitulo=${currentChapter.number}`}>Selecionar fase</Link>
@@ -96,16 +96,16 @@ function HomePage({ campaign, onReset }) {
 
 export function PhaseSelectPage({ campaign }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const chapterTwoUnlocked = campaign.unlockedPhaseIndex >= 8;
   const requestedNumber = Number(searchParams.get("capitulo"));
   const currentPhaseChapter = getChapterForPhase(PHASES[campaign.unlockedPhaseIndex]);
   const requestedChapter = CHAPTERS.find((entry) => entry.number === requestedNumber);
-  const activeChapter = requestedChapter && (requestedChapter.number === 1 || chapterTwoUnlocked) ? requestedChapter : currentPhaseChapter;
+  const isChapterUnlocked = (chapter) => getPhaseIndex(chapter.phaseIds[0]) <= campaign.unlockedPhaseIndex;
+  const activeChapter = requestedChapter && isChapterUnlocked(requestedChapter) ? requestedChapter : currentPhaseChapter;
   const visiblePhases = activeChapter.phaseIds.map(getPhase).filter(Boolean);
   return <main className={`page-content chapter-page chapter-${activeChapter.number}`} style={{ "--chapter-primary": activeChapter.palette.primary, "--chapter-accent": activeChapter.palette.accent, "--chapter-cover": `url(${getArenaUrl(activeChapter.coverArenaId)})` }}>
     <header className="page-heading"><div><span className="eyebrow">MAPA DE OPERAÇÕES</span><h1>Campanha</h1><p>Complete uma operação para abrir o próximo setor.</p></div><div className="campaign-counter"><b>{campaign.unlockedPhaseIndex + 1}</b><span>setores<br />acessíveis</span></div></header>
     <section className="chapter-tabs" aria-label="Capítulos da campanha">{CHAPTERS.map((chapter) => {
-      const locked = chapter.number === 2 && !chapterTwoUnlocked;
+      const locked = !isChapterUnlocked(chapter);
       const completeCount = chapter.phaseIds.filter((phaseId) => Number(campaign.phaseStats[phaseId]?.victories || 0) > 0).length;
       return <button key={chapter.id} type="button" disabled={locked} className={chapter.id === activeChapter.id ? "active" : ""} onClick={() => setSearchParams({ capitulo: String(chapter.number) })}>
         <span className="chapter-tab-number">0{chapter.number}</span><span><small>{locked ? "BLOQUEADO" : `${completeCount}/${chapter.phaseIds.length} CONCLUÍDAS`}</small><b>{chapter.name}</b><em>{chapter.subtitle}</em></span>
@@ -215,7 +215,7 @@ export function EncyclopediaPage({ campaign }) {
               onClick={() => setSelectedIds((current) => ({ ...current, [categoryId]: entry.id }))}
             >
               <img src={category.getImage(entry)} alt="" />
-              <span><b>{entry.label}</b><small>{entry.role}</small></span>
+              <span><b>{entry.label}</b><small>{entry.title || entry.role}</small></span>
             </button>;
           })}
         </div>
@@ -231,6 +231,7 @@ export function EncyclopediaPage({ campaign }) {
         <div className="encyclopedia-record">
           <span className="eyebrow">{selected.role}</span>
           <h2>{selected.label}</h2>
+          {selected.title && <small className="unit-title">{selected.title}</small>}
           <p>{selected.description}</p>
           <dl className="encyclopedia-stats">{info.stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
           {info.specials.length > 0 && <div className="encyclopedia-specials">
@@ -274,6 +275,7 @@ function TroopInfoModal({ troop, onClose, returnFocusRef }) {
       <div className="troop-info-content">
         <span className="eyebrow">Dossiê da unidade</span>
         <h2 id={`troop-info-title-${troop.id}`}>{troop.label}</h2>
+        {troop.title && <small className="unit-title">{troop.title}</small>}
         <p>{troop.description}</p>
         <dl className="troop-info-stats">{stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
         {specials.length > 0 && <div className="troop-info-specials">
@@ -304,7 +306,7 @@ export function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
           <button type="button" className="unit-select" aria-pressed={active} aria-label={`${active ? "Remover" : "Selecionar"} ${troop.label}`} onClick={() => onToggle(troop.id)}>
             <span className="unit-check">{active ? "✓" : "+"}</span>
             <span className={`unit-portrait ${troop.id === "artilheiraMorteiro" ? "wide-sprite" : ""} ${troop.flipX ? "flipped-sprite" : ""}`}><img src={getTroopPreviewUrl(troop.id)} alt="" /><span style={{ background: troop.color }} /></span>
-            <span className="unit-info"><span className="eyebrow">{troop.role}</span><h2>{troop.label}</h2><p>{troop.description}</p><span className="unit-summary"><span>⚡ {troop.price}</span><span>SUP {troop.supply}</span><span>HP {troop.hp}</span></span></span>
+            <span className="unit-info"><span className="eyebrow">{troop.role}</span><h2>{troop.label}</h2>{troop.title && <small className="unit-title">{troop.title}</small>}<p>{troop.description}</p><span className="unit-summary"><span>⚡ {troop.price}</span><span>SUP {troop.supply}</span><span>HP {troop.hp}</span></span></span>
           </button>
           <button type="button" className="unit-info-button" aria-label={`Informações de ${troop.label}`} onClick={(event) => {
             infoTriggerRef.current = event.currentTarget;
@@ -327,7 +329,12 @@ export function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
 function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
   const victory = result.outcome === "victory";
   const phaseIndex = getPhaseIndex(phase.id);
-  const nextLabel = phaseIndex === 7 ? "Ir ao Capítulo 2" : phaseIndex === PHASES.length - 1 ? "Ver campanha" : "Próxima fase";
+  const nextPhase = PHASES[phaseIndex + 1];
+  const nextChapter = nextPhase && getChapterForPhase(nextPhase);
+  const currentChapter = getChapterForPhase(phase);
+  const nextLabel = phaseIndex === PHASES.length - 1
+    ? "Ver campanha"
+    : nextChapter?.id !== currentChapter?.id ? `Ir ao Capítulo ${nextChapter.number}` : "Próxima fase";
   return <div className="modal-backdrop result-backdrop"><section className={`result-card ${victory ? "victory" : "defeat"}`}>
     <span className="result-emblem">{victory ? "✦" : "×"}</span><span className="eyebrow">{victory ? "OPERAÇÃO CONCLUÍDA" : "NÚCLEO COMPROMETIDO"}</span><h1>{victory ? "Perímetro assegurado" : "A defesa caiu"}</h1><p>{phase.name} · {result.enemiesDefeated} hostis eliminados</p>
     <Stars value={result.stars} />
@@ -359,14 +366,15 @@ export function PlayPage({ campaign, setCampaign }) {
     setCampaign((current) => recordBattleResult(current, battleResult));
   }, [setCampaign]);
 
-  if (!phase || phaseIndex > campaign.unlockedPhaseIndex) return <Navigate to={`/fases?capitulo=${phaseIndex >= 8 ? 2 : 1}`} replace />;
-  if (!started) return <LoadoutPicker phase={phase} selected={selected} onToggle={(troopId) => setSelected((current) => current.includes(troopId) ? current.filter((id) => id !== troopId) : current.length < (phase.loadoutLimit ?? 5) ? [...current, troopId] : current)} onStart={() => setStarted(true)} onBack={() => navigate(`/fases?capitulo=${phase.chapterId === "chapter_02" ? 2 : 1}`)} />;
+  const chapterNumber = getChapterForPhase(phase)?.number || getChapterForPhase(PHASES[campaign.unlockedPhaseIndex])?.number || 1;
+  if (!phase || phaseIndex > campaign.unlockedPhaseIndex) return <Navigate to={`/fases?capitulo=${chapterNumber}`} replace />;
+  if (!started) return <LoadoutPicker phase={phase} selected={selected} onToggle={(troopId) => setSelected((current) => current.includes(troopId) ? current.filter((id) => id !== troopId) : current.length < (phase.loadoutLimit ?? 5) ? [...current, troopId] : current)} onStart={() => setStarted(true)} onBack={() => navigate(`/fases?capitulo=${chapterNumber}`)} />;
 
   const retry = () => { setResult(null); setAttempt((value) => value + 1); };
   const next = PHASES[Math.min(PHASES.length - 1, phaseIndex + 1)];
   return <main className="play-page">
-    <GameCanvas key={`${phase.id}:${attempt}`} phase={phase} unlockedTroops={selected} onFinish={handleFinish} onExit={() => navigate(`/fases?capitulo=${phase.chapterId === "chapter_02" ? 2 : 1}`)} />
-    {result && <ResultScreen result={result} phase={phase} onRetry={retry} onNext={() => navigate(phaseIndex === PHASES.length - 1 ? "/fases?capitulo=2" : `/jogar/${next.id}`)} onPhases={() => navigate(`/fases?capitulo=${phase.chapterId === "chapter_02" ? 2 : 1}`)} />}
+    <GameCanvas key={`${phase.id}:${attempt}`} phase={phase} unlockedTroops={selected} onFinish={handleFinish} onExit={() => navigate(`/fases?capitulo=${chapterNumber}`)} />
+    {result && <ResultScreen result={result} phase={phase} onRetry={retry} onNext={() => navigate(phaseIndex === PHASES.length - 1 ? `/fases?capitulo=${chapterNumber}` : `/jogar/${next.id}`)} onPhases={() => navigate(`/fases?capitulo=${chapterNumber}`)} />}
   </main>;
 }
 
