@@ -27,7 +27,7 @@ const blockingTroop = (x = 900, row = 0) => ({
 describe("Rasga-Dunas", () => {
   it("registra o perfil elite e estreia na terceira onda do capítulo 3", () => {
     expect(ENEMIES.duneRipper).toMatchObject({
-      hp: 110,
+      hp: 135,
       speed: 24,
       damage: 7,
       attackEveryMs: 1250,
@@ -35,10 +35,12 @@ describe("Rasga-Dunas", () => {
       threat: 24,
       scale: 1.25,
       attackRangeTiles: 0.4,
-      firstSummonDelayMs: 4500,
-      summonEveryMs: 8000,
-      summonCount: 3,
-      maximumLivingSummons: 6,
+      firstSummonDelayMs: 2200,
+      summonEveryMs: 6500,
+      summonCount: 4,
+      maximumLivingSummons: 8,
+      spawnProtectionMs: 2000,
+      spawnDamageTakenFactor: 0.6,
       encyclopediaUnlockAt: 16,
       assetStates: ["idle", "walking", "attack", "roar"],
     });
@@ -47,11 +49,11 @@ describe("Rasga-Dunas", () => {
     expect(PHASES[16].waves[2].enemies).toContainEqual({ type: "duneRipper", count: 1 });
   });
 
-  it("faz o primeiro grito, invoca três Escavadores vinculados e conta o cooldown do fim", () => {
+  it("faz o primeiro grito, invoca quatro Escavadores vinculados e conta o cooldown do fim", () => {
     const session = sandbox();
     const leader = spawnEnemy(session, { type: "duneRipper", row: 2 }).enemies[0];
 
-    stepBattle(session, 4499);
+    stepBattle(session, ENEMIES.duneRipper.firstSummonDelayMs - 1);
     expect(leader.duneState).toBe("walking");
     stepBattle(session, 1);
     expect(leader.duneState).toBe("roar");
@@ -65,14 +67,17 @@ describe("Rasga-Dunas", () => {
       type: "duneRipperRoar",
       enemyId: leader.id,
       row: 2,
-      summonCount: 3,
+      summonCount: 4,
     }));
-    expect(summons).toHaveLength(3);
-    expect(summons.map((enemy) => enemy.x)).toEqual([FIELD.spawnX, FIELD.spawnX + 12, FIELD.spawnX + 24]);
+    expect(summons).toHaveLength(4);
+    expect(summons.map((enemy) => enemy.x)).toEqual([FIELD.spawnX, FIELD.spawnX + 12, FIELD.spawnX + 24, FIELD.spawnX + 36]);
     expect(summons.every((enemy) => enemy.row === 2
       && enemy.summoned
       && enemy.summonerId === leader.id)).toBe(true);
-    expect(leader.duneNextSummonAt).toBe(5800 + ENEMIES.duneRipper.summonEveryMs);
+    expect(leader.duneNextSummonAt).toBe(
+      ENEMIES.duneRipper.firstSummonDelayMs + ENEMIES.duneRipper.roarDurationMs
+        + ENEMIES.duneRipper.summonEveryMs,
+    );
 
     stepBattle(session, 550);
     expect(leader.duneState).toBe("walking");
@@ -87,7 +92,7 @@ describe("Rasga-Dunas", () => {
     const leader = spawnEnemy(session, { type: "duneRipper", row: 1 }).enemies[0];
     leader.duneNextSummonAt = 0;
     const linked = spawnEnemy(session, {
-      type: "silicaDigger", row: 1, count: 6, groupInTile: true,
+      type: "silicaDigger", row: 1, count: 8, groupInTile: true,
     }).enemies;
     linked.forEach((enemy) => {
       enemy.summoned = true;
@@ -107,7 +112,7 @@ describe("Rasga-Dunas", () => {
     const livingLinked = session.enemies.filter((enemy) => (
       !enemy.dead && enemy.type === "silicaDigger" && enemy.summonerId === leader.id
     ));
-    expect(livingLinked).toHaveLength(6);
+    expect(livingLinked).toHaveLength(8);
     expect(events).toContainEqual(expect.objectContaining({
       type: "duneRipperRoar",
       summonCount: 2,
@@ -156,14 +161,14 @@ describe("Rasga-Dunas", () => {
     stepBattle(session, ENEMIES.duneRipper.roarSummonAtMs);
     const nextSummonAt = leader.duneNextSummonAt;
     const summons = session.enemies.filter((enemy) => enemy.type === "silicaDigger");
-    expect(summons).toHaveLength(3);
+    expect(summons).toHaveLength(4);
     stunEnemy(session, leader, 500);
     expect(leader.duneState).toBe("idle");
     expect(leader.duneNextSummonAt).toBe(nextSummonAt);
 
     leader.dead = true;
     stepBattle(session, 1);
-    expect(session.enemies.filter((enemy) => enemy.type === "silicaDigger")).toHaveLength(3);
+    expect(session.enemies.filter((enemy) => enemy.type === "silicaDigger")).toHaveLength(4);
   });
 
   it("mapeia os quatro estados para animações sincronizadas", () => {

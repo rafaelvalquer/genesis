@@ -25,9 +25,9 @@ const targetTroop = (x = 1000, row = 0) => ({
 });
 
 describe("Escavador de Sílica", () => {
-  it("mantém o perfil frágil e não aparece em nenhuma fase", () => {
+  it("mantém o perfil frágil e se torna a base de todas as ondas do capítulo 3", () => {
     expect(ENEMIES.silicaDigger).toMatchObject({
-      hp: 8,
+      hp: 10,
       speed: 62,
       damage: 3,
       attackEveryMs: 600,
@@ -35,18 +35,21 @@ describe("Escavador de Sílica", () => {
       threat: 6,
       scale: 0.64,
     });
-    expect(PHASES.some((phase) => phase.waves.some((wave) => (
+    expect(PHASES.slice(0, 16).some((phase) => phase.waves.some((wave) => (
       wave.enemies.some((entry) => entry.type === "silicaDigger")
     )))).toBe(false);
+    expect(PHASES.slice(16).every((phase) => phase.waves.every((wave) => (
+      wave.enemies.some((entry) => entry.type === "silicaDigger")
+    )))).toBe(true);
     expect(getLumiKnockbackFactor({ type: "silicaDigger" })).toBe(1);
   });
 
-  it("nasce com 8 HP e recebe +25% de velocidade somente com três ativos no mesmo tile", () => {
+  it("nasce com 10 HP e recebe +25% de velocidade somente com três ativos no mesmo tile", () => {
     const session = sandbox();
     const pair = spawnEnemy(session, {
       type: "silicaDigger", row: 2, count: 2, groupInTile: true,
     }).enemies;
-    expect(pair[0]).toMatchObject({ hp: 8, maxHp: 8 });
+    expect(pair[0]).toMatchObject({ hp: 10, maxHp: 10 });
     expect(getSilicaDiggerSwarmSpeedFactor(session, pair[0])).toBe(1);
 
     const third = spawnEnemy(session, {

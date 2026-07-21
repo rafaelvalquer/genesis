@@ -566,14 +566,14 @@ describe("sessão de batalha", () => {
   it("aumenta o supply de 20 para 30 e então 40 entre os capítulos", () => {
     expect(createBattleSession(PHASES[0], ["colono"], 1)).toMatchObject({ supply: 20, supplyMax: 20 });
     expect(createBattleSession(PHASES[8], ["colono"], 1)).toMatchObject({ supply: 30, supplyMax: 30 });
-    expect(createBattleSession(PHASES[16], ["colono"], 1)).toMatchObject({ supply: 40, supplyMax: 40 });
+    expect(createBattleSession(PHASES[16], ["colono"], 1)).toMatchObject({ supply: 30, supplyMax: 30 });
   });
 
   it("inicia os finais dos capítulos 2 e 3 com a energia configurada", () => {
     expect(createBattleSession(PHASES[14], ["colono"], 15).energy).toBe(230);
     expect(createBattleSession(PHASES[15], ["colono"], 16).energy).toBe(250);
-    expect(createBattleSession(PHASES[16], ["colono"], 17).energy).toBe(270);
-    expect(createBattleSession(PHASES[23], ["colono"], 24).energy).toBe(480);
+    expect(createBattleSession(PHASES[16], ["colono"], 17).energy).toBe(180);
+    expect(createBattleSession(PHASES[23], ["colono"], 24).energy).toBe(390);
   });
 
   it("aplica os multiplicadores Alpha à configuração da variante", () => {

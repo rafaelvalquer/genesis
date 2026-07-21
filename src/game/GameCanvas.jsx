@@ -4,6 +4,7 @@ import {
   getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, resolveTroopFrame,
 } from "./assetCatalog.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
+import { waveSpawnCount } from "./domain.js";
 import {
   drawArenaBackground,
   drawArenaForeground,
@@ -1321,7 +1322,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             return speeds[(speeds.indexOf(value) + 1) % speeds.length];
           })}>{speed}×</button>
           <button type="button" className="release-tool-button topbar-tool-button" onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
-          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !snapshot.outcome && <button className="start-wave topbar-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{phase.waves[snapshot.wave - 1].enemies.reduce((sum, entry) => sum + Math.ceil(entry.count * snapshot.nextWaveEnemyCountFactor), 0)} assinaturas</span></button>}
+          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !snapshot.outcome && <button className="start-wave topbar-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>}
           <button className="ghost-button" onClick={onExit}>Sair</button>
         </div>
       </header>

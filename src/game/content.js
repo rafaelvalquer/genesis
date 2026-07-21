@@ -1460,7 +1460,7 @@ export const ENEMIES = {
     id: "silicaDigger",
     label: "Escavador de Sílica",
     role: "Básico / enxame",
-    hp: 8,
+    hp: 10,
     speed: 62,
     damage: 3,
     attackEveryMs: 600,
@@ -1481,7 +1481,7 @@ export const ENEMIES = {
     id: "duneRipper",
     label: "Rasga-Dunas",
     role: "Elite / invocador / corpo a corpo",
-    hp: 110,
+    hp: 135,
     speed: 24,
     damage: 7,
     attackEveryMs: 1250,
@@ -1495,10 +1495,12 @@ export const ENEMIES = {
     animationFrameMs: { idle: 150, walking: 95 },
     attackRangeTiles: 0.4,
     attackVisual: { durationMs: 620, impactMs: 330 },
-    firstSummonDelayMs: 4500,
-    summonEveryMs: 8000,
-    summonCount: 3,
-    maximumLivingSummons: 6,
+    firstSummonDelayMs: 2200,
+    summonEveryMs: 6500,
+    summonCount: 4,
+    maximumLivingSummons: 8,
+    spawnProtectionMs: 2000,
+    spawnDamageTakenFactor: 0.6,
     summonRetryMs: 1000,
     interruptedSummonRetryMs: 2000,
     roarDurationMs: 1300,
@@ -1618,7 +1620,7 @@ export const ENEMIES = {
     id: "workerQueen",
     label: "Rainha Operária",
     role: "Invocadora / suporte de enxame",
-    hp: 90,
+    hp: 125,
     speed: 10,
     damage: 3,
     attackEveryMs: 1700,
@@ -1654,8 +1656,10 @@ export const ENEMIES = {
       effect: "inhibitorWeb",
       muzzle: { x: 0.24, y: 0.68 },
     },
-    firstEggLayDelayMs: 6000,
-    eggLayEveryMs: 10000,
+    firstEggLayDelayMs: 3000,
+    eggLayEveryMs: 8000,
+    spawnProtectionMs: 2000,
+    spawnDamageTakenFactor: 0.6,
     eggsPerLay: 2,
     eggSpawnStartTiles: 0.45,
     eggSpawnSpacingTiles: 0.45,
@@ -1686,7 +1690,7 @@ export const ENEMIES = {
     chapterId: "chapter_03",
     assetStates: ["idle", "hatch", "destroy"],
     animationFrameMs: { idle: 165 },
-    hatchAfterMs: 4500,
+    hatchAfterMs: 3500,
     hatchVisualMs: 800,
     hiddenFromCatalog: true,
     stationary: true,
@@ -2457,6 +2461,9 @@ const phase = (
 ) => {
   const phaseNumber = Number(id.slice(-2));
   const chapterNumber = Math.ceil(phaseNumber / 8);
+  const configuredWaves = chapterNumber === 3
+    ? getChapterThreeWaves(phaseNumber - 17)
+    : waves;
   return {
     id,
     name,
@@ -2467,11 +2474,11 @@ const phase = (
     environment,
     chapterId: `chapter_${String(chapterNumber).padStart(2, "0")}`,
     chapterIndex: (phaseNumber - 1) % 8,
-    supplyLimit: chapterNumber >= 3 ? 40 : chapterNumber === 2 ? 30 : 20,
+    supplyLimit: chapterNumber >= 2 ? 30 : 20,
     loadoutLimit: chapterNumber >= 2 ? 6 : 5,
     waveCompletionEnergy: phaseNumber >= 2 ? 20 : 0,
     targetDurationMs,
-    waves,
+    waves: configuredWaves,
     ...ARENAS[id],
     ...extra,
   };
@@ -2547,6 +2554,129 @@ const GLASS_ECHO_BASE = {
   maxAlive: 12,
 };
 const glassMechanic = (chance) => ({ ...GLASS_ECHO_BASE, chance });
+
+const CHITIN_BLOCK_ORDER = ["opening", "main", "elite", "counter", "climax", "boss"];
+
+const partitionSilicaGroups = (total) => {
+  const groupCount = Math.max(1, Math.ceil(total / 6));
+  const groups = Array(groupCount).fill(5);
+  let remaining = total - groupCount * 5;
+  for (let index = 0; remaining > 0; index = (index + 1) % groupCount) {
+    groups[index] += 1;
+    remaining -= 1;
+  }
+  return groups;
+};
+
+const addPacketUnit = (packet, type, count, xOffsetTiles, variant, spawnDelayMs = 0) => {
+  if (!count) return;
+  const existing = packet.units.find((unit) => unit.type === type && unit.variant === variant);
+  if (existing) existing.count += count;
+  else packet.units.push({ type, count, xOffsetTiles, spawnDelayMs, ...(variant ? { variant } : {}) });
+};
+
+const aggregatePacketEnemies = (packets) => {
+  const entries = new Map();
+  packets.flatMap((packet) => packet.units).forEach((unit) => {
+    const key = `${unit.type}:${unit.variant || ""}`;
+    const existing = entries.get(key);
+    if (existing) existing.count += unit.count;
+    else entries.set(key, { type: unit.type, count: unit.count, ...(unit.variant ? { variant: unit.variant } : {}) });
+  });
+  return [...entries.values()];
+};
+
+const coordinatedWave = (targetCount, spawnWindowMs, {
+  brakorRatio, duneRipper = 0, workerQueen = 0, ramBeetle = 0,
+  alphaBrakor = false, scarabEmperor = 0,
+}) => {
+  const brakorTotal = Math.max(1, Math.ceil(targetCount * brakorRatio));
+  const specialTotal = duneRipper + workerQueen + ramBeetle + scarabEmperor;
+  const silicaTotal = targetCount - brakorTotal - specialTotal;
+  const silicaGroups = partitionSilicaGroups(silicaTotal);
+  const packets = silicaGroups.map((count, index) => {
+    const progress = (index + 0.5) / silicaGroups.length;
+    const block = scarabEmperor && index === silicaGroups.length - 1 ? "boss"
+      : progress <= 0.2 ? "opening"
+        : progress <= 0.5 ? "main"
+          : progress <= 0.7 ? "elite"
+            : progress <= 0.85 ? "counter"
+              : "climax";
+    return {
+      id: `packet_${index + 1}`,
+      block,
+      spawnAtMs: silicaGroups.length === 1 ? 0 : Math.round(index * spawnWindowMs / (silicaGroups.length - 1)),
+      units: [{ type: "silicaDigger", count, xOffsetTiles: 0 }],
+    };
+  });
+  const packetsFor = (...blocks) => {
+    const matches = packets.filter((packet) => blocks.includes(packet.block));
+    return matches.length ? matches : packets;
+  };
+  const distribute = (type, count, blocks, xOffsetTiles, variant, spawnDelayMs = 0) => {
+    const targets = packetsFor(...blocks);
+    for (let index = 0; index < count; index += 1) {
+      addPacketUnit(targets[index % targets.length], type, 1, xOffsetTiles, variant, spawnDelayMs);
+    }
+  };
+
+  distribute("brakor", brakorTotal - (alphaBrakor ? 1 : 0), ["opening", "main", "climax"], -0.75);
+  distribute("duneRipper", duneRipper, ["elite", "climax"], 0.75);
+  distribute("ramBeetle", ramBeetle, ["counter", "climax"], -0.75);
+  distribute("workerQueen", workerQueen, ["counter", "climax"], 0.75, undefined, 400);
+  if (alphaBrakor) distribute("brakor", 1, ["climax"], -0.75, "alpha");
+  if (scarabEmperor) distribute("scarabEmperor", scarabEmperor, ["boss"], 0.75);
+
+  const spawnBlocks = CHITIN_BLOCK_ORDER.map((id) => ({
+    id,
+    packets: packets.filter((packet) => packet.block === id).map(({ block, ...packet }) => packet),
+  })).filter((block) => block.packets.length);
+  return {
+    enemies: aggregatePacketEnemies(packets),
+    spawnBlocks,
+    spawnWindowMs,
+    coordinated: true,
+  };
+};
+
+const progressiveSpecialCount = (cap, firstWave, waveNumber, totalWaves) => {
+  if (!cap || waveNumber < firstWave) return 0;
+  return Math.ceil(cap * (waveNumber - firstWave + 1) / (totalWaves - firstWave + 1));
+};
+
+const chapterThreeWaves = (chapterIndex, counts, windowsSeconds, caps, alphaWaves = []) => {
+  const totalWaves = counts.length;
+  const brakorRatio = 0.12 + chapterIndex * (0.06 / 7);
+  return counts.map((targetCount, waveIndex) => {
+    const waveNumber = waveIndex + 1;
+    return coordinatedWave(targetCount, windowsSeconds[waveIndex] * 1000, {
+      brakorRatio,
+      duneRipper: progressiveSpecialCount(caps.duneRipper, chapterIndex === 0 ? 3 : 2, waveNumber, totalWaves),
+      workerQueen: progressiveSpecialCount(caps.workerQueen, chapterIndex === 1 ? 3 : 2, waveNumber, totalWaves),
+      ramBeetle: progressiveSpecialCount(caps.ramBeetle, chapterIndex === 2 ? 4 : 2, waveNumber, totalWaves),
+      alphaBrakor: alphaWaves.includes(waveNumber),
+      scarabEmperor: chapterIndex === 7 && waveNumber === totalWaves ? 1 : 0,
+    });
+  });
+};
+
+const CHAPTER_THREE_WAVE_CONFIGS = [
+  { counts: [60, 68, 76, 84, 92], windows: [75, 80, 85, 90, 95], caps: { duneRipper: 1, workerQueen: 0, ramBeetle: 0 }, alphas: [] },
+  { counts: [64, 72, 80, 88, 98], windows: [75, 80, 85, 90, 95], caps: { duneRipper: 2, workerQueen: 1, ramBeetle: 0 }, alphas: [] },
+  { counts: [68, 76, 84, 94, 104], windows: [75, 80, 85, 92, 100], caps: { duneRipper: 2, workerQueen: 2, ramBeetle: 1 }, alphas: [] },
+  { counts: [72, 80, 90, 100, 112], windows: [75, 82, 88, 95, 102], caps: { duneRipper: 3, workerQueen: 2, ramBeetle: 2 }, alphas: [5] },
+  { counts: [76, 84, 92, 102, 114, 126], windows: [75, 80, 85, 90, 98, 105], caps: { duneRipper: 3, workerQueen: 3, ramBeetle: 3 }, alphas: [6] },
+  { counts: [80, 88, 98, 108, 120, 138], windows: [75, 82, 88, 95, 102, 108], caps: { duneRipper: 4, workerQueen: 3, ramBeetle: 3 }, alphas: [4, 6] },
+  { counts: [84, 94, 104, 116, 132, 152], windows: [75, 82, 90, 98, 104, 110], caps: { duneRipper: 4, workerQueen: 4, ramBeetle: 4 }, alphas: [3, 5, 6] },
+  { counts: [88, 98, 110, 124, 142, 164], windows: [75, 82, 90, 98, 104, 110], caps: { duneRipper: 4, workerQueen: 3, ramBeetle: 4 }, alphas: [2, 4, 5] },
+];
+
+function getChapterThreeWaves(chapterIndex) {
+  const config = CHAPTER_THREE_WAVE_CONFIGS[chapterIndex];
+  return config
+    ? chapterThreeWaves(chapterIndex, config.counts, config.windows, config.caps, config.alphas)
+    : [];
+}
 
 export const PHASES = [
   phase(
@@ -3030,7 +3160,7 @@ export const PHASES = [
     "fase_18",
     "Ossário do Sol",
     "Sombras antigas cobrem a marcha",
-    290,
+    210,
     880,
     "chitin",
     750000,
@@ -3071,7 +3201,7 @@ export const PHASES = [
     "fase_19",
     "Cratera de Âmbar",
     "Veios orgânicos cercam a linha",
-    315,
+    240,
     840,
     "chitin",
     780000,
@@ -3117,7 +3247,7 @@ export const PHASES = [
     "fase_20",
     "Galerias Rasas",
     "A areia respira sobre as cavernas",
-    340,
+    270,
     800,
     "chitin",
     810000,
@@ -3166,7 +3296,7 @@ export const PHASES = [
     "fase_21",
     "Berçário Sepultado",
     "Seis marés rompem o ninho",
-    370,
+    300,
     760,
     "chitin",
     900000,
@@ -3224,7 +3354,7 @@ export const PHASES = [
     "fase_22",
     "Bosque de Agulhas",
     "Cristais orgânicos fecham o horizonte",
-    405,
+    330,
     720,
     "chitin",
     960000,
@@ -3283,7 +3413,7 @@ export const PHASES = [
     "fase_23",
     "Vale da Poeira Viva",
     "O céu incandescente engole o campo",
-    440,
+    360,
     680,
     "chitin",
     1020000,
@@ -3343,7 +3473,7 @@ export const PHASES = [
     "fase_24",
     "Trono de Quitina",
     "Resista à maré sob a coroa ancestral",
-    480,
+    390,
     640,
     "chitin",
     1080000,

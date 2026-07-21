@@ -9,6 +9,9 @@ import {
   phaseBudget,
   validateCampaignBalance,
   waveBudget,
+  wavePressure,
+  waveSpawnCount,
+  waveSpawnWindowMs,
 } from "./domain.js";
 
 describe("campanha e ondas", () => {
@@ -59,12 +62,21 @@ describe("campanha e ondas", () => {
     expect(getUnlockedTroops(10).some((troop) => troop.id === "medicaNanites")).toBe(true);
   });
 
-  it("mantém orçamento crescente em todas as vinte e quatro fases", () => {
+  it("mantém o balanceamento legado e a pressão coordenada crescentes", () => {
     expect(validateCampaignBalance()).toEqual([]);
-    for (let index = 1; index < PHASES.length; index += 1) {
+    for (let index = 1; index < 16; index += 1) {
+      if (PHASES[index].chapterId !== PHASES[index - 1].chapterId) continue;
       expect(phaseBudget(PHASES[index])).toBeGreaterThanOrEqual(phaseBudget(PHASES[index - 1]) * 1.1);
       expect(waveBudget(PHASES[index].waves.at(-1))).toBeGreaterThanOrEqual(waveBudget(PHASES[index - 1].waves.at(-1)) * 1.1);
     }
+    PHASES.slice(17, 24).forEach((phase, index) => {
+      const previous = PHASES[index + 16];
+      const pressure = phase.waves.reduce((sum, wave, waveIndex) => sum + wavePressure(phase, waveIndex), 0);
+      const previousPressure = previous.waves.reduce((sum, wave, waveIndex) => sum + wavePressure(previous, waveIndex), 0);
+      expect(pressure).toBeGreaterThanOrEqual(previousPressure * 1.08);
+      expect(wavePressure(phase, phase.waves.length - 1))
+        .toBeGreaterThanOrEqual(wavePressure(previous, previous.waves.length - 1) * 1.08);
+    });
   });
 
   it("organiza vinte e quatro fases em três capítulos de oito operações", () => {
@@ -81,36 +93,84 @@ describe("campanha e ondas", () => {
 
   it("configura as Dunas de Quitina com apenas as seis criaturas planejadas", () => {
     const chapterThree = PHASES.slice(16, 24);
-    const allowedTypes = new Set(["silex", "brakor", "duneRipper", "ramBeetle", "workerQueen", "scarabEmperor"]);
+    const allowedTypes = new Set(["silicaDigger", "brakor", "duneRipper", "ramBeetle", "workerQueen", "scarabEmperor"]);
     expect(CHAPTERS[2]).toMatchObject({ id: "chapter_03", name: "Dunas de Quitina" });
-    expect(chapterThree.every((phase) => phase.supplyLimit === 40)).toBe(true);
-    expect(chapterThree.map((phase) => phase.energy)).toEqual([270, 290, 315, 340, 370, 405, 440, 480]);
+    expect(chapterThree.every((phase) => phase.supplyLimit === 30)).toBe(true);
+    expect(chapterThree.map((phase) => phase.energy)).toEqual([180, 210, 240, 270, 300, 330, 360, 390]);
     expect(chapterThree.every((phase) => phase.waves.flatMap((wave) => wave.enemies).every((entry) => allowedTypes.has(entry.type)))).toBe(true);
     expect(chapterThree.every((phase) => phase.chapterMechanic === undefined)).toBe(true);
   });
 
-  it("mantém as aberturas do capítulo 3 leves e cumpre a curva de ameaça planejada", () => {
+  it("cumpre as quantidades e janelas coordenadas do capítulo 3", () => {
     const chapterThree = PHASES.slice(16, 24);
-    const targets = [
-      [1700, 1900, 2100, 2300, 2600],
-      [1900, 2100, 2300, 2500, 2900],
-      [2100, 2300, 2500, 2700, 3300],
-      [2320, 2550, 2780, 3050, 3800],
-      [2600, 2800, 3000, 3300, 3600, 4300],
-      [2900, 3150, 3400, 3700, 4050, 4800],
-      [3200, 3500, 3800, 4150, 4550, 5400],
-      [3550, 3900, 4250, 4650, 5100, 6000],
+    const counts = [
+      [60, 68, 76, 84, 92], [64, 72, 80, 88, 98], [68, 76, 84, 94, 104],
+      [72, 80, 90, 100, 112], [76, 84, 92, 102, 114, 126],
+      [80, 88, 98, 108, 120, 138], [84, 94, 104, 116, 132, 152],
+      [88, 98, 110, 124, 142, 164],
+    ];
+    const windows = [
+      [75, 80, 85, 90, 95], [75, 80, 85, 90, 95], [75, 80, 85, 92, 100],
+      [75, 82, 88, 95, 102], [75, 80, 85, 90, 98, 105],
+      [75, 82, 88, 95, 102, 108], [75, 82, 90, 98, 104, 110],
+      [75, 82, 90, 98, 104, 110],
     ];
 
     chapterThree.forEach((phase, phaseIndex) => {
-      expect(phase.waves[0].enemies).toHaveLength(1);
-      expect(phase.waves[0].enemies[0]).toMatchObject({ type: "silex" });
-      expect(phase.waves[0].enemies[0].variant).toBeUndefined();
       phase.waves.forEach((wave, waveIndex) => {
-        const budget = waveBudget(wave);
-        expect(budget).toBeGreaterThanOrEqual(targets[phaseIndex][waveIndex]);
-        expect(budget).toBeLessThan(targets[phaseIndex][waveIndex] + ENEMIES.silex.threat);
+        expect(wave.coordinated).toBe(true);
+        expect(waveSpawnCount(phase, waveIndex)).toBe(counts[phaseIndex][waveIndex]);
+        expect(waveSpawnWindowMs(phase, waveIndex)).toBe(windows[phaseIndex][waveIndex] * 1000);
+        expect(wave.enemies.some((entry) => entry.type === "silicaDigger")).toBe(true);
+        expect(wave.enemies.some((entry) => entry.type === "silex")).toBe(false);
       });
+    });
+  });
+
+  it("preserva pacotes de 5 a 8 Escavadores na mesma linha e a ordem dos blocos", () => {
+    const blockOrder = ["opening", "main", "elite", "counter", "climax", "boss"];
+    PHASES.slice(16, 24).forEach((phase) => phase.waves.forEach((wave, waveIndex) => {
+      const queue = buildSpawnQueue(phase, waveIndex, 8128);
+      const packetIds = [...new Set(queue.map((entry) => entry.packetId))];
+      let previousBlock = -1;
+      packetIds.forEach((packetId) => {
+        const packet = queue.filter((entry) => entry.packetId === packetId);
+        const silica = packet.filter((entry) => entry.type === "silicaDigger");
+        expect(silica.length).toBeGreaterThanOrEqual(5);
+        expect(silica.length).toBeLessThanOrEqual(8);
+        expect(new Set(packet.map((entry) => entry.row)).size).toBe(1);
+        expect(new Set(packet.filter((entry) => entry.type !== "workerQueen").map((entry) => entry.spawnAtMs)).size).toBe(1);
+        expect(silica.slice(1).every((entry, index) => (
+          entry.formationOffsetPx - silica[index].formationOffsetPx === 10
+        ))).toBe(true);
+        packet.filter((entry) => entry.type === "workerQueen").forEach((queen) => {
+          expect(queen.spawnAtMs).toBe(silica[0].spawnAtMs + 400);
+          expect(queue.indexOf(queen)).toBeGreaterThan(queue.indexOf(silica.at(-1)));
+        });
+        const blockIndex = blockOrder.indexOf(packet[0].block);
+        expect(blockIndex).toBeGreaterThanOrEqual(previousBlock);
+        previousBlock = blockIndex;
+        packet.filter((entry) => ["brakor", "ramBeetle"].includes(entry.type))
+          .forEach((entry) => expect(entry.xOffsetTiles).toBe(-0.75));
+        packet.filter((entry) => ["duneRipper", "workerQueen", "scarabEmperor"].includes(entry.type))
+          .forEach((entry) => expect(entry.xOffsetTiles).toBe(0.75));
+      });
+      for (let index = 2; index < packetIds.length; index += 1) {
+        const rows = packetIds.slice(index - 2, index + 1).map((id) => queue.find((entry) => entry.packetId === id).row);
+        expect(new Set(rows).size).toBeGreaterThan(1);
+      }
+    }));
+  });
+
+  it("reforça a fila coordenada sem isolar ou superlotar grupos de Escavadores", () => {
+    const phase = PHASES[23];
+    const base = buildSpawnQueue(phase, 5, 99);
+    const reinforced = buildSpawnQueue(phase, 5, 99, 1.2);
+    expect(reinforced.length).toBeGreaterThanOrEqual(Math.ceil(base.length * 1.2));
+    [...new Set(reinforced.map((entry) => entry.packetId))].forEach((packetId) => {
+      const count = reinforced.filter((entry) => entry.packetId === packetId && entry.type === "silicaDigger").length;
+      expect(count).toBeGreaterThanOrEqual(5);
+      expect(count).toBeLessThanOrEqual(8);
     });
   });
 
@@ -120,14 +180,14 @@ describe("campanha e ondas", () => {
       .filter((entry) => entry.type === type && !entry.variant)
       .reduce((sum, entry) => sum + entry.count, 0);
     const expectedFinalSpecials = [
-      [2, 0, 0], [2, 2, 0], [3, 2, 2], [3, 3, 3],
-      [4, 3, 3], [4, 4, 4], [5, 4, 5], [4, 3, 4],
+      [1, 0, 0], [2, 1, 0], [2, 2, 1], [3, 2, 2],
+      [3, 3, 3], [4, 3, 3], [4, 4, 4], [4, 3, 4],
     ];
     const expectedAlphas = [
-      [], [], [], [[4, "silex"]], [[5, "brakor"]],
-      [[3, "silex"], [5, "brakor"]],
-      [[2, "silex"], [4, "brakor"], [5, "silex"]],
-      [[1, "silex"], [3, "brakor"], [4, "silex"]],
+      [], [], [], [[4, "brakor"]], [[5, "brakor"]],
+      [[3, "brakor"], [5, "brakor"]],
+      [[2, "brakor"], [4, "brakor"], [5, "brakor"]],
+      [[1, "brakor"], [3, "brakor"], [4, "brakor"]],
     ];
 
     chapterThree.forEach((phase, phaseIndex) => {
@@ -348,7 +408,7 @@ describe("campanha e ondas", () => {
     expect(waveBudget(PHASES[3].waves[0])).toBe(196);
 
     const eliteFamily = new Set(["krakhul", "brakor", "aurakh"]);
-    PHASES.forEach((phase) => {
+    PHASES.slice(0, 16).forEach((phase) => {
       expect(phase.waves[0].enemies.some((enemy) => eliteFamily.has(enemy.type))).toBe(false);
     });
 

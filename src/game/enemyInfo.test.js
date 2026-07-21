@@ -16,7 +16,7 @@ describe("apresentação das informações dos inimigos", () => {
     });
     expect(getEnemyUnlockAt("medu")).toBe(0);
     expect(getEnemyUnlockAt("crisalio")).toBe(12);
-    expect(getEnemyUnlockAt("silicaDigger")).toBe(0);
+    expect(getEnemyUnlockAt("silicaDigger")).toBe(16);
   });
 
   it("detalha ataques à distância e unidades flutuantes", () => {
@@ -49,9 +49,23 @@ describe("apresentação das informações dos inimigos", () => {
     expect(getEnemyUnlockAt("duneRipper", ENEMIES.duneRipper)).toBe(16);
     expect(getEnemyInfo(ENEMIES.duneRipper).specials).toEqual([
       {
-        label: "Grito da Ninhada",
-        value: "Até 3 Escavadores a cada 8 s; máximo de 6 vivos",
+        label: "Proteção de chegada",
+        value: "Reduz 40% do dano recebido por 2 s",
       },
+      {
+        label: "Grito da Ninhada",
+        value: "Até 4 Escavadores a cada 6,5 s; máximo de 8 vivos",
+      },
+    ]);
+  });
+
+  it("detalha a postura e a proteção inicial da Rainha Operária", () => {
+    expect(getEnemyInfo(ENEMIES.workerQueen).specials).toEqual([
+      { label: "Proteção de chegada", value: "Reduz 40% do dano recebido por 2 s" },
+      { label: "Teia Inibidora", value: "1 de dano; reduz a cadência em 30% por 3 s" },
+      { label: "Postura de ovos", value: "2 ovos a cada 8 s; eclosão em 3,5 s" },
+      { label: "Limites da ninhada", value: "Até 4 ovos e 6 Escavadores vinculados" },
+      { label: "Mordida da Matriarca", value: "3 de dano a cada 1,7 s no mesmo tile" },
     ]);
   });
 

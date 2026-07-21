@@ -127,8 +127,18 @@ describe("Enciclopédia", () => {
     expect(screen.getByRole("tab", { name: /Inimigos/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "Ver informações de Medu" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ver informações de Crix" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ver informações de Escavador de Sílica" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ver informações de Escavador de Sílica" })).not.toBeInTheDocument();
     expect(screen.queryByText("Crisálio")).not.toBeInTheDocument();
+  });
+
+  it("libera o Escavador de Sílica na abertura do capítulo 3", () => {
+    const { rerender } = render(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 15, phaseStats: {} }} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: /Inimigos/ }));
+    expect(screen.queryByRole("button", { name: "Ver informações de Escavador de Sílica" })).not.toBeInTheDocument();
+
+    rerender(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 16, phaseStats: {} }} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Ver informações de Escavador de Sílica" }));
+    expect(screen.getByRole("heading", { name: "Escavador de Sílica" })).toBeInTheDocument();
   });
 
   it("revela entradas conforme as fases e atualiza o dossiê selecionado", () => {

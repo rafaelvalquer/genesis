@@ -4,6 +4,7 @@ import {
   CELL,
   FIELD,
   createBattleSession,
+  getEnemyDamageTakenFactor,
   placeTroop,
   spawnEnemy,
   stepBattle,
@@ -38,7 +39,7 @@ function readyQueen(session, row = 0) {
 describe("Rainha Operária", () => {
   it("registra o perfil, dependências e estreia na terceira onda da fase 18", () => {
     expect(ENEMIES.workerQueen).toMatchObject({
-      hp: 90,
+      hp: 125,
       speed: 10,
       threat: 30,
       holdRangeTiles: 3,
@@ -48,6 +49,10 @@ describe("Rainha Operária", () => {
       eggsPerLay: 2,
       maximumLivingEggs: 4,
       maximumLivingSummons: 6,
+      firstEggLayDelayMs: 3000,
+      eggLayEveryMs: 8000,
+      spawnProtectionMs: 2000,
+      spawnDamageTakenFactor: 0.6,
       encyclopediaUnlockAt: 16,
     });
     expect(ENEMIES.workerQueenEgg).toMatchObject({
@@ -55,7 +60,7 @@ describe("Rainha Operária", () => {
       stationary: true,
       controlImmune: true,
       hiddenFromCatalog: true,
-      hatchAfterMs: 4500,
+      hatchAfterMs: 3500,
     });
     expect(PHASES.slice(0, 17).flatMap((phase) => phase.waves)
       .flatMap((wave) => wave.enemies)
@@ -161,18 +166,32 @@ describe("Rainha Operária", () => {
     queen.queenNextEggLayAt = 0;
     stepBattle(session, 1);
     stepBattle(session, ENEMIES.workerQueen.eggLayVisual.depositMs);
+    session.enemies.filter((enemy) => enemy.type === "workerQueenEgg")
+      .forEach((egg) => { egg.eggHatchAt = Infinity; });
     stepBattle(session, ENEMIES.workerQueen.eggLayVisual.durationMs);
 
     queen.queenNextEggLayAt = session.elapsed;
     stepBattle(session, 1);
     stepBattle(session, ENEMIES.workerQueen.eggLayVisual.depositMs);
-    stepBattle(session, ENEMIES.workerQueen.eggLayVisual.durationMs);
     expect(session.enemies.filter((enemy) => enemy.type === "workerQueenEgg")).toHaveLength(4);
+    stepBattle(session, ENEMIES.workerQueen.eggLayVisual.durationMs);
 
     queen.queenNextEggLayAt = session.elapsed;
     stepBattle(session, 1);
     expect(queen.queenState).not.toBe("eggLay");
     expect(queen.queenNextEggLayAt).toBe(session.elapsed + ENEMIES.workerQueen.eggLayRetryMs);
+  });
+
+  it("reduz todo dano por dois segundos sem impedir controle", () => {
+    const session = sandbox();
+    for (const type of ["duneRipper", "workerQueen"]) {
+      const enemy = spawnEnemy(session, { type, row: 0 }).enemies[0];
+      expect(getEnemyDamageTakenFactor(enemy, { elapsed: enemy.spawnedAt + 1999, direct: false })).toBe(0.6);
+      expect(getEnemyDamageTakenFactor(enemy, { elapsed: enemy.spawnedAt + 1999, direct: true, sourceX: 0 })).toBe(0.6);
+      expect(getEnemyDamageTakenFactor(enemy, { elapsed: enemy.spawnedAt + 2000 })).toBe(1);
+      stunEnemy(session, enemy, 500);
+      expect(enemy.stunnedUntil).toBeGreaterThan(session.elapsed);
+    }
   });
 
   it("aplica teia em alvo único, renova sem acumular e restaura a cadência", () => {
@@ -228,8 +247,8 @@ describe("Rainha Operária", () => {
     queen.stunnedUntil = 1000;
     expect(getEnemyAnimation(queen, ENEMIES.workerQueen, 800, { stunned: 8 }).state).toBe("stunned");
 
-    const egg = { type: "workerQueenEgg", eggCreatedAt: 0, eggHatchAt: 4500 };
-    expect(getEnemyAnimation(egg, ENEMIES.workerQueenEgg, 4000, { idle: 8, hatch: 8 }).state)
+    const egg = { type: "workerQueenEgg", eggCreatedAt: 0, eggHatchAt: 3500 };
+    expect(getEnemyAnimation(egg, ENEMIES.workerQueenEgg, 3000, { idle: 8, hatch: 8 }).state)
       .toBe("hatch");
   });
 });

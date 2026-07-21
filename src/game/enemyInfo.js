@@ -44,6 +44,10 @@ export function getEnemyInfo(enemy) {
     label: "Impulso de enxame",
     value: `Com ${enemy.swarmMinCount}+ no mesmo tile: +${Math.round((enemy.swarmSpeedFactor - 1) * 100)}% de velocidade`,
   });
+  if (enemy.spawnProtectionMs && enemy.spawnDamageTakenFactor != null) specials.push({
+    label: "Proteção de chegada",
+    value: `Reduz ${Math.round((1 - enemy.spawnDamageTakenFactor) * 100)}% do dano recebido por ${formatDuration(enemy.spawnProtectionMs)}`,
+  });
   if (enemy.id === "duneRipper") specials.push({
     label: "Grito da Ninhada",
     value: `Até ${enemy.summonCount} Escavadores a cada ${formatDuration(enemy.summonEveryMs)}; máximo de ${enemy.maximumLivingSummons} vivos`,

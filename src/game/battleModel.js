@@ -109,6 +109,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     pendingDecisionLevel: null,
     queue: [],
     nextSpawnAt: 0,
+    waveStartedAt: 0,
     troops: [],
     enemies: [],
     mines: [],
@@ -340,7 +341,8 @@ export function startWave(session) {
   session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
   session.waveActive = true;
   session.preparing = false;
-  session.nextSpawnAt = session.elapsed;
+  session.waveStartedAt = session.elapsed;
+  session.nextSpawnAt = session.elapsed + (session.queue[0]?.spawnAtMs || 0);
   session.troops.filter((troop) => !troop.dead && troop.type === "demolidora")
     .forEach((troop) => { troop.mineReadyAt = session.elapsed; });
   return true;
@@ -371,7 +373,13 @@ function createEnemy(session, queued) {
     id: id("enemy"), type: queued.type, variant: alpha ? "alpha" : undefined, isEcho: echo,
     echoSourceId: queued.echoSourceId || null,
     row: Number.isInteger(queued.row) ? clamp(queued.row, 0, FIELD.rows - 1) : Math.floor(session.rng() * FIELD.rows),
-    x: Number.isFinite(queued.x) ? queued.x : FIELD.spawnX, y: 0,
+    x: Number.isFinite(queued.x)
+      ? queued.x
+      : FIELD.spawnX + (queued.xOffsetTiles || 0) * CELL.width + (queued.formationOffsetPx || 0),
+    y: 0,
+    spawnedAt: session.elapsed,
+    packetId: queued.packetId || null,
+    spawnBlock: queued.block || null,
     hp: maxHp, maxHp,
     speed: base.speed * (alpha ? 0.75 : 1) * echoSpeedFactor,
     damage: base.damage * (alpha ? 2 : 1) * echoDamageFactor,
@@ -702,19 +710,27 @@ function attachParasite(session, enemy, troop, config) {
 
 export function getEnemyDamageTakenFactor(enemy, context = {}) {
   const config = ENEMIES[enemy?.type];
-  if (!enemy || !isScarabEmperor(config)) return 1;
-  const phase = config[`phase${enemy.bossPhase || 1}`] || config.phase1;
-  let factor = phase.damageTakenFactor ?? 1;
-  const frontal = context.direct === true
-    && Number.isFinite(context.sourceX)
-    && context.sourceX <= enemy.x;
-  if ((enemy.bossPhase || 1) === 1 && frontal) factor *= phase.frontDamageFactor ?? 1;
+  if (!enemy) return 1;
+  let factor = 1;
+  if (isScarabEmperor(config)) {
+    const phase = config[`phase${enemy.bossPhase || 1}`] || config.phase1;
+    factor *= phase.damageTakenFactor ?? 1;
+    const frontal = context.direct === true
+      && Number.isFinite(context.sourceX)
+      && context.sourceX <= enemy.x;
+    if ((enemy.bossPhase || 1) === 1 && frontal) factor *= phase.frontDamageFactor ?? 1;
+  }
+  if (config?.spawnProtectionMs > 0
+    && Number.isFinite(enemy.spawnedAt)
+    && (context.elapsed ?? enemy.spawnedAt) - enemy.spawnedAt < config.spawnProtectionMs) {
+    factor *= config.spawnDamageTakenFactor ?? 1;
+  }
   return factor;
 }
 
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
-  const damageTakenFactor = getEnemyDamageTakenFactor(enemy, context);
+  const damageTakenFactor = getEnemyDamageTakenFactor(enemy, { ...context, elapsed: session.elapsed });
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1) * damageTakenFactor;
   const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
@@ -2871,9 +2887,12 @@ export function stepBattle(session, dt = 32) {
       session.supply = Math.min(session.supplyMax, session.supply + 1);
     }
     while (session.waveActive && session.queue.length && session.elapsed >= session.nextSpawnAt) {
-      const enemy = createEnemy(session, session.queue.shift());
+      const queued = session.queue.shift();
+      const enemy = createEnemy(session, queued);
+      session.nextSpawnAt = session.queue.length
+        ? session.waveStartedAt + session.queue[0].spawnAtMs
+        : Infinity;
       if (!enemy) continue;
-      session.nextSpawnAt += session.phase.cadenceMs;
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
     updateDematerializationPulses(session, events);
