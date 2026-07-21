@@ -426,6 +426,29 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       if (sniper) particles.push({ kind: "ring", x: event.x, y: event.y, color, born: now, life: 250, maxRadius: 34 });
       continue;
     }
+    if (event.type === "scarabTransitionStart") {
+      addSparks(particles, event, now, Math.max(10, Math.round((event.toPhase === 3 ? 34 : 24) * quality.density)), random, {
+        color: event.toPhase === 3 ? "#fbbf24" : "#fb923c", minSpeed: 35, speed: 135, life: 620, size: 3.1,
+      });
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#22d3ee", born: now, life: 650, maxRadius: event.toPhase === 3 ? 105 : 82 });
+      if (settings.quality !== "low") particles.push({
+        kind: "smoke", x: event.x, y: event.y + 28, vx: -10, vy: -26,
+        color: "#9a6b42", born: now, life: 780, size: event.toPhase === 3 ? 26 : 20,
+      });
+      continue;
+    }
+    if (event.type === "scarabTransitionComplete") {
+      addSparks(particles, event, now, Math.max(5, Math.round(12 * quality.density)), random, {
+        color: "#22d3ee", minSpeed: 20, speed: 75, life: 360, size: 2,
+      });
+      continue;
+    }
+    if (event.type === "scarabAttackImpact") {
+      addSparks(particles, event, now, Math.max(4, Math.round(10 * quality.density)), random, {
+        color: "#f59e0b", minSpeed: 28, speed: 92, life: 300, size: 2.2,
+      });
+      continue;
+    }
 
     const baseBursts = event.type === "bossDeath" ? 36 : event.type === "explosion" ? 22 : event.type === "breach" ? 24 : event.type === "hit" ? 3 : 8;
     addSparks(particles, event, now, Math.max(2, Math.round(baseBursts * quality.density)), random, {

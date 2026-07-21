@@ -56,11 +56,22 @@ describe("apresentação das informações dos inimigos", () => {
   });
 
   it("detalha a investida e a recuperação do Besouro-Aríete", () => {
-    expect(getEnemyUnlockAt("ramBeetle", ENEMIES.ramBeetle)).toBe(16);
+    expect(getEnemyUnlockAt("ramBeetle", ENEMIES.ramBeetle)).toBe(18);
     expect(getEnemyInfo(ENEMIES.ramBeetle).specials).toEqual([
       { label: "Investida inicial", value: "55 de dano após 0,65 s" },
       { label: "Recuperação", value: "2 s sem se mover ou atacar" },
       { label: "Ataque normal", value: "12 de dano a cada 2,2 s" },
+    ]);
+  });
+
+  it("detalha as três formas do Imperador Escaravelho", () => {
+    expect(getEnemyUnlockAt("scarabEmperor", ENEMIES.scarabEmperor)).toBe(23);
+    expect(getEnemyInfo(ENEMIES.scarabEmperor).specials).toEqual([
+      { label: "Metamorfose irreversível", value: "Fase 2 em 65% de HP; fase 3 em 30% de HP" },
+      { label: "Fase 1 · Carapaça Imperial", value: "16 de dano a cada 2,2 s; reduz 40% do dano frontal" },
+      { label: "Fase 2 · Carapaça Rompida", value: "10 de dano a cada 1,5 s; recebe 15% mais dano" },
+      { label: "Fase 3 · Predador Desencouraçado", value: "6 de dano a cada 0,65 s; recebe 30% mais dano" },
+      { label: "Imunidade", value: "Não pode ser deslocado por empurrões" },
     ]);
   });
 });

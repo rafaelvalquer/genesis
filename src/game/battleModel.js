@@ -53,6 +53,10 @@ function isLumiUrsa7(config) {
   return config?.id === "lumiUrsa7";
 }
 
+function isScarabEmperor(config) {
+  return config?.id === "scarabEmperor";
+}
+
 function usesTargetingSystems(config) {
   return config && !["none", "energy", "melee", "mine", "tileMelee", "arcCombo"].includes(config.attack);
 }
@@ -354,7 +358,7 @@ export function selectDecision(session, option) {
 function createEnemy(session, queued) {
   const base = ENEMIES[queued.type];
   if (!base) return null;
-  const alpha = queued.variant === "alpha";
+  const alpha = queued.variant === "alpha" && base.allowAlphaVariant !== false;
   const echo = Boolean(queued.isEcho);
   const mechanic = session.phase.chapterMechanic;
   const echoHpFactor = echo ? mechanic?.hpFactor ?? 0.45 : 1;
@@ -364,7 +368,7 @@ function createEnemy(session, queued) {
   const firstLivingCrisalio = queued.type === "crisalio"
     && !session.enemies.some((entry) => !entry.dead && entry.type === "crisalio");
   const enemy = {
-    id: id("enemy"), type: queued.type, variant: queued.variant, isEcho: echo,
+    id: id("enemy"), type: queued.type, variant: alpha ? "alpha" : undefined, isEcho: echo,
     echoSourceId: queued.echoSourceId || null,
     row: Number.isInteger(queued.row) ? clamp(queued.row, 0, FIELD.rows - 1) : Math.floor(session.rng() * FIELD.rows),
     x: Number.isFinite(queued.x) ? queued.x : FIELD.spawnX, y: 0,
@@ -375,7 +379,8 @@ function createEnemy(session, queued) {
     casting: false, castStartedAt: -Infinity, castReadyAt: Infinity, moving: true,
     jumpConsumed: false, jumping: false, jumpStartedAt: -Infinity, jumpProgress: 0,
     jumpFromX: null, jumpTargetTroopId: null, attachedToTroopId: null,
-    slowUntil: 0, slowFactor: 1, stunnedUntil: 0, bossPhase: 0,
+    slowUntil: 0, slowFactor: 1, stunnedUntil: 0,
+    bossPhase: isScarabEmperor(base) ? 1 : 0,
     shield: 0, shieldMax: 0, lastShieldPulseAt: -Infinity,
     meleeAttackPending: false, meleeAttackStartedAt: -Infinity,
     meleeImpactAt: Infinity, meleeTargetId: null,
@@ -392,6 +397,12 @@ function createEnemy(session, queued) {
     duneNextSummonAt: queued.type === "duneRipper"
       ? session.elapsed + base.firstSummonDelayMs
       : Infinity,
+    scarabState: queued.type === "scarabEmperor" ? "phase1Walking" : null,
+    scarabStateStartedAt: queued.type === "scarabEmperor" ? session.elapsed : -Infinity,
+    scarabStateEndsAt: Infinity,
+    scarabPhase2Triggered: false, scarabPhase3Triggered: false,
+    scarabTransitionToPhase: null,
+    scarabAttackApplied: false, scarabAttackTargetId: null,
     queenState: queued.type === "workerQueen" ? "spawn" : null,
     queenStateStartedAt: queued.type === "workerQueen" ? session.elapsed : -Infinity,
     queenStateEndsAt: queued.type === "workerQueen" ? session.elapsed + base.spawnDurationMs : Infinity,
@@ -646,7 +657,8 @@ function attackDamageMultiplier(session, troop, { explosive = false } = {}) {
 }
 
 function applyConcussiveImpact(session, enemy) {
-  if (!session.modifiers.concussiveImpact || enemy.dead || ENEMIES[enemy.type]?.controlImmune || !isGroundTrapEligible(enemy)) return;
+  if (!session.modifiers.concussiveImpact || enemy.dead || ENEMIES[enemy.type]?.controlImmune
+    || ENEMIES[enemy.type]?.knockbackImmune || !isGroundTrapEligible(enemy)) return;
   interruptWorkerQueenEggLay(session, enemy);
   enemy.x = Math.min(FIELD.width + 40, enemy.x + 50);
   enemy.previousRenderX = enemy.x;
@@ -688,9 +700,22 @@ function attachParasite(session, enemy, troop, config) {
   return true;
 }
 
-function damageEnemy(session, enemy, amount, events) {
+export function getEnemyDamageTakenFactor(enemy, context = {}) {
+  const config = ENEMIES[enemy?.type];
+  if (!enemy || !isScarabEmperor(config)) return 1;
+  const phase = config[`phase${enemy.bossPhase || 1}`] || config.phase1;
+  let factor = phase.damageTakenFactor ?? 1;
+  const frontal = context.direct === true
+    && Number.isFinite(context.sourceX)
+    && context.sourceX <= enemy.x;
+  if ((enemy.bossPhase || 1) === 1 && frontal) factor *= phase.frontDamageFactor ?? 1;
+  return factor;
+}
+
+function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
-  let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1);
+  const damageTakenFactor = getEnemyDamageTakenFactor(enemy, context);
+  let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1) * damageTakenFactor;
   const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
     const absorbed = Math.min(enemy.shield, incoming);
@@ -706,14 +731,18 @@ function damageEnemy(session, enemy, amount, events) {
   }
   if (incoming > 0) {
     enemy.hp -= incoming;
-    events.push({ type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y, color: ENEMIES[enemy.type].color });
+    events.push({
+      type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y,
+      color: ENEMIES[enemy.type].color, damageTakenFactor,
+    });
   }
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     enemy.dead = true;
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
-    events.push({ type: enemy.variant === "alpha" ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy } });
+    const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
+    events.push({ type: bossDeath ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy } });
     trySpawnGlassEcho(session, enemy, events);
     trySpawnEnergyPickup(session, enemy, events);
   }
@@ -803,6 +832,12 @@ export function stunEnemy(session, enemy, durationMs) {
   if (enemy.type === "duneRipper" && enemy.duneState === "attack"
     && Number.isFinite(enemy.duneStateStartedAt)) {
     enemy.duneStateStartedAt += pausedFor;
+  }
+  if (enemy.type === "scarabEmperor" && !enemy.scarabTransitionToPhase) {
+    if (Number.isFinite(enemy.scarabStateStartedAt)) enemy.scarabStateStartedAt += pausedFor;
+    if (Number.isFinite(enemy.scarabStateEndsAt) && enemy.scarabStateEndsAt >= session.elapsed) {
+      enemy.scarabStateEndsAt += pausedFor;
+    }
   }
   if (enemy.jumping && Number.isFinite(enemy.jumpStartedAt)) enemy.jumpStartedAt += pausedFor;
   enemy.moving = false;
@@ -899,7 +934,7 @@ function updateFlameChannel(session, troop, config, events, dt) {
     const animation = getTroopAnimation(troop, config, session.elapsed, { attack: frameCount });
     const origin = getMuzzleWorldPosition(troop, config, 0, animation.frame);
     const damage = config.damage * attackDamageMultiplier(session, troop);
-    activeTargets.forEach((enemy) => damageEnemy(session, enemy, damage, events));
+    activeTargets.forEach((enemy) => damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x }));
     events.push({
       type: "flame", weapon: config.attackVisual?.effect || "flame", troopType: troop.type,
       sourceTroopId: troop.id, row: troop.row,
@@ -918,10 +953,10 @@ function fireTroop(session, troop, config, target, events) {
   const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
-    damageEnemy(session, target, damage, events);
+    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x });
     events.push({ type: "melee", x: target.x, y: target.y });
   } else if (config.attack === "laser") {
-    damageEnemy(session, target, damage, events);
+    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x });
     events.push({
       type: "beam", weapon: config.attackVisual?.effect || "laser", troopType: troop.type,
       sourceTroopId: troop.id, row: troop.row,
@@ -933,7 +968,13 @@ function fireTroop(session, troop, config, target, events) {
       .filter((enemy) => !enemy.dead && enemy.row === troop.row && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
       .sort((left, right) => left.x - right.x)
       .slice(0, 3);
-    targets.forEach((enemy, index) => damageEnemy(session, enemy, damage * config.pellets * (0.48 - index * 0.08), events));
+    targets.forEach((enemy, index) => damageEnemy(
+      session,
+      enemy,
+      damage * config.pellets * (0.48 - index * 0.08),
+      events,
+      { direct: true, sourceX: troop.x },
+    ));
     events.push({
       type: "shotgun", weapon: config.attackVisual?.effect || "shotgun", troopType: troop.type,
       sourceTroopId: troop.id, x0: origin.x, y0: origin.y,
@@ -1249,6 +1290,7 @@ export function findRepulsorTarget(session, troop, config = TROOPS.lumiUrsa7) {
 
 export function getLumiKnockbackFactor(enemy) {
   if (!enemy || enemy.variant === "alpha") return 0;
+  if (ENEMIES[enemy.type]?.knockbackImmune) return 0;
   const role = ENEMIES[enemy.type]?.role || "";
   if (role.includes("Elite")) return 0.25;
   if (role.includes("Colosso") || role.includes("Santuário")) return 0.35;
@@ -1399,7 +1441,7 @@ function updateTileMelee(session, troop, config, events) {
     const impact = troop.pendingImpact;
     const occupants = enemiesInTileMeleeRange(session, troop, config);
     occupants.forEach((enemy) => {
-      damageEnemy(session, enemy, impact.damage, events);
+      damageEnemy(session, enemy, impact.damage, events, { direct: true, sourceX: troop.x });
       if (impact.stunMs) stunEnemy(session, enemy, impact.stunMs);
     });
     events.push({
@@ -1449,7 +1491,7 @@ function updateTroops(session, events, dt) {
       updateExecutorArco(session, troop, config, events, {
         color: config.color,
         enemyColumn,
-        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events),
+        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events, { direct: true, sourceX: troop.x }),
         damageMultiplier: () => attackDamageMultiplier(session, troop),
         nextEffectSeed: () => nextEffectSeed(session),
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
@@ -1522,7 +1564,7 @@ function updateProjectiles(session, dt, events) {
         continue;
       }
 
-      damageEnemy(session, target, projectile.damage, events);
+      damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: source?.x ?? projectile.origin?.x });
       const pushedFromX = target.x;
       let stunned = false;
       if (!target.dead) {
@@ -1686,7 +1728,7 @@ function updateProjectiles(session, dt, events) {
         affected.forEach((enemy) => applyConcussiveImpact(session, enemy));
         events.push({ type: "explosion", weapon: projectile.visualKind, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
       } else {
-        damageEnemy(session, target, projectile.damage, events);
+        damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: projectile.origin.x });
         events.push({
           type: projectile.kind === "ice" ? "iceImpact" : projectile.kind === "fireball" ? "fireImpact" : "projectileImpact",
           weapon: projectile.visualKind, x: targetPoint.x, y: targetPoint.y,
@@ -2533,12 +2575,141 @@ function updateEnemyProjectiles(session, dt, events) {
   session.enemyProjectiles = session.enemyProjectiles.filter((projectile) => projectile.active);
 }
 
+function scarabPhaseConfig(config, phase) {
+  return config[`phase${phase}`] || config.phase1;
+}
+
+function setScarabState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.scarabState !== state) enemy.scarabStateStartedAt = session.elapsed;
+  enemy.scarabState = state;
+  enemy.scarabStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+}
+
+function cancelScarabAttack(enemy) {
+  enemy.scarabAttackApplied = false;
+  enemy.scarabAttackTargetId = null;
+}
+
+function startScarabTransition(session, enemy, nextPhase, config, events) {
+  cancelScarabAttack(enemy);
+  enemy.moving = false;
+  enemy.scarabTransitionToPhase = nextPhase;
+  if (nextPhase === 2) {
+    enemy.scarabPhase2Triggered = true;
+    setScarabState(session, enemy, "transitionPhase1To2", config.transitionPhase1To2.durationMs);
+  } else {
+    enemy.scarabPhase3Triggered = true;
+    setScarabState(session, enemy, "transitionPhase2To3", config.transitionPhase2To3.durationMs);
+  }
+  events.push({
+    type: "scarabTransitionStart", sourceEnemyId: enemy.id,
+    fromPhase: enemy.bossPhase, toPhase: nextPhase,
+    x: enemy.x, y: enemy.y, color: config.color, shake: nextPhase === 3 ? 8 : 6,
+    seed: nextEffectSeed(session),
+  });
+}
+
+function finishScarabTransition(session, enemy, config, events) {
+  const nextPhase = enemy.scarabTransitionToPhase;
+  if (!nextPhase) return;
+  enemy.bossPhase = nextPhase;
+  enemy.scarabTransitionToPhase = null;
+  const phase = scarabPhaseConfig(config, nextPhase);
+  enemy.speed = phase.speed;
+  enemy.damage = phase.damage;
+  enemy.attackReadyAt = session.elapsed + 400;
+  setScarabState(session, enemy, `phase${nextPhase}Idle`);
+  events.push({
+    type: "scarabTransitionComplete", sourceEnemyId: enemy.id, phase: nextPhase,
+    x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session),
+  });
+}
+
+function updateScarabEmperor(session, enemy, config, dt, events) {
+  const transitioning = enemy.scarabTransitionToPhase != null;
+  if (transitioning) {
+    enemy.moving = false;
+    if (session.elapsed < enemy.scarabStateEndsAt) return;
+    finishScarabTransition(session, enemy, config, events);
+    const ratio = enemy.hp / enemy.maxHp;
+    if (enemy.bossPhase === 2 && ratio <= config.phase3Threshold && !enemy.scarabPhase3Triggered) {
+      startScarabTransition(session, enemy, 3, config, events);
+    }
+    return;
+  }
+
+  if (session.elapsed < (enemy.stunnedUntil || 0)) {
+    enemy.moving = false;
+    return;
+  }
+
+  const hpRatio = enemy.hp / enemy.maxHp;
+  if (enemy.bossPhase === 1 && hpRatio <= config.phase2Threshold && !enemy.scarabPhase2Triggered) {
+    startScarabTransition(session, enemy, 2, config, events);
+    return;
+  }
+  if (enemy.bossPhase === 2 && hpRatio <= config.phase3Threshold && !enemy.scarabPhase3Triggered) {
+    startScarabTransition(session, enemy, 3, config, events);
+    return;
+  }
+
+  const phase = scarabPhaseConfig(config, enemy.bossPhase);
+  if (enemy.scarabState === `phase${enemy.bossPhase}Attack`) {
+    enemy.moving = false;
+    if (!enemy.scarabAttackApplied
+      && session.elapsed >= enemy.scarabStateStartedAt + phase.attackImpactMs) {
+      const target = session.troops.find((troop) => (
+        troop.id === enemy.scarabAttackTargetId
+        && !troop.dead
+        && troop.row === enemy.row
+        && enemy.x - troop.x <= phase.attackRangeTiles * CELL.width
+      ));
+      if (target) {
+        damageTroop(session, target, phase.damage, events);
+        events.push({
+          type: "scarabAttackImpact", sourceEnemyId: enemy.id, targetId: target.id,
+          phase: enemy.bossPhase, damage: phase.damage,
+          x: target.x, y: target.y, color: config.color, seed: nextEffectSeed(session),
+        });
+      }
+      enemy.scarabAttackApplied = true;
+    }
+    if (session.elapsed >= enemy.scarabStateEndsAt) {
+      cancelScarabAttack(enemy);
+      setScarabState(session, enemy, `phase${enemy.bossPhase}Idle`);
+    }
+    return;
+  }
+
+  const target = closestTroopForEnemy(session, enemy, phase.attackRangeTiles);
+  const inRange = target && enemy.x - target.x <= phase.attackRangeTiles * CELL.width;
+  if (inRange) {
+    enemy.moving = false;
+    setScarabState(session, enemy, `phase${enemy.bossPhase}Idle`);
+    if (session.elapsed >= enemy.attackReadyAt) {
+      enemy.scarabAttackApplied = false;
+      enemy.scarabAttackTargetId = target.id;
+      enemy.attackReadyAt = session.elapsed + phase.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+      setScarabState(session, enemy, `phase${enemy.bossPhase}Attack`, phase.attackDurationMs);
+    }
+    return;
+  }
+
+  setScarabState(session, enemy, `phase${enemy.bossPhase}Walking`);
+  moveEnemy(session, enemy, dt, events);
+}
+
 function updateEnemies(session, dt, events) {
   for (const enemy of [...session.enemies]) {
     if (enemy.dead) continue;
     enemy.previousRenderX = enemy.x;
     enemy.previousRenderY = enemy.y;
     const config = ENEMIES[enemy.type];
+    if (enemy.type === "scarabEmperor") {
+      updateScarabEmperor(session, enemy, config, dt, events);
+      continue;
+    }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
       enemy.moving = false;
       continue;

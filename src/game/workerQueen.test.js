@@ -36,7 +36,7 @@ function readyQueen(session, row = 0) {
 }
 
 describe("Rainha Operária", () => {
-  it("registra o perfil, dependências e permanece fora das ondas", () => {
+  it("registra o perfil, dependências e estreia na terceira onda da fase 18", () => {
     expect(ENEMIES.workerQueen).toMatchObject({
       hp: 90,
       speed: 10,
@@ -57,9 +57,10 @@ describe("Rainha Operária", () => {
       hiddenFromCatalog: true,
       hatchAfterMs: 4500,
     });
-    expect(PHASES.flatMap((phase) => phase.waves)
+    expect(PHASES.slice(0, 17).flatMap((phase) => phase.waves)
       .flatMap((wave) => wave.enemies)
       .some((entry) => entry.type === "workerQueen")).toBe(false);
+    expect(PHASES[17].waves[2].enemies).toContainEqual({ type: "workerQueen", count: 1 });
   });
 
   it("para a três tiles e volta a caminhar quando perde o alvo", () => {

@@ -13,7 +13,10 @@ const previewUrls = import.meta.glob([
   "!./assets/troop/muralhaReforcada/idle/frame0.png",
   "./assets/troop/*/defense/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
-const enemyPreviewUrls = import.meta.glob("./assets/enemy/*/idle/frame0.png", { eager: true, query: "?url", import: "default" });
+const enemyPreviewUrls = import.meta.glob([
+  "./assets/enemy/*/idle/frame0.png",
+  "./assets/enemy/scarabEmperor/phase1Idle/frame0.png",
+], { eager: true, query: "?url", import: "default" });
 const enemyConceptUrls = import.meta.glob("./assets/enemy/concepts/*.webp", { eager: true, query: "?url", import: "default" });
 
 const frameNumber = (key) => Number(/frame(\d+)\.png$/i.exec(key)?.[1] || 0);
@@ -68,7 +71,9 @@ export function getArenaUrl(arenaId) {
 }
 
 export function getEnemyPreviewUrl(enemyId) {
-  const match = Object.entries(enemyPreviewUrls).find(([key]) => key.includes(`/enemy/${enemyId}/idle/frame0.png`));
+  const previewState = ENEMIES[enemyId]?.previewState || "idle";
+  const match = Object.entries(enemyPreviewUrls)
+    .find(([key]) => key.includes(`/enemy/${enemyId}/${previewState}/frame0.png`));
   return match?.[1] || getEnemyConceptUrl(enemyId);
 }
 

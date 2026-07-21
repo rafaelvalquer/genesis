@@ -25,7 +25,7 @@ const blockingTroop = (x = 900, row = 0) => ({
 });
 
 describe("Rasga-Dunas", () => {
-  it("registra o perfil elite, fica fora das ondas e desbloqueia no capítulo 3", () => {
+  it("registra o perfil elite e estreia na terceira onda do capítulo 3", () => {
     expect(ENEMIES.duneRipper).toMatchObject({
       hp: 110,
       speed: 24,
@@ -42,9 +42,9 @@ describe("Rasga-Dunas", () => {
       encyclopediaUnlockAt: 16,
       assetStates: ["idle", "walking", "attack", "roar"],
     });
-    expect(PHASES.flatMap((phase) => phase.waves)
-      .flatMap((wave) => wave.enemies)
-      .some((entry) => entry.type === "duneRipper")).toBe(false);
+    expect(PHASES[16].waves[0].enemies.some((entry) => entry.type === "duneRipper")).toBe(false);
+    expect(PHASES[16].waves[1].enemies.some((entry) => entry.type === "duneRipper")).toBe(false);
+    expect(PHASES[16].waves[2].enemies).toContainEqual({ type: "duneRipper", count: 1 });
   });
 
   it("faz o primeiro grito, invoca três Escavadores vinculados e conta o cooldown do fim", () => {

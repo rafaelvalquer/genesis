@@ -145,15 +145,28 @@ describe("Enciclopédia", () => {
     expect(screen.getByText("Renova escudos aliados a cada 7 s")).toBeInTheDocument();
   });
 
-  it("libera o Besouro-Aríete com o capítulo 3 sem colocá-lo em fases", () => {
-    const { rerender } = render(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 15, phaseStats: {} }} /></MemoryRouter>);
+  it("libera o Besouro-Aríete em sua estreia na fase 19", () => {
+    const { rerender } = render(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 17, phaseStats: {} }} /></MemoryRouter>);
     fireEvent.click(screen.getByRole("tab", { name: /Inimigos/ }));
     expect(screen.queryByRole("button", { name: "Ver informações de Besouro-Aríete" })).not.toBeInTheDocument();
 
-    rerender(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 16, phaseStats: {} }} /></MemoryRouter>);
+    rerender(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 18, phaseStats: {} }} /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "Ver informações de Besouro-Aríete" }));
     expect(screen.getByRole("heading", { name: "Besouro-Aríete" })).toBeInTheDocument();
     expect(screen.getByText("55 de dano após 0,65 s")).toBeInTheDocument();
     expect(screen.getByAltText("Retrato de Besouro-Aríete")).toHaveAttribute("src", expect.stringMatching(/frame0.*\.png/i));
+  });
+
+  it("libera o Imperador Escaravelho na fase final e apresenta suas três formas", () => {
+    const { rerender } = render(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 22, phaseStats: {} }} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: /Inimigos/ }));
+    expect(screen.queryByRole("button", { name: "Ver informações de Imperador Escaravelho" })).not.toBeInTheDocument();
+
+    rerender(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 23, phaseStats: {} }} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "Ver informações de Imperador Escaravelho" }));
+    expect(screen.getByRole("heading", { name: "Imperador Escaravelho" })).toBeInTheDocument();
+    expect(screen.getByAltText("Retrato de Imperador Escaravelho")).toHaveAttribute("src", expect.stringMatching(/phase1Idle\/frame0.*\.png/i));
+    expect(screen.getByText("Fase 2 em 65% de HP; fase 3 em 30% de HP")).toBeInTheDocument();
+    expect(screen.getByText("Não pode ser deslocado por empurrões")).toBeInTheDocument();
   });
 });

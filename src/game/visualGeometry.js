@@ -148,6 +148,27 @@ export function getEnemyMuzzleWorldPosition(enemy, enemyConfig = {}) {
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "scarabEmperor") {
+    const state = enemy.scarabState || `phase${enemy.bossPhase || 1}${enemy.moving ? "Walking" : "Idle"}`;
+    const count = Math.max(1, frameCounts[state] || frameCounts.phase1Idle || 1);
+    const age = Math.max(0, elapsed - (enemy.scarabStateStartedAt || 0));
+    if (state === "transitionPhase1To2" || state === "transitionPhase2To3") {
+      const duration = state === "transitionPhase1To2"
+        ? enemyConfig.transitionPhase1To2.durationMs
+        : enemyConfig.transitionPhase2To3.durationMs;
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(0.999, age / duration) * count)) };
+    }
+    if (state.endsWith("Attack")) {
+      const phase = enemyConfig[`phase${enemy.bossPhase || 1}`] || enemyConfig.phase1;
+      return {
+        state,
+        frame: Math.min(count - 1, Math.floor(Math.min(0.999, age / phase.attackDurationMs) * count)),
+      };
+    }
+    const frameMs = enemyConfig.animationFrameMs?.[state] || 110;
+    return { state, frame: Math.floor(age / frameMs) % count };
+  }
+
   if (enemyConfig.id === "workerQueenEgg") {
     const hatching = elapsed >= enemy.eggHatchAt - enemyConfig.hatchVisualMs;
     const state = hatching ? "hatch" : "idle";

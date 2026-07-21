@@ -40,9 +40,10 @@ describe("Besouro-Aríete", () => {
       encyclopediaUnlockAt: 16,
       assetStates: ["walking", "chargePrep", "charge", "idle", "attack"],
     });
-    expect(PHASES.flatMap((phase) => phase.waves)
+    expect(PHASES.slice(0, 18).flatMap((phase) => phase.waves)
       .flatMap((wave) => wave.enemies)
       .some((entry) => entry.type === "ramBeetle")).toBe(false);
+    expect(PHASES[18].waves[3].enemies).toContainEqual({ type: "ramBeetle", count: 1 });
   });
 
   it("executa preparo, impacto único, recuperação e ataque normal sincronizado", () => {

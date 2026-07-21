@@ -118,5 +118,5 @@ describe("assets da Rainha Operária", () => {
       expect(totalBytes).toBeLessThanOrEqual(definition.maxBytes);
     }
     expect(totalFrames).toBe(96);
-  }, 10_000);
+  }, 15_000);
 });

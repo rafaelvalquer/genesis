@@ -778,7 +778,10 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
         };
       }
       const enemyAssets = assets.enemies[entity.type] || {};
+      const frameCounts = Object.fromEntries(Object.entries(enemyAssets)
+        .map(([state, frames]) => [state, frames?.length || 0]));
       let animation = getEnemyAnimation(entity, config, session.elapsed, {
+        ...frameCounts,
         idle: enemyAssets.idle?.length, walking: enemyAssets.walking?.length,
         attack: enemyAssets.attack?.length, jump: enemyAssets.jump?.length,
         pulse: enemyAssets.pulse?.length, chargePrep: enemyAssets.chargePrep?.length,
@@ -884,7 +887,7 @@ function SandboxPanel({
       <header><div><span>HOSTIL SELECIONADO</span><b>{selected.label}</b></div><dl><div><dt>HP</dt><dd>{selected.hp}</dd></div><div><dt>VEL</dt><dd>{selected.speed}</dd></div><div><dt>DMG</dt><dd>{selected.damage}</dd></div></dl></header>
       <div className="sandbox-choice"><span>Rota</span><div>{[0, 1, 2, 3, 4].map((value) => <button key={value} className={row === value ? "active" : ""} onClick={() => onRow(value)}>{value + 1}</button>)}</div></div>
       <div className="sandbox-choice"><span>Quantidade</span><div>{[1, 5, 10].map((value) => <button key={value} className={count === value ? "active" : ""} onClick={() => onCount(value)}>{value}</button>)}</div></div>
-      <label className="sandbox-check"><span><b>Variante Alpha</b><small>8× HP, maior escala e dano</small></span><input type="checkbox" checked={alpha} onChange={(event) => onAlpha(event.target.checked)} /></label>
+      <label className="sandbox-check"><span><b>Variante Alpha</b><small>{selected.allowAlphaVariant === false ? "Indisponível para este chefe" : "8× HP, maior escala e dano"}</small></span><input type="checkbox" disabled={selected.allowAlphaVariant === false} checked={selected.allowAlphaVariant === false ? false : alpha} onChange={(event) => onAlpha(event.target.checked)} /></label>
       <label className="sandbox-check"><span><b>Agrupar no mesmo tile</b><small>Gera o grupo na mesma coluna lógica</small></span><input type="checkbox" checked={grouped} onChange={(event) => onGrouped(event.target.checked)} /></label>
           <button className="sandbox-spawn-button" onClick={onSpawn}>
             {count > 1 ? `GERAR ${count} HOSTIS` : "GERAR 1 HOSTIL"}

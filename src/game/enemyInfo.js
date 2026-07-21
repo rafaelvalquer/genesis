@@ -60,6 +60,25 @@ export function getEnemyInfo(enemy) {
     label: "Ataque normal",
     value: `${formatNumber(enemy.damage)} de dano a cada ${formatDuration(enemy.attackEveryMs)}`,
   });
+  if (enemy.id === "scarabEmperor") {
+    specials.push({
+      label: "Metamorfose irreversível",
+      value: `Fase 2 em ${Math.round(enemy.phase2Threshold * 100)}% de HP; fase 3 em ${Math.round(enemy.phase3Threshold * 100)}% de HP`,
+    });
+    specials.push({
+      label: "Fase 1 · Carapaça Imperial",
+      value: `${enemy.phase1.damage} de dano a cada ${formatDuration(enemy.phase1.attackEveryMs)}; reduz ${Math.round((1 - enemy.phase1.frontDamageFactor) * 100)}% do dano frontal`,
+    });
+    specials.push({
+      label: "Fase 2 · Carapaça Rompida",
+      value: `${enemy.phase2.damage} de dano a cada ${formatDuration(enemy.phase2.attackEveryMs)}; recebe ${Math.round((enemy.phase2.damageTakenFactor - 1) * 100)}% mais dano`,
+    });
+    specials.push({
+      label: "Fase 3 · Predador Desencouraçado",
+      value: `${enemy.phase3.damage} de dano a cada ${formatDuration(enemy.phase3.attackEveryMs)}; recebe ${Math.round((enemy.phase3.damageTakenFactor - 1) * 100)}% mais dano`,
+    });
+    specials.push({ label: "Imunidade", value: "Não pode ser deslocado por empurrões" });
+  }
   if (enemy.id === "workerQueen") {
     specials.push({
       label: "Teia Inibidora",

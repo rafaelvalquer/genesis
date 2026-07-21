@@ -1,0 +1,24 @@
+{
+  "id": "scarabEmperor",
+  "label": "Imperador Escaravelho",
+  "layout": {
+    "columns": 4,
+    "rows": 2,
+    "framesPerState": 8,
+    "frameWidth": 256,
+    "frameHeight": 256,
+    "anchor": { "x": 128, "y": 248 }
+  },
+  "sourceAtlases": [
+    "scarab-emperor-phase1-atlas-chroma.png",
+    "scarab-emperor-phase2-atlas-chroma.png",
+    "scarab-emperor-phase3-atlas-chroma.png"
+  ],
+  "states": [
+    "phase1Walking", "phase1Idle", "phase1Attack", "phase1Hit", "transitionPhase1To2",
+    "phase2Walking", "phase2Idle", "phase2Attack", "phase2Hit", "transitionPhase2To3",
+    "phase3Walking", "phase3Idle", "phase3Attack", "phase3Hit", "death"
+  ],
+  "sheetPattern": "scarab-emperor-{state}.png",
+  "framePattern": "frames/{state}/frame{index}.png"
+}

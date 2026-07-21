@@ -79,14 +79,72 @@ describe("campanha e ondas", () => {
     expect(PHASES.slice(20, 24).every((phase) => phase.waves.length === 6)).toBe(true);
   });
 
-  it("configura as Dunas de Quitina como campanha de enxame sem novas criaturas", () => {
+  it("configura as Dunas de Quitina com apenas as seis criaturas planejadas", () => {
     const chapterThree = PHASES.slice(16, 24);
-    const allowedTypes = new Set(["silex", "brakor", "zhyra"]);
+    const allowedTypes = new Set(["silex", "brakor", "duneRipper", "ramBeetle", "workerQueen", "scarabEmperor"]);
     expect(CHAPTERS[2]).toMatchObject({ id: "chapter_03", name: "Dunas de Quitina" });
     expect(chapterThree.every((phase) => phase.supplyLimit === 40)).toBe(true);
     expect(chapterThree.map((phase) => phase.energy)).toEqual([270, 290, 315, 340, 370, 405, 440, 480]);
     expect(chapterThree.every((phase) => phase.waves.flatMap((wave) => wave.enemies).every((entry) => allowedTypes.has(entry.type)))).toBe(true);
     expect(chapterThree.every((phase) => phase.chapterMechanic === undefined)).toBe(true);
+  });
+
+  it("mantém as aberturas do capítulo 3 leves e cumpre a curva de ameaça planejada", () => {
+    const chapterThree = PHASES.slice(16, 24);
+    const targets = [
+      [1700, 1900, 2100, 2300, 2600],
+      [1900, 2100, 2300, 2500, 2900],
+      [2100, 2300, 2500, 2700, 3300],
+      [2320, 2550, 2780, 3050, 3800],
+      [2600, 2800, 3000, 3300, 3600, 4300],
+      [2900, 3150, 3400, 3700, 4050, 4800],
+      [3200, 3500, 3800, 4150, 4550, 5400],
+      [3550, 3900, 4250, 4650, 5100, 6000],
+    ];
+
+    chapterThree.forEach((phase, phaseIndex) => {
+      expect(phase.waves[0].enemies).toHaveLength(1);
+      expect(phase.waves[0].enemies[0]).toMatchObject({ type: "silex" });
+      expect(phase.waves[0].enemies[0].variant).toBeUndefined();
+      phase.waves.forEach((wave, waveIndex) => {
+        const budget = waveBudget(wave);
+        expect(budget).toBeGreaterThanOrEqual(targets[phaseIndex][waveIndex]);
+        expect(budget).toBeLessThan(targets[phaseIndex][waveIndex] + ENEMIES.silex.threat);
+      });
+    });
+  });
+
+  it("introduz os especiais, Alphas e o Imperador na progressão planejada", () => {
+    const chapterThree = PHASES.slice(16, 24);
+    const count = (wave, type) => wave.enemies
+      .filter((entry) => entry.type === type && !entry.variant)
+      .reduce((sum, entry) => sum + entry.count, 0);
+    const expectedFinalSpecials = [
+      [2, 0, 0], [2, 2, 0], [3, 2, 2], [3, 3, 3],
+      [4, 3, 3], [4, 4, 4], [5, 4, 5], [4, 3, 4],
+    ];
+    const expectedAlphas = [
+      [], [], [], [[4, "silex"]], [[5, "brakor"]],
+      [[3, "silex"], [5, "brakor"]],
+      [[2, "silex"], [4, "brakor"], [5, "silex"]],
+      [[1, "silex"], [3, "brakor"], [4, "silex"]],
+    ];
+
+    chapterThree.forEach((phase, phaseIndex) => {
+      const finalWave = phase.waves.at(-1);
+      expect([count(finalWave, "duneRipper"), count(finalWave, "workerQueen"), count(finalWave, "ramBeetle")])
+        .toEqual(expectedFinalSpecials[phaseIndex]);
+      const alphas = phase.waves.flatMap((wave, waveIndex) => wave.enemies
+        .filter((entry) => entry.variant === "alpha")
+        .map((entry) => [waveIndex, entry.type]));
+      expect(alphas).toEqual(expectedAlphas[phaseIndex]);
+      expect(phase.waves.every((wave) => wave.enemies.filter((entry) => entry.variant === "alpha").length <= 1)).toBe(true);
+    });
+
+    const emperorEntries = chapterThree.flatMap((phase, phaseIndex) => phase.waves.flatMap((wave, waveIndex) => (
+      wave.enemies.filter((entry) => entry.type === "scarabEmperor").map((entry) => ({ phaseIndex, waveIndex, entry }))
+    )));
+    expect(emperorEntries).toEqual([{ phaseIndex: 7, waveIndex: 5, entry: { type: "scarabEmperor", count: 1 } }]);
   });
 
   it("inicia a fase 14 com 200 de energia", () => {
