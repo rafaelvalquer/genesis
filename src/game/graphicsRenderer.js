@@ -1,6 +1,66 @@
 import { FIELD, VIEWPORT } from "./battleModel.js";
 import { colorModeFilter } from "./graphicsRuntime.js";
 
+const spriteHaloCache = new Map();
+
+function createHaloCanvas(size = 96) {
+  if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(size, size);
+  if (typeof document === "undefined") return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  return canvas;
+}
+
+export function getSpriteFilter(hitFlash = 0, alphaPhase = 0, isAlpha = false, isEcho = false, frozen = false) {
+  if (!frozen && !isAlpha && !isEcho && hitFlash <= 0) return "none";
+  let filter = frozen ? "saturate(.55) brightness(1.16)" : "";
+  if (isAlpha) filter += `${filter ? " " : ""}hue-rotate(${alphaPhase * 24}deg) saturate(${1.05 + alphaPhase * .18})`;
+  if (isEcho) filter += `${filter ? " " : ""}saturate(.65) brightness(1.28) hue-rotate(34deg) contrast(1.08)`;
+  if (hitFlash > 0) filter += `${filter ? " " : ""}brightness(${1 + hitFlash * .75})`;
+  return filter;
+}
+
+export function getTroopSpriteFilter(hitFlash = 0) {
+  return hitFlash > 0 ? `brightness(${1 + hitFlash * .65})` : "none";
+}
+
+export function getHaloCacheKey(color, settings = {}, strength = 1) {
+  return `${color}:${settings.quality || "high"}:${strength}`;
+}
+
+export function clearSpriteHaloCache() {
+  spriteHaloCache.clear();
+}
+
+export function getCachedSpriteHalo(color, settings = {}, strength = 1, canvasFactory = createHaloCanvas) {
+  const key = getHaloCacheKey(color, settings, strength);
+  if (spriteHaloCache.has(key)) return spriteHaloCache.get(key);
+  const canvas = canvasFactory(96);
+  if (!canvas) return null;
+  const haloCtx = canvas.getContext("2d");
+  const alpha = (settings.quality === "low" ? 0.2 : settings.quality === "medium" ? 0.25 : 0.3) * strength;
+  const gradient = haloCtx.createRadialGradient(48, 48, 4, 48, 48, 46);
+  gradient.addColorStop(0, `${color}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`);
+  gradient.addColorStop(0.42, `${color}${Math.round(alpha * 125).toString(16).padStart(2, "0")}`);
+  gradient.addColorStop(1, `${color}00`);
+  haloCtx.fillStyle = gradient;
+  haloCtx.fillRect(0, 0, 96, 96);
+  spriteHaloCache.set(key, canvas);
+  return canvas;
+}
+
+export function drawCachedSpriteHalo(ctx, rect, color, settings = {}, strength = 1) {
+  const halo = getCachedSpriteHalo(color, settings, strength);
+  if (!halo) return;
+  const paddingX = rect.width * (strength > 1 ? 0.32 : 0.2);
+  const paddingY = rect.height * (strength > 1 ? 0.22 : 0.14);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.drawImage(halo, rect.x - paddingX, rect.y - paddingY, rect.width + paddingX * 2, rect.height + paddingY * 2);
+  ctx.restore();
+}
+
 function seeded(seed = 1) {
   let value = seed >>> 0;
   return () => {
@@ -39,13 +99,14 @@ export function drawDecals(ctx, runtime, settings = {}) {
   ctx.restore();
 }
 
-export function drawDynamicLights(ctx, runtime, now, settings = {}) {
-  if (settings.quality === "low") return;
+export function drawDynamicLights(ctx, runtime, now, settings = {}, adaptive = {}) {
+  const lightScale = adaptive.dynamicLightScale ?? 1;
+  if (settings.quality === "low" || lightScale <= 0) return;
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   for (const light of runtime.lights) {
     const progress = Math.min(1, (now - light.born) / light.life);
-    const alpha = (1 - progress) * (settings.quality === "high" ? .22 : .12);
+    const alpha = (1 - progress) * (settings.quality === "high" ? .22 : .12) * lightScale;
     const gradient = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius);
     gradient.addColorStop(0, `${light.color}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`);
     gradient.addColorStop(1, "transparent");
@@ -73,14 +134,21 @@ export function drawDeploymentEffects(ctx, runtime, now, settings = {}) {
   ctx.restore();
 }
 
-export function drawWetReflections(ctx, phase, entities, settings = {}) {
-  if (!phase.ambientEffects?.includes("reflections") || settings.quality !== "high") return;
+export function drawWetReflections(ctx, phase, rows, settings = {}, adaptive = {}) {
+  if (!phase.ambientEffects?.includes("reflections") || settings.quality !== "high" || adaptive.reflections === false) return;
   ctx.save();
   ctx.globalCompositeOperation = "screen";
-  for (const entity of entities) {
-    const gradient = ctx.createLinearGradient(entity.x, entity.y + 38, entity.x, entity.y + 90);
-    gradient.addColorStop(0, "rgba(125,211,252,.09)"); gradient.addColorStop(1, "transparent");
-    ctx.fillStyle = gradient; ctx.beginPath(); ctx.ellipse(entity.x, entity.y + 55, 18 * (entity.scale || 1), 34, 0, 0, Math.PI * 2); ctx.fill();
+  const grouped = Array.isArray(rows?.[0]);
+  const groups = grouped ? rows : [rows];
+  for (const group of groups) {
+    for (const item of group || []) {
+      const entity = item.entity || item;
+      const x = Number.isFinite(item.x) ? item.x : entity.x;
+      const y = Number.isFinite(item.y) ? item.y : entity.y;
+      const gradient = ctx.createLinearGradient(x, y + 38, x, y + 90);
+      gradient.addColorStop(0, "rgba(125,211,252,.09)"); gradient.addColorStop(1, "transparent");
+      ctx.fillStyle = gradient; ctx.beginPath(); ctx.ellipse(x, y + 55, 18 * (entity.scale || 1), 34, 0, 0, Math.PI * 2); ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -98,13 +166,13 @@ export function drawPostProcessing(ctx, phase, settings, session, now) {
   ctx.restore();
 }
 
-export function presentScene(ctx, scene, renderScale, camera, settings = {}) {
+export function presentScene(ctx, scene, renderScale, camera, settings = {}, adaptive = {}) {
   ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   ctx.save();
   ctx.translate(camera.x, camera.y);
   ctx.filter = colorModeFilter(settings.colorMode);
-  if (settings.quality === "high") {
+  if (settings.quality === "high" && adaptive.bloom !== false) {
     ctx.save(); ctx.globalAlpha = .09; ctx.globalCompositeOperation = "screen"; ctx.filter = "blur(6px) saturate(1.2)"; ctx.drawImage(scene, 0, 0); ctx.restore();
     ctx.filter = colorModeFilter(settings.colorMode);
   }

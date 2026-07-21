@@ -715,19 +715,21 @@ function drawFogOrSmoke(ctx, count, time, intensity, smoke = false) {
   }
 }
 
-export function drawArenaForeground(ctx, phase, settings, session, time) {
+export function drawArenaForeground(ctx, phase, settings, session, time, adaptive = {}) {
   const profile = getQualityProfile(settings);
   const effects = phase.ambientEffects || [];
   const intensity = getArenaIntensity(phase, session.waveIndex);
   const motionTime = settings.reduceMotion ? 0 : time;
+  const atmosphereScale = adaptive.atmosphereScale ?? 1;
+  const particleScale = adaptive.level === "stress" ? 0.55 : adaptive.level === "busy" ? 0.82 : 1;
   ctx.save();
-  ctx.globalAlpha = profile.atmosphere;
+  ctx.globalAlpha = profile.atmosphere * atmosphereScale;
 
-  if (effects.includes("fog")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity);
-  if (effects.includes("smoke")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity, true);
-  if (effects.includes("spores")) drawDriftingPoints(ctx, phase, Math.round(12 + 30 * profile.particles), motionTime, intensity, "spores");
-  if (effects.includes("dust") || effects.includes("debris")) drawDriftingPoints(ctx, phase, Math.round(10 + 22 * profile.particles), motionTime, intensity, "dust");
-  if (effects.includes("glassDust")) drawDriftingPoints(ctx, phase, Math.round(14 + 34 * profile.particles), motionTime * 0.72, intensity, "spores");
+  if (adaptive.heavyAtmosphere !== false && effects.includes("fog")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity);
+  if (adaptive.heavyAtmosphere !== false && effects.includes("smoke")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity, true);
+  if (effects.includes("spores")) drawDriftingPoints(ctx, phase, Math.round((12 + 30 * profile.particles) * particleScale), motionTime, intensity, "spores");
+  if (effects.includes("dust") || effects.includes("debris")) drawDriftingPoints(ctx, phase, Math.round((10 + 22 * profile.particles) * particleScale), motionTime, intensity, "dust");
+  if (effects.includes("glassDust")) drawDriftingPoints(ctx, phase, Math.round((14 + 34 * profile.particles) * particleScale), motionTime * 0.72, intensity, "spores");
 
   if (effects.includes("refraction")) {
     const drift = settings.reduceMotion ? 0 : Math.sin(motionTime / 1800) * 24;
@@ -750,7 +752,7 @@ export function drawArenaForeground(ctx, phase, settings, session, time) {
     ctx.save();
     ctx.strokeStyle = rgba(phase.palette.primary, .18 + intensity * .16);
     ctx.lineWidth = 1.2;
-    const count = Math.round(12 + 34 * profile.particles);
+    const count = Math.round((12 + 34 * profile.particles) * particleScale);
     for (let index = 0; index < count; index += 1) {
       const x = (pseudo(index, 710) * FIELD.width + motionTime * (0.055 + pseudo(index, 711) * .035)) % (FIELD.width + 100) - 50;
       const y = (pseudo(index, 712) * FIELD.height + motionTime * .08) % (FIELD.height + 50) - 25;
@@ -773,7 +775,7 @@ export function drawArenaForeground(ctx, phase, settings, session, time) {
   if (effects.includes("rain")) {
     ctx.strokeStyle = `rgba(170,225,255,${0.09 + intensity * 0.13})`;
     ctx.lineWidth = 1.5;
-    const count = Math.round(24 + 62 * profile.particles);
+    const count = Math.round((24 + 62 * profile.particles) * particleScale);
     for (let index = 0; index < count; index += 1) {
       const x = (pseudo(index, 20) * FIELD.width + motionTime * (0.1 + pseudo(index, 21) * 0.04)) % (FIELD.width + 160) - 80;
       const y = (pseudo(index, 22) * FIELD.height + motionTime * 0.24) % (FIELD.height + 80) - 40;

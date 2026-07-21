@@ -29,8 +29,62 @@ export function createGraphicsRuntime() {
     pulseBeams: [], disintegrations: [], pulseScorches: [],
     containmentArcs: [], containmentInterferenceUntil: 0,
     camera: { amplitude: 0, seed: 1, startedAt: 0 },
-    health: new Map(), metrics: { fps: 60, frameMs: 16.7, particles: 0, decals: 0, visualEntities: 0 },
+    health: new Map(),
+    adaptive: { level: "full", recoverySince: null },
+    metrics: {
+      fps: 60, frameMs: 16.7, stepMs: 0, drawMs: 0, presentMs: 0,
+      activeEntities: 0, particles: 0, decals: 0, visualEntities: 0, adaptiveLevel: "full",
+    },
   };
+}
+
+export function getAdaptiveEffects(settings = {}, level = "full") {
+  const quality = settings.quality || "high";
+  if (level === "stress") {
+    return {
+      level, quality, bloom: false, dynamicLightScale: 0, reflections: false,
+      heavyAtmosphere: false, atmosphereScale: 0.45, particleBudgetScale: 0.55,
+      hideFullHealthEnemies: true,
+    };
+  }
+  if (level === "busy") {
+    return {
+      level, quality, bloom: false, dynamicLightScale: 0.5, reflections: true,
+      heavyAtmosphere: true, atmosphereScale: 0.82, particleBudgetScale: 0.82,
+      hideFullHealthEnemies: false,
+    };
+  }
+  return {
+    level: "full", quality, bloom: true, dynamicLightScale: 1, reflections: true,
+    heavyAtmosphere: true, atmosphereScale: 1, particleBudgetScale: 1,
+    hideFullHealthEnemies: false,
+  };
+}
+
+export function updateAdaptiveLevel(runtime, clockNow, frameMs, activeEntities) {
+  const adaptive = runtime.adaptive || (runtime.adaptive = { level: "full", recoverySince: null });
+  if (activeEntities > 180 || frameMs > 26) {
+    adaptive.level = "stress";
+    adaptive.recoverySince = null;
+    return adaptive.level;
+  }
+  if (adaptive.level === "full" && (activeEntities > 120 || frameMs > 20)) {
+    adaptive.level = "busy";
+    adaptive.recoverySince = null;
+    return adaptive.level;
+  }
+
+  const recoveringFromStress = adaptive.level === "stress" && activeEntities < 150 && frameMs < 22;
+  const recoveringFromBusy = adaptive.level === "busy" && activeEntities < 100 && frameMs < 18;
+  if (!recoveringFromStress && !recoveringFromBusy) {
+    adaptive.recoverySince = null;
+    return adaptive.level;
+  }
+  if (adaptive.recoverySince == null) adaptive.recoverySince = clockNow;
+  if (clockNow - adaptive.recoverySince < 3000) return adaptive.level;
+  adaptive.level = adaptive.level === "stress" ? "busy" : "full";
+  adaptive.recoverySince = null;
+  return adaptive.level;
 }
 
 function eventShake(type) {
@@ -159,10 +213,16 @@ export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
   const instantFps = frameMs > 0 ? 1000 / frameMs : 60;
   runtime.metrics.fps += (instantFps - runtime.metrics.fps) * 0.08;
   runtime.metrics.frameMs += (frameMs - runtime.metrics.frameMs) * 0.08;
-  Object.assign(runtime.metrics, counts, {
-    decals: runtime.decals.length + runtime.pulseScorches.length,
-    visualEntities: runtime.deaths.length + runtime.disintegrations.length + runtime.pulseBeams.length,
-  });
+  if (Number.isFinite(counts.stepMs)) runtime.metrics.stepMs += (counts.stepMs - runtime.metrics.stepMs) * 0.08;
+  if (Number.isFinite(counts.drawMs)) runtime.metrics.drawMs += (counts.drawMs - runtime.metrics.drawMs) * 0.08;
+  if (Number.isFinite(counts.presentMs)) runtime.metrics.presentMs += (counts.presentMs - runtime.metrics.presentMs) * 0.08;
+  const activeEntities = Number.isFinite(counts.activeEntities) ? counts.activeEntities : runtime.metrics.activeEntities;
+  const adaptiveLevel = updateAdaptiveLevel(runtime, counts.clockNow ?? now, runtime.metrics.frameMs, activeEntities);
+  runtime.metrics.activeEntities = activeEntities;
+  runtime.metrics.adaptiveLevel = adaptiveLevel;
+  if (Number.isFinite(counts.particles)) runtime.metrics.particles = counts.particles;
+  runtime.metrics.decals = runtime.decals.length + runtime.pulseScorches.length;
+  runtime.metrics.visualEntities = runtime.deaths.length + runtime.disintegrations.length + runtime.pulseBeams.length;
 }
 
 export function getCameraOffset(runtime, now, settings = {}) {

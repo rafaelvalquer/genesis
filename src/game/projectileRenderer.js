@@ -6,8 +6,46 @@ const QUALITY = {
   high: { density: 1, trail: 1, budget: 440 },
 };
 
-function profile(settings = {}) {
-  return QUALITY[settings.quality] || QUALITY.high;
+const ADAPTIVE_PARTICLE_SCALE = { full: 1, busy: 0.82, stress: 0.55 };
+const adaptiveProfiles = new Map();
+
+function profile(settings = {}, essential = false) {
+  const base = QUALITY[settings.quality] || QUALITY.high;
+  const level = essential ? "full" : settings.adaptiveLevel || "full";
+  const scale = ADAPTIVE_PARTICLE_SCALE[level] || 1;
+  if (scale === 1) return base;
+  const key = `${settings.quality || "high"}:${level}`;
+  if (!adaptiveProfiles.has(key)) adaptiveProfiles.set(key, {
+    density: base.density * scale,
+    trail: base.trail * scale,
+    budget: Math.round(base.budget * scale),
+  });
+  return adaptiveProfiles.get(key);
+}
+
+export function isEssentialParticleEvent(event = {}) {
+  return event.type === "hit" || event.type === "troopHit" || event.type === "shieldHit"
+    || event.type === "shieldBreak" || event.type === "bossPhase" || event.type === "bossDeath"
+    || event.type === "prismaticPulse" || event.type === "iceImpact"
+    || event.type === "scarabTransitionStart" || event.type === "scarabTransitionComplete"
+    || (event.type === "repulsorImpact" && event.stunned);
+}
+
+export function trimParticleBudget(particles, budget) {
+  let remaining = Math.max(0, particles.length - budget);
+  if (!remaining) return particles;
+  let write = 0;
+  for (let read = 0; read < particles.length; read += 1) {
+    const particle = particles[read];
+    if (remaining > 0 && !particle.essential) {
+      remaining -= 1;
+      continue;
+    }
+    particles[write] = particle;
+    write += 1;
+  }
+  particles.length = write;
+  return particles;
 }
 
 function seeded(seed = 1) {
@@ -151,8 +189,11 @@ export function createFireTrailParticles(event, now, settings = {}) {
 }
 
 export function pushEventParticles(particles, events, now, settings = {}) {
-  const quality = profile(settings);
   for (const event of events) {
+    const essential = isEssentialParticleEvent(event);
+    const quality = profile(settings, essential);
+    const particleStart = particles.length;
+    try {
     const random = seeded(event.seed || 1);
     const color = event.color || (event.type.includes("Death") ? "#fb7185" : "#67e8f9");
     const executorParticles = createExecutorParticles(event, now, settings);
@@ -462,9 +503,14 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       particles.push({ kind: "smoke", x: event.x, y: event.y, vx: -8, vy: -22, color: "#475569", born: now, life: 620, size: 18 });
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#fff0c2", born: now, life: 170, size: 34 });
     }
+    } finally {
+      if (essential) {
+        for (let index = particleStart; index < particles.length; index += 1) particles[index].essential = true;
+      }
+    }
   }
 
-  if (particles.length > quality.budget) particles.splice(0, particles.length - quality.budget);
+  trimParticleBudget(particles, profile(settings).budget);
   return particles;
 }
 
@@ -1026,9 +1072,12 @@ function drawFlameRibbon(ctx, particle, progress) {
 }
 
 export function drawParticles(ctx, particles, now, settings = {}) {
+  let write = 0;
   for (const particle of particles) {
     const progress = (now - particle.born) / particle.life;
     if (progress >= 1) continue;
+    particles[write] = particle;
+    write += 1;
     const seconds = (now - particle.born) / 1000;
     ctx.save();
     ctx.globalAlpha = 1 - progress;
@@ -1086,5 +1135,6 @@ export function drawParticles(ctx, particles, now, settings = {}) {
     else if (particle.kind === "flameRibbon") drawFlameRibbon(ctx, particle, progress);
     ctx.restore();
   }
-  return particles.filter((particle) => now - particle.born < particle.life);
+  particles.length = write;
+  return particles;
 }

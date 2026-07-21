@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   colorModeFilter, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
-  getHitReaction, getRenderScale, interpolateEntity, updateGraphicsRuntime,
+  getAdaptiveEffects, getHitReaction, getRenderScale, interpolateEntity, updateAdaptiveLevel, updateGraphicsRuntime,
 } from "./graphicsRuntime.js";
 
 describe("runtime grafico", () => {
@@ -69,5 +69,27 @@ describe("runtime grafico", () => {
     expect(runtime.pulseScorches).toHaveLength(8);
     updateGraphicsRuntime(runtime, 6101, 16, {});
     expect(runtime.pulseScorches).toHaveLength(0);
+  });
+
+  it("entra imediatamente e recupera um nivel por vez com histerese de tres segundos", () => {
+    const runtime = createGraphicsRuntime();
+    expect(updateAdaptiveLevel(runtime, 0, 21, 50)).toBe("busy");
+    expect(updateAdaptiveLevel(runtime, 100, 27, 50)).toBe("stress");
+    expect(updateAdaptiveLevel(runtime, 1000, 16, 80)).toBe("stress");
+    expect(updateAdaptiveLevel(runtime, 3999, 16, 80)).toBe("stress");
+    expect(updateAdaptiveLevel(runtime, 4000, 16, 80)).toBe("busy");
+    expect(updateAdaptiveLevel(runtime, 5000, 19, 80)).toBe("busy");
+    expect(updateAdaptiveLevel(runtime, 6000, 16, 80)).toBe("busy");
+    expect(updateAdaptiveLevel(runtime, 9000, 16, 80)).toBe("full");
+  });
+
+  it("mantem a qualidade manual como teto e reduz somente efeitos extras", () => {
+    const full = getAdaptiveEffects({ quality: "medium" }, "full");
+    const busy = getAdaptiveEffects({ quality: "medium" }, "busy");
+    const stress = getAdaptiveEffects({ quality: "medium" }, "stress");
+    expect(full.quality).toBe("medium");
+    expect(busy).toMatchObject({ quality: "medium", bloom: false, reflections: true });
+    expect(stress).toMatchObject({ quality: "medium", dynamicLightScale: 0, reflections: false, hideFullHealthEnemies: true });
+    expect(stress.particleBudgetScale).toBeLessThan(busy.particleBudgetScale);
   });
 });

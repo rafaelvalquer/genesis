@@ -3,6 +3,8 @@ import { ENEMIES, TROOPS } from "./content.js";
 import {
   CELL,
   VIEWPORT,
+  buildBattleRenderRows,
+  createBattleRowBuffers,
   getEnemyHitPoint,
   getEnemyAnimation,
   getEnemyFrameAnchor,
@@ -16,6 +18,7 @@ import {
   getWallDamageFrame,
   isEnemyFrozen,
   viewportPointToFieldPoint,
+  writeEnemyVisualPosition,
 } from "./visualGeometry.js";
 
 describe("geometria visual dos disparos", () => {
@@ -476,5 +479,36 @@ describe("geometria visual dos disparos", () => {
     const wall = { type: "muralhaReforcada", hp, maxHp: 100, lastAttackAt: -Infinity };
     expect(getWallDamageFrame(wall)).toBe(frame);
     expect(getTroopAnimation(wall, TROOPS.muralhaReforcada, 9999, { defense: 3 })).toEqual({ state: "defense", frame });
+  });
+});
+
+describe("ordem visual por rota", () => {
+  it("reproduz o sort estavel por row e x sem alocar novos buffers", () => {
+    const troops = [
+      { id: "t2", row: 2, x: 300, y: 300 },
+      { id: "tie-troop", row: 1, x: 200, y: 180 },
+      { id: "t1", row: 1, x: 100, y: 180 },
+    ];
+    const enemies = [
+      { id: "alpha", row: 2, x: 250, y: 300, previousRenderX: 230, previousRenderY: 300, variant: "alpha" },
+      { id: "tie-enemy", row: 1, x: 200, y: 180, previousRenderX: 200, previousRenderY: 180, isEcho: true },
+      { id: "knockback", row: 1, x: 130, y: 180, previousRenderX: 110, previousRenderY: 180,
+        knockbackVisualOffset: 40, knockbackVisualStartedAt: 0, knockbackVisualEndsAt: 1000 },
+    ];
+    const buffers = createBattleRowBuffers();
+    const firstRows = buildBattleRenderRows(troops, enemies, 0.5, 500, false, buffers);
+    expect(firstRows.rows[1].map((entry) => entry.entity.id)).toEqual(["t1", "knockback", "tie-troop", "tie-enemy"]);
+    expect(firstRows.rows[2].map((entry) => entry.entity.id)).toEqual(["alpha", "t2"]);
+    expect(buildBattleRenderRows(troops, enemies, 0.5, 500, false, buffers)).toBe(firstRows);
+  });
+
+  it("calcula salto e anexo sem alterar o inimigo logico", () => {
+    const jumping = { x: 300, y: 180, previousRenderX: 280, previousRenderY: 180, jumping: true, jumpProgress: 0.5 };
+    const out = {};
+    writeEnemyVisualPosition(jumping, { jumpArcHeight: 72 }, 500, 0.5, false, out);
+    expect(out).toEqual({ x: 290, y: 108 });
+    expect(jumping).toMatchObject({ x: 300, y: 180 });
+    writeEnemyVisualPosition({ ...jumping, jumping: false, attachedToTroopId: "troop" }, { attachmentOffsetY: -18 }, 500, 1, false, out);
+    expect(out.y).toBe(162);
   });
 });

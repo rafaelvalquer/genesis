@@ -3,7 +3,9 @@ import {
   createFireTrailParticles,
   createFlameStreamParticles,
   createIceTrailParticles,
+  isEssentialParticleEvent,
   pushEventParticles,
+  trimParticleBudget,
 } from "./projectileRenderer.js";
 
 describe("efeitos dos projeteis", () => {
@@ -87,5 +89,21 @@ describe("efeitos dos projeteis", () => {
     expect(createFireTrailParticles({ ...event, variant: "smoke" }, 1000, { quality: "low" })).toEqual([]);
     const impact = pushEventParticles([], [{ type: "fireImpact", x: 250, y: 60, seed: 48 }], 1000, { quality: "high" });
     expect(impact.some((particle) => particle.kind === "ring")).toBe(true);
+  });
+
+  it("reduz somente particulas decorativas no orcamento adaptativo", () => {
+    const particles = [
+      { id: "old-decoration" },
+      { id: "shield", essential: true },
+      { id: "new-decoration" },
+    ];
+    trimParticleBudget(particles, 2);
+    expect(particles.map((particle) => particle.id)).toEqual(["shield", "new-decoration"]);
+    expect(isEssentialParticleEvent({ type: "shieldBreak" })).toBe(true);
+    const stress = pushEventParticles([], [{ type: "shieldBreak", x: 10, y: 10, seed: 4 }], 0, {
+      quality: "low", adaptiveLevel: "stress",
+    });
+    expect(stress.length).toBeGreaterThan(0);
+    expect(stress.every((particle) => particle.essential)).toBe(true);
   });
 });

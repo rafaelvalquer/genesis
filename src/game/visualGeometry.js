@@ -433,3 +433,74 @@ export function getRepulsorKnockbackOffset(entity, elapsed, reduceMotion = false
   const eased = 1 - (1 - progress) ** 3;
   return entity.knockbackVisualOffset * (1 - eased);
 }
+
+export function writeInterpolatedPosition(entity, alpha, out = {}) {
+  const previousX = Number.isFinite(entity.previousRenderX) ? entity.previousRenderX : entity.x;
+  const previousY = Number.isFinite(entity.previousRenderY) ? entity.previousRenderY : entity.y;
+  out.x = previousX + (entity.x - previousX) * alpha;
+  out.y = previousY + (entity.y - previousY) * alpha;
+  return out;
+}
+
+export function writeEnemyVisualPosition(entity, config, elapsed, alpha, reduceMotion, out = {}) {
+  writeInterpolatedPosition(entity, alpha, out);
+  out.x += getRepulsorKnockbackOffset(entity, elapsed, reduceMotion);
+  if (entity.attachedToTroopId) {
+    out.y += config.attachmentOffsetY || 0;
+  } else if (entity.jumping) {
+    const progress = Math.max(0, Math.min(1, Number(entity.jumpProgress) || 0));
+    out.y -= (config.jumpArcHeight || 0) * 4 * progress * (1 - progress);
+  }
+  return out;
+}
+
+export function createBattleRowBuffers(rowCount = FIELD.rows) {
+  return {
+    rows: Array.from({ length: rowCount }, () => []),
+    pool: [],
+    poolCursor: 0,
+    position: { x: 0, y: 0 },
+    troopScratch: {},
+    enemyScratch: {},
+  };
+}
+
+function insertRenderEntry(state, kind, entity, x, y) {
+  let entry = state.pool[state.poolCursor];
+  if (!entry) {
+    entry = { kind, entity, x, y };
+    state.pool.push(entry);
+  }
+  state.poolCursor += 1;
+  entry.kind = kind;
+  entry.entity = entity;
+  entry.x = x;
+  entry.y = y;
+
+  const row = state.rows[entity.row];
+  if (!row) return;
+  let index = row.length;
+  row.push(entry);
+  while (index > 0 && row[index - 1].x > x) {
+    row[index] = row[index - 1];
+    index -= 1;
+  }
+  row[index] = entry;
+}
+
+export function buildBattleRenderRows(troops, enemies, interpolation, elapsed, reduceMotion = false, buffers = createBattleRowBuffers()) {
+  buffers.poolCursor = 0;
+  for (const row of buffers.rows) row.length = 0;
+  for (const troop of troops) insertRenderEntry(buffers, "troop", troop, troop.x, troop.y);
+  for (const enemy of enemies) {
+    writeInterpolatedPosition(enemy, interpolation, buffers.position);
+    insertRenderEntry(
+      buffers,
+      "enemy",
+      enemy,
+      buffers.position.x + getRepulsorKnockbackOffset(enemy, elapsed, reduceMotion),
+      buffers.position.y,
+    );
+  }
+  return buffers;
+}

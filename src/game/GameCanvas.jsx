@@ -22,16 +22,16 @@ import {
 } from "./pulseRenderer.js";
 import {
   getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect,
-  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
-  isEnemyFrozen, viewportPointToFieldPoint,
+  getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
+  buildBattleRenderRows, createBattleRowBuffers, isEnemyFrozen, viewportPointToFieldPoint, writeEnemyVisualPosition,
 } from "./visualGeometry.js";
 import {
   configureHiDPICanvas, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
-  getHealthVisual, getHitReaction, interpolateEntity, updateGraphicsRuntime,
+  getAdaptiveEffects, getHealthVisual, getHitReaction, interpolateEntity, updateGraphicsRuntime,
 } from "./graphicsRuntime.js";
 import {
-  drawDecals, drawDeploymentEffects, drawDynamicLights, drawPostProcessing,
-  drawWetReflections, presentScene,
+  drawCachedSpriteHalo, drawDecals, drawDeploymentEffects, drawDynamicLights, drawPostProcessing,
+  drawWetReflections, getSpriteFilter, getTroopSpriteFilter, presentScene,
 } from "./graphicsRenderer.js";
 import {
   CELL, FIELD, VIEWPORT,
@@ -669,7 +669,188 @@ function drawEnergyPickups(ctx, pickups, elapsed, settings) {
   }
 }
 
-function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, now, interpolation) {
+const enemyFrameCountsCache = new WeakMap();
+const troopFrameCountsCache = new WeakMap();
+
+function getTroopFrameCounts(troopAssets) {
+  let counts = troopFrameCountsCache.get(troopAssets);
+  if (counts) return counts;
+  counts = {};
+  for (const state in troopAssets) counts[state] = troopAssets[state]?.length || 0;
+  troopFrameCountsCache.set(troopAssets, counts);
+  return counts;
+}
+
+function getEnemyFrameCounts(enemyAssets) {
+  let counts = enemyFrameCountsCache.get(enemyAssets);
+  if (counts) return counts;
+  counts = {};
+  for (const state in enemyAssets) counts[state] = enemyAssets[state]?.length || 0;
+  enemyFrameCountsCache.set(enemyAssets, counts);
+  return counts;
+}
+
+export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, scratch, drawHalo = true) {
+  const logicalEntity = entry.entity;
+  const reaction = getHitReaction(runtime, logicalEntity.id, now);
+  const config = TROOPS[logicalEntity.type];
+  const troopAssets = assets.troops[logicalEntity.type] || {};
+  Object.assign(scratch, logicalEntity);
+  scratch.x = entry.x + reaction.offsetX;
+  scratch.y = entry.y + (config.spriteOffsetY || 0);
+  const animation = getTroopAnimation(logicalEntity, config, session.elapsed, getTroopFrameCounts(troopAssets));
+  const image = resolveTroopFrame(troopAssets, animation.state, animation.frame);
+  const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
+  const visual = getTroopAttackVisual(logicalEntity, config);
+  const height = visual?.height || config.attackVisual?.height || (logicalEntity.type === "muralhaReforcada" ? 112 : 126);
+  if (drawHalo && image?.width && image?.height) {
+    const rect = getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor);
+    drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
+  }
+  const troopFilter = getTroopSpriteFilter(reaction.flash);
+  if (!drawSprite(ctx, image, scratch, height, 1, troopFilter, frameAnchor, config.flipX)) {
+    ctx.fillStyle = config.color;
+    ctx.fillRect(scratch.x - 24, scratch.y - 34, 48, 68);
+  }
+  drawLumiDefenseShield(ctx, scratch, config, session.elapsed, settings);
+  if (config.specialEveryMs && !logicalEntity.specialRequested && session.elapsed >= logicalEntity.specialReadyAt) {
+    drawTroopSpecialReady(ctx, scratch, session.elapsed, settings);
+  }
+  drawNaniteTargetEffect(ctx, scratch, session, settings);
+  drawNaniteCooldown(ctx, scratch, session, settings);
+  drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings);
+  drawWorkerQueenWebDebuff(ctx, logicalEntity, session.elapsed, settings);
+  drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
+}
+
+function shouldDrawEnemyHealth(entity, frozen, stunned, adaptive) {
+  if (!adaptive.hideFullHealthEnemies || entity.variant === "alpha" || entity.isEcho || frozen || stunned) return true;
+  const fullHealth = entity.hp >= entity.maxHp;
+  const fullShield = !(entity.shieldMax > 0) || entity.shield >= entity.shieldMax;
+  return !fullHealth || !fullShield;
+}
+
+export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
+  const logicalEntity = entry.entity;
+  const config = ENEMIES[logicalEntity.type];
+  const reaction = getHitReaction(runtime, logicalEntity.id, now);
+  Object.assign(scratch, logicalEntity);
+  writeEnemyVisualPosition(logicalEntity, config, session.elapsed, interpolation, settings.reduceMotion, scratch);
+  scratch.x += reaction.offsetX;
+  const frozen = isEnemyFrozen(logicalEntity, session.elapsed);
+  const stunned = session.elapsed < (logicalEntity.stunnedUntil || 0);
+  if (logicalEntity.type === "duneRipper" && logicalEntity.duneState === "roar"
+    && !settings.reduceMotion && !stunned) {
+    const roarAge = session.elapsed - logicalEntity.duneStateStartedAt;
+    scratch.x += Math.sin(roarAge / 24) * 1.8;
+    scratch.y += Math.cos(roarAge / 31) * 0.8;
+  }
+  const enemyAssets = assets.enemies[logicalEntity.type] || {};
+  const frameCounts = getEnemyFrameCounts(enemyAssets);
+  let animation = getEnemyAnimation(logicalEntity, config, session.elapsed, frameCounts);
+  if (logicalEntity.type === "workerQueen" && reaction.flash > 0.12 && enemyAssets.hit?.length) {
+    animation = {
+      state: "hit",
+      frame: Math.min(enemyAssets.hit.length - 1, Math.floor((1 - reaction.flash) * enemyAssets.hit.length)),
+    };
+  }
+  if (logicalEntity.type === "scarabEmperor" && !logicalEntity.scarabTransitionToPhase && reaction.flash > 0.12) {
+    const hitState = `phase${logicalEntity.bossPhase || 1}Hit`;
+    if (enemyAssets[hitState]?.length) {
+      animation = {
+        state: hitState,
+        frame: Math.min(enemyAssets[hitState].length - 1, Math.floor((1 - reaction.flash) * enemyAssets[hitState].length)),
+      };
+    }
+  }
+  const frames = enemyAssets[animation.state] || enemyAssets.walking || enemyAssets.idle || [];
+  const image = frames[animation.frame % Math.max(1, frames.length)];
+  const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
+  const enemyRect = getEnemySpriteRect(scratch, config, animation.state, animation.frame, enemyAspectRatio);
+  const spriteFilter = getSpriteFilter(
+    reaction.flash,
+    logicalEntity.bossPhase || 0,
+    logicalEntity.variant === "alpha",
+    logicalEntity.isEcho,
+    frozen,
+  );
+  drawSilicaDiggerSand(ctx, scratch, session.elapsed, settings);
+  if (drawHalo) {
+    drawCachedSpriteHalo(
+      ctx,
+      enemyRect,
+      logicalEntity.isEcho ? "#7fffd4" : session.phase.palette.accent,
+      settings,
+      logicalEntity.isEcho ? 1.4 : 1,
+    );
+  }
+  let spriteDrawn = drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter);
+  if (!spriteDrawn) spriteDrawn = drawProceduralGlassEnemy(ctx, scratch, config, session.elapsed, spriteFilter);
+  if (frozen && spriteDrawn) {
+    drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
+  }
+  if (!spriteDrawn) {
+    ctx.fillStyle = frozen ? "#38bdf8" : config.color;
+    ctx.beginPath();
+    ctx.arc(scratch.x, scratch.y, 24 * logicalEntity.scale, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
+  drawPrismaticShield(ctx, scratch, session.elapsed, settings);
+  if (frozen) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
+  if (stunned) drawStunnedEnemyEffect(ctx, scratch, session.elapsed, settings);
+  if (logicalEntity.isEcho) {
+    const radius = 31 * logicalEntity.scale;
+    ctx.save();
+    ctx.strokeStyle = "rgba(127,255,212,.72)";
+    ctx.lineWidth = 1.5;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = "#8b5cf6";
+    ctx.beginPath();
+    ctx.moveTo(scratch.x, scratch.y - radius);
+    ctx.lineTo(scratch.x + radius * .72, scratch.y);
+    ctx.lineTo(scratch.x, scratch.y + radius * .45);
+    ctx.lineTo(scratch.x - radius * .72, scratch.y);
+    ctx.closePath();
+    ctx.stroke();
+    ctx.restore();
+  }
+  if (shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
+    drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
+  }
+  if (logicalEntity.variant === "alpha") {
+    ctx.fillStyle = "#fecdd3";
+    ctx.font = "700 11px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText(`${config.label.toUpperCase()} ALFA`, scratch.x, Math.max(30, scratch.y - 76 * logicalEntity.scale));
+  }
+}
+
+export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers) {
+  buildBattleRenderRows(session.troops, session.enemies, interpolation, session.elapsed, settings.reduceMotion, buffers);
+  drawWetReflections(ctx, session.phase, buffers.rows, settings, adaptive);
+  for (let row = 0; row < FIELD.rows; row += 1) {
+    let lastHaloX = -Infinity;
+    for (const entry of buffers.rows[row]) {
+      const entity = entry.entity;
+      const drawHalo = Math.abs(entry.x - lastHaloX) > 2;
+      if (drawHalo) lastHaloX = entry.x;
+      const reaction = getHitReaction(runtime, entity.id, now);
+      buffers.position.x = entry.x + reaction.offsetX;
+      buffers.position.y = entry.y;
+      if (entry.kind !== "enemy" || !entity.attachedToTroopId) {
+        drawContactShadow(ctx, buffers.position, entry.kind === "enemy" ? entity.scale : 1, settings);
+      }
+      if (entry.kind === "troop") {
+        drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, buffers.troopScratch, drawHalo);
+      } else {
+        drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, drawHalo);
+      }
+    }
+  }
+}
+
+function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, interpolation, rowBuffers) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   drawContainmentUnderlay(ctx, session.phase, session, runtime, now, settings);
@@ -705,153 +886,14 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
   ], settings, mineAssets);
   drawNaniteHealingBeams(ctx, session, settings);
 
-  const sorted = [
-    ...session.troops.map((entity) => ({ kind: "troop", entity })),
-    ...session.enemies.map((entity) => {
-      const interpolated = interpolateEntity(entity, interpolation);
-      return {
-        kind: "enemy",
-        entity: {
-          ...interpolated,
-          x: interpolated.x + getRepulsorKnockbackOffset(entity, session.elapsed, settings.reduceMotion),
-        },
-      };
-    }),
-  ].sort((left, right) => left.entity.row - right.entity.row || left.entity.x - right.entity.x);
-  drawWetReflections(ctx, session.phase, sorted.map((item) => item.entity), settings);
-
-  for (const item of sorted) {
-    const logicalEntity = item.kind === "troop" ? item.entity : session.enemies.find((entry) => entry.id === item.entity.id) || item.entity;
-    const reaction = getHitReaction(runtime, item.entity.id, now);
-    const entity = { ...item.entity, x: item.entity.x + reaction.offsetX };
-    if (item.kind !== "enemy" || !entity.attachedToTroopId) {
-      drawContactShadow(ctx, entity, item.kind === "enemy" ? entity.scale : 1, settings);
-    }
-    if (item.kind === "troop") {
-      const config = TROOPS[entity.type];
-      const troopAssets = assets.troops[entity.type] || {};
-      const animation = getTroopAnimation(entity, config, session.elapsed, {
-        idle: troopAssets.idle?.length, attack: troopAssets.attack?.length,
-        heal: troopAssets.heal?.length, cooldown: troopAssets.cooldown?.length,
-        attackMine: troopAssets.attackMine?.length, attackGun: troopAssets.attackGun?.length,
-        defense: troopAssets.defense?.length, special: troopAssets.special?.length,
-        transitionIn: troopAssets.transitionIn?.length, transitionOut: troopAssets.transitionOut?.length,
-        attack1: troopAssets.attack1?.length, attack2: troopAssets.attack2?.length,
-        attack3: troopAssets.attack3?.length,
-      });
-      const image = resolveTroopFrame(troopAssets, animation.state, animation.frame);
-      const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
-      const visualEntity = getTroopVisualEntity(entity, config);
-      const visual = getTroopAttackVisual(entity, config);
-      const troopFilter = `drop-shadow(0 0 ${3 + reaction.flash * 5}px ${session.phase.palette.primary}) brightness(${1 + reaction.flash * .65})`;
-      if (!drawSprite(ctx, image, visualEntity, visual?.height || config.attackVisual?.height || (entity.type === "muralhaReforcada" ? 112 : 126), 1, troopFilter, frameAnchor, config.flipX)) {
-        ctx.fillStyle = config.color;
-        ctx.fillRect(visualEntity.x - 24, visualEntity.y - 34, 48, 68);
-      }
-      drawLumiDefenseShield(ctx, visualEntity, config, session.elapsed, settings);
-      if (config.specialEveryMs && !entity.specialRequested && session.elapsed >= entity.specialReadyAt) {
-        drawTroopSpecialReady(ctx, visualEntity, session.elapsed, settings);
-      }
-      drawNaniteTargetEffect(ctx, visualEntity, session, settings);
-      drawNaniteCooldown(ctx, visualEntity, session, settings);
-      drawExecutorComboIndicator(ctx, visualEntity, session.elapsed, settings);
-      drawWorkerQueenWebDebuff(ctx, logicalEntity, session.elapsed, settings);
-      drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
-    } else {
-      const config = ENEMIES[entity.type];
-      let visualEntity = entity;
-      if (entity.attachedToTroopId) {
-        visualEntity = { ...visualEntity, y: visualEntity.y + (config.attachmentOffsetY || 0) };
-      } else if (entity.jumping) {
-        const progress = Math.max(0, Math.min(1, Number(entity.jumpProgress) || 0));
-        visualEntity = { ...visualEntity, y: visualEntity.y - config.jumpArcHeight * 4 * progress * (1 - progress) };
-      }
-      const frozen = isEnemyFrozen(entity, session.elapsed);
-      const stunned = session.elapsed < (entity.stunnedUntil || 0);
-      if (entity.type === "duneRipper" && entity.duneState === "roar"
-        && !settings.reduceMotion && !stunned) {
-        const roarAge = session.elapsed - entity.duneStateStartedAt;
-        visualEntity = {
-          ...visualEntity,
-          x: visualEntity.x + Math.sin(roarAge / 24) * 1.8,
-          y: visualEntity.y + Math.cos(roarAge / 31) * 0.8,
-        };
-      }
-      const enemyAssets = assets.enemies[entity.type] || {};
-      const frameCounts = Object.fromEntries(Object.entries(enemyAssets)
-        .map(([state, frames]) => [state, frames?.length || 0]));
-      let animation = getEnemyAnimation(entity, config, session.elapsed, {
-        ...frameCounts,
-        idle: enemyAssets.idle?.length, walking: enemyAssets.walking?.length,
-        attack: enemyAssets.attack?.length, jump: enemyAssets.jump?.length,
-        pulse: enemyAssets.pulse?.length, chargePrep: enemyAssets.chargePrep?.length,
-        charge: enemyAssets.charge?.length, roar: enemyAssets.roar?.length,
-        spawn: enemyAssets.spawn?.length, webAttack: enemyAssets.webAttack?.length,
-        eggLay: enemyAssets.eggLay?.length, meleeAttack: enemyAssets.meleeAttack?.length,
-        hit: enemyAssets.hit?.length, stunned: enemyAssets.stunned?.length,
-        hatch: enemyAssets.hatch?.length, destroy: enemyAssets.destroy?.length,
-      });
-      if (entity.type === "workerQueen" && reaction.flash > 0.12 && enemyAssets.hit?.length) {
-        animation = {
-          state: "hit",
-          frame: Math.min(enemyAssets.hit.length - 1, Math.floor((1 - reaction.flash) * enemyAssets.hit.length)),
-        };
-      }
-      const frames = enemyAssets[animation.state] || enemyAssets.walking || enemyAssets.idle || [];
-      const image = frames[animation.frame % Math.max(1, frames.length)];
-      const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
-      const enemyRect = getEnemySpriteRect(visualEntity, config, animation.state, animation.frame, enemyAspectRatio);
-      const bossShift = entity.variant === "alpha" ? ` hue-rotate(${entity.bossPhase * 24}deg) saturate(${1.05 + entity.bossPhase * .18})` : "";
-      const echoFilter = entity.isEcho ? " saturate(.65) brightness(1.28) hue-rotate(34deg) contrast(1.08)" : "";
-      const baseFilter = frozen ? "saturate(.55) brightness(1.16)" : `brightness(${1 + reaction.flash * .75})${bossShift}${echoFilter}`;
-      drawSilicaDiggerSand(ctx, visualEntity, session.elapsed, settings);
-      let spriteDrawn = drawSpriteInRect(ctx, image, enemyRect, entity.isEcho ? 0.72 : 1, `${baseFilter} drop-shadow(0 0 ${entity.isEcho ? 11 : 3 + reaction.flash * 6}px ${entity.isEcho ? "#7fffd4" : session.phase.palette.accent})`);
-      if (!spriteDrawn) spriteDrawn = drawProceduralGlassEnemy(ctx, visualEntity, config, session.elapsed, baseFilter);
-      if (frozen && spriteDrawn) {
-        drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
-      }
-      if (!spriteDrawn) {
-        ctx.fillStyle = frozen ? "#38bdf8" : config.color;
-        ctx.beginPath();
-        ctx.arc(visualEntity.x, visualEntity.y, 24 * entity.scale, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      drawAbyssCharge(ctx, entity, config, session.elapsed, settings);
-      drawPrismaticShield(ctx, visualEntity, session.elapsed, settings);
-      if (frozen) drawFrozenEnemyEffect(ctx, visualEntity, session.elapsed, settings);
-      if (stunned) drawStunnedEnemyEffect(ctx, visualEntity, session.elapsed, settings);
-      if (entity.isEcho) {
-        const radius = 31 * entity.scale;
-        ctx.save();
-        ctx.strokeStyle = "rgba(127,255,212,.72)";
-        ctx.lineWidth = 1.5;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = "#8b5cf6";
-        ctx.beginPath();
-        ctx.moveTo(visualEntity.x, visualEntity.y - radius);
-        ctx.lineTo(visualEntity.x + radius * .72, visualEntity.y);
-        ctx.lineTo(visualEntity.x, visualEntity.y + radius * .45);
-        ctx.lineTo(visualEntity.x - radius * .72, visualEntity.y);
-        ctx.closePath();
-        ctx.stroke();
-        ctx.restore();
-      }
-      drawHealth(ctx, logicalEntity, runtime, now, entity.variant === "alpha" ? 100 : 58, 58 * entity.scale, entity.isEcho ? "#7fffd4" : null);
-      if (entity.variant === "alpha") {
-        ctx.fillStyle = "#fecdd3";
-        ctx.font = "700 11px system-ui";
-        ctx.textAlign = "center";
-        ctx.fillText(`${config.label.toUpperCase()} ALFA`, visualEntity.x, Math.max(30, visualEntity.y - 76 * entity.scale));
-      }
-    }
-  }
+  drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
 
   drawTroopPlacementPreview(ctx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(ctx, runtime, assets, now, session.phase);
   drawPulseDisintegrations(ctx, runtime, assets, now, settings);
   drawDeploymentEffects(ctx, runtime, now, settings);
-  drawDynamicLights(ctx, runtime, now, settings);
-  drawArenaForeground(ctx, session.phase, settings, session, now);
+  drawDynamicLights(ctx, runtime, now, settings, adaptive);
+  drawArenaForeground(ctx, session.phase, settings, session, now, adaptive);
   drawPulseBeams(ctx, runtime, now, settings);
   drawEnergyPickups(ctx, session.energyPickups, session.elapsed, settings);
   particlesRef.current = drawParticles(ctx, particlesRef.current, now, settings);
@@ -916,6 +958,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const sessionRef = useRef(null);
   const particlesRef = useRef([]);
   const graphicsRef = useRef(createGraphicsRuntime());
+  const battleRowsRef = useRef(createBattleRowBuffers());
+  const adaptiveSettingsRef = useRef({});
   const hoveredCellRef = useRef(null);
   const pausedRef = useRef(false);
   const speedRef = useRef(1);
@@ -1019,13 +1063,16 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     let previous = performance.now();
     let accumulator = 0;
     let lastUi = 0;
+    let lastDrawMs = 0;
+    let lastPresentMs = 0;
     const loop = (now) => {
       const frameDelta = Math.min(100, now - previous);
       previous = now;
       if (!pausedRef.current) accumulator += frameDelta * speedRef.current;
+      const stepStarted = performance.now();
       while (accumulator >= 32) {
         const events = stepBattle(sessionRef.current, 32);
-        pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, settings);
+        pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
         consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
         if (events.some((event) => event.type === "spawn")) play("alert", 0.08);
         if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
@@ -1050,10 +1097,34 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         }
         accumulator -= 32;
       }
+      const stepMs = performance.now() - stepStarted;
       const interpolation = Math.min(1, accumulator / 32);
-      updateGraphicsRuntime(graphicsRef.current, sessionRef.current.elapsed, frameDelta, { particles: particlesRef.current.length });
-      drawBattle(sceneCtx, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current, selectedTroop, removeMode, hoveredCellRef.current, settings, sessionRef.current.elapsed, interpolation);
-      presentScene(ctx, scene, renderScale, getCameraOffset(graphicsRef.current, sessionRef.current.elapsed, settings), settings);
+      const activeEntities = sessionRef.current.troops.length + sessionRef.current.enemies.length
+        + sessionRef.current.projectiles.length + sessionRef.current.enemyProjectiles.length;
+      updateGraphicsRuntime(graphicsRef.current, sessionRef.current.elapsed, frameDelta, {
+        clockNow: now,
+        stepMs,
+        drawMs: lastDrawMs,
+        presentMs: lastPresentMs,
+        activeEntities,
+        particles: particlesRef.current.length,
+      });
+      const adaptive = getAdaptiveEffects(settings, graphicsRef.current.adaptive.level);
+      Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
+      const drawStarted = performance.now();
+      drawBattle(
+        sceneCtx, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
+        selectedTroop, removeMode, hoveredCellRef.current, adaptiveSettingsRef.current, adaptive,
+        sessionRef.current.elapsed, interpolation, battleRowsRef.current,
+      );
+      lastDrawMs = performance.now() - drawStarted;
+      const presentStarted = performance.now();
+      presentScene(
+        ctx, scene, renderScale,
+        getCameraOffset(graphicsRef.current, sessionRef.current.elapsed, adaptiveSettingsRef.current),
+        adaptiveSettingsRef.current, adaptive,
+      );
+      lastPresentMs = performance.now() - presentStarted;
       if (now - lastUi > 100) {
         lastUi = now;
         setSnapshot(getSnapshot(sessionRef.current));
@@ -1100,7 +1171,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       ? result.queued ? "Esmagamento Total enfileirado após o golpe atual." : "Esmagamento Total ativado."
       : result.reason);
     if (result.ok) {
-      pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
+      pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
       consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
     }
     setSnapshot(getSnapshot(sessionRef.current));
@@ -1120,7 +1191,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setMessage(result.ok ? `Unidade removida · +${result.refund} energia.` : result.reason);
       if (result.ok) {
         consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
-        pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
+        pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
       }
       setSnapshot(getSnapshot(sessionRef.current));
       return;
@@ -1133,7 +1204,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setMessage(result.ok ? `${TROOPS[action.troopType].label} implantado.` : result.reason);
     if (result.ok) {
       play("deploy", 0.55);
-      pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, settings);
+      pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
       consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
     }
     setSnapshot(getSnapshot(sessionRef.current));
@@ -1198,7 +1269,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       return;
     }
     consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
-    pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, settings);
+    pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     setSnapshot(getSnapshot(sessionRef.current));
     setBanner(`${ENEMIES[selectedEnemy].label.toUpperCase()}${spawnAlpha ? " ALFA" : ""} · ROTA ${spawnRow + 1}`);
     setMessage(`${spawnCount} ${ENEMIES[selectedEnemy].label}${spawnCount > 1 ? "s" : ""} gerado${spawnCount > 1 ? "s" : ""} na rota ${spawnRow + 1}.`);
@@ -1223,7 +1294,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleInjureTroops = () => {
     const events = injureSandboxTroops(sessionRef.current, 10);
     consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
-    pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, settings);
+    pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     setSnapshot(getSnapshot(sessionRef.current));
     setMessage(events.length ? "Tropas vivas perderam 10 HP para teste de cura." : "Posicione tropas antes de aplicar dano.");
   };
@@ -1296,7 +1367,17 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             }} aria-label="Campo de batalha em cinco rotas" />
             <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />
           </div>
-          {graphicsMetrics && <div className="graphics-metrics"><b>{graphicsMetrics.fps.toFixed(0)} FPS</b><span>{graphicsMetrics.frameMs.toFixed(1)} ms</span><span>P {graphicsMetrics.particles}</span><span>D {graphicsMetrics.decals}</span><span>V {graphicsMetrics.visualEntities}</span></div>}
+          {graphicsMetrics && <div className="graphics-metrics">
+            <b>{graphicsMetrics.fps.toFixed(0)} FPS · {graphicsMetrics.adaptiveLevel}</b>
+            <span>F {graphicsMetrics.frameMs.toFixed(1)} ms</span>
+            <span>S {graphicsMetrics.stepMs.toFixed(1)} ms</span>
+            <span>D {graphicsMetrics.drawMs.toFixed(1)} ms</span>
+            <span>P {graphicsMetrics.presentMs.toFixed(1)} ms</span>
+            <span>E {graphicsMetrics.activeEntities}</span>
+            <span>Part {graphicsMetrics.particles}</span>
+            <span>Dec {graphicsMetrics.decals}</span>
+            <span>V {graphicsMetrics.visualEntities}</span>
+          </div>}
           {paused && <div className="pause-overlay"><span>SIMULAÇÃO PAUSADA</span><button onClick={() => setPaused(false)}>Continuar</button></div>}
         </div>
 
