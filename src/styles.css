@@ -250,6 +250,7 @@ a .phase-card:hover .phase-art img { transform: scale(1.07); filter: saturate(1.
 .chapter-2-battle .battle-topbar, .chapter-2-battle .battle-sidebar { border-color: rgba(127,255,212,.18); }
 .chapter-3-battle { --cyan: #f59e0b; --cyan-soft: #fef3c7; --amber: #22d3ee; }
 .chapter-3-battle .battle-topbar, .chapter-3-battle .battle-sidebar { border-color: rgba(245,158,11,.22); }
+.sandstorm-banner { border-color: rgba(251,191,36,.72); color: #fff7ed; background: linear-gradient(90deg, rgba(120,53,15,.45), rgba(245,158,11,.2), rgba(120,53,15,.45)), linear-gradient(180deg, rgba(67,35,16,.98), rgba(20,10,5,.98)); box-shadow: inset 0 1px rgba(255,237,213,.2), inset 0 -2px rgba(245,158,11,.2), 0 0 0 3px rgba(20,10,5,.72), 0 8px 18px rgba(0,0,0,.42), 0 0 28px rgba(245,158,11,.28); text-shadow: 0 0 9px rgba(251,191,36,.72); }
 .wave-banner {
   isolation: isolate;
   min-width: 230px;

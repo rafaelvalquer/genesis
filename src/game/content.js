@@ -2448,6 +2448,26 @@ const replaceBaseEnemy = (enemies, type, replacement, count) =>
       { type: replacement, count: replaced },
     ];
   });
+const createSandstormHazard = (chapterIndex) => ({
+  id: "sandstorm",
+  minTroops: 5,
+  firstCheckDelayMs: 18000,
+  checkEveryMs: 12000,
+  warningMs: 2500,
+  durationMs: 7000 + chapterIndex * 400,
+  recoveryMs: 2000,
+  startGustMs: 1200,
+  baseChance: 0.04 + chapterIndex * 0.01,
+  chancePerExtraTroop: 0.035,
+  maxChance: 0.40,
+  rangePenaltyTiles: 1,
+  buriedMin: 1,
+  buriedMax: 3,
+  buriedDurationMinMs: 3500,
+  buriedDurationMaxMs: 5500,
+  cadenceAffectedRatio: 0.35,
+  cadenceFactor: 0.65,
+});
 const phase = (
   id,
   name,
@@ -2474,6 +2494,9 @@ const phase = (
     environment,
     chapterId: `chapter_${String(chapterNumber).padStart(2, "0")}`,
     chapterIndex: (phaseNumber - 1) % 8,
+    environmentHazard: chapterNumber === 3
+      ? createSandstormHazard((phaseNumber - 1) % 8)
+      : null,
     supplyLimit: chapterNumber >= 2 ? 30 : 20,
     loadoutLimit: chapterNumber >= 2 ? 6 : 5,
     waveCompletionEnergy: phaseNumber >= 2 ? 20 : 0,
@@ -3573,6 +3596,11 @@ export const CHAPTERS = [
     phaseIds: PHASES.slice(16, 24).map((entry) => entry.id),
     coverArenaId: "fase_24",
     palette: { primary: "#f59e0b", accent: "#22d3ee", shadow: "#1c0a03" },
+    mechanic: {
+      id: "sandstorm",
+      label: "Tempestade de Areia",
+      description: "Exércitos numerosos podem provocar uma tempestade que soterra tropas e reduz temporariamente alcance e cadência.",
+    },
   },
 ];
 

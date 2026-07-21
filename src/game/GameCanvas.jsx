@@ -591,6 +591,55 @@ function drawWorkerQueenWebDebuff(ctx, troop, elapsed, settings) {
   ctx.restore();
 }
 
+function drawSandstormTroopEffects(ctx, troop, session, assets, settings, visualHeight) {
+  const buried = session.elapsed < (troop.sandBuriedUntil || 0);
+  const slowed = session.sandstorm?.slowedTroopIds?.includes(troop.id);
+  if (!buried && !slowed) return;
+  const pulse = settings.reduceMotion ? 0 : Math.sin(session.elapsed / 120) * 1.5;
+  ctx.save();
+  if (buried) {
+    const frames = assets.effects?.sandBurial?.buried || [];
+    const buriedAge = Math.max(0, session.elapsed - (troop.sandBuriedStartedAt || session.elapsed));
+    const frameIndex = buriedAge < 600
+      ? Math.min(3, Math.floor(buriedAge / 150))
+      : 4 + Math.floor((buriedAge - 600) / 180) % 4;
+    const image = frames[frameIndex] || frames.find(Boolean);
+    if (image) {
+      const size = Math.max(140, Math.min(230, visualHeight * 1.15));
+      const offsetY = TROOPS[troop.type]?.spriteOffsetY || 0;
+      // The artwork occupies the lower portion of its square frame. Anchor that
+      // visible mound at the troop's feet instead of around its waist.
+      ctx.drawImage(image, troop.x - size / 2, troop.y + offsetY - size * 0.36, size, size);
+    }
+    ctx.fillStyle = "rgba(61,32,15,.94)";
+    ctx.strokeStyle = "#fdba74";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(troop.x, troop.y - 61 + pulse, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fff7ed";
+    ctx.font = "bold 12px Chakra Petch";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("×", troop.x, troop.y - 61 + pulse);
+  } else if (slowed) {
+    ctx.strokeStyle = "#fbbf24";
+    ctx.fillStyle = "rgba(69,38,13,.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(troop.x, troop.y - 61 + pulse, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(troop.x, troop.y - 67 + pulse);
+    ctx.lineTo(troop.x, troop.y - 61 + pulse);
+    ctx.lineTo(troop.x + 5, troop.y - 58 + pulse);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed, settings) {
   if (!preview || !selectedTroop) return;
   const config = TROOPS[selectedTroop];
@@ -721,6 +770,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   drawNaniteCooldown(ctx, scratch, session, settings);
   drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings);
   drawWorkerQueenWebDebuff(ctx, logicalEntity, session.elapsed, settings);
+  drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
 }
 
@@ -1304,6 +1354,14 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     return <div className="battle-loader" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary }}><div className="loader-scrim" /><div className="loader-content"><div className="loader-mark">GD</div><span className="eyebrow">{phase.name}</span><h2>Preparando campo tático</h2><div className="progress-track"><span style={{ width: `${loading.percent}%` }} /></div><p>{loading.percent}% · sincronizando arena, loadout e hostis</p></div></div>;
   }
 
+  const sandstormBanner = snapshot.sandstorm?.state === "warning"
+    ? `TEMPESTADE DE AREIA SE APROXIMANDO · ${(snapshot.sandstorm.startsInMs / 1000).toFixed(1)}s`
+    : snapshot.sandstorm?.state === "active"
+      ? `TEMPESTADE DE AREIA · ALCANCE À DISTÂNCIA -1 · ${(snapshot.sandstorm.remainingMs / 1000).toFixed(1)}s`
+      : snapshot.sandstorm?.state === "recovering"
+        ? `TEMPESTADE DISSIPANDO · ${(snapshot.sandstorm.remainingMs / 1000).toFixed(1)}s`
+        : null;
+
   return (
     <section className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
@@ -1360,7 +1418,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         </aside>
 
         <div className="canvas-wrap">
-          <div className="wave-banner">{banner}</div>
+          <div className={`wave-banner ${sandstormBanner ? "sandstorm-banner" : ""}`}>{sandstormBanner || banner}</div>
           <div className="battle-canvas-stage">
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
               hoveredCellRef.current = null;

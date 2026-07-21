@@ -61,6 +61,14 @@ function usesTargetingSystems(config) {
   return config && !["none", "energy", "melee", "mine", "tileMelee", "arcCombo"].includes(config.attack);
 }
 
+function isSandstormActive(session) {
+  return session.sandstorm?.state === "active";
+}
+
+function isSandBuried(session, troop) {
+  return session.elapsed < (troop.sandBuriedUntil || 0);
+}
+
 export function getEffectiveTroopStats(session, troopId) {
   const config = TROOPS[troopId];
   if (!config) return null;
@@ -81,6 +89,10 @@ function effectiveCombatConfig(session, troop, config) {
   if (isOffensiveConfig(config)) {
     range *= session.modifiers.aggressiveRange;
     if (Number.isFinite(closeRange)) closeRange *= session.modifiers.aggressiveRange;
+  }
+  const hazard = session.phase.environmentHazard;
+  if (isSandstormActive(session) && hazard?.id === "sandstorm" && usesTargetingSystems(config)) {
+    range = Math.max(1, range - hazard.rangePenaltyTiles);
   }
   return { ...config, range, closeRange };
 }
@@ -127,6 +139,21 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     effects: [],
     effectSequence: 0,
     prismaticMantle: { nextPulseAt: Infinity, lastPulseAt: -Infinity },
+    sandstorm: {
+      state: "idle",
+      warningStartedAt: -Infinity,
+      startsAt: Infinity,
+      endsAt: Infinity,
+      recoveryStartedAt: Infinity,
+      recoveryEndsAt: Infinity,
+      nextCheckAt: Infinity,
+      stormsThisWave: 0,
+      troopCountAtStart: 0,
+      troopCountAtEnd: 0,
+      repeatEligible: true,
+      buriedTroopIds: [],
+      slowedTroopIds: [],
+    },
     deployCooldowns: {},
     modifiers: { ...DEFAULT_MODIFIERS },
     shieldCharges: 0,
@@ -184,6 +211,7 @@ export function placeTroop(session, troopId, row, col) {
     attackTargetId: null, cooldownStartedAt: null, cooldownEndsAt: null,
     attackSpeedFactor: 1, attachedParasiteId: null,
     webSlowUntil: 0, webSlowFactor: 1,
+    sandBuriedStartedAt: 0, sandBuriedUntil: 0, sandAttackSpeedFactor: 1,
     channelTickAccumulator: 0, firstImpactAvailable: session.modifiers.firstImpact,
     previousRenderX: col * CELL.width + CELL.width / 2,
     previousRenderY: row * CELL.height + CELL.height / 2, dead: false,
@@ -343,6 +371,17 @@ export function startWave(session) {
   session.preparing = false;
   session.waveStartedAt = session.elapsed;
   session.nextSpawnAt = session.elapsed + (session.queue[0]?.spawnAtMs || 0);
+  const hazard = session.phase.environmentHazard;
+  session.sandstorm.state = "idle";
+  session.sandstorm.stormsThisWave = 0;
+  session.sandstorm.troopCountAtStart = 0;
+  session.sandstorm.troopCountAtEnd = 0;
+  session.sandstorm.repeatEligible = true;
+  session.sandstorm.buriedTroopIds = [];
+  session.sandstorm.slowedTroopIds = [];
+  session.sandstorm.nextCheckAt = hazard?.id === "sandstorm"
+    ? session.elapsed + hazard.firstCheckDelayMs
+    : Infinity;
   session.troops.filter((troop) => !troop.dead && troop.type === "demolidora")
     .forEach((troop) => { troop.mineReadyAt = session.elapsed; });
   return true;
@@ -636,7 +675,166 @@ function refreshTroopAttackSpeedFactor(session, troop) {
     troop.webSlowUntil = 0;
     troop.webSlowFactor = 1;
   }
-  setTroopAttackSpeedFactor(troop, Math.min(parasiteFactor, webFactor), session.elapsed);
+  let sandFactor = 1;
+  if (session.sandstorm?.slowedTroopIds.includes(troop.id)) {
+    const hazard = session.phase.environmentHazard;
+    if (session.sandstorm.state === "active") {
+      sandFactor = troop.sandAttackSpeedFactor || hazard?.cadenceFactor || 1;
+    } else if (session.sandstorm.state === "recovering") {
+      const duration = Math.max(1, session.sandstorm.recoveryEndsAt - session.sandstorm.recoveryStartedAt);
+      const progress = clamp((session.elapsed - session.sandstorm.recoveryStartedAt) / duration, 0, 1);
+      sandFactor = (troop.sandAttackSpeedFactor || hazard?.cadenceFactor || 1)
+        + (1 - (troop.sandAttackSpeedFactor || hazard?.cadenceFactor || 1)) * progress;
+    }
+  }
+  setTroopAttackSpeedFactor(troop, Math.min(parasiteFactor, webFactor, sandFactor), session.elapsed);
+}
+
+function randomSelection(session, entries, count) {
+  const available = [...entries];
+  for (let index = available.length - 1; index > 0; index -= 1) {
+    const target = Math.floor(session.rng() * (index + 1));
+    [available[index], available[target]] = [available[target], available[index]];
+  }
+  return available.slice(0, count);
+}
+
+function clearSandstormEffects(session) {
+  for (const troop of session.troops) {
+    troop.sandBuriedStartedAt = 0;
+    troop.sandBuriedUntil = 0;
+    troop.sandAttackSpeedFactor = 1;
+  }
+  session.sandstorm.buriedTroopIds = [];
+  session.sandstorm.slowedTroopIds = [];
+  session.troops.forEach((troop) => refreshTroopAttackSpeedFactor(session, troop));
+}
+
+function endSandstorm(session, events, forced = false) {
+  const storm = session.sandstorm;
+  if (storm.state === "idle" && !storm.buriedTroopIds.length && !storm.slowedTroopIds.length) return;
+  clearSandstormEffects(session);
+  storm.state = "idle";
+  storm.startsAt = Infinity;
+  storm.endsAt = Infinity;
+  storm.recoveryStartedAt = Infinity;
+  storm.recoveryEndsAt = Infinity;
+  if (forced) {
+    storm.repeatEligible = false;
+    storm.nextCheckAt = Infinity;
+  }
+  events?.push({
+    type: "sandstormEnded",
+    forced,
+    stormNumber: storm.stormsThisWave,
+    troopCountAtStart: storm.troopCountAtStart,
+    troopCountAtEnd: storm.troopCountAtEnd,
+    repeatEligible: storm.repeatEligible,
+    nextCheckAt: storm.nextCheckAt,
+  });
+}
+
+function activateSandstorm(session, config, events) {
+  const storm = session.sandstorm;
+  const actionable = session.troops.filter((troop) => !troop.dead && TROOPS[troop.type]?.attack !== "none");
+  const buriedCount = actionable.length
+    ? Math.min(config.buriedMax, Math.max(config.buriedMin, Math.floor(actionable.length / 5)))
+    : 0;
+  const buried = randomSelection(session, actionable, buriedCount);
+  const buriedIds = new Set(buried.map((troop) => troop.id));
+  const ranged = actionable.filter((troop) => !buriedIds.has(troop.id) && usesTargetingSystems(TROOPS[troop.type]));
+  const slowed = randomSelection(session, ranged, Math.ceil(ranged.length * config.cadenceAffectedRatio));
+
+  storm.state = "active";
+  storm.startsAt = session.elapsed;
+  storm.endsAt = session.elapsed + config.durationMs;
+  storm.stormsThisWave += 1;
+  storm.troopCountAtStart = session.troops.filter((troop) => !troop.dead).length;
+  storm.troopCountAtEnd = 0;
+  for (const troop of buried) {
+    const duration = config.buriedDurationMinMs
+      + session.rng() * (config.buriedDurationMaxMs - config.buriedDurationMinMs);
+    troop.sandBuriedStartedAt = session.elapsed;
+    troop.sandBuriedUntil = session.elapsed + duration;
+    troop.defenseActive = false;
+  }
+  for (const troop of slowed) {
+    troop.sandAttackSpeedFactor = config.cadenceFactor;
+    refreshTroopAttackSpeedFactor(session, troop);
+  }
+  storm.buriedTroopIds = buried.map((troop) => troop.id);
+  storm.slowedTroopIds = slowed.map((troop) => troop.id);
+  events.push({
+    type: "sandstormStarted",
+    stormNumber: storm.stormsThisWave,
+    troopCountAtStart: storm.troopCountAtStart,
+    endsAt: storm.endsAt,
+    buriedTroopIds: [...storm.buriedTroopIds],
+    slowedTroopIds: [...storm.slowedTroopIds],
+  });
+}
+
+function updateSandstorm(session, events) {
+  const config = session.phase.environmentHazard;
+  const storm = session.sandstorm;
+  if (config?.id !== "sandstorm") return;
+  if (!session.waveActive) {
+    endSandstorm(session, events, true);
+    return;
+  }
+  const liveTroopIds = new Set(session.troops.filter((troop) => !troop.dead).map((troop) => troop.id));
+  storm.buriedTroopIds = storm.buriedTroopIds.filter((troopId) => {
+    const troop = session.troops.find((entry) => entry.id === troopId);
+    return liveTroopIds.has(troopId) && isSandBuried(session, troop);
+  });
+  storm.slowedTroopIds = storm.slowedTroopIds.filter((troopId) => liveTroopIds.has(troopId));
+  if (storm.state === "warning" && session.elapsed >= storm.startsAt) {
+    activateSandstorm(session, config, events);
+    return;
+  }
+  if (storm.state === "active" && session.elapsed >= storm.endsAt) {
+    storm.troopCountAtEnd = session.troops.filter((troop) => !troop.dead).length;
+    storm.repeatEligible = storm.troopCountAtEnd >= storm.troopCountAtStart;
+    storm.nextCheckAt = storm.repeatEligible
+      ? storm.endsAt + config.checkEveryMs
+      : Infinity;
+    storm.state = "recovering";
+    storm.recoveryStartedAt = session.elapsed;
+    storm.recoveryEndsAt = session.elapsed + config.recoveryMs;
+    storm.buriedTroopIds = [];
+    session.troops.forEach((troop) => {
+      troop.sandBuriedStartedAt = 0;
+      troop.sandBuriedUntil = 0;
+    });
+    events.push({
+      type: "sandstormRecovering",
+      endsAt: storm.recoveryEndsAt,
+      stormNumber: storm.stormsThisWave,
+      troopCountAtStart: storm.troopCountAtStart,
+      troopCountAtEnd: storm.troopCountAtEnd,
+      repeatEligible: storm.repeatEligible,
+      nextCheckAt: storm.nextCheckAt,
+    });
+    return;
+  }
+  if (storm.state === "recovering") {
+    session.troops.forEach((troop) => refreshTroopAttackSpeedFactor(session, troop));
+    if (session.elapsed >= storm.recoveryEndsAt) endSandstorm(session, events);
+    return;
+  }
+  if (storm.state !== "idle" || !storm.repeatEligible || session.elapsed < storm.nextCheckAt) return;
+  storm.nextCheckAt += config.checkEveryMs;
+  const activeTroops = session.troops.filter((troop) => !troop.dead);
+  if (activeTroops.length < config.minTroops) return;
+  const chance = Math.min(
+    config.maxChance,
+    config.baseChance + (activeTroops.length - config.minTroops) * config.chancePerExtraTroop,
+  );
+  if (session.rng() >= chance) return;
+  storm.state = "warning";
+  storm.warningStartedAt = session.elapsed;
+  storm.startsAt = session.elapsed + config.warningMs;
+  events.push({ type: "sandstormWarning", startsAt: storm.startsAt });
 }
 
 function applyWebSlow(session, troop, factor, durationMs) {
@@ -1482,6 +1680,10 @@ function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead) continue;
     refreshTroopAttackSpeedFactor(session, troop);
+    if (isSandBuried(session, troop)) {
+      troop.defenseActive = false;
+      continue;
+    }
     const baseConfig = TROOPS[troop.type];
     const config = effectiveCombatConfig(session, troop, baseConfig);
     if (config.attack === "energy") {
@@ -2880,6 +3082,7 @@ export function stepBattle(session, dt = 32) {
   const events = [];
   session.elapsed += dt;
   updateEnergyPickups(session, dt, events);
+  updateSandstorm(session, events);
   if (session.waveActive || session.sandbox) {
     session.supplyAccumulator += dt;
     while (session.supplyAccumulator >= 1000) {
@@ -2902,9 +3105,13 @@ export function stepBattle(session, dt = 32) {
     updateEnemyProjectiles(session, dt, events);
     updateEnemies(session, dt, events);
     updateMines(session, events);
-    if (!session.sandbox && session.integrity <= 0) finish(session, "defeat");
+    if (!session.sandbox && session.integrity <= 0) {
+      endSandstorm(session, events, true);
+      finish(session, "defeat");
+    }
     if (!session.sandbox && !session.outcome && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0) {
       session.waveActive = false;
+      endSandstorm(session, events, true);
       const completedWave = session.waveIndex;
       const waveCompletionEnergy = Math.max(0, Number(session.phase.waveCompletionEnergy) || 0);
       const waveCompletionAmount = Math.min(waveCompletionEnergy, Math.max(0, session.energyMax - session.energy));
@@ -2973,6 +3180,25 @@ export function getSnapshot(session) {
     refundRate: session.modifiers.refundRate,
     shieldCharges: session.shieldCharges,
     prismaticMantle: { ...session.prismaticMantle },
+    sandstorm: {
+      state: session.sandstorm.state,
+      startsInMs: session.sandstorm.state === "warning"
+        ? Math.max(0, session.sandstorm.startsAt - session.elapsed)
+        : 0,
+      remainingMs: session.sandstorm.state === "active"
+        ? Math.max(0, session.sandstorm.endsAt - session.elapsed)
+        : session.sandstorm.state === "recovering"
+          ? Math.max(0, session.sandstorm.recoveryEndsAt - session.elapsed)
+          : 0,
+      buriedTroopIds: [...session.sandstorm.buriedTroopIds],
+      slowedTroopIds: [...session.sandstorm.slowedTroopIds],
+      stormsThisWave: session.sandstorm.stormsThisWave,
+      troopCountAtStart: session.sandstorm.troopCountAtStart,
+      repeatEligible: session.sandstorm.repeatEligible,
+      nextCheckInMs: Number.isFinite(session.sandstorm.nextCheckAt)
+        ? Math.max(0, session.sandstorm.nextCheckAt - session.elapsed)
+        : 0,
+    },
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,
   };

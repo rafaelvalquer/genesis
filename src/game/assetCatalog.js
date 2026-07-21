@@ -6,6 +6,7 @@ const troopFrameModules = import.meta.glob([
 ], { query: "?url", import: "default" });
 const enemyFrameModules = import.meta.glob("./assets/enemy/**/*.png", { query: "?url", import: "default" });
 const defenseFrameModules = import.meta.glob("./assets/defense/**/*.png", { query: "?url", import: "default" });
+const effectFrameModules = import.meta.glob("./assets/effects/**/*.png", { query: "?url", import: "default" });
 const arenaUrls = import.meta.glob("./assets/arenas/*.webp", { eager: true, query: "?url", import: "default" });
 const audioUrls = import.meta.glob("./assets/sfx/*.{ogg,wav}", { eager: true, query: "?url", import: "default" });
 const previewUrls = import.meta.glob([
@@ -97,7 +98,18 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
     ...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))),
   ]);
   const tasks = [];
-  const result = { troops: {}, enemies: {}, defenses: {}, audio: {} };
+  const result = { troops: {}, enemies: {}, defenses: {}, effects: {}, audio: {} };
+
+  if (phase.environmentHazard?.id === "sandstorm") {
+    result.effects.sandBurial = {};
+    tasks.push(async () => {
+      result.effects.sandBurial.buried = await loadFrameSet(
+        effectFrameModules,
+        "sandBurial",
+        "buried",
+      );
+    });
+  }
 
   if (!options.skipDefenses) {
     result.defenses.pulsoDesmaterializacao = {};

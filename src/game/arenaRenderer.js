@@ -715,6 +715,108 @@ function drawFogOrSmoke(ctx, count, time, intensity, smoke = false) {
   }
 }
 
+export function getSandstormVisualIntensity(session) {
+  const storm = session?.sandstorm;
+  if (storm?.state === "warning") return 0.45;
+  if (storm?.state === "active") return 1;
+  if (storm?.state === "recovering") {
+    const duration = Math.max(1, storm.recoveryEndsAt - storm.recoveryStartedAt);
+    return Math.max(0, Math.min(0.65, 0.65 * (storm.recoveryEndsAt - session.elapsed) / duration));
+  }
+  return 0;
+}
+
+export function getSandstormGustVisual(session, settings = {}, adaptive = {}) {
+  const storm = session?.sandstorm;
+  const durationMs = session?.phase?.environmentHazard?.startGustMs || 1200;
+  const ageMs = session?.elapsed - storm?.startsAt;
+  const active = storm?.state === "active" && Number.isFinite(ageMs) && ageMs >= 0 && ageMs < durationMs;
+  const adaptiveScale = adaptive.level === "stress" ? 0.45 : adaptive.level === "busy" ? 0.72 : 1;
+  return {
+    active,
+    progress: active ? Math.max(0, Math.min(1, ageMs / durationMs)) : 0,
+    moving: active && !settings.reduceMotion,
+    particleScale: adaptiveScale,
+  };
+}
+
+function drawSandstormStartGust(ctx, session, settings, adaptive, particleScale) {
+  const gust = getSandstormGustVisual(session, settings, adaptive);
+  if (!gust.active) return;
+  const fade = 1 - gust.progress;
+  ctx.save();
+  if (!gust.moving) {
+    ctx.fillStyle = `rgba(245,158,11,${0.14 * fade})`;
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    ctx.restore();
+    return;
+  }
+
+  const eased = 1 - Math.pow(1 - gust.progress, 2);
+  const x = FIELD.width + 300 - eased * (FIELD.width + 600);
+  ctx.translate(x, FIELD.height / 2);
+  ctx.rotate(-0.22);
+  const band = ctx.createLinearGradient(-250, 0, 250, 0);
+  band.addColorStop(0, "rgba(245,158,11,0)");
+  band.addColorStop(0.35, `rgba(217,119,6,${0.12 * fade})`);
+  band.addColorStop(0.55, `rgba(255,237,174,${0.24 * fade})`);
+  band.addColorStop(1, "rgba(245,158,11,0)");
+  ctx.fillStyle = band;
+  ctx.fillRect(-250, -FIELD.height, 500, FIELD.height * 2);
+  ctx.strokeStyle = `rgba(255,226,158,${0.52 * fade})`;
+  ctx.lineWidth = 2;
+  const count = Math.round(90 * particleScale * gust.particleScale);
+  for (let index = 0; index < count; index += 1) {
+    const px = -230 + pseudo(index, 950) * 460;
+    const py = -FIELD.height * 0.65 + pseudo(index, 951) * FIELD.height * 1.3;
+    const length = 16 + pseudo(index, 952) * 42;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(px - length, py + length * 0.28);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawSandstorm(ctx, session, time, settings, profile, adaptive) {
+  const intensity = getSandstormVisualIntensity(session);
+  if (intensity <= 0) return;
+  const motionTime = settings.reduceMotion ? 0 : time;
+  const adaptiveScale = adaptive.level === "stress" ? 0.45 : adaptive.level === "busy" ? 0.72 : 1;
+  const particleScale = profile.particles * adaptiveScale;
+  ctx.save();
+  ctx.fillStyle = `rgba(179,112,38,${0.12 * intensity})`;
+  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  drawSandstormStartGust(ctx, session, settings, adaptive, profile.particles);
+
+  if (adaptive.heavyAtmosphere !== false) {
+    const cloudCount = Math.max(1, Math.round(5 * particleScale));
+    for (let index = 0; index < cloudCount; index += 1) {
+      const radius = 150 + pseudo(index, 920) * 190;
+      const x = ((pseudo(index, 921) * (FIELD.width + radius * 2) + motionTime * 0.025) % (FIELD.width + radius * 2)) - radius;
+      const y = FIELD.height - 35 - pseudo(index, 922) * 105;
+      const cloud = ctx.createRadialGradient(x, y, 0, x, y, radius);
+      cloud.addColorStop(0, `rgba(126,73,27,${0.075 * intensity})`);
+      cloud.addColorStop(1, "transparent");
+      ctx.fillStyle = cloud;
+      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    }
+  }
+
+  ctx.strokeStyle = `rgba(255,208,128,${0.25 * intensity})`;
+  ctx.lineWidth = 1.5;
+  const count = Math.round(70 * particleScale * intensity);
+  for (let index = 0; index < count; index += 1) {
+    const x = (pseudo(index, 900) * FIELD.width + motionTime * 0.34) % (FIELD.width + 160) - 80;
+    const y = (pseudo(index, 901) * FIELD.height + motionTime * 0.13) % (FIELD.height + 100) - 50;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 34, y + 12);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export function drawArenaForeground(ctx, phase, settings, session, time, adaptive = {}) {
   const profile = getQualityProfile(settings);
   const effects = phase.ambientEffects || [];
@@ -730,6 +832,7 @@ export function drawArenaForeground(ctx, phase, settings, session, time, adaptiv
   if (effects.includes("spores")) drawDriftingPoints(ctx, phase, Math.round((12 + 30 * profile.particles) * particleScale), motionTime, intensity, "spores");
   if (effects.includes("dust") || effects.includes("debris")) drawDriftingPoints(ctx, phase, Math.round((10 + 22 * profile.particles) * particleScale), motionTime, intensity, "dust");
   if (effects.includes("glassDust")) drawDriftingPoints(ctx, phase, Math.round((14 + 34 * profile.particles) * particleScale), motionTime * 0.72, intensity, "spores");
+  drawSandstorm(ctx, session, time, settings, profile, adaptive);
 
   if (effects.includes("refraction")) {
     const drift = settings.reduceMotion ? 0 : Math.sin(motionTime / 1800) * 24;
