@@ -1166,7 +1166,7 @@ export const ENEMIES = {
     threat: 18,
     color: "#a855f7",
     scale: 1.12,
-    spriteOffsetY: -26,
+    spriteOffsetY: -10,
     visualStateScale: { idle: 1, walking: 1.15, attack: 1.21 },
     description:
       "Corredor quitinoso que explora brechas e força respostas rápidas em sua rota.",
@@ -1183,9 +1183,8 @@ export const ENEMIES = {
     threat: 18,
     color: "#d946ef",
     scale: 1.12,
-    spriteOffsetY: -26,
+    spriteOffsetY: -10,
     visualStateScale: { idle: 1, walking: 1.23, attack: 1.4 },
-    visualStateOffsetY: { attack: -8 },
     description:
       "Evolução de força do Crix, mais resistente e perigosa quando alcança as tropas.",
   },
@@ -1201,9 +1200,8 @@ export const ENEMIES = {
     threat: 18,
     color: "#84cc16",
     scale: 1.12,
-    spriteOffsetY: -26,
+    spriteOffsetY: -10,
     visualStateScale: { idle: 1, walking: 1.19, attack: 1.22 },
-    visualStateOffsetY: { attack: -8 },
     description:
       "A forma mais veloz da família Crix, frágil, mas capaz de atravessar uma rota em instantes.",
   },
@@ -1534,7 +1532,7 @@ export const ENEMIES = {
     chargeDamage: 55,
     chargePrepMs: 650,
     chargeSpeed: 240,
-    chargeRange: 1,
+    chargeRange: 2,
     recoverMs: 2000,
     attackVisual: { durationMs: 800, impactMs: 400 },
     description:

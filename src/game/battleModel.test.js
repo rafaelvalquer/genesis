@@ -1705,4 +1705,46 @@ describe("decisões táticas aleatórias", () => {
     expect(session.preparing).toBe(false);
     expect(session.energy).toBe(50);
   });
+
+  it("concede a barreira reativa uma única vez por rota", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 918);
+    const troop = placeTroop(session, "colono", 0, 1).troop;
+    chooseDecision(session, "reactive_barrier");
+    expect(startWave(session)).toBe(true);
+    troop.hp = 12;
+    const enemy = meleeTarget(troop.x + 40);
+    enemy.damage = 4;
+    enemy.attackReadyAt = 0;
+    session.queue = [];
+    session.enemies = [enemy];
+    stepBattle(session, 1);
+    expect(session.reactiveBarrierRows).toEqual([0]);
+    expect(troop.reactiveShield).toBeCloseTo(troop.maxHp * 0.25);
+    expect(troop.reactiveShieldUntil).toBe(session.elapsed + 6000);
+  });
+
+  it("programa a sobrecarga e a inatividade do Reator em ondas consecutivas", () => {
+    const session = createBattleSession(decisionPhase, ["reator"], 919);
+    placeTroop(session, "reator", 0, 1);
+    chooseDecision(session, "overcharged_reactor");
+    expect(session).toMatchObject({ overchargedReactorBoostWave: 0, overchargedReactorInactiveWave: 1 });
+    session.energy = 0;
+    expect(startWave(session)).toBe(true);
+    session.queue = [];
+    session.enemies = [{ ...meleeTarget(1000), id: "reactor_clock", speed: 0 }];
+    stepBattle(session, TROOPS.reator.attackEveryMs);
+    expect(session.energy).toBe(TROOPS.reator.energyPerPulse * 1.5);
+
+    session.waveActive = false;
+    session.enemies = [];
+    session.pendingDecision = null;
+    session.waveIndex = 1;
+    session.energy = 0;
+    session.troops[0].energyAccumulator = 0;
+    expect(startWave(session)).toBe(true);
+    session.queue = [];
+    session.enemies = [{ ...meleeTarget(1000), id: "reactor_inactive_clock", speed: 0 }];
+    stepBattle(session, 4999);
+    expect(session.troops[0].energyAccumulator).toBe(0);
+  });
 });

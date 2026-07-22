@@ -363,7 +363,7 @@ describe("geometria visual dos disparos", () => {
     const anchor = getEnemyFrameAnchor(ENEMIES.crix, "idle", 0);
     const rect = getEnemySpriteRect(enemy, ENEMIES.crix, "idle", 0);
     expect(rect.y + rect.height * anchor.y)
-      .toBeCloseTo(enemy.y + CELL.height * 0.43 - 26 * ENEMIES.crix.scale, 5);
+      .toBeCloseTo(enemy.y + CELL.height * 0.43 - 10 * ENEMIES.crix.scale, 5);
   });
 
   it("reduz e baixa Medu, Neurax e Oculis em todos os estados", () => {
@@ -381,7 +381,7 @@ describe("geometria visual dos disparos", () => {
     }
   });
 
-  it("eleva somente o ataque de Vexar e Silex", () => {
+  it("mantem Vexar e Silex alinhados entre estados", () => {
     for (const type of ["vexar", "silex"]) {
       const config = ENEMIES[type];
       const enemy = { type, x: 500, y: 180, scale: config.scale };
@@ -391,7 +391,7 @@ describe("geometria visual dos disparos", () => {
       const attackRect = getEnemySpriteRect(enemy, config, "attack", 0);
       const idleY = idleRect.y + idleRect.height * idleAnchor.y;
       const attackY = attackRect.y + attackRect.height * attackAnchor.y;
-      expect(attackY).toBeCloseTo(idleY - 8 * config.scale, 5);
+      expect(attackY).toBeCloseTo(idleY, 5);
     }
   });
 

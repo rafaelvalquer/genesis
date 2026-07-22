@@ -21,7 +21,7 @@ describe("campanha e ondas", () => {
     expect([ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis].map((enemy) => enemy.spriteOffsetY))
       .toEqual([-20, -20, -20]);
     expect([ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex].map((enemy) => enemy.spriteOffsetY))
-      .toEqual([-26, -26, -26]);
+      .toEqual([-10, -10, -10]);
     expect([
       ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis,
       ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex,
@@ -37,8 +37,8 @@ describe("campanha e ondas", () => {
       { idle: 1, walking: 1.23, attack: 1.4 },
       { idle: 1, walking: 1.19, attack: 1.22 },
     ]);
-    expect(ENEMIES.vexar.visualStateOffsetY).toEqual({ attack: -8 });
-    expect(ENEMIES.silex.visualStateOffsetY).toEqual({ attack: -8 });
+    expect(ENEMIES.vexar.visualStateOffsetY).toBeUndefined();
+    expect(ENEMIES.silex.visualStateOffsetY).toBeUndefined();
   });
 
   it("remove offsets terrestres da familia Krulax", () => {
@@ -507,5 +507,13 @@ describe("decisões entre ondas", () => {
   it("garante especialização após a terceira onda quando existe opção compatível", () => {
     const options = getDecisionOptions(context);
     expect(options.some((entry) => entry.category === "specialization")).toBe(true);
+  });
+
+  it("respeita os limites de categoria das decisões permanentes", () => {
+    const options = getDecisionOptions({
+      ...context,
+      decisions: [{ id: "armor_piercing" }, { id: "accelerated_training" }, { id: "ballistic_specialization" }],
+    });
+    expect(options.every((entry) => !["attack", "specialization"].includes(entry.category))).toBe(true);
   });
 });

@@ -36,6 +36,7 @@ describe("Besouro-Aríete", () => {
       chargeDamage: 55,
       chargePrepMs: 650,
       chargeSpeed: 240,
+      chargeRange: 2,
       recoverMs: 2000,
       encyclopediaUnlockAt: 16,
       assetStates: ["walking", "chargePrep", "charge", "idle", "attack"],
@@ -116,7 +117,7 @@ describe("Besouro-Aríete", () => {
     expect(enemy.ramState).toBe("idle");
     expect(enemy.ramIdleMode).toBe("recover");
     expect(enemy.ramChargeConsumed).toBe(true);
-    expect(enemy.x).toBeCloseTo(chargeStartX - CELL.width);
+    expect(enemy.x).toBeCloseTo(chargeStartX - 2 * CELL.width);
   });
 
   it("estende a recuperação quando é atordoado pelo Colosso", () => {
