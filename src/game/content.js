@@ -235,17 +235,19 @@ export const TROOPS = {
     price: 22,
     supply: 7,
     deployCooldownMs: 7000,
-    hp: 68,
+    hp: 80,
     range: 2,
     attack: "repulsor",
     damage: 7,
     attackEveryMs: 1900,
     projectileSpeed: 430,
     repulsorRangeTiles: 2,
-    pushDistanceTiles: 1,
+    pushDistanceTiles: 2,
     pushVisualDurationMs: 300,
-    stunChance: 0.1,
-    stunMs: 2000,
+    stunChance: 0.2,
+    stunMs: 2500,
+    pushSlowFactor: 0.7,
+    pushSlowMs: 2000,
     defenseDamageFactor: 0.5,
     transitionInMs: 720,
     shieldActivationMs: 520,
@@ -1079,13 +1081,13 @@ export const TROOPS = {
     label: "Guarda",
     role: "Artilheiro incendiário",
     spriteKey: "guarda",
-    price: 18,
-    supply: 5,
+    price: 20,
+    supply: 6,
     deployCooldownMs: 6000,
-    hp: 29,
-    range: 10,
-    attackEveryMs: 1500,
-    damage: 9,
+    hp: 24,
+    range: 8,
+    attackEveryMs: 1800,
+    damage: 10,
     attack: "fireball",
     color: "#f59e0b",
     unlockAt: 1,
@@ -1473,6 +1475,8 @@ export const ENEMIES = {
     scale: 0.64,
     chapterId: "chapter_03",
     encyclopediaUnlockAt: 0,
+    assetStates: ["emerging", "walking", "attack", "idle"],
+    emergeDurationMs: 960,
     animationFrameMs: { idle: 110, walking: 65 },
     attackVisual: { durationMs: 480, impactMs: 200 },
     swarmMinCount: 3,
@@ -1666,8 +1670,8 @@ export const ENEMIES = {
     eggLayEveryMs: 8000,
     guardSummonCooldownMs: 8000,
     guardMaximumLiving: 8,
-    guardSpawnOffsetTiles: 0.75,
-    guardSpawnSpacingPx: 10,
+    guardSpawnOffsetTiles: 1.5,
+    guardSpawnSpacingPx: 30,
     guardDistanceTiers: [
       { minDistanceTiles: 8, count: 8 },
       { minDistanceTiles: 6, count: 6 },
@@ -2256,183 +2260,163 @@ export const ARENAS = {
   },
 };
 
+const decision = (id, label, description, category, power, options = {}) => ({
+  id, label, description, category, power, scope: "phase", ...options,
+});
+
 export const DECISIONS = {
   emergency_energy: {
-    id: "emergency_energy",
-    label: "Carga emergencial",
-    description: "+25 energia imediata.",
+    ...decision("emergency_energy", "Carga emergencial", "+20 energia imediata.", "economy", 2),
   },
   supply_expansion: {
-    id: "supply_expansion",
-    label: "Expansão logística",
-    description: "+6 supply máximo e atual nesta fase.",
+    ...decision("supply_expansion", "Expansão logística", "+4 supply máximo e atual nesta fase.", "economy", 2),
   },
   repair_core: {
-    id: "repair_core",
-    label: "Reparar núcleo",
-    description: "Recupera 20 de integridade.",
+    ...decision("repair_core", "Reparos emergenciais", "Recupera 25 de integridade da base.", "defense", 2),
   },
   emergency_shield: {
-    id: "emergency_shield",
-    label: "Escudo de emergência",
-    description:
-      "Bloqueia os próximos 2 invasores, até consumir ou terminar a fase.",
+    ...decision("emergency_shield", "Escudo de emergência", "Bloqueia os próximos 2 invasores comuns ou elites; chefes não consomem cargas.", "defense", 3),
   },
   armor_piercing: {
-    id: "armor_piercing",
-    label: "Munição perfurante",
-    description: "+12% de dano para todas as tropas até o fim da fase.",
+    ...decision("armor_piercing", "Munição perfurante", "+10% de dano para todas as tropas até o fim da fase.", "attack", 3, { limit: { damage: 10 } }),
   },
   accelerated_training: {
-    id: "accelerated_training",
-    label: "Treinamento acelerado",
-    description: "+15% de velocidade de ataque ofensiva até o fim da fase.",
+    ...decision("accelerated_training", "Treinamento acelerado", "+10% de velocidade de ataque para tropas ofensivas.", "attack", 3, { limit: { attackSpeed: 10 } }),
   },
   first_impact: {
-    id: "first_impact",
-    label: "Primeiro impacto",
-    description: "+50% no próximo primeiro ataque de cada tropa nesta fase.",
-  },
-  rush_wave: {
-    id: "rush_wave",
-    label: "Antecipar onda",
-    description: "+25 energia; inimigos ficam 8% mais rápidos nesta fase.",
-  },
-  resupply: {
-    id: "resupply",
-    label: "Reabastecer",
-    description: "+6 supply imediato.",
-  },
-  fast_deployment: {
-    id: "fast_deployment",
-    label: "Implantação acelerada",
-    description: "Reduz cooldowns de implantação em 25% nesta fase.",
-  },
-  strategic_reserve: {
-    id: "strategic_reserve",
-    label: "Reserva estratégica",
-    description: "+20 energia ao iniciar a próxima onda.",
-  },
-  permanent_armor: {
-    id: "permanent_armor",
-    label: "Blindagem permanente",
-    description: "+20 integridade máxima e atual nesta fase.",
-  },
-  containment_protocol: {
-    id: "containment_protocol",
-    label: "Protocolo de contenção",
-    description: "A base recebe 25% menos dano na próxima onda.",
-  },
-  ballistic_specialization: {
-    id: "ballistic_specialization",
-    label: "Especialização balística",
-    description: "Marine, Sniper e Caçador causam +20% de dano nesta fase.",
-  },
-  explosive_specialization: {
-    id: "explosive_specialization",
-    label: "Especialização explosiva",
-    description: "Bombardeiro e minas da Demolidora causam +25% nesta fase.",
-  },
-  energy_specialization: {
-    id: "energy_specialization",
-    label: "Especialização energética",
-    description: "Aprimora Ranger, Krio e Guarda até o fim da fase.",
-  },
-  efficient_batteries: {
-    id: "efficient_batteries",
-    label: "Baterias eficientes",
-    description: "Reduz em 15% o custo das próximas tropas nesta fase.",
-  },
-  recycling: {
-    id: "recycling",
-    label: "Reciclagem",
-    description: "Remoções devolvem 75% da energia paga nesta fase.",
-  },
-  last_line: {
-    id: "last_line",
-    label: "Última linha",
-    description:
-      "Tropas nas 2 primeiras colunas recebem 25% menos dano nesta fase.",
-  },
-  field_maintenance: {
-    id: "field_maintenance",
-    label: "Manutenção de campo",
-    description: "Cura 30% do HP máximo das tropas sobreviventes.",
+    ...decision("first_impact", "Primeiro impacto", "O primeiro ataque de cada tropa causa +75% de dano.", "attack", 2, { light: true }),
   },
   targeting_systems: {
-    id: "targeting_systems",
-    label: "Sistemas de mira",
-    description: "+15% de alcance à distância até o fim da fase.",
-  },
-  concussive_impact: {
-    id: "concussive_impact",
-    label: "Impacto concussivo",
-    description: "Explosões empurram inimigos terrestres 50 px nesta fase.",
+    ...decision("targeting_systems", "Sistemas de mira", "Tropas à distância recebem +10% de alcance.", "attack", 3, { range: true, limit: { range: 10 } }),
   },
   aggressive_line: {
-    id: "aggressive_line",
-    label: "Linha agressiva",
-    description: "+20% de dano e alcance; -20% de HP ofensivo nesta fase.",
+    ...decision("aggressive_line", "Linha agressiva", "Tropas ofensivas recebem +15% de dano e alcance, mas perdem 20% do HP máximo.", "attack", 4, { risk: true }),
   },
-  war_economy: {
-    id: "war_economy",
-    label: "Economia de guerra",
-    description: "+8 supply; a próxima onda tem 20% mais inimigos.",
+  focused_fire: {
+    ...decision("focused_fire", "Fogo concentrado", "+18% de dano contra o inimigo mais próximo da base.", "attack", 3, { positional: true }),
+  },
+  continuous_suppression: {
+    ...decision("continuous_suppression", "Supressão contínua", "Após três ataques no mesmo inimigo, a tropa causa +15% de dano contra ele.", "attack", 3),
+  },
+  advanced_formation: {
+    ...decision("advanced_formation", "Formação avançada", "Tropas nas três colunas avançadas causam +15% de dano, mas recebem +10% de dano.", "attack", 3, { positional: true, risk: true }),
+  },
+  structural_armor: {
+    ...decision("structural_armor", "Blindagem estrutural", "+15 de integridade máxima e atual nesta fase.", "defense", 3),
+  },
+  fast_deployment: {
+    ...decision("fast_deployment", "Implantação acelerada", "Reduz cooldowns de implantação em 15% nesta fase.", "economy", 3, { limit: { deployCooldown: 15 } }),
+  },
+  strategic_reserve: {
+    ...decision("strategic_reserve", "Reserva estratégica", "+25 energia ao iniciar a próxima onda.", "economy", 2),
+  },
+  containment_protocol: {
+    ...decision("containment_protocol", "Protocolo de contenção", "A base recebe 35% menos dano na próxima onda.", "defense", 4, { finalEligible: true }),
+  },
+  ballistic_specialization: {
+    ...decision("ballistic_specialization", "Especialização balística", "Marine, Sniper e Caçador causam +15% de dano e seus projéteis viajam 10% mais rápido.", "specialization", 3),
+  },
+  explosive_specialization: {
+    ...decision("explosive_specialization", "Especialização explosiva", "Explosivos causam +15% de dano em área e recebem +10% de raio.", "specialization", 3),
+  },
+  energy_specialization: {
+    ...decision("energy_specialization", "Especialização energética", "Aprimora Ranger, Guarda e Krio até o fim da fase.", "specialization", 3),
+  },
+  efficient_batteries: {
+    ...decision("efficient_batteries", "Baterias eficientes", "Reduz em 20% o custo das próximas 3 tropas.", "economy", 3),
+  },
+  recycling: {
+    ...decision("recycling", "Reciclagem", "Remoções devolvem 65% da energia paga nesta fase.", "economy", 3),
+  },
+  last_line: {
+    ...decision("last_line", "Última linha", "Tropas nas duas primeiras colunas recebem 20% menos dano.", "defense", 3),
+  },
+  field_maintenance: {
+    ...decision("field_maintenance", "Manutenção de campo", "Tropas sobreviventes recuperam 35% do HP perdido.", "defense", 3),
+  },
+  concussive_impact: {
+    ...decision("concussive_impact", "Impacto concussivo", "Explosões empurram inimigos terrestres 35 px, com cooldown por inimigo.", "specialization", 3),
+  },
+  reactive_barrier: {
+    ...decision("reactive_barrier", "Barreira reativa", "A primeira tropa de cada rota abaixo de 30% de HP recebe um escudo temporário.", "defense", 4, { finalEligible: true }),
+  },
+  route_fortification: {
+    ...decision("route_fortification", "Fortificação de rota", "Uma rota ocupada recebe +20% de HP máximo até o fim da fase.", "defense", 3, { positional: true }),
+  },
+  organized_retreat: {
+    ...decision("organized_retreat", "Retirada organizada", "Remover uma tropa abaixo de 30% de HP devolve 100% da energia paga.", "defense", 3),
+  },
+  early_preparation: {
+    ...decision("early_preparation", "Preparação antecipada", "A próxima tropa implantada não consome cooldown.", "economy", 2),
+  },
+  emergency_contract: {
+    ...decision("emergency_contract", "Contrato de emergência", "A próxima tropa custa 50% menos energia, mas ocupa +1 supply.", "economy", 3, { risk: true }),
+  },
+  overcharged_reactor: {
+    ...decision("overcharged_reactor", "Reator sobrecarregado", "Reatores geram +50% na próxima onda e ficam inativos por 5 s na seguinte.", "economy", 4, { risk: true }),
+  },
+  supply_reserve: {
+    ...decision("supply_reserve", "Reserva de suprimentos", "+4 supply agora e +4 ao começar a próxima onda.", "economy", 2),
+  },
+  early_assault: {
+    ...decision("early_assault", "Ataque antecipado", "A próxima onda começa imediatamente e concede 30 de energia.", "economy", 3, { risk: true }),
+  },
+  total_mobilization: {
+    ...decision("total_mobilization", "Mobilização total", "+5 supply máximo e atual; a próxima onda recebe 12% mais inimigos.", "economy", 4, { risk: true, finalEligible: true }),
+  },
+  frontline_doctrine: {
+    ...decision("frontline_doctrine", "Doutrina de linha de frente", "Tropas defensivas recebem +20% de HP e +10% de dano corpo a corpo.", "specialization", 4),
+  },
+  support_doctrine: {
+    ...decision("support_doctrine", "Doutrina de suporte", "Aprimora cura, geração de energia e duração de controles em 10–15%.", "specialization", 4),
+  },
+  precision_doctrine: {
+    ...decision("precision_doctrine", "Doutrina de precisão", "Sniper, Ranger e Artilheira recebem +10% de alcance, mas perdem 5% de cadência.", "specialization", 4, { risk: true }),
+  },
+  human_swarm_doctrine: {
+    ...decision("human_swarm_doctrine", "Doutrina de enxame humano", "Tropas de baixo custo recebem +10% de dano e HP com três ou mais na mesma rota.", "specialization", 4),
+  },
+  territorial_control: {
+    ...decision("territorial_control", "Controle territorial", "Minas, congelamento, empurrões e lentidão recebem +15% de intensidade ou duração.", "specialization", 4),
+  },
+  final_overload: {
+    ...decision("final_overload", "Sobrecarga ofensiva", "+20% de dano somente na próxima onda.", "attack", 4, { scope: "nextWave" }),
+  },
+  final_fortress: {
+    ...decision("final_fortress", "Fortaleza final", "Tropas recebem 25% menos dano somente na próxima onda.", "defense", 4, { scope: "nextWave" }),
+  },
+  final_reserve: {
+    ...decision("final_reserve", "Reserva final", "+30 de energia ao começar a próxima onda.", "economy", 4, { scope: "nextWave" }),
+  },
+  core_barrier: {
+    ...decision("core_barrier", "Barreira do núcleo", "A base recebe 40% menos dano na próxima onda.", "defense", 4, { scope: "nextWave" }),
+  },
+  emergency_deployment: {
+    ...decision("emergency_deployment", "Implantação de emergência", "Cooldowns de implantação ficam 40% menores na próxima onda.", "economy", 4, { scope: "nextWave" }),
   },
 };
 
-export const DECISION_LEVELS = {
-  1: [
-    "emergency_energy",
-    "supply_expansion",
-    "repair_core",
-    "emergency_shield",
-    "armor_piercing",
-    "accelerated_training",
-    "first_impact",
-    "rush_wave",
-  ],
-  2: [
-    "resupply",
-    "fast_deployment",
-    "strategic_reserve",
-    "permanent_armor",
-    "containment_protocol",
-    "ballistic_specialization",
-    "explosive_specialization",
-    "energy_specialization",
-  ],
-  3: [
-    "efficient_batteries",
-    "recycling",
-    "strategic_reserve",
-    "last_line",
-    "field_maintenance",
-    "targeting_systems",
-    "ballistic_specialization",
-    "explosive_specialization",
-    "energy_specialization",
-    "concussive_impact",
-    "aggressive_line",
-    "war_economy",
-  ],
-  4: [
-    "emergency_energy",
-    "supply_expansion",
-    "repair_core",
-    "efficient_batteries",
-    "recycling",
-    "strategic_reserve",
-    "last_line",
-    "field_maintenance",
-    "targeting_systems",
-    "ballistic_specialization",
-    "explosive_specialization",
-    "energy_specialization",
-    "concussive_impact",
-    "aggressive_line",
-    "war_economy",
-  ],
+Object.values(DECISIONS).forEach((entry) => {
+  if (entry.scope === "nextWave") {
+    entry.stages = ["finalTemporary"];
+    return;
+  }
+  entry.stages = ["adaptation"];
+  if (entry.power <= 3 && !entry.risk && !entry.range
+    && (["economy", "defense"].includes(entry.category) || entry.light)) entry.stages.push("preparation");
+  if (["attack", "defense", "specialization"].includes(entry.category)) {
+    entry.stages.push("direction", "specialization");
+  }
+  if (["attack", "defense", "specialization"].includes(entry.category) || entry.finalEligible) entry.stages.push("final");
+});
+
+export const DECISION_STAGE_RULES = {
+  preparation: { label: "Preparação" },
+  direction: { label: "Direção da build" },
+  specialization: { label: "Especialização" },
+  adaptation: { label: "Adaptação" },
+  final: { label: "Decisão final" },
+  finalTemporary: { label: "Onda final" },
 };
 
 const wave = (enemies) => ({ enemies });

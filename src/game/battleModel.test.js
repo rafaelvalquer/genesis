@@ -1103,10 +1103,10 @@ describe("sessão de batalha", () => {
     const firstEvents = stepBattle(session, 32);
     const projectile = session.projectiles[0];
     const muzzle = getMuzzleWorldPosition(session.troops[0], TROOPS.guarda);
-    expect(TROOPS.guarda.attackEveryMs).toBe(1500);
-    expect(TROOPS.guarda.damage).toBe(9);
-    expect(session.troops[0].attackReadyAt - session.troops[0].lastAttackAt).toBe(1500);
-    expect(projectile).toMatchObject({ kind: "fireball", visualKind: "fireball", row: 0, straightLane: true, vy: 0, maxDistance: 1000 });
+    expect(TROOPS.guarda.attackEveryMs).toBe(1800);
+    expect(TROOPS.guarda.damage).toBe(10);
+    expect(session.troops[0].attackReadyAt - session.troops[0].lastAttackAt).toBe(1800);
+    expect(projectile).toMatchObject({ kind: "fireball", visualKind: "fireball", row: 0, straightLane: true, vy: 0, maxDistance: 800 });
     expect(projectile.origin.x).toBeCloseTo(muzzle.x);
     expect(projectile.origin.y).toBeCloseTo(muzzle.y);
     expect(firstEvents.some((event) => event.type === "shoot" && event.weapon === "fireball")).toBe(true);
@@ -1461,16 +1461,17 @@ describe("decisões táticas aleatórias", () => {
     waves: Array.from({ length: 4 }, () => ({ enemies: [] })),
   };
 
-  it("apresenta os níveis 1 a 3 entre ondas e encerra sem nível 4", () => {
+  it("apresenta os três estágios compactos entre ondas e encerra sem decisão final extra", () => {
     const session = createBattleSession(decisionPhase, ["marine", "bombardeiro", "ranger"], 901);
+    const stages = ["preparation", "direction", "final"];
     for (let level = 1; level <= 3; level += 1) {
       expect(startWave(session)).toBe(true);
       stepBattle(session, 1);
-      expect(session.pendingDecisionLevel).toBe(level);
+      expect(session.pendingDecisionLevel).toBe(stages[level - 1]);
       expect(session.pendingDecision).toHaveLength(2);
       const chosen = session.pendingDecision[0];
       expect(selectDecision(session, chosen)).toBe(true);
-      expect(session.decisions.at(-1)).toEqual({ wave: level, level, id: chosen.id });
+      expect(session.decisions.at(-1)).toEqual({ wave: level, level: stages[level - 1], id: chosen.id });
     }
     expect(startWave(session)).toBe(true);
     stepBattle(session, 1);
@@ -1489,14 +1490,13 @@ describe("decisões táticas aleatórias", () => {
     chooseDecision(session, "repair_core");
     chooseDecision(session, "emergency_shield");
     chooseDecision(session, "armor_piercing");
-    chooseDecision(session, "rush_wave");
-    chooseDecision(session, "permanent_armor", 2);
+    chooseDecision(session, "structural_armor", 2);
 
     expect(session).toMatchObject({
-      energy: 90, supply: 11, supplyMax: 26,
-      integrity: 90, integrityMax: 120, shieldCharges: 2,
+      energy: 60, supply: 9, supplyMax: 24,
+      integrity: 90, integrityMax: 115, shieldCharges: 2,
     });
-    expect(session.modifiers).toMatchObject({ troopDamage: 1.12, enemySpeed: 1.08 });
+    expect(session.modifiers).toMatchObject({ troopDamage: 1.1, enemySpeed: 1 });
   });
 
   it("consome efeitos da próxima onda e aumenta a fila da Economia de guerra", () => {
@@ -1505,12 +1505,12 @@ describe("decisões táticas aleatórias", () => {
     session.energy = 20;
     chooseDecision(session, "strategic_reserve", 2);
     chooseDecision(session, "containment_protocol", 2);
-    chooseDecision(session, "war_economy", 3);
+    chooseDecision(session, "total_mobilization", 3);
     expect(startWave(session)).toBe(true);
 
-    expect(session.energy).toBe(40);
+    expect(session.energy).toBe(45);
     expect(session.queue).toHaveLength(3);
-    expect(session.currentWaveBaseDamageFactor).toBe(0.75);
+    expect(session.currentWaveBaseDamageFactor).toBe(0.65);
     expect(session.nextWaveEnergy).toBe(0);
     expect(session.nextWaveBaseDamageFactor).toBe(1);
     expect(session.nextWaveEnemyCountFactor).toBe(1);
@@ -1521,12 +1521,12 @@ describe("decisões táticas aleatórias", () => {
     chooseDecision(session, "efficient_batteries", 3);
     chooseDecision(session, "fast_deployment", 2);
     chooseDecision(session, "recycling", 3);
-    expect(getEffectiveTroopStats(session, "marine")).toEqual({ price: 13, deployCooldownMs: 3750, refundRate: 0.75 });
+    expect(getEffectiveTroopStats(session, "marine")).toEqual({ price: 12, supply: 5, deployCooldownMs: 4250, refundRate: 0.65 });
 
     const placed = placeTroop(session, "marine", 0, 1);
     expect(placed.ok).toBe(true);
-    expect(placed.troop.energyCost).toBe(13);
-    expect(removeTroop(session, 0, 1).refund).toBe(9);
+    expect(placed.troop.energyCost).toBe(12);
+    expect(removeTroop(session, 0, 1).refund).toBe(7);
   });
 
   it("aplica Primeiro impacto uma vez e acelera o intervalo ofensivo", () => {
@@ -1540,11 +1540,11 @@ describe("decisões táticas aleatórias", () => {
     session.queue = [];
 
     stepBattle(session, 1);
-    expect(target.hp).toBe(88);
+    expect(target.hp).toBe(86);
     expect(troop.firstImpactAvailable).toBe(false);
-    expect(troop.attackReadyAt - troop.lastAttackAt).toBeCloseTo(TROOPS.colono.attackEveryMs / 1.15);
-    stepBattle(session, TROOPS.colono.attackEveryMs / 1.15);
-    expect(target.hp).toBe(80);
+    expect(troop.attackReadyAt - troop.lastAttackAt).toBeCloseTo(TROOPS.colono.attackEveryMs / 1.1);
+    stepBattle(session, TROOPS.colono.attackEveryMs / 1.1);
+    expect(target.hp).toBe(78);
   });
 
   it("aplica manutenção, Linha agressiva e resistência da Última linha", () => {
@@ -1552,10 +1552,10 @@ describe("decisões táticas aleatórias", () => {
     const { troop } = placeTroop(session, "colono", 0, 1);
     troop.hp = 10;
     chooseDecision(session, "field_maintenance", 3);
-    expect(troop.hp).toBeCloseTo(20.2);
+    expect(troop.hp).toBeCloseTo(18.4);
     chooseDecision(session, "aggressive_line", 3);
     expect(troop.maxHp).toBeCloseTo(27.2);
-    expect(troop.hp).toBeCloseTo(16.16);
+    expect(troop.hp).toBeCloseTo(14.72);
     chooseDecision(session, "last_line", 3);
 
     expect(startWave(session)).toBe(true);
@@ -1565,7 +1565,7 @@ describe("decisões táticas aleatórias", () => {
     session.enemies = [enemy];
     session.queue = [];
     stepBattle(session, 1);
-    expect(troop.hp).toBeCloseTo(10.16);
+    expect(troop.hp).toBeCloseTo(8.32);
   });
 
   it("configura especializações, mira e impacto concussivo sem alterar o catálogo", () => {
@@ -1576,11 +1576,11 @@ describe("decisões táticas aleatórias", () => {
     chooseDecision(session, "targeting_systems", 3);
     chooseDecision(session, "concussive_impact", 3);
     expect(session.modifiers).toMatchObject({
-      ballisticDamage: 1.2, explosiveDamage: 1.25, rangerDamage: 1.2,
-      guardDamage: 1.2, krioSlowDuration: 1.25, guardRangeBonus: 0.5,
-      targetingRange: 1.15, concussiveImpact: true,
+      ballisticDamage: 1.15, explosiveDamage: 1.15, rangerDamage: 1.15,
+      guardDamage: 1.1, krioSlowDuration: 1.2, guardRangeBonus: 0.5,
+      targetingRange: 1.1, concussiveImpact: true,
     });
-    expect(TROOPS.guarda.range).toBe(10);
+    expect(TROOPS.guarda.range).toBe(8);
     expect(TROOPS.marine.damage).toBe(4);
   });
 
@@ -1592,7 +1592,7 @@ describe("decisões táticas aleatórias", () => {
     guardSession.queue = [];
     guardSession.enemies = [{ ...meleeTarget(430), id: "guard_energy_target" }];
     stepBattle(guardSession, 1);
-    expect(guardSession.projectiles[0]).toMatchObject({ kind: "fireball", damage: TROOPS.guarda.damage * 1.2, maxDistance: 1050 });
+    expect(guardSession.projectiles[0]).toMatchObject({ kind: "fireball", damage: TROOPS.guarda.damage * 1.1, maxDistance: 850 });
 
     const krioSession = createBattleSession(decisionPhase, ["krio"], 911);
     placeTroop(krioSession, "krio", 0, 1);
@@ -1602,7 +1602,7 @@ describe("decisões táticas aleatórias", () => {
     krioSession.enemies = [frozen];
     krioSession.queue = [];
     for (let index = 0; index < 40 && frozen.slowUntil === 0; index += 1) stepBattle(krioSession, 32);
-    expect(frozen.slowUntil - krioSession.elapsed).toBe(TROOPS.krio.slowMs * 1.25);
+    expect(frozen.slowUntil - krioSession.elapsed).toBe(TROOPS.krio.slowMs * 1.2);
   });
 
   it("reduz também o tempo restante de cooldowns ativos", () => {
@@ -1611,7 +1611,7 @@ describe("decisões táticas aleatórias", () => {
     expect(placeTroop(session, "marine", 0, 1).ok).toBe(true);
     expect(session.deployCooldowns.marine - session.elapsed).toBe(TROOPS.marine.deployCooldownMs);
     chooseDecision(session, "fast_deployment", 2);
-    expect(session.deployCooldowns.marine - session.elapsed).toBe(TROOPS.marine.deployCooldownMs * 0.75);
+    expect(session.deployCooldowns.marine - session.elapsed).toBe(TROOPS.marine.deployCooldownMs * 0.85);
   });
 
   it("amplifica e empurra alvos atingidos pela explosão do Bombardeiro", () => {
@@ -1624,8 +1624,8 @@ describe("decisões táticas aleatórias", () => {
     session.enemies = [target];
     session.queue = [];
     for (let index = 0; index < 60 && target.hp === 100; index += 1) stepBattle(session, 32);
-    expect(target.hp).toBe(100 - TROOPS.bombardeiro.damage * 1.25);
-    expect(target.x).toBe(350);
+    expect(target.hp).toBe(100 - TROOPS.bombardeiro.damage * 1.15);
+    expect(target.x).toBe(335);
   });
 
   it("bloqueia duas invasões e aplica o protocolo após consumir o escudo", () => {
@@ -1640,7 +1640,69 @@ describe("decisões táticas aleatórias", () => {
       baseDamage: 20,
     }));
     stepBattle(session, 1);
-    expect(session.integrity).toBe(85);
+    expect(session.integrity).toBe(87);
     expect(session.shieldCharges).toBe(0);
+  });
+
+  it("não consome o escudo de emergência quando um chefe invade", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 913);
+    session.dematerializationPulses.forEach((pulse) => { pulse.state = "spent"; });
+    chooseDecision(session, "emergency_shield");
+    expect(startWave(session)).toBe(true);
+    session.queue = [];
+    session.enemies = [{
+      ...meleeTarget(FIELD.baseX), id: "boss_breach", type: "scarabEmperor", baseDamage: 20,
+    }];
+    stepBattle(session, 1);
+    expect(session.integrity).toBe(80);
+    expect(session.shieldCharges).toBe(2);
+  });
+
+  it("consome em conjunto as decisões da próxima implantação", () => {
+    const session = createBattleSession(decisionPhase, ["marine"], 914);
+    chooseDecision(session, "efficient_batteries");
+    chooseDecision(session, "early_preparation");
+    chooseDecision(session, "emergency_contract");
+    expect(getEffectiveTroopStats(session, "marine")).toMatchObject({ price: 6, supply: 6 });
+    expect(placeTroop(session, "marine", 0, 1)).toMatchObject({ ok: true });
+    expect(session.deployCooldowns.marine).toBeUndefined();
+    expect(session).toMatchObject({ efficientBatteryCharges: 2, earlyPreparationCharges: 0, emergencyContractCharges: 0 });
+  });
+
+  it("aplica fortificação de rota a tropas atuais e futuras e reembolsa retirada crítica", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 915);
+    const first = placeTroop(session, "colono", 2, 1).troop;
+    chooseDecision(session, "route_fortification");
+    expect(session.fortifiedRow).toBe(2);
+    expect(first.maxHp).toBeCloseTo(TROOPS.colono.hp * 1.2);
+    const second = placeTroop(session, "colono", 2, 2).troop;
+    expect(second.maxHp).toBeCloseTo(TROOPS.colono.hp * 1.2);
+    chooseDecision(session, "organized_retreat");
+    second.hp = second.maxHp * 0.2;
+    expect(removeTroop(session, 2, 2).refund).toBe(second.energyCost);
+  });
+
+  it("ativa decisões temporárias somente na próxima onda e limpa ao concluí-la", () => {
+    const phase = { ...decisionPhase, waves: [{ enemies: [{ type: "medu", count: 1 }] }, ...decisionPhase.waves.slice(1)] };
+    const session = createBattleSession(phase, ["marine"], 916);
+    chooseDecision(session, "final_overload", "finalTemporary");
+    chooseDecision(session, "emergency_deployment", "finalTemporary");
+    expect(session.activeTemporaryDecisions).toEqual([]);
+    expect(startWave(session)).toBe(true);
+    expect(session.activeTemporaryDecisions).toEqual(["final_overload", "emergency_deployment"]);
+    expect(getEffectiveTroopStats(session, "marine").deployCooldownMs).toBe(TROOPS.marine.deployCooldownMs * 0.6);
+    session.queue = [];
+    session.enemies = [];
+    stepBattle(session, 1);
+    expect(session.activeTemporaryDecisions).toEqual([]);
+  });
+
+  it("inicia imediatamente a onda escolhida por Ataque antecipado", () => {
+    const session = createBattleSession(decisionPhase, ["marine"], 917);
+    session.energy = 20;
+    chooseDecision(session, "early_assault");
+    expect(session.waveActive).toBe(true);
+    expect(session.preparing).toBe(false);
+    expect(session.energy).toBe(50);
   });
 });

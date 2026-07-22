@@ -70,6 +70,7 @@ describe("Rasga-Dunas", () => {
       summonCount: 4,
     }));
     expect(summons).toHaveLength(4);
+    expect(summons.every((enemy) => enemy.emergeState == null)).toBe(true);
     expect(summons.map((enemy) => enemy.x)).toEqual([FIELD.spawnX, FIELD.spawnX + 12, FIELD.spawnX + 24, FIELD.spawnX + 36]);
     expect(summons.every((enemy) => enemy.row === 2
       && enemy.summoned

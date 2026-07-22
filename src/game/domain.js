@@ -1,4 +1,4 @@
-import { DECISIONS, DECISION_LEVELS, ENEMIES, PHASES } from "./content.js";
+import { DECISIONS, ENEMIES, PHASES, TROOPS } from "./content.js";
 
 export function createRng(seed = 1) {
   let value = Number(seed) >>> 0;
@@ -144,27 +144,143 @@ const SPECIALIZATION_LOADOUTS = {
   ballistic_specialization: ["marine", "sniper", "caçador"],
   explosive_specialization: ["bombardeiro", "demolidora", "artilheiraMorteiro"],
   energy_specialization: ["ranger", "krio", "guarda"],
+  concussive_impact: ["bombardeiro", "demolidora", "artilheiraMorteiro"],
+  frontline_doctrine: ["colono", "lumiUrsa7", "muralhaReforcada", "colossoImpacto"],
+  support_doctrine: ["medicaNanites", "reator", "krio", "lumiUrsa7", "colossoImpacto"],
+  precision_doctrine: ["sniper", "ranger", "artilheiraMorteiro"],
+  human_swarm_doctrine: ["colono", "marine", "caçador", "krio", "muralhaReforcada"],
+  territorial_control: ["demolidora", "krio", "lumiUrsa7", "colossoImpacto"],
 };
 
-export function decisionIsEligible({ id, integrity, integrityMax = 100, loadout = [] }) {
-  if (id === "repair_core" && integrity >= integrityMax * 0.9) return false;
+const RANGED_LOADOUT = ["marine", "medicaNanites", "caçador", "sniper", "incinerador", "krio", "ranger", "bombardeiro", "artilheiraMorteiro", "guarda"];
+const CATEGORY_CAPS = { attack: 2, defense: 2, economy: 2, specialization: 1 };
+const GLOBAL_LIMITS = { damage: 20, attackSpeed: 15, range: 15, energyCost: 20, deployCooldown: 20, damageReduction: 25 };
+
+export function getDecisionStage(completedWave, totalWaves) {
+  if (completedWave === 1) return "preparation";
+  if (totalWaves === 6) {
+    if (completedWave === 2) return "direction";
+    if (completedWave === 3) return "specialization";
+    if (completedWave === 4) return "adaptation";
+    return "finalTemporary";
+  }
+  if (completedWave === 2) return "direction";
+  if (completedWave === totalWaves - 1) return "final";
+  return "adaptation";
+}
+
+function decisionAllowedAtStage(decisionEntry, stage, totalWaves) {
+  if (!decisionEntry.stages.includes(stage)) return false;
+  if (stage === "direction" && totalWaves === 6 && decisionEntry.category === "specialization") return false;
+  return true;
+}
+
+function livingTroops(troops = []) {
+  return troops.filter((troop) => !troop.dead);
+}
+
+export function decisionIsEligible({
+  id, integrity, integrityMax = 100, supply = 0, supplyMax = 0,
+  loadout = [], troops = [], completedWave = 1, totalWaves = 5,
+}) {
+  const deployed = livingTroops(troops);
+  if (id === "repair_core" && integrity >= integrityMax) return false;
+  if (id === "field_maintenance" && !deployed.some((troop) => troop.hp < troop.maxHp)) return false;
+  if (["recycling", "route_fortification", "organized_retreat"].includes(id) && deployed.length === 0) return false;
+  if (id === "supply_reserve" && supply >= supplyMax) return false;
+  if (id === "targeting_systems" && !RANGED_LOADOUT.some((troopId) => loadout.includes(troopId))) return false;
+  if (id === "overcharged_reactor" && (!loadout.includes("reator") || totalWaves - completedWave < 2)) return false;
   const requiredTroops = SPECIALIZATION_LOADOUTS[id];
   return !requiredTroops || requiredTroops.some((troopId) => loadout.includes(troopId));
 }
 
-export function getDecisionOptions({ level, integrity, integrityMax = 100, loadout = [], decisions = [], seed = 1 }) {
-  const chosen = new Set(decisions.map((entry) => typeof entry === "string" ? entry : entry.id));
-  const options = (DECISION_LEVELS[level] || [])
-    .filter((id) => !chosen.has(id))
-    .filter((id) => decisionIsEligible({ id, integrity, integrityMax, loadout }))
-    .map((id) => DECISIONS[id])
-    .filter(Boolean);
-  const rng = createRng((Number(seed) + Number(level) * 0x9e3779b9) >>> 0);
-  for (let index = options.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.floor(rng() * (index + 1));
-    [options[index], options[swapIndex]] = [options[swapIndex], options[index]];
+function selectedCategoryCounts(decisions) {
+  return decisions.reduce((counts, entry) => {
+    const selected = DECISIONS[typeof entry === "string" ? entry : entry.id];
+    if (selected?.scope === "phase") counts[selected.category] = (counts[selected.category] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function staysWithinGlobalLimits(candidate, decisions) {
+  const totals = {};
+  [...decisions.map((entry) => DECISIONS[typeof entry === "string" ? entry : entry.id]), candidate]
+    .filter(Boolean)
+    .forEach((entry) => Object.entries(entry.limit || {}).forEach(([key, value]) => {
+      totals[key] = (totals[key] || 0) + value;
+    }));
+  return Object.entries(totals).every(([key, value]) => value <= (GLOBAL_LIMITS[key] ?? Infinity));
+}
+
+function contextualWeight(option, context) {
+  let weight = 1;
+  const deployed = livingTroops(context.troops);
+  if (context.integrity < context.integrityMax * 0.6
+    && (option.category === "defense" || ["repair_core", "emergency_shield"].includes(option.id))) weight *= 2;
+  if (deployed.filter((troop) => troop.hp / troop.maxHp < 0.6).length >= 3
+    && ["field_maintenance", "reactive_barrier"].includes(option.id)) weight *= 2;
+  if (context.energy < context.energyMax * 0.25
+    && ["emergency_energy", "strategic_reserve"].includes(option.id)) weight *= 2;
+  if (context.supply < context.supplyMax * 0.25
+    && ["supply_expansion", "supply_reserve"].includes(option.id)) weight *= 2;
+  const offensive = context.loadout.filter((troopId) => {
+    const attack = TROOPS[troopId]?.attack;
+    return attack && !["none", "energy", "naniteBullet"].includes(attack);
+  }).length > context.loadout.length / 2;
+  if (offensive) {
+    if (option.category === "specialization" || option.category === "defense" || option.positional) weight *= 1.5;
+    if (option.limit?.damage) weight *= 0.6;
   }
-  return options.slice(0, 2);
+  return weight;
+}
+
+function weightedPick(options, rng, context) {
+  const total = options.reduce((sum, option) => sum + contextualWeight(option, context), 0);
+  let cursor = rng() * total;
+  for (const option of options) {
+    cursor -= contextualWeight(option, context);
+    if (cursor <= 0) return option;
+  }
+  return options.at(-1);
+}
+
+export function getDecisionOptions({
+  completedWave = 1, totalWaves = 5,
+  integrity, integrityMax = 100, energy = 0, energyMax = 1,
+  supply = 0, supplyMax = 1, loadout = [], troops = [], modifiers = {},
+  decisions = [], seed = 1,
+}) {
+  const chosen = new Set(decisions.map((entry) => typeof entry === "string" ? entry : entry.id));
+  const stage = getDecisionStage(completedWave, totalWaves);
+  const categoryCounts = selectedCategoryCounts(decisions);
+  const context = {
+    completedWave, totalWaves, integrity, integrityMax, energy, energyMax,
+    supply, supplyMax, loadout, troops, modifiers,
+  };
+  let options = Object.values(DECISIONS)
+    .filter((option) => !chosen.has(option.id))
+    .filter((option) => decisionAllowedAtStage(option, stage, totalWaves))
+    .filter((option) => decisionIsEligible({ ...context, id: option.id }))
+    .filter((option) => option.scope === "nextWave"
+      || (categoryCounts[option.category] || 0) < CATEGORY_CAPS[option.category])
+    .filter((option) => option.scope === "nextWave" || staysWithinGlobalLimits(option, decisions));
+  const rng = createRng((Number(seed) + Number(completedWave) * 0x9e3779b9) >>> 0);
+  const eligibleSpecializations = options.filter((option) => option.category === "specialization");
+  const guaranteeSpecialization = completedWave === 3 && eligibleSpecializations.length > 0;
+  const specializationChance = [2, 4].includes(completedWave) && rng() < 0.3;
+  if (!guaranteeSpecialization && !specializationChance) {
+    options = options.filter((option) => option.category !== "specialization");
+  }
+  if (options.length < 2) return options;
+  const firstPool = (guaranteeSpecialization || specializationChance) && eligibleSpecializations.length
+    ? eligibleSpecializations.filter((option) => options.includes(option))
+    : options;
+  const first = weightedPick(firstPool.length ? firstPool : options, rng, context);
+  const remaining = options.filter((option) => option.id !== first.id);
+  let secondPool = remaining.filter((option) => option.category !== first.category && Math.abs(option.power - first.power) <= 1);
+  if (!secondPool.length) secondPool = remaining.filter((option) => Math.abs(option.power - first.power) <= 1);
+  if (!secondPool.length) secondPool = remaining;
+  return [first, weightedPick(secondPool, rng, context)].filter(Boolean);
 }
 
 export function validateCampaignBalance(phases = PHASES) {

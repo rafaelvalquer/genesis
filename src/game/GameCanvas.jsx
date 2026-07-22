@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ENEMIES, TROOPS } from "./content.js";
+import { DECISION_STAGE_RULES, ENEMIES, TROOPS } from "./content.js";
 import {
   getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, resolveTroopFrame,
 } from "./assetCatalog.js";
@@ -185,6 +185,53 @@ function drawSilicaDiggerSand(ctx, enemy, elapsed, settings) {
     ctx.beginPath();
     ctx.ellipse(x, y, 2.6 - index * 0.35, 1.4 - index * 0.15, 0, 0, Math.PI * 2);
     ctx.fill();
+  }
+  ctx.restore();
+}
+
+function silicaDiggerEmergenceProgress(enemy, elapsed) {
+  if (enemy.type !== "silicaDigger" || enemy.emergeState !== "emerging") return 1;
+  return Math.max(0, Math.min(1, (elapsed - enemy.emergeStartedAt)
+    / Math.max(1, ENEMIES.silicaDigger.emergeDurationMs)));
+}
+
+function drawSilicaDiggerEmergence(ctx, enemy, elapsed, settings) {
+  if (enemy.type !== "silicaDigger" || enemy.emergeState !== "emerging") return;
+  const progress = silicaDiggerEmergenceProgress(enemy, elapsed);
+  const fade = 1 - progress;
+  const intensity = Math.sin(progress * Math.PI) * fade;
+  const groundY = enemy.y + 42 * enemy.scale;
+  const seed = Number(/\d+/.exec(enemy.id)?.[0] || 0);
+  ctx.save();
+  ctx.fillStyle = `rgba(180, 112, 32, ${0.34 * fade})`;
+  ctx.beginPath();
+  ctx.ellipse(enemy.x, groundY, (32 + 8 * intensity) * enemy.scale,
+    (7 + 3 * intensity) * enemy.scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  if (!settings.reduceMotion) {
+    ctx.fillStyle = `rgba(245, 158, 11, ${0.64 * intensity})`;
+    for (let index = 0; index < 5; index += 1) {
+      const phase = seed * 0.37 + index * 1.31;
+      const spread = (10 + index * 4) * enemy.scale;
+      const x = enemy.x + Math.cos(phase) * spread;
+      const y = groundY - Math.sin(progress * Math.PI) * (10 + index * 3) * enemy.scale
+        + Math.sin(phase) * 3;
+      const radius = (1.2 + index % 2) * enemy.scale;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.strokeStyle = `rgba(251, 191, 36, ${0.58 * intensity})`;
+    ctx.lineWidth = Math.max(1, enemy.scale);
+    for (let index = 0; index < 3; index += 1) {
+      const direction = index % 2 ? 1 : -1;
+      const x = enemy.x + direction * (12 + index * 7) * enemy.scale;
+      const y = groundY - (5 + index * 4) * intensity * enemy.scale;
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y + 2);
+      ctx.lineTo(x + direction * 4, y - 2);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -523,7 +570,9 @@ function drawProceduralGlassEnemy(ctx, entity, config, elapsed, filter = "none")
 }
 
 export function DecisionModal({ level, options, onChoose }) {
-  return <div className="modal-backdrop"><div className="decision-modal"><span className="eyebrow amber">Decisão · Nível {level}</span><h2>Escolha uma vantagem tática</h2><p>Escolha obrigatória antes da próxima onda. A duração está indicada em cada efeito.</p><div className="decision-grid">{options.map((option) => <button key={option.id} onClick={() => onChoose(option)}><b>{option.label}</b><span>{option.description}</span></button>)}</div></div></div>;
+  const categories = { attack: "Ataque", defense: "Defesa", economy: "Economia", specialization: "Especialização" };
+  const stage = DECISION_STAGE_RULES[level]?.label || "Decisão tática";
+  return <div className="modal-backdrop"><div className="decision-modal"><span className="eyebrow amber">Decisão · {stage}</span><h2>Escolha uma vantagem tática</h2><p>Escolha obrigatória antes da próxima onda. A duração está indicada em cada efeito.</p><div className="decision-grid">{options.map((option) => <button key={option.id} onClick={() => onChoose(option)}><span className="decision-meta"><em>{categories[option.category]}</em><em>Poder {option.power}</em>{option.scope === "nextWave" && <em>Somente próxima onda</em>}</span><b>{option.label}</b><span>{option.description}</span></button>)}</div></div></div>;
 }
 
 function drawDeathVisuals(ctx, runtime, assets, now, phase) {
@@ -849,7 +898,9 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     frozen,
   );
   drawSilicaDiggerSand(ctx, scratch, session.elapsed, settings);
-  if (drawHalo) {
+  drawSilicaDiggerEmergence(ctx, scratch, session.elapsed, settings);
+  const emergenceProgress = silicaDiggerEmergenceProgress(logicalEntity, session.elapsed);
+  if (drawHalo && emergenceProgress >= 0.45) {
     drawCachedSpriteHalo(
       ctx,
       enemyRect,
@@ -889,7 +940,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.stroke();
     ctx.restore();
   }
-  if (shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
+  if (emergenceProgress >= 0.45 && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
     drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
   }
   if (logicalEntity.variant === "alpha") {
@@ -913,7 +964,11 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       buffers.position.x = entry.x + reaction.offsetX;
       buffers.position.y = entry.y;
       if (entry.kind !== "enemy" || !entity.attachedToTroopId) {
-        drawContactShadow(ctx, buffers.position, entry.kind === "enemy" ? entity.scale : 1, settings);
+        const emergenceScale = entry.kind === "enemy"
+          ? 0.2 + 0.8 * silicaDiggerEmergenceProgress(entity, session.elapsed)
+          : 1;
+        drawContactShadow(ctx, buffers.position,
+          (entry.kind === "enemy" ? entity.scale : 1) * emergenceScale, settings);
       }
       if (entry.kind === "troop") {
         drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, buffers.troopScratch, drawHalo);

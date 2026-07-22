@@ -4,7 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
-const STATES = ["idle", "walking", "attack"];
+const STATES = ["emerging", "idle", "walking", "attack"];
 const ASSET_ROOT = path.join(process.cwd(), "src", "game", "assets", "enemy", "silicaDigger");
 
 async function opaqueBounds(framePath) {
@@ -24,7 +24,7 @@ async function opaqueBounds(framePath) {
 }
 
 describe("assets do Escavador de Sílica", () => {
-  it("mantém 24 quadros transparentes, distintos, ancorados e dentro do orçamento", async () => {
+  it("mantém 32 quadros transparentes, distintos, ancorados e dentro do orçamento", async () => {
     let totalBytes = 0;
     for (const state of STATES) {
       const hashes = new Set();
@@ -47,6 +47,9 @@ describe("assets do Escavador de Sílica", () => {
       expect(hashes.size).toBe(8);
       expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);
     }
-    expect(totalBytes).toBeLessThanOrEqual(225_000);
+    const finalEmerging = await fs.readFile(path.join(ASSET_ROOT, "emerging", "frame7.png"));
+    const firstWalking = await fs.readFile(path.join(ASSET_ROOT, "walking", "frame0.png"));
+    expect(finalEmerging.equals(firstWalking)).toBe(true);
+    expect(totalBytes).toBeLessThanOrEqual(300_000);
   });
 });

@@ -13,7 +13,7 @@ describe("apresentação das informações das tropas", () => {
     ["ranger", 1500, "A cada 1,5 s"],
     ["bombardeiro", 2300, "A cada 2,3 s"],
     ["artilheiraMorteiro", 3000, "A cada 3 s"],
-    ["guarda", 1500, "A cada 1,5 s"],
+    ["guarda", 1800, "A cada 1,8 s"],
   ])("apresenta a cadência rebalanceada de %s", (troopId, attackEveryMs, cadence) => {
     expect(TROOPS[troopId].attackEveryMs).toBe(attackEveryMs);
     expect(values(troopId).Cadência).toBe(cadence);

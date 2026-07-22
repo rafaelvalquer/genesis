@@ -116,7 +116,7 @@ function pushSlashEvent(session, troop, config, target, mode, events, services) 
 
 function applyExecutorFinisher(session, troop, config, target, events, services) {
   const occupants = enemiesInTargetTile(session, target, services.enemyColumn);
-  const primaryDamage = config.combo3Damage * services.damageMultiplier();
+  const primaryDamage = config.combo3Damage * services.damageMultiplier(target);
   const collateralDamage = primaryDamage * config.combo3CollateralFactor;
   const row = target.row;
   const col = services.enemyColumn(target);
@@ -161,7 +161,7 @@ function resolveExecutorImpact(session, troop, config, events, services) {
 
   switch (impact.mode) {
     case "combo1": {
-      const damage = config.combo1Damage * services.damageMultiplier();
+      const damage = config.combo1Damage * services.damageMultiplier(target);
       services.damageEnemy(target, damage);
       pushSlashEvent(session, troop, config, target, impact.mode, events, services);
       if (target.dead) {
@@ -173,7 +173,7 @@ function resolveExecutorImpact(session, troop, config, events, services) {
       return;
     }
     case "combo2": {
-      const damage = config.combo2Damage * services.damageMultiplier();
+      const damage = config.combo2Damage * services.damageMultiplier(target);
       services.damageEnemy(target, damage);
       pushSlashEvent(session, troop, config, target, impact.mode, events, services);
       if (target.dead) {

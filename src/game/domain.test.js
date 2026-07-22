@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CHAPTERS, DECISIONS, DECISION_LEVELS, ENEMIES, getChapterForPhase, getUnlockedTroops, PHASES } from "./content.js";
+import { CHAPTERS, DECISIONS, DECISION_STAGE_RULES, ENEMIES, getChapterForPhase, getUnlockedTroops, PHASES } from "./content.js";
 import {
   buildSpawnQueue,
   calculateStars,
   decisionIsEligible,
+  getDecisionStage,
   getDecisionOptions,
   isGroundTrapEligible,
   phaseBudget,
@@ -450,33 +451,61 @@ describe("campanha e ondas", () => {
 });
 
 describe("decisões entre ondas", () => {
-  it("registra os pools dos quatro níveis e reutiliza somente as decisões previstas", () => {
-    expect(DECISION_LEVELS[1]).toHaveLength(8);
-    expect(DECISION_LEVELS[2]).toHaveLength(8);
-    expect(DECISION_LEVELS[3]).toHaveLength(12);
-    expect(DECISION_LEVELS[4]).toHaveLength(15);
-    expect(DECISION_LEVELS[2]).toContain("strategic_reserve");
-    expect(DECISION_LEVELS[3]).toContain("strategic_reserve");
-    Object.values(DECISION_LEVELS).flat().forEach((id) => expect(DECISIONS[id]).toMatchObject({ id }));
+  const context = {
+    completedWave: 3, totalWaves: 5, integrity: 50, integrityMax: 100,
+    energy: 10, energyMax: 100, supply: 4, supplyMax: 20,
+    loadout: ["marine", "bombardeiro", "ranger"],
+    troops: [{ id: "marine_1", type: "marine", row: 0, hp: 50, maxHp: 100 }], seed: 71,
+  };
+
+  it("registra 38 decisões permanentes e 5 temporárias com metadados completos", () => {
+    expect(Object.keys(DECISIONS)).toHaveLength(43);
+    expect(Object.values(DECISIONS).filter((entry) => entry.scope === "phase")).toHaveLength(38);
+    expect(Object.values(DECISIONS).filter((entry) => entry.scope === "nextWave")).toHaveLength(5);
+    Object.values(DECISIONS).forEach((entry) => expect(entry).toEqual(expect.objectContaining({
+      id: expect.any(String), category: expect.any(String), power: expect.any(Number), scope: expect.any(String),
+      stages: expect.any(Array),
+    })));
+    expect(Object.keys(DECISION_STAGE_RULES)).toEqual([
+      "preparation", "direction", "specialization", "adaptation", "final", "finalTemporary",
+    ]);
   });
 
-  it("sorteia duas opções determinísticas sem repetir uma escolha anterior", () => {
-    const context = { level: 3, integrity: 50, loadout: ["marine", "bombardeiro", "ranger"], seed: 71 };
+  it("sorteia duas opções determinísticas, equilibradas e sem repetir escolha anterior", () => {
     const first = getDecisionOptions(context);
     expect(first).toHaveLength(2);
     expect(new Set(first.map((option) => option.id)).size).toBe(2);
+    expect(first[0].category).not.toBe(first[1].category);
+    expect(Math.abs(first[0].power - first[1].power)).toBeLessThanOrEqual(1);
     expect(getDecisionOptions(context)).toEqual(first);
     expect(getDecisionOptions({ ...context, decisions: [{ id: first[0].id }] }).map((option) => option.id)).not.toContain(first[0].id);
     const variations = new Set(Array.from({ length: 8 }, (_, seed) => getDecisionOptions({ ...context, seed }).map((option) => option.id).join(",")));
     expect(variations.size).toBeGreaterThan(1);
   });
 
-  it("filtra reparo por integridade e especializações pelo loadout", () => {
-    expect(decisionIsEligible({ id: "repair_core", integrity: 90, integrityMax: 100 })).toBe(false);
+  it("filtra decisões inúteis e especializações pelo loadout", () => {
+    expect(decisionIsEligible({ id: "repair_core", integrity: 100, integrityMax: 100 })).toBe(false);
     expect(decisionIsEligible({ id: "repair_core", integrity: 89, integrityMax: 100 })).toBe(true);
+    expect(decisionIsEligible({ id: "field_maintenance", integrity: 50, troops: [] })).toBe(false);
+    expect(decisionIsEligible({ id: "supply_reserve", integrity: 50, supply: 20, supplyMax: 20 })).toBe(false);
     expect(decisionIsEligible({ id: "ballistic_specialization", integrity: 100, loadout: ["colono"] })).toBe(false);
     expect(decisionIsEligible({ id: "ballistic_specialization", integrity: 100, loadout: ["marine"] })).toBe(true);
     expect(decisionIsEligible({ id: "explosive_specialization", integrity: 100, loadout: ["demolidora"] })).toBe(true);
     expect(decisionIsEligible({ id: "energy_specialization", integrity: 100, loadout: ["krio"] })).toBe(true);
+  });
+
+  it("mapeia os fluxos de quatro, cinco e seis ondas e reserva a última escolha longa para temporárias", () => {
+    expect([1, 2, 3].map((wave) => getDecisionStage(wave, 4))).toEqual(["preparation", "direction", "final"]);
+    expect([1, 2, 3, 4].map((wave) => getDecisionStage(wave, 5))).toEqual(["preparation", "direction", "adaptation", "final"]);
+    expect([1, 2, 3, 4, 5].map((wave) => getDecisionStage(wave, 6)))
+      .toEqual(["preparation", "direction", "specialization", "adaptation", "finalTemporary"]);
+    const temporary = getDecisionOptions({ ...context, completedWave: 5, totalWaves: 6 });
+    expect(temporary).toHaveLength(2);
+    expect(temporary.every((entry) => entry.scope === "nextWave")).toBe(true);
+  });
+
+  it("garante especialização após a terceira onda quando existe opção compatível", () => {
+    const options = getDecisionOptions(context);
+    expect(options.some((entry) => entry.category === "specialization")).toBe(true);
   });
 });

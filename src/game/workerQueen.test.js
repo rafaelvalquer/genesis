@@ -66,8 +66,8 @@ describe("Rainha Operária", () => {
       eggLayEveryMs: 8000,
       guardSummonCooldownMs: 8000,
       guardMaximumLiving: 8,
-      guardSpawnOffsetTiles: 0.75,
-      guardSpawnSpacingPx: 10,
+      guardSpawnOffsetTiles: 1.5,
+      guardSpawnSpacingPx: 30,
       guardDistanceTiers: [
         { minDistanceTiles: 8, count: 8 },
         { minDistanceTiles: 6, count: 6 },
@@ -117,7 +117,9 @@ describe("Rainha Operária", () => {
       expect(guards.every((guard) => guard.type === "silicaDigger"
         && guard.row === queen.row && guard.x < queen.x && guard.summonerId == null)).toBe(true);
       const positions = guards.map((guard) => guard.x).sort((left, right) => left - right);
-      expect(positions.slice(1).every((x, index) => x - positions[index] <= 10)).toBe(true);
+      const gaps = positions.slice(1).map((x, index) => x - positions[index]);
+      expect(gaps.every((gap) => gap === 30)).toBe(true);
+      expect(queen.x - positions.at(-1)).toBeGreaterThanOrEqual(44.9);
     });
   });
 
@@ -269,7 +271,8 @@ describe("Rainha Operária", () => {
     expect(session.enemies.filter((enemy) => enemy.type === "workerQueenEgg")).toHaveLength(0);
     const summons = session.enemies.filter((enemy) => enemy.type === "silicaDigger");
     expect(summons).toHaveLength(2);
-    expect(summons.every((enemy) => enemy.summoned && enemy.summonerId === queen.id && enemy.moving)).toBe(true);
+    expect(summons.every((enemy) => enemy.summoned && enemy.summonerId === queen.id
+      && enemy.moving && enemy.emergeState == null)).toBe(true);
   });
 
   it("cancela postura antes do depósito e reagenda sem apagar ovos já existentes", () => {

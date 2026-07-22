@@ -148,6 +148,14 @@ export function getEnemyMuzzleWorldPosition(enemy, enemyConfig = {}) {
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "silicaDigger" && enemy.emergeState === "emerging") {
+    const state = "emerging";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const age = Math.max(0, elapsed - enemy.emergeStartedAt);
+    const progress = Math.min(0.999, age / Math.max(1, enemyConfig.emergeDurationMs));
+    return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+  }
+
   if (enemyConfig.id === "scarabEmperor") {
     const state = enemy.scarabState || `phase${enemy.bossPhase || 1}${enemy.moving ? "Walking" : "Idle"}`;
     const count = Math.max(1, frameCounts[state] || frameCounts.phase1Idle || 1);

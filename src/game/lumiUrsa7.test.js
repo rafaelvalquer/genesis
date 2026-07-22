@@ -63,16 +63,18 @@ function advance(session, durationMs, stepMs = 32) {
 describe("Lumi e URSA-7", () => {
   it("centraliza balanceamento, estados, desbloqueio e disponibilidade no sandbox", () => {
     expect(TROOPS.lumiUrsa7).toMatchObject({
-      hp: 68,
+      hp: 80,
       range: 2,
       damage: 7,
       attackEveryMs: 1900,
       projectileSpeed: 430,
       repulsorRangeTiles: 2,
-      pushDistanceTiles: 1,
+      pushDistanceTiles: 2,
       pushVisualDurationMs: 300,
-      stunChance: 0.1,
-      stunMs: 2000,
+      stunChance: 0.2,
+      stunMs: 2500,
+      pushSlowFactor: 0.7,
+      pushSlowMs: 2000,
       defenseDamageFactor: 0.5,
       transitionInMs: 720,
       shieldActivationMs: 520,
@@ -191,9 +193,9 @@ describe("Lumi e URSA-7", () => {
     expect(lumi.hp).toBe(normalHp - 10);
   });
 
-  it("causa dano, empurra e aplica stun quando o sorteio fica abaixo de 10%", () => {
+  it("causa dano, empurra, desacelera e aplica stun quando o sorteio fica abaixo de 20%", () => {
     const session = createSession();
-    session.rng = () => 0.099;
+    session.rng = () => 0.199;
     const lumi = place(session, "lumiUrsa7", 1, 1);
     place(session, "muralhaReforcada", 1, 2);
     const target = addEnemy(session, "medu", 1, 2);
@@ -204,21 +206,23 @@ describe("Lumi e URSA-7", () => {
     const impact = events.find((event) => event.type === "repulsorImpact");
     expect(impact).toBeTruthy();
     expect(target.hp).toBe(hp - TROOPS.lumiUrsa7.damage);
-    expect(target.x).toBe(Math.min(FIELD.spawnX, originalX + CELL.width));
-    expect(target.knockbackVisualOffset).toBe(-CELL.width);
-    expect(getRepulsorKnockbackOffset(target, target.knockbackVisualStartedAt)).toBe(-CELL.width);
+    expect(target.x).toBe(Math.min(FIELD.spawnX, originalX + CELL.width * 2));
+    expect(target.knockbackVisualOffset).toBe(-CELL.width * 2);
+    expect(getRepulsorKnockbackOffset(target, target.knockbackVisualStartedAt)).toBe(-CELL.width * 2);
     expect(getRepulsorKnockbackOffset(
       target,
       target.knockbackVisualStartedAt + TROOPS.lumiUrsa7.pushVisualDurationMs / 2,
-    )).toBeCloseTo(-CELL.width / 8);
+    )).toBeCloseTo(-CELL.width / 4);
     expect(getRepulsorKnockbackOffset(target, target.knockbackVisualEndsAt)).toBe(0);
+    expect(target.slowFactor).toBe(0.7);
+    expect(target.slowUntil - target.knockbackVisualStartedAt).toBe(2000);
     expect(target.stunnedUntil).toBeGreaterThanOrEqual(session.elapsed);
     expect(impact.stunned).toBe(true);
   });
 
-  it("não aplica stun em 10% e respeita resistência e imunidade de chefes", () => {
+  it("não aplica stun em 20% e respeita resistência e imunidade de chefes", () => {
     const session = createSession();
-    session.rng = () => 0.1;
+    session.rng = () => 0.2;
     place(session, "lumiUrsa7", 1, 1);
     place(session, "muralhaReforcada", 1, 2);
     const target = addEnemy(session, "medu", 1, 2);
