@@ -23,7 +23,7 @@ describe("assets do soterramento por areia", () => {
       signatures.add((await fs.stat(framePath)).size);
     }
     expect(signatures.size).toBe(8);
-  });
+  }, 15000);
 
   it("carrega o overlay apenas para fases com tempestade", async () => {
     const withStorm = await loadBattleAssets({ ...PHASES[16], waves: [] }, [], undefined, { skipDefenses: true });

@@ -91,7 +91,7 @@ function eventShake(type) {
   return ({ hit: 0.5, shieldHit: 0.35, shieldBreak: 1.4, troopHit: 1.2, projectileImpact: 1, fireImpact: 1.8, iceImpact: 1.5,
     explosion: 5, breach: 7, enemyDeath: 2, troopDeath: 3.5, bossPhase: 8, bossDeath: 12, tileImpact: 4,
     pulseFired: 9, enemyDisintegrated: 1.5, duneRipperRoar: 2.2,
-    inhibitorWebImpact: 0.8, workerQueenEggHatched: 1.6 })[type] || 0;
+    inhibitorWebImpact: 0.8, workerQueenEggHatched: 1.6, workerQueenGuardSummoned: 1.1 })[type] || 0;
 }
 
 function lightFor(event, now) {
@@ -109,6 +109,7 @@ function lightFor(event, now) {
     inhibitorWebImpact: { radius: 54, life: 340 },
     workerQueenEggDeposited: { radius: 46, life: 380 },
     workerQueenEggHatched: { radius: 82, life: 560 },
+    workerQueenGuardSummoned: { radius: 96, life: 480 },
     executorSlash: { radius: 56, life: 150 },
     executorFinisher: { radius: event.lightRadius || 92, life: 380 },
     pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 },

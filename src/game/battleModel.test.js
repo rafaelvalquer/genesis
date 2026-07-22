@@ -793,7 +793,38 @@ describe("sessão de batalha", () => {
     expect(session.outcome).toBe("defeat");
   });
 
-  it("canaliza fogo em area somente na mesma rota e dentro do alcance", () => {
+  it("aplica o cone configurado do caçador aos três inimigos mais próximos", () => {
+    const session = createBattleSession(PHASES[4], ["caçador"], 70);
+    placeTroop(session, "caçador", 0, 1);
+    startWave(session);
+    session.queue = [];
+    const troop = session.troops[0];
+    const enemy = (id, row, x) => ({
+      id, type: "medu", row, x, y: row * 120 + 60, hp: 100, maxHp: 100,
+      speed: 0, damage: 0, attackReadyAt: Infinity, slowUntil: 0, slowFactor: 1,
+      baseDamage: 10, bossPhase: 0, dead: false,
+    });
+    const third = enemy("third", 0, troop.x + 180);
+    const first = enemy("first", 0, troop.x + 80);
+    const fourth = enemy("fourth", 0, troop.x + 240);
+    const second = enemy("second", 0, troop.x + 130);
+    const otherLane = enemy("other_lane", 1, troop.x + 60);
+    const behind = enemy("behind", 0, troop.x - 10);
+    const outOfRange = enemy("out_of_range", 0, troop.x + TROOPS["caçador"].range * CELL.width + 1);
+    session.enemies = [third, first, fourth, second, otherLane, behind, outOfRange];
+
+    stepBattle(session, 32);
+
+    expect(first.hp).toBe(89);
+    expect(second.hp).toBe(93);
+    expect(third.hp).toBe(96);
+    expect(fourth.hp).toBe(100);
+    expect(otherLane.hp).toBe(100);
+    expect(behind.hp).toBe(100);
+    expect(outOfRange.hp).toBe(100);
+  });
+
+  it("canaliza fogo nos quatro inimigos mais próximos da mesma rota e dentro do alcance", () => {
     const session = createBattleSession(PHASES[3], ["incinerador"], 71);
     placeTroop(session, "incinerador", 0, 1);
     startWave(session);
@@ -804,15 +835,21 @@ describe("sessão de batalha", () => {
       baseDamage: 10, bossPhase: 0, dead: false,
     });
     const first = enemy("first", 0, 300);
-    const second = enemy("second", 0, 360);
+    const second = enemy("second", 0, 320);
+    const third = enemy("third", 0, 340);
+    const fourth = enemy("fourth", 0, 360);
+    const fifth = enemy("fifth", 0, 380);
     const otherLane = enemy("other_lane", 1, 300);
     const outOfRange = enemy("out_of_range", 0, 410);
-    session.enemies = [first, second, otherLane, outOfRange];
+    session.enemies = [fifth, third, first, fourth, second, otherLane, outOfRange];
 
     const firstEvents = stepBattle(session, 32);
     const troop = session.troops[0];
     expect(first.hp).toBe(9);
     expect(second.hp).toBe(9);
+    expect(third.hp).toBe(9);
+    expect(fourth.hp).toBe(9);
+    expect(fifth.hp).toBe(10);
     expect(otherLane.hp).toBe(10);
     expect(outOfRange.hp).toBe(10);
     expect(firstEvents.filter((event) => event.type === "flame")).toHaveLength(1);
@@ -824,22 +861,29 @@ describe("sessão de batalha", () => {
     expect(troop.channelingAttack).toBe(true);
     expect(troop.attackStartedAt).toBe(32);
 
-    for (let index = 0; index < 4; index += 1) stepBattle(session, 32);
+    for (let index = 0; index < 6; index += 1) stepBattle(session, 32);
     expect(first.hp).toBe(9);
-    const secondTickEvents = stepBattle(session, 32);
+    const secondTickEvents = stepBattle(session, 8);
     expect(first.hp).toBe(8);
     expect(second.hp).toBe(8);
+    expect(third.hp).toBe(8);
+    expect(fourth.hp).toBe(8);
+    expect(fifth.hp).toBe(10);
     const secondFlame = secondTickEvents.find((event) => event.type === "flame");
     const secondMuzzle = getMuzzleWorldPosition(troop, TROOPS.incinerador, 0, 2);
     expect(secondFlame.x0).toBeCloseTo(secondMuzzle.x);
     expect(secondFlame.y0).toBeCloseTo(secondMuzzle.y);
 
     first.dead = true;
-    stepBattle(session, 32);
+    stepBattle(session, 200);
     expect(troop.channelingAttack).toBe(true);
     expect(troop.attackStartedAt).toBe(32);
+    expect(fifth.hp).toBe(9);
 
     second.dead = true;
+    third.dead = true;
+    fourth.dead = true;
+    fifth.dead = true;
     stepBattle(session, 32);
     expect(troop.channelingAttack).toBe(false);
     expect(troop.channelTickAccumulator).toBe(0);

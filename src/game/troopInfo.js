@@ -55,6 +55,14 @@ export function getTroopInfo(troop) {
   const specials = [];
   if (troop.burst) specials.push({ label: "Rajada", value: `${troop.burst} tiros · intervalo ${formatDuration(troop.burstIntervalMs)}` });
   if (troop.pellets) specials.push({ label: "Dispersão", value: `${troop.pellets} pellets por ataque` });
+  if (troop.shotgunMaxTargets && troop.shotgunDamageFactors) specials.push({
+    label: "Cone da escopeta",
+    value: `${troop.shotgunMaxTargets} alvos · dano ${troop.shotgunDamageFactors
+      .slice(0, troop.shotgunMaxTargets)
+      .map((factor) => formatNumber(troop.damage * troop.pellets * factor))
+      .join(" / ")}`,
+  });
+  if (troop.flameMaxTargets) specials.push({ label: "Canalização", value: `Até ${troop.flameMaxTargets} alvos simultâneos` });
   if (troop.radius) specials.push({ label: "Área de impacto", value: `${troop.radius} px` });
   if (troop.collateralMultiplier != null) specials.push({
     label: "Dano colateral",

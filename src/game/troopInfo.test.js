@@ -31,7 +31,9 @@ describe("apresentação das informações das tropas", () => {
     expect(getTroopInfo(TROOPS.marine).specials).toContainEqual({ label: "Rajada", value: "3 tiros · intervalo 0,12 s" });
     expect(values("caçador").Dano).toBe("5 por pellet");
     expect(getTroopInfo(TROOPS["caçador"]).specials).toContainEqual({ label: "Dispersão", value: "5 pellets por ataque" });
-    expect(values("incinerador")).toMatchObject({ Dano: "1 por tick", Cadência: "A cada 0,16 s" });
+    expect(getTroopInfo(TROOPS["caçador"]).specials).toContainEqual({ label: "Cone da escopeta", value: "3 alvos · dano 11 / 7 / 4" });
+    expect(values("incinerador")).toMatchObject({ Dano: "1 por tick", Cadência: "A cada 0,2 s" });
+    expect(getTroopInfo(TROOPS.incinerador).specials).toContainEqual({ label: "Canalização", value: "Até 4 alvos simultâneos" });
   });
 
   it("substitui dano por produção no Reator", () => {

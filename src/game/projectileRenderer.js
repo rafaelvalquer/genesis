@@ -289,6 +289,24 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
 
+    if (event.type === "workerQueenGuardSummoned") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y + 24, color: "#f59e0b",
+        born: now, life: 480, maxRadius: settings.reduceMotion ? 32 : 64,
+      });
+      (event.summonXs || []).forEach((x) => {
+        const origin = { ...event, x, y: event.y + 30, color: "#d6a65f" };
+        particles.push({
+          kind: "ring", x, y: origin.y, color: "#d6a65f",
+          born: now, life: 420, maxRadius: settings.reduceMotion ? 11 : 19,
+        });
+        addSparks(particles, origin, now, settings.reduceMotion ? 2 : Math.max(4, Math.round(8 * quality.density)), random, {
+          color: "#d6a65f", minSpeed: 14, speed: 58, gravity: 150, life: 460, size: 2.3,
+        });
+      });
+      continue;
+    }
+
     if (event.type === "workerQueenEggDeposited" || event.type === "workerQueenEggHatched") {
       const hatched = event.type === "workerQueenEggHatched";
       particles.push({

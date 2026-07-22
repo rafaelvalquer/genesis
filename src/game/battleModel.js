@@ -69,6 +69,18 @@ function isSandBuried(session, troop) {
   return session.elapsed < (troop.sandBuriedUntil || 0);
 }
 
+export function getTroopRangePenaltyTiles(session, troop, config = TROOPS[troop?.type]) {
+  if (!config || !usesTargetingSystems(config)) return 0;
+  let penalty = session.elapsed < (troop.webRangePenaltyUntil || 0)
+    ? troop.webRangePenaltyTiles || 0
+    : 0;
+  const hazard = session.phase.environmentHazard;
+  if (isSandstormActive(session) && hazard?.id === "sandstorm") {
+    penalty += hazard.rangePenaltyTiles;
+  }
+  return penalty;
+}
+
 export function getEffectiveTroopStats(session, troopId) {
   const config = TROOPS[troopId];
   if (!config) return null;
@@ -81,7 +93,12 @@ export function getEffectiveTroopStats(session, troopId) {
 
 function effectiveCombatConfig(session, troop, config) {
   if (!config) return config;
-  if (isNaniteMedic(config)) return config;
+  const rangePenaltyTiles = getTroopRangePenaltyTiles(session, troop, config);
+  if (isNaniteMedic(config)) {
+    return rangePenaltyTiles
+      ? { ...config, range: Math.max(1, config.range - rangePenaltyTiles) }
+      : config;
+  }
   let range = config.range + (troop.type === "guarda" ? session.modifiers.guardRangeBonus : 0);
   let closeRange = config.closeRange;
   if (usesTargetingSystems(config)) range *= session.modifiers.targetingRange;
@@ -90,10 +107,7 @@ function effectiveCombatConfig(session, troop, config) {
     range *= session.modifiers.aggressiveRange;
     if (Number.isFinite(closeRange)) closeRange *= session.modifiers.aggressiveRange;
   }
-  const hazard = session.phase.environmentHazard;
-  if (isSandstormActive(session) && hazard?.id === "sandstorm" && usesTargetingSystems(config)) {
-    range = Math.max(1, range - hazard.rangePenaltyTiles);
-  }
+  if (rangePenaltyTiles) range = Math.max(1, range - rangePenaltyTiles);
   return { ...config, range, closeRange };
 }
 
@@ -150,6 +164,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
       stormsThisWave: 0,
       troopCountAtStart: 0,
       troopCountAtEnd: 0,
+      troopLossCount: 0,
+      troopLossRatio: 0,
+      repeatLossToleranceRatio: 0,
       repeatEligible: true,
       buriedTroopIds: [],
       slowedTroopIds: [],
@@ -211,6 +228,7 @@ export function placeTroop(session, troopId, row, col) {
     attackTargetId: null, cooldownStartedAt: null, cooldownEndsAt: null,
     attackSpeedFactor: 1, attachedParasiteId: null,
     webSlowUntil: 0, webSlowFactor: 1,
+    webRangePenaltyUntil: 0, webRangePenaltyTiles: 0,
     sandBuriedStartedAt: 0, sandBuriedUntil: 0, sandAttackSpeedFactor: 1,
     channelTickAccumulator: 0, firstImpactAvailable: session.modifiers.firstImpact,
     previousRenderX: col * CELL.width + CELL.width / 2,
@@ -376,6 +394,9 @@ export function startWave(session) {
   session.sandstorm.stormsThisWave = 0;
   session.sandstorm.troopCountAtStart = 0;
   session.sandstorm.troopCountAtEnd = 0;
+  session.sandstorm.troopLossCount = 0;
+  session.sandstorm.troopLossRatio = 0;
+  session.sandstorm.repeatLossToleranceRatio = hazard?.repeatLossToleranceRatio || 0;
   session.sandstorm.repeatEligible = true;
   session.sandstorm.buriedTroopIds = [];
   session.sandstorm.slowedTroopIds = [];
@@ -460,6 +481,10 @@ function createEnemy(session, queued) {
       ? session.elapsed + base.firstEggLayDelayMs
       : Infinity,
     queenWebReadyAt: queued.type === "workerQueen" ? session.elapsed : Infinity,
+    queenGuardReadyAt: queued.type === "workerQueen"
+      ? session.elapsed + base.spawnDurationMs
+      : Infinity,
+    queenGuardOwnerId: queued.queenGuardOwnerId || null,
     eggOwnerId: queued.eggOwnerId || null,
     eggCreatedAt: queued.type === "workerQueenEgg" ? session.elapsed : null,
     eggHatchAt: queued.type === "workerQueenEgg" ? session.elapsed + base.hatchAfterMs : Infinity,
@@ -675,6 +700,10 @@ function refreshTroopAttackSpeedFactor(session, troop) {
     troop.webSlowUntil = 0;
     troop.webSlowFactor = 1;
   }
+  if (session.elapsed >= (troop.webRangePenaltyUntil || 0)) {
+    troop.webRangePenaltyUntil = 0;
+    troop.webRangePenaltyTiles = 0;
+  }
   let sandFactor = 1;
   if (session.sandstorm?.slowedTroopIds.includes(troop.id)) {
     const hazard = session.phase.environmentHazard;
@@ -729,6 +758,9 @@ function endSandstorm(session, events, forced = false) {
     stormNumber: storm.stormsThisWave,
     troopCountAtStart: storm.troopCountAtStart,
     troopCountAtEnd: storm.troopCountAtEnd,
+    troopLossCount: storm.troopLossCount,
+    troopLossRatio: storm.troopLossRatio,
+    repeatLossToleranceRatio: storm.repeatLossToleranceRatio,
     repeatEligible: storm.repeatEligible,
     nextCheckAt: storm.nextCheckAt,
   });
@@ -751,11 +783,12 @@ function activateSandstorm(session, config, events) {
   storm.stormsThisWave += 1;
   storm.troopCountAtStart = session.troops.filter((troop) => !troop.dead).length;
   storm.troopCountAtEnd = 0;
+  storm.troopLossCount = 0;
+  storm.troopLossRatio = 0;
+  storm.repeatLossToleranceRatio = config.repeatLossToleranceRatio;
   for (const troop of buried) {
-    const duration = config.buriedDurationMinMs
-      + session.rng() * (config.buriedDurationMaxMs - config.buriedDurationMinMs);
     troop.sandBuriedStartedAt = session.elapsed;
-    troop.sandBuriedUntil = session.elapsed + duration;
+    troop.sandBuriedUntil = storm.endsAt;
     troop.defenseActive = false;
   }
   for (const troop of slowed) {
@@ -794,7 +827,13 @@ function updateSandstorm(session, events) {
   }
   if (storm.state === "active" && session.elapsed >= storm.endsAt) {
     storm.troopCountAtEnd = session.troops.filter((troop) => !troop.dead).length;
-    storm.repeatEligible = storm.troopCountAtEnd >= storm.troopCountAtStart;
+    storm.troopLossCount = Math.max(0, storm.troopCountAtStart - storm.troopCountAtEnd);
+    storm.troopLossRatio = storm.troopCountAtStart > 0
+      ? storm.troopLossCount / storm.troopCountAtStart
+      : 0;
+    const toleranceBasisPoints = Math.round(config.repeatLossToleranceRatio * 10000);
+    storm.repeatEligible = storm.troopLossCount * 10000
+      <= storm.troopCountAtStart * toleranceBasisPoints;
     storm.nextCheckAt = storm.repeatEligible
       ? storm.endsAt + config.checkEveryMs
       : Infinity;
@@ -812,6 +851,9 @@ function updateSandstorm(session, events) {
       stormNumber: storm.stormsThisWave,
       troopCountAtStart: storm.troopCountAtStart,
       troopCountAtEnd: storm.troopCountAtEnd,
+      troopLossCount: storm.troopLossCount,
+      troopLossRatio: storm.troopLossRatio,
+      repeatLossToleranceRatio: storm.repeatLossToleranceRatio,
       repeatEligible: storm.repeatEligible,
       nextCheckAt: storm.nextCheckAt,
     });
@@ -837,9 +879,12 @@ function updateSandstorm(session, events) {
   events.push({ type: "sandstormWarning", startsAt: storm.startsAt });
 }
 
-function applyWebSlow(session, troop, factor, durationMs) {
-  troop.webSlowFactor = factor;
-  troop.webSlowUntil = session.elapsed + durationMs;
+function applyWorkerQueenWebDebuff(session, troop, projectile) {
+  const effectEndsAt = session.elapsed + projectile.webSlowDurationMs;
+  troop.webSlowFactor = projectile.webSlowFactor;
+  troop.webSlowUntil = effectEndsAt;
+  troop.webRangePenaltyTiles = projectile.webRangePenaltyTiles;
+  troop.webRangePenaltyUntil = effectEndsAt;
   refreshTroopAttackSpeedFactor(session, troop);
 }
 
@@ -1115,12 +1160,14 @@ function damageTroop(session, troop, amount, events) {
 }
 
 function updateFlameChannel(session, troop, config, events, dt) {
-  const targets = session.enemies
+  const getTargets = () => session.enemies
     .filter((enemy) => !enemy.dead
       && enemy.row === troop.row
       && enemy.x >= troop.x
       && enemy.x - troop.x <= config.range * CELL.width)
-    .sort((left, right) => left.x - right.x);
+    .sort((left, right) => left.x - right.x)
+    .slice(0, config.flameMaxTargets ?? 4);
+  const targets = getTargets();
 
   if (!targets.length) {
     if (troop.channelingAttack) {
@@ -1142,7 +1189,7 @@ function updateFlameChannel(session, troop, config, events, dt) {
 
   while (troop.channelTickAccumulator >= config.attackEveryMs) {
     troop.channelTickAccumulator -= config.attackEveryMs;
-    const activeTargets = targets.filter((enemy) => !enemy.dead);
+    const activeTargets = getTargets();
     if (!activeTargets.length) break;
     const frameCount = config.attackVisual?.frameMuzzles?.length || 1;
     const animation = getTroopAnimation(troop, config, session.elapsed, { attack: frameCount });
@@ -1178,14 +1225,16 @@ function fireTroop(session, troop, config, target, events) {
       color: config.color, seed: effectSeed,
     });
   } else if (config.attack === "shotgun") {
+    const maxTargets = config.shotgunMaxTargets ?? 3;
+    const damageFactors = config.shotgunDamageFactors ?? [0.48, 0.40, 0.32];
     const targets = session.enemies
       .filter((enemy) => !enemy.dead && enemy.row === troop.row && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
       .sort((left, right) => left.x - right.x)
-      .slice(0, 3);
+      .slice(0, maxTargets);
     targets.forEach((enemy, index) => damageEnemy(
       session,
       enemy,
-      damage * config.pellets * (0.48 - index * 0.08),
+      damage * config.pellets * (damageFactors[index] ?? 0),
       events,
       { direct: true, sourceX: troop.x },
     ));
@@ -2122,6 +2171,77 @@ function countWorkerQueenSummons(session, queen) {
   )).length;
 }
 
+function workerQueenHasForwardDigger(session, queen) {
+  return session.enemies.some((candidate) => (
+    !candidate.dead
+    && candidate.type === "silicaDigger"
+    && candidate.row === queen.row
+    && candidate.x < queen.x
+  ));
+}
+
+function countWorkerQueenGuards(session, queen) {
+  return session.enemies.filter((candidate) => (
+    !candidate.dead
+    && candidate.type === "silicaDigger"
+    && candidate.queenGuardOwnerId === queen.id
+  )).length;
+}
+
+function workerQueenGuardTier(enemy, config) {
+  const distanceTiles = Math.max(0, (enemy.x - FIELD.baseX) / CELL.width);
+  const tier = config.guardDistanceTiers.find((entry) => distanceTiles >= entry.minDistanceTiles)
+    || config.guardDistanceTiers.at(-1);
+  return { distanceTiles, tier };
+}
+
+function maintainWorkerQueenGuard(session, enemy, config, events) {
+  if (session.elapsed < enemy.queenGuardReadyAt || workerQueenHasForwardDigger(session, enemy)) return;
+  const livingGuards = countWorkerQueenGuards(session, enemy);
+  const capacity = Math.max(0, config.guardMaximumLiving - livingGuards);
+  if (!capacity) return;
+  const { distanceTiles, tier } = workerQueenGuardTier(enemy, config);
+  const amount = Math.min(tier.count, capacity);
+  const maximumX = enemy.x - 12;
+  if (maximumX <= FIELD.baseX + 4) return;
+  const desiredCenterX = enemy.x - config.guardSpawnOffsetTiles * CELL.width;
+  const desiredFirstX = desiredCenterX - (amount - 1) * config.guardSpawnSpacingPx / 2;
+  const firstX = Math.max(FIELD.baseX + 4, desiredFirstX);
+  const spacing = amount > 1
+    ? Math.min(config.guardSpawnSpacingPx, Math.max(0, (maximumX - firstX) / (amount - 1)))
+    : 0;
+  const summons = [];
+  for (let index = 0; index < amount; index += 1) {
+    const summon = createEnemy(session, {
+      type: "silicaDigger",
+      row: enemy.row,
+      x: Math.min(maximumX, firstX + index * spacing),
+      summoned: true,
+      queenGuardOwnerId: enemy.id,
+    });
+    if (!summon) continue;
+    summon.previousRenderX = summon.x;
+    summon.previousRenderY = summon.y;
+    summons.push(summon);
+  }
+  if (!summons.length) return;
+  enemy.queenGuardReadyAt = session.elapsed + config.guardSummonCooldownMs;
+  events.push({
+    type: "workerQueenGuardSummoned",
+    sourceEnemyId: enemy.id,
+    row: enemy.row,
+    x: enemy.x,
+    y: enemy.y,
+    summonCount: summons.length,
+    summonIds: summons.map((summon) => summon.id),
+    summonXs: summons.map((summon) => summon.x),
+    distanceTiles,
+    tierMinDistanceTiles: tier.minDistanceTiles,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
+}
+
 function workerQueenEggPositions(enemy, config) {
   return Array.from({ length: config.eggsPerLay }, (_, index) => (
     enemy.x + (config.eggSpawnStartTiles + index * config.eggSpawnSpacingTiles) * CELL.width
@@ -2162,6 +2282,33 @@ function depositWorkerQueenEggs(session, enemy, config, events) {
   enemy.queenNextEggLayAt = enemy.queenStateEndsAt + config.eggLayEveryMs;
 }
 
+function isWorkerQueenWebTarget(queen, troop) {
+  return Boolean(
+    troop
+    && !troop.dead
+    && troop.row === queen.row
+    && troop.x <= queen.x
+    && TROOPS[troop.type]
+    && TROOPS[troop.type].attack !== "none"
+  );
+}
+
+function workerQueenWebTargets(session, queen) {
+  return session.troops.filter((troop) => isWorkerQueenWebTarget(queen, troop));
+}
+
+function hasWorkerQueenTriggerTarget(session, queen, config) {
+  const triggerDistance = config.webTriggerRangeTiles * CELL.width;
+  return workerQueenWebTargets(session, queen)
+    .some((troop) => queen.x - troop.x <= triggerDistance);
+}
+
+function randomWorkerQueenWebTarget(session, queen) {
+  const candidates = workerQueenWebTargets(session, queen);
+  if (!candidates.length) return null;
+  return candidates[Math.floor(session.rng() * candidates.length)];
+}
+
 function launchWorkerQueenWeb(session, enemy, target, config, events) {
   const origin = getEnemyMuzzleWorldPosition(enemy, {
     ...config,
@@ -2177,6 +2324,8 @@ function launchWorkerQueenWeb(session, enemy, target, config, events) {
     visualKind: "inhibitorWeb",
     sourceEnemyId: enemy.id,
     targetTroopId: target.id,
+    targetLocked: true,
+    ignoreInterceptors: true,
     row: enemy.row,
     x: origin.x,
     y: origin.y,
@@ -2189,6 +2338,7 @@ function launchWorkerQueenWeb(session, enemy, target, config, events) {
     damage: config.webDamage,
     webSlowFactor: config.webSlowFactor,
     webSlowDurationMs: config.webSlowDurationMs,
+    webRangePenaltyTiles: config.webRangePenaltyTiles,
     color: "#f5e7c6",
     active: true,
     launched: true,
@@ -2227,6 +2377,8 @@ function updateWorkerQueen(session, enemy, config, dt, events) {
     setWorkerQueenState(session, enemy, "walking");
   }
 
+  maintainWorkerQueenGuard(session, enemy, config, events);
+
   if (enemy.queenState === "eggLay") {
     enemy.moving = false;
     const sameTileTarget = workerQueenSameTileTarget(session, enemy, config);
@@ -2251,9 +2403,7 @@ function updateWorkerQueen(session, enemy, config, dt, events) {
       && session.elapsed >= enemy.queenStateStartedAt + config.webAttackVisual.releaseMs) {
       const target = session.troops.find((troop) => (
         troop.id === enemy.queenTargetId
-        && !troop.dead
-        && troop.row === enemy.row
-        && enemy.x - troop.x <= config.webRangeTiles * CELL.width
+        && isWorkerQueenWebTarget(enemy, troop)
       ));
       if (target) launchWorkerQueenWeb(session, enemy, target, config, events);
       enemy.queenActionApplied = true;
@@ -2295,6 +2445,23 @@ function updateWorkerQueen(session, enemy, config, dt, events) {
     return;
   }
 
+  if (hasWorkerQueenTriggerTarget(session, enemy, config)) {
+    enemy.moving = false;
+    setWorkerQueenState(session, enemy, "idle");
+    if (session.elapsed >= enemy.queenWebReadyAt) {
+      const target = randomWorkerQueenWebTarget(session, enemy);
+      if (target) {
+        beginWorkerQueenAction(session, enemy, "webAttack", config.webAttackVisual.durationMs, target);
+        events.push({
+          type: "workerQueenWebTargeted",
+          sourceEnemyId: enemy.id,
+          targetTroopId: target.id,
+        });
+      }
+    }
+    return;
+  }
+
   if (session.elapsed >= enemy.queenNextEggLayAt) {
     if (canWorkerQueenLayEggs(session, enemy, config)) {
       enemy.queenEggsDeposited = false;
@@ -2302,16 +2469,6 @@ function updateWorkerQueen(session, enemy, config, dt, events) {
       return;
     }
     enemy.queenNextEggLayAt = session.elapsed + config.eggLayRetryMs;
-  }
-
-  const rangedTarget = closestTroopForEnemy(session, enemy, config.holdRangeTiles);
-  if (rangedTarget) {
-    enemy.moving = false;
-    setWorkerQueenState(session, enemy, "idle");
-    if (session.elapsed >= enemy.queenWebReadyAt) {
-      beginWorkerQueenAction(session, enemy, "webAttack", config.webAttackVisual.durationMs, rangedTarget);
-    }
-    return;
   }
 
   setWorkerQueenState(session, enemy, "walking");
@@ -2743,6 +2900,24 @@ function launchArcaneProjectile(session, enemy, config, target, events) {
   });
 }
 
+function resolveInhibitorWebImpact(session, projectile, target, events) {
+  damageTroop(session, target, projectile.damage, events);
+  applyWorkerQueenWebDebuff(session, target, projectile);
+  events.push({
+    type: "inhibitorWebImpact",
+    sourceEnemyId: projectile.sourceEnemyId,
+    targetId: target.id,
+    targetTroopId: target.id,
+    x: target.x,
+    y: target.y - 18,
+    attackSpeedFactor: projectile.webSlowFactor,
+    rangePenaltyTiles: projectile.webRangePenaltyTiles,
+    durationMs: projectile.webSlowDurationMs,
+    color: projectile.color,
+    seed: projectile.seed,
+  });
+}
+
 function updateEnemyProjectiles(session, dt, events) {
   for (const projectile of session.enemyProjectiles) {
     if (!projectile.active) continue;
@@ -2759,6 +2934,19 @@ function updateEnemyProjectiles(session, dt, events) {
     const intendedTarget = projectile.targetTroopId
       ? session.troops.find((troop) => troop.id === projectile.targetTroopId && !troop.dead)
       : null;
+    if (projectile.kind === "inhibitorWeb" && projectile.targetLocked) {
+      if (!intendedTarget) {
+        projectile.active = false;
+        continue;
+      }
+      if (projectile.x <= intendedTarget.x + 20) {
+        resolveInhibitorWebImpact(session, projectile, intendedTarget, events);
+        projectile.active = false;
+      } else if (projectile.x <= FIELD.baseX || projectile.y < -80 || projectile.y > FIELD.height + 80) {
+        projectile.active = false;
+      }
+      continue;
+    }
     const target = session.troops
       .filter((troop) => !troop.dead
         && troop.row === projectile.row
@@ -2769,13 +2957,18 @@ function updateEnemyProjectiles(session, dt, events) {
       damageTroop(session, target, projectile.damage, events);
       if (projectile.kind === "inhibitorWeb") {
         if (!intendedTarget || intendedTarget.id === target.id) {
-          applyWebSlow(session, target, projectile.webSlowFactor, projectile.webSlowDurationMs);
+          applyWorkerQueenWebDebuff(session, target, projectile);
         }
         events.push({
           type: "inhibitorWebImpact",
+          sourceEnemyId: projectile.sourceEnemyId,
           targetId: target.id,
+          targetTroopId: target.id,
           x: target.x,
           y: target.y - 18,
+          attackSpeedFactor: projectile.webSlowFactor,
+          rangePenaltyTiles: projectile.webRangePenaltyTiles || 0,
+          durationMs: projectile.webSlowDurationMs,
           color: projectile.color,
           seed: projectile.seed,
         });
@@ -3180,6 +3373,20 @@ export function getSnapshot(session) {
     refundRate: session.modifiers.refundRate,
     shieldCharges: session.shieldCharges,
     prismaticMantle: { ...session.prismaticMantle },
+    webDebuffs: session.troops
+      .filter((troop) => session.elapsed < Math.max(
+        troop.webSlowUntil || 0,
+        troop.webRangePenaltyUntil || 0,
+      ))
+      .map((troop) => ({
+        troopId: troop.id,
+        remainingMs: Math.max(0, Math.max(
+          troop.webSlowUntil || 0,
+          troop.webRangePenaltyUntil || 0,
+        ) - session.elapsed),
+        attackSpeedFactor: troop.webSlowFactor || 1,
+        rangePenaltyTiles: troop.webRangePenaltyTiles || 0,
+      })),
     sandstorm: {
       state: session.sandstorm.state,
       startsInMs: session.sandstorm.state === "warning"
@@ -3194,6 +3401,10 @@ export function getSnapshot(session) {
       slowedTroopIds: [...session.sandstorm.slowedTroopIds],
       stormsThisWave: session.sandstorm.stormsThisWave,
       troopCountAtStart: session.sandstorm.troopCountAtStart,
+      troopCountAtEnd: session.sandstorm.troopCountAtEnd,
+      troopLossCount: session.sandstorm.troopLossCount,
+      troopLossRatio: session.sandstorm.troopLossRatio,
+      repeatLossToleranceRatio: session.sandstorm.repeatLossToleranceRatio,
       repeatEligible: session.sandstorm.repeatEligible,
       nextCheckInMs: Number.isFinite(session.sandstorm.nextCheckAt)
         ? Math.max(0, session.sandstorm.nextCheckAt - session.elapsed)

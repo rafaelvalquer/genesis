@@ -431,6 +431,8 @@ export const TROOPS = {
     attackEveryMs: 1420,
     damage: 5,
     pellets: 5,
+    shotgunMaxTargets: 3,
+    shotgunDamageFactors: [0.44, 0.28, 0.16],
     attack: "shotgun",
     color: "#fb7185",
     unlockAt: 5,
@@ -520,8 +522,9 @@ export const TROOPS = {
     deployCooldownMs: 6000,
     hp: 29,
     range: 2.5,
-    attackEveryMs: 160,
+    attackEveryMs: 200,
     damage: 1,
+    flameMaxTargets: 4,
     attack: "flame",
     color: "#fb923c",
     unlockAt: 3,
@@ -1645,10 +1648,13 @@ export const ENEMIES = {
     spawnDurationMs: 800,
     holdRangeTiles: 3,
     webRangeTiles: 3,
+    webTriggerRangeTiles: 3,
+    webTargetEntireRow: true,
     webDamage: 1,
     webAttackEveryMs: 2400,
     webSlowFactor: 0.7,
     webSlowDurationMs: 3000,
+    webRangePenaltyTiles: 1,
     webProjectileSpeed: 330,
     webAttackVisual: {
       durationMs: 900,
@@ -1658,6 +1664,16 @@ export const ENEMIES = {
     },
     firstEggLayDelayMs: 3000,
     eggLayEveryMs: 8000,
+    guardSummonCooldownMs: 8000,
+    guardMaximumLiving: 8,
+    guardSpawnOffsetTiles: 0.75,
+    guardSpawnSpacingPx: 10,
+    guardDistanceTiers: [
+      { minDistanceTiles: 8, count: 8 },
+      { minDistanceTiles: 6, count: 6 },
+      { minDistanceTiles: 4, count: 4 },
+      { minDistanceTiles: 0, count: 3 },
+    ],
     spawnProtectionMs: 2000,
     spawnDamageTakenFactor: 0.6,
     eggsPerLay: 2,
@@ -1673,7 +1689,7 @@ export const ENEMIES = {
     meleeAttackRangeTiles: 0.35,
     meleeAttackVisual: { durationMs: 620, impactMs: 310 },
     description:
-      "Matriarca lenta que mantém distância, inibe a cadência das tropas e deposita ovos destrutíveis de Escavadores de Sílica.",
+      "Matriarca lenta que recompõe sua guarda de Escavadores quando fica exposta, inibe a cadência das tropas e deposita ovos destrutíveis.",
   },
   workerQueenEgg: {
     id: "workerQueenEgg",
@@ -2463,10 +2479,9 @@ const createSandstormHazard = (chapterIndex) => ({
   rangePenaltyTiles: 1,
   buriedMin: 1,
   buriedMax: 3,
-  buriedDurationMinMs: 3500,
-  buriedDurationMaxMs: 5500,
   cadenceAffectedRatio: 0.35,
   cadenceFactor: 0.65,
+  repeatLossToleranceRatio: 0.10,
 });
 const phase = (
   id,
@@ -2609,6 +2624,13 @@ const aggregatePacketEnemies = (packets) => {
   return [...entries.values()];
 };
 
+const WORKER_QUEEN_ESCORT = Object.freeze({
+  minSilicaDiggers: 5,
+  maxSilicaDiggers: 8,
+  queenOffsetTiles: 0.75,
+  queenSpawnDelayMs: 400,
+});
+
 const coordinatedWave = (targetCount, spawnWindowMs, {
   brakorRatio, duneRipper = 0, workerQueen = 0, ramBeetle = 0,
   alphaBrakor = false, scarabEmperor = 0,
@@ -2646,7 +2668,26 @@ const coordinatedWave = (targetCount, spawnWindowMs, {
   distribute("brakor", brakorTotal - (alphaBrakor ? 1 : 0), ["opening", "main", "climax"], -0.75);
   distribute("duneRipper", duneRipper, ["elite", "climax"], 0.75);
   distribute("ramBeetle", ramBeetle, ["counter", "climax"], -0.75);
-  distribute("workerQueen", workerQueen, ["counter", "climax"], 0.75, undefined, 400);
+  const queenEscortPackets = packetsFor("counter", "climax").filter((packet) => {
+    const escortCount = packet.units
+      .filter((unit) => unit.type === "silicaDigger")
+      .reduce((total, unit) => total + unit.count, 0);
+    return escortCount >= WORKER_QUEEN_ESCORT.minSilicaDiggers
+      && escortCount <= WORKER_QUEEN_ESCORT.maxSilicaDiggers;
+  });
+  if (workerQueen > queenEscortPackets.length) {
+    throw new Error("Cada Rainha Operária precisa de um pacote exclusivo com 5 a 8 Escavadores de Sílica");
+  }
+  queenEscortPackets.slice(0, workerQueen).forEach((packet) => {
+    addPacketUnit(
+      packet,
+      "workerQueen",
+      1,
+      WORKER_QUEEN_ESCORT.queenOffsetTiles,
+      undefined,
+      WORKER_QUEEN_ESCORT.queenSpawnDelayMs,
+    );
+  });
   if (alphaBrakor) distribute("brakor", 1, ["climax"], -0.75, "alpha");
   if (scarabEmperor) distribute("scarabEmperor", scarabEmperor, ["boss"], 0.75);
 

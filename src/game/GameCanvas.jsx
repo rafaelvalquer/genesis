@@ -40,6 +40,7 @@ import {
   clearSandboxEntities,
   createBattleSession,
   getSnapshot,
+  getTroopRangePenaltyTiles,
   forceExecutorCombo,
   injureSandboxTroops,
   activateTroopSpecial,
@@ -558,7 +559,8 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
   }
 }
 
-function drawWorkerQueenWebDebuff(ctx, troop, elapsed, settings) {
+function drawWorkerQueenWebDebuff(ctx, troop, session, settings) {
+  const elapsed = session.elapsed;
   const remaining = (troop.webSlowUntil || 0) - elapsed;
   if (remaining <= 0) return;
   const duration = ENEMIES.workerQueen.webSlowDurationMs;
@@ -588,6 +590,27 @@ function drawWorkerQueenWebDebuff(ctx, troop, elapsed, settings) {
     ctx.lineTo(troop.x + Math.cos(angle) * 9, troop.y - 70 + Math.sin(angle) * 9);
   }
   ctx.stroke();
+  const clockX = troop.x - 19;
+  const clockY = troop.y - 71;
+  ctx.fillStyle = "rgba(61,32,15,.94)";
+  ctx.beginPath();
+  ctx.arc(clockX, clockY, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(clockX, clockY - 5);
+  ctx.lineTo(clockX, clockY);
+  ctx.lineTo(clockX + 4, clockY + 2);
+  ctx.stroke();
+  const rangePenalty = getTroopRangePenaltyTiles(session, troop);
+  if (rangePenalty > 0) {
+    ctx.shadowBlur = 4;
+    ctx.fillStyle = "#fff7ed";
+    ctx.font = "bold 9px Chakra Petch, system-ui";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`ALCANCE -${rangePenalty}`, troop.x, troop.y - 94 + pulse * 0.25);
+  }
   ctx.restore();
 }
 
@@ -769,7 +792,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   drawNaniteTargetEffect(ctx, scratch, session, settings);
   drawNaniteCooldown(ctx, scratch, session, settings);
   drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings);
-  drawWorkerQueenWebDebuff(ctx, logicalEntity, session.elapsed, settings);
+  drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings);
   drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
 }

@@ -51,6 +51,7 @@ describe("tempestade de areia", () => {
         checkEveryMs: 12000,
         maxChance: 0.4,
         startGustMs: 1200,
+        repeatLossToleranceRatio: 0.10,
       });
     });
   });
@@ -114,6 +115,60 @@ describe("tempestade de areia", () => {
     expect(getSnapshot(session).sandstorm).toMatchObject({ repeatEligible: false, nextCheckInMs: 0 });
   });
 
+  it.each([
+    { start: 20, lost: 2, eligible: true, ratio: 0.10 },
+    { start: 20, lost: 3, eligible: false, ratio: 0.15 },
+    { start: 10, lost: 1, eligible: true, ratio: 0.10 },
+    { start: 11, lost: 1, eligible: true, ratio: 1 / 11 },
+    { start: 9, lost: 1, eligible: false, ratio: 1 / 9 },
+    { start: 5, lost: 1, eligible: false, ratio: 0.20 },
+  ])("aplica tolerancia exata de 10% em $start tropas com $lost perdas", ({ start, lost, eligible, ratio }) => {
+    const session = createStormBattle(Array(start).fill("marine"));
+    triggerStorm(session);
+    const firstEndsAt = session.sandstorm.endsAt;
+    session.troops.slice(0, lost).forEach((troop) => {
+      expect(removeTroop(session, troop.row, troop.col).ok).toBe(true);
+    });
+
+    const events = stepBattle(session, session.phase.environmentHazard.durationMs);
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "sandstormRecovering",
+      troopCountAtStart: start,
+      troopCountAtEnd: start - lost,
+      troopLossCount: lost,
+      troopLossRatio: expect.closeTo(ratio, 8),
+      repeatLossToleranceRatio: 0.10,
+      repeatEligible: eligible,
+      nextCheckAt: eligible ? firstEndsAt + 12000 : Infinity,
+    }));
+    expect(getSnapshot(session).sandstorm).toMatchObject({
+      troopCountAtStart: start,
+      troopCountAtEnd: start - lost,
+      troopLossCount: lost,
+      troopLossRatio: expect.closeTo(ratio, 8),
+      repeatLossToleranceRatio: 0.10,
+      repeatEligible: eligible,
+    });
+  });
+
+  it("usa a redução líquida e permite reposições durante a tempestade", () => {
+    const session = createStormBattle(Array(20).fill("marine"));
+    triggerStorm(session);
+    const removed = session.troops.slice(0, 3).map((troop) => ({ row: troop.row, col: troop.col }));
+    removed.forEach(({ row, col }) => expect(removeTroop(session, row, col).ok).toBe(true));
+    expect(placeTroop(session, "marine", removed[0].row, removed[0].col).ok).toBe(true);
+
+    expect(stepBattle(session, session.phase.environmentHazard.durationMs))
+      .toContainEqual(expect.objectContaining({
+        type: "sandstormRecovering",
+        troopCountAtStart: 20,
+        troopCountAtEnd: 18,
+        troopLossCount: 2,
+        troopLossRatio: 0.10,
+        repeatEligible: true,
+      }));
+  });
+
   it("reinicia elegibilidade e telemetria ao comecar outra onda", () => {
     const session = createStormBattle();
     triggerStorm(session);
@@ -124,6 +179,10 @@ describe("tempestade de areia", () => {
     expect(session.sandstorm).toMatchObject({
       stormsThisWave: 0,
       troopCountAtStart: 0,
+      troopCountAtEnd: 0,
+      troopLossCount: 0,
+      troopLossRatio: 0,
+      repeatLossToleranceRatio: 0.10,
       repeatEligible: true,
     });
     expect(session.sandstorm.nextCheckAt).toBe(session.elapsed + 18000);
@@ -152,6 +211,7 @@ describe("tempestade de areia", () => {
     const session = createStormBattle(["reator", "muralhaReforcada", "muralhaReforcada", "muralhaReforcada", "muralhaReforcada"]);
     triggerStorm(session);
     const reactor = session.troops[0];
+    expect(reactor.sandBuriedUntil).toBe(session.sandstorm.endsAt);
     session.energy = 0;
     reactor.energyAccumulator = 5900;
     const events = stepBattle(session, 100);
@@ -159,6 +219,25 @@ describe("tempestade de areia", () => {
     expect(reactor.energyAccumulator).toBe(5900);
     expect(session.troops).toContain(reactor);
     expect(reactor.dead).toBe(false);
+  });
+
+  it("mantem tropas soterradas sem acao ate o fim da fase ativa", () => {
+    const session = createStormBattle(["reator", "muralhaReforcada", "muralhaReforcada", "muralhaReforcada", "muralhaReforcada"]);
+    triggerStorm(session);
+    const reactor = session.troops[0];
+    session.energy = 0;
+    reactor.energyAccumulator = 5900;
+
+    expect(stepBattle(session, session.phase.environmentHazard.durationMs - 1))
+      .not.toContainEqual(expect.objectContaining({ type: "sandstormRecovering" }));
+    expect(session.sandstorm.buriedTroopIds).toContain(reactor.id);
+    expect(reactor.sandBuriedUntil).toBe(session.sandstorm.endsAt);
+    expect(reactor.energyAccumulator).toBe(5900);
+
+    expect(stepBattle(session, 1))
+      .toContainEqual(expect.objectContaining({ type: "sandstormRecovering" }));
+    expect(session.sandstorm.buriedTroopIds).toEqual([]);
+    expect(reactor.sandBuriedUntil).toBe(0);
   });
 
   it("recupera a cadencia linearmente por dois segundos e limpa ao fim", () => {
@@ -171,11 +250,20 @@ describe("tempestade de areia", () => {
     expect(session.sandstorm.state).toBe("recovering");
     stepBattle(session, 1000);
     expect(slowed.attackSpeedFactor).toBeCloseTo(0.825, 3);
-    expect(stepBattle(session, 1000)).toContainEqual(expect.objectContaining({ type: "sandstormEnded" }));
+    expect(stepBattle(session, 1000)).toContainEqual(expect.objectContaining({
+      type: "sandstormEnded",
+      troopCountAtStart: 5,
+      troopCountAtEnd: 5,
+      troopLossCount: 0,
+      troopLossRatio: 0,
+      repeatLossToleranceRatio: 0.10,
+    }));
     expect(slowed.attackSpeedFactor).toBe(1);
     expect(getSnapshot(session).sandstorm).toMatchObject({
       state: "idle", startsInMs: 0, remainingMs: 0, buriedTroopIds: [], slowedTroopIds: [],
-      stormsThisWave: 1, troopCountAtStart: 5, repeatEligible: true, nextCheckInMs: 10000,
+      stormsThisWave: 1, troopCountAtStart: 5, troopCountAtEnd: 5,
+      troopLossCount: 0, troopLossRatio: 0, repeatLossToleranceRatio: 0.10,
+      repeatEligible: true, nextCheckInMs: 10000,
     });
   });
 

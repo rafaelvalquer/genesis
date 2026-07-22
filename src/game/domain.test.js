@@ -13,6 +13,7 @@ import {
   waveSpawnCount,
   waveSpawnWindowMs,
 } from "./domain.js";
+import { CELL } from "./visualGeometry.js";
 
 describe("campanha e ondas", () => {
   it("eleva visualmente as familias Medu e Crix na rota", () => {
@@ -143,9 +144,15 @@ describe("campanha e ondas", () => {
         expect(silica.slice(1).every((entry, index) => (
           entry.formationOffsetPx - silica[index].formationOffsetPx === 10
         ))).toBe(true);
-        packet.filter((entry) => entry.type === "workerQueen").forEach((queen) => {
+        const queens = packet.filter((entry) => entry.type === "workerQueen");
+        expect(queens.length).toBeLessThanOrEqual(1);
+        queens.forEach((queen) => {
           expect(queen.spawnAtMs).toBe(silica[0].spawnAtMs + 400);
           expect(queue.indexOf(queen)).toBeGreaterThan(queue.indexOf(silica.at(-1)));
+          const queenX = queen.xOffsetTiles * CELL.width + queen.formationOffsetPx;
+          expect(silica.every((digger) => (
+            digger.xOffsetTiles * CELL.width + digger.formationOffsetPx < queenX
+          ))).toBe(true);
         });
         const blockIndex = blockOrder.indexOf(packet[0].block);
         expect(blockIndex).toBeGreaterThanOrEqual(previousBlock);
