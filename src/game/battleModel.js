@@ -187,6 +187,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     shieldCharges: 0,
     reactiveBarrierRows: [],
     fortifiedRow: null,
+    advancedFormationColumns: [],
     pendingPositionalDecision: null,
     pendingRouteFortificationEvent: null,
     efficientBatteryCharges: 0,
@@ -345,6 +346,12 @@ function rescaleReadyTimers(session, factor) {
   });
 }
 
+function normalizeAdvancedFormationColumns(target) {
+  const columns = [...new Set((Array.isArray(target?.columns) ? target.columns : []).map(Number))].sort((a, b) => a - b);
+  if (columns.length !== 3 || columns.some((col) => !Number.isInteger(col) || col < FIELD.firstTroopCol || col > FIELD.lastTroopCol)) return null;
+  return columns[1] === columns[0] + 1 && columns[2] === columns[1] + 1 ? columns : null;
+}
+
 function applyDecision(session, decisionId, target = null) {
   const multiply = (field, factor) => { session.modifiers[field] *= factor; };
   switch (decisionId) {
@@ -388,9 +395,14 @@ function applyDecision(session, decisionId, target = null) {
     case "continuous_suppression":
       session.modifiers.continuousSuppression = true;
       break;
-    case "advanced_formation":
+    case "advanced_formation": {
+      const columns = normalizeAdvancedFormationColumns(target);
+      if (!columns) return false;
       session.modifiers.advancedFormation = true;
+      session.advancedFormationColumns = columns;
+      session.pendingAdvancedFormationEvent = { columns: [...columns], troopIds: session.troops.filter((troop) => !troop.dead && columns.includes(troop.col)).map((troop) => troop.id) };
       break;
+    }
     case "structural_armor":
       session.integrityMax += 15;
       session.integrity += 15;
@@ -565,8 +577,13 @@ export function selectDecision(session, option, target = null) {
     if (!session.troops.some((troop) => !troop.dead && troop.row === row)) return false;
     target = { row };
   }
+  if (option.id === "advanced_formation") {
+    const columns = normalizeAdvancedFormationColumns(target);
+    if (!columns) return false;
+    target = { centerCol: columns[1], columns };
+  }
   if (!applyDecision(session, option.id, target)) return false;
-  session.decisions.push({ wave: session.waveIndex, level: session.pendingDecisionLevel, id: option.id });
+  session.decisions.push({ wave: session.waveIndex, level: session.pendingDecisionLevel, id: option.id, ...(target ? { target: { ...target, columns: target.columns ? [...target.columns] : undefined } } : {}) });
   session.pendingDecision = null;
   session.pendingDecisionLevel = null;
   if (option.id === "early_assault") startWave(session);
@@ -1059,7 +1076,7 @@ function attackDamageMultiplier(session, troop, { explosive = false, target = nu
   if (troop.type === "ranger") multiplier *= session.modifiers.rangerDamage;
   if (troop.type === "guarda") multiplier *= session.modifiers.guardDamage;
   if (session.modifiers.frontlineDoctrine && ["melee", "tileMelee"].includes(TROOPS[troop.type]?.attack)) multiplier *= 1.1;
-  if (session.modifiers.advancedFormation && troop.col >= 6) multiplier *= 1.15;
+  if (session.modifiers.advancedFormation && session.advancedFormationColumns.includes(troop.col)) multiplier *= 1.15;
   if (troop.swarmHpApplied) multiplier *= 1.1;
   if (target && session.modifiers.focusedFire) {
     const closest = session.enemies.filter((enemy) => !enemy.dead).sort((left, right) => left.x - right.x)[0];
@@ -1329,8 +1346,7 @@ function damageTroop(session, troop, amount, events) {
   const defenseFactor = isLumiUrsa7(config) && troop.defenseActive ? config.defenseDamageFactor : 1;
   const lastLineFactor = troop.col <= 1 ? session.modifiers.lastLineDamageTaken : 1;
   const finalFortressFactor = session.activeTemporaryDecisions.includes("final_fortress") ? 0.75 : 1;
-  const formationFactor = session.modifiers.advancedFormation && troop.col >= 6 ? 1.1 : 1;
-  let incoming = amount * defenseFactor * lastLineFactor * finalFortressFactor * formationFactor
+  let incoming = amount * defenseFactor * lastLineFactor * finalFortressFactor
     * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
   if (troop.reactiveShield > 0 && session.elapsed < troop.reactiveShieldUntil) {
     const absorbed = Math.min(troop.reactiveShield, incoming);
@@ -3648,6 +3664,7 @@ export function getSnapshot(session) {
     refundRate: session.modifiers.refundRate,
     shieldCharges: session.shieldCharges,
     fortifiedRow: session.fortifiedRow,
+    advancedFormationColumns: [...session.advancedFormationColumns],
     pendingPositionalDecision: session.pendingPositionalDecision ? { ...session.pendingPositionalDecision } : null,
     activeTemporaryDecisions: [...session.activeTemporaryDecisions],
     queuedTemporaryDecisions: [...session.queuedTemporaryDecisions],

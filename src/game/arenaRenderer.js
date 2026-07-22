@@ -472,6 +472,22 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     }
     ctx.restore();
   }
+  const formationPreview = targeting?.targetType === "columnBlock" ? targeting.preview : null;
+  const formationColumns = formationPreview?.columns || session.advancedFormationColumns || [];
+  if (formationColumns.length === 3) {
+    ctx.save();
+    if (formationPreview) { ctx.fillStyle = "rgba(2,6,23,.52)"; ctx.fillRect(0, 0, FIELD.width, FIELD.height); }
+    const left = formationColumns[0] * CELL.width;
+    const width = 3 * CELL.width;
+    ctx.fillStyle = formationPreview ? "rgba(239,68,68,.22)" : "rgba(239,68,68,.07)";
+    ctx.fillRect(left, 0, width, FIELD.height);
+    ctx.strokeStyle = formationPreview ? "rgba(248,113,113,.95)" : "rgba(239,68,68,.4)";
+    ctx.lineWidth = formationPreview ? 2 : 1;
+    ctx.strokeRect(left + 1, 1, width - 2, FIELD.height - 2);
+    if (formationPreview) { ctx.fillStyle = "rgba(248,113,113,.34)"; ctx.fillRect(formationColumns[1] * CELL.width, 0, CELL.width, FIELD.height); }
+    ctx.fillStyle = "#fca5a5"; ctx.font = "700 11px system-ui"; ctx.fillText(`C${formationColumns[0] + 1} · C${formationColumns[1] + 1} · C${formationColumns[2] + 1}  +15% DANO`, left + 8, 16);
+    ctx.restore();
+  }
   const pulse = session.routeFortificationPulse;
   if (pulse && time <= pulse.until) {
     const progress = Math.max(0, Math.min(1, (time - pulse.startedAt) / Math.max(1, pulse.until - pulse.startedAt)));

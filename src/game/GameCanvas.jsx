@@ -1307,9 +1307,14 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleCanvasMove = (event) => {
     const point = canvasPointFromPointer(event);
     hoveredCellRef.current = point ? cellFromPoint(point.x, point.y) : null;
-    const row = targetingDecision && point ? Math.floor(point.y / CELL.height) : null;
+    const row = targetingDecision?.targetType === "occupiedRow" && point ? Math.floor(point.y / CELL.height) : null;
+    const hoveredCol = targetingDecision?.targetType === "columnBlock" && point ? Math.floor(point.x / CELL.width) : null;
+    const centerCol = hoveredCol == null ? null : Math.max(FIELD.firstTroopCol + 1, Math.min(FIELD.lastTroopCol - 1, hoveredCol));
+    const preview = targetingDecision?.targetType === "columnBlock" && centerCol != null
+      ? { type: "columnBlock", centerCol, columns: [centerCol - 1, centerCol, centerCol + 1] }
+      : targetingDecision?.targetType === "occupiedRow" ? { type: "row", row } : null;
     setHoveredDecisionRow(row);
-    if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.hoveredRow = row;
+    if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.preview = preview;
     setEnergyPickupPointer(sessionRef.current, point);
   };
 
@@ -1346,6 +1351,20 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     if (snapshot.outcome) return;
     if (targetingDecision) {
       const point = canvasPointFromPointer(event);
+      if (targetingDecision.targetType === "columnBlock") {
+        const hoveredCol = point ? Math.floor(point.x / CELL.width) : -1;
+        const centerCol = Math.max(FIELD.firstTroopCol + 1, Math.min(FIELD.lastTroopCol - 1, hoveredCol));
+        const columns = [centerCol - 1, centerCol, centerCol + 1];
+        if (selectDecision(sessionRef.current, targetingDecision, { centerCol, columns })) {
+          sessionRef.current.pendingPositionalDecision = null;
+          const eventData = { type: "advancedFormationActivated", columns, centerCol, damageBonus: 0.15, color: "#ef4444" };
+          sessionRef.current.advancedFormationPulse = { columns, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1200 };
+          consumeGraphicsEvents(graphicsRef.current, [eventData], sessionRef.current.elapsed, settings);
+          setTargetingDecision(null); setSnapshot(getSnapshot(sessionRef.current));
+          setMessage(`FormaÃ§Ã£o avanÃ§ada ativada nas colunas C${columns[0]} a C${columns[2]}.`);
+        }
+        return;
+      }
       const row = point ? Math.floor(point.y / CELL.height) : -1;
       const occupied = sessionRef.current.troops.some((troop) => !troop.dead && troop.row === row);
       if (!occupied) {
@@ -1410,8 +1429,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   };
 
   const handleDecision = (option) => {
-    if (option.id === "route_fortification") {
-      sessionRef.current.pendingPositionalDecision = { id: option.id };
+    if (option.positional) {
+      sessionRef.current.pendingPositionalDecision = { id: option.id, targetType: option.targetType || (option.id === "route_fortification" ? "occupiedRow" : null), targetSize: option.targetSize };
       setTargetingDecision(option);
       setSelectedTroop(null);
       setRemoveMode(false);
