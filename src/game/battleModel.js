@@ -163,7 +163,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     })),
     effects: [],
     effectSequence: 0,
-    prismaticMantle: { nextPulseAt: Infinity, lastPulseAt: -Infinity },
+    prismaticMantle: { rows: Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }])) },
     sandstorm: {
       state: "idle",
       warningStartedAt: -Infinity,
@@ -187,6 +187,8 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     shieldCharges: 0,
     reactiveBarrierRows: [],
     fortifiedRow: null,
+    pendingPositionalDecision: null,
+    pendingRouteFortificationEvent: null,
     efficientBatteryCharges: 0,
     earlyPreparationCharges: 0,
     emergencyContractCharges: 0,
@@ -233,14 +235,15 @@ export function placeTroop(session, troopId, row, col) {
   const effective = getEffectiveTroopStats(session, troopId);
   const frontline = session.modifiers.frontlineDoctrine
     && ["colono", "lumiUrsa7", "muralhaReforcada", "colossoImpacto"].includes(troopId) ? 1.2 : 1;
-  const routeFortification = session.fortifiedRow === row ? 1.2 : 1;
   const maxHp = config.hp * (isOffensiveConfig(config) && !isNaniteMedic(config) ? session.modifiers.aggressiveHp : 1)
-    * frontline * routeFortification;
+    * frontline;
+  const fortificationBonusMaxHp = session.fortifiedRow === row ? maxHp * 0.2 : 0;
   const troop = {
     id: id("troop"), type: troopId, row, col,
     x: col * CELL.width + CELL.width / 2,
     y: row * CELL.height + CELL.height / 2,
-    hp: maxHp, maxHp, energyCost: effective.price, supplyCost: effective.supply,
+    hp: maxHp + fortificationBonusMaxHp, maxHp: maxHp + fortificationBonusMaxHp,
+    baseMaxHp: maxHp, fortificationBonusMaxHp, energyCost: effective.price, supplyCost: effective.supply,
     reactiveShield: 0, reactiveShieldUntil: 0, swarmHpApplied: false,
     attackReadyAt: 0, mineReadyAt: 0, gunReadyAt: 0, energyAccumulator: 0,
     lastAttackAt: -Infinity, channelingAttack: false, attackStartedAt: -Infinity,
@@ -298,6 +301,20 @@ const SWARM_TROOPS = new Set(["colono", "marine", "caçador", "krio", "muralhaRe
 function rescaleTroopHp(troop, factor) {
   troop.maxHp *= factor;
   troop.hp *= factor;
+  if (Number.isFinite(troop.baseMaxHp)) troop.baseMaxHp *= factor;
+  if (Number.isFinite(troop.fortificationBonusMaxHp)) troop.fortificationBonusMaxHp *= factor;
+}
+
+export function applyRouteFortification(troop) {
+  if (!troop || troop.dead || (troop.fortificationBonusMaxHp || 0) > 0) return false;
+  const baseMaxHp = troop.maxHp;
+  const ratio = baseMaxHp > 0 ? troop.hp / baseMaxHp : 1;
+  const bonus = baseMaxHp * 0.2;
+  troop.baseMaxHp = baseMaxHp;
+  troop.fortificationBonusMaxHp = bonus;
+  troop.maxHp = baseMaxHp + bonus;
+  troop.hp = troop.maxHp * ratio;
+  return true;
 }
 
 function refreshSwarmDoctrine(session) {
@@ -328,7 +345,7 @@ function rescaleReadyTimers(session, factor) {
   });
 }
 
-function applyDecision(session, decisionId) {
+function applyDecision(session, decisionId, target = null) {
   const multiply = (field, factor) => { session.modifiers[field] *= factor; };
   switch (decisionId) {
     case "emergency_energy":
@@ -425,11 +442,16 @@ function applyDecision(session, decisionId) {
       session.modifiers.reactiveBarrier = true;
       break;
     case "route_fortification": {
-      const occupiedRows = [...new Set(session.troops.filter((troop) => !troop.dead).map((troop) => troop.row))].sort();
-      if (!occupiedRows.length) return false;
-      session.fortifiedRow = occupiedRows[Math.floor(session.rng() * occupiedRows.length)];
-      session.troops.filter((troop) => !troop.dead && troop.row === session.fortifiedRow)
-        .forEach((troop) => rescaleTroopHp(troop, 1.2));
+      const selectedRow = Number(target?.row);
+      if (!Number.isInteger(selectedRow)
+        || !session.troops.some((troop) => !troop.dead && troop.row === selectedRow)) return false;
+      session.fortifiedRow = selectedRow;
+      const affected = session.troops.filter((troop) => !troop.dead && troop.row === selectedRow);
+      affected.forEach((troop) => applyRouteFortification(troop));
+      session.pendingRouteFortificationEvent = {
+        row: selectedRow,
+        troopIds: affected.map((troop) => troop.id),
+      };
       break;
     }
     case "organized_retreat":
@@ -534,9 +556,16 @@ export function startWave(session) {
   return true;
 }
 
-export function selectDecision(session, option) {
+export function selectDecision(session, option, target = null) {
   if (!session.pendingDecision?.some((entry) => entry.id === option.id)) return false;
-  if (!applyDecision(session, option.id)) return false;
+  if (option.id === "route_fortification") {
+    const occupiedRows = [...new Set(session.troops.filter((troop) => !troop.dead).map((troop) => troop.row))];
+    const row = target?.row == null && occupiedRows.length === 1 ? occupiedRows[0] : Number(target?.row);
+    if (!Number.isInteger(row) || row < 0 || row >= FIELD.rows) return false;
+    if (!session.troops.some((troop) => !troop.dead && troop.row === row)) return false;
+    target = { row };
+  }
+  if (!applyDecision(session, option.id, target)) return false;
   session.decisions.push({ wave: session.waveIndex, level: session.pendingDecisionLevel, id: option.id });
   session.pendingDecision = null;
   session.pendingDecisionLevel = null;
@@ -626,9 +655,7 @@ function createEnemy(session, queued) {
   enemy.y = enemy.row * CELL.height + CELL.height / 2;
   enemy.previousRenderY = enemy.y;
   session.enemies.push(enemy);
-  if (firstLivingCrisalio) {
-    session.prismaticMantle.nextPulseAt = session.elapsed + base.shieldPulseEveryMs;
-  }
+  if (firstLivingCrisalio) session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + base.shieldPulseEveryMs;
   return enemy;
 }
 
@@ -717,7 +744,7 @@ export function clearSandboxEntities(session, target = "all") {
     session.troops.forEach((troop) => { troop.attachedParasiteId = null; });
     session.enemies = [];
     session.queue = [];
-    session.prismaticMantle = { nextPulseAt: Infinity, lastPulseAt: -Infinity };
+    session.prismaticMantle = { rows: Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }])) };
   }
   if (target === "troops" || target === "all") {
     session.enemies.forEach((enemy) => {
@@ -1123,6 +1150,17 @@ export function getEnemyDamageTakenFactor(enemy, context = {}) {
 
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
+  const sourceConfig = TROOPS[context.sourceTroopType];
+  if (enemy.isEcho && sourceConfig?.glassEchoShatter) {
+    enemy.shield = 0;
+    enemy.hp = 0;
+    enemy.dead = true;
+    detachParasite(session, enemy);
+    if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
+    events.push({ type: "glassEchoShatter", targetId: enemy.id, sourceTroopType: context.sourceTroopType, x: enemy.x, y: enemy.y, entity: { ...enemy }, color: "#7fffd4", seed: nextEffectSeed(session) });
+    trySpawnEnergyPickup(session, enemy, events);
+    return;
+  }
   const damageTakenFactor = getEnemyDamageTakenFactor(enemy, { ...context, elapsed: session.elapsed });
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1) * damageTakenFactor;
   const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
@@ -1254,18 +1292,20 @@ export function stunEnemy(session, enemy, durationMs) {
 
 function updatePrismaticMantle(session, events) {
   const config = ENEMIES.crisalio;
-  const sources = session.enemies.filter((enemy) => !enemy.dead && enemy.type === "crisalio");
-  if (!sources.length) {
-    session.prismaticMantle.nextPulseAt = Infinity;
-    return;
-  }
-  if (!Number.isFinite(session.prismaticMantle.nextPulseAt)) {
-    session.prismaticMantle.nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
-  }
-  while (session.elapsed >= session.prismaticMantle.nextPulseAt) {
-    const pulseAt = session.prismaticMantle.nextPulseAt;
-    const source = sources[0];
-    const targets = session.enemies.filter((enemy) => !enemy.dead && config.shieldTargetTypes.includes(enemy.type));
+  const mantle = session.prismaticMantle;
+  if (!mantle.rows) mantle.rows = Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }]));
+  for (let row = 0; row < FIELD.rows; row += 1) {
+    const state = mantle.rows[row];
+    const sources = session.enemies.filter((enemy) => !enemy.dead && enemy.type === "crisalio" && enemy.row === row);
+    if (!sources.length) {
+      state.nextPulseAt = Infinity;
+      continue;
+    }
+    if (!Number.isFinite(state.nextPulseAt)) state.nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
+    while (session.elapsed >= state.nextPulseAt) {
+      const pulseAt = state.nextPulseAt;
+      const source = sources[0];
+      const targets = session.enemies.filter((enemy) => !enemy.dead && enemy.row === row && config.shieldTargetTypes.includes(enemy.type));
     for (const target of targets) {
       const value = Math.min(config.shieldCap, config.shieldBase + target.maxHp * config.shieldMaxHpFactor);
       target.shield = value;
@@ -1273,12 +1313,13 @@ function updatePrismaticMantle(session, events) {
       target.lastShieldPulseAt = pulseAt;
     }
     source.lastShieldPulseAt = session.elapsed;
-    session.prismaticMantle.lastPulseAt = pulseAt;
-    session.prismaticMantle.nextPulseAt += config.shieldPulseEveryMs;
+    state.lastPulseAt = pulseAt;
+    state.nextPulseAt += config.shieldPulseEveryMs;
     events.push({
       type: "prismaticPulse", sourceId: source.id, x: source.x, y: source.y - 34 * source.scale,
       targetIds: targets.map((target) => target.id), color: config.color, seed: nextEffectSeed(session),
-    });
+      });
+    }
   }
 }
 
@@ -1363,7 +1404,7 @@ function updateFlameChannel(session, troop, config, events, dt) {
     const origin = getMuzzleWorldPosition(troop, config, 0, animation.frame);
     activeTargets.forEach((enemy) => {
       const damage = config.damage * attackDamageMultiplier(session, troop, { target: enemy });
-      damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x });
+      damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type });
     });
     events.push({
       type: "flame", weapon: config.attackVisual?.effect || "flame", troopType: troop.type,
@@ -1384,7 +1425,7 @@ function fireTroop(session, troop, config, target, events) {
   const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
-    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x });
+    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type });
     events.push({ type: "melee", x: target.x, y: target.y });
   } else if (config.attack === "laser") {
     damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x });
@@ -1406,7 +1447,7 @@ function fireTroop(session, troop, config, target, events) {
       enemy,
       damage * config.pellets * (damageFactors[index] ?? 0),
       events,
-      { direct: true, sourceX: troop.x },
+        { direct: true, sourceX: troop.x, sourceTroopType: troop.type },
     ));
     events.push({
       type: "shotgun", weapon: config.attackVisual?.effect || "shotgun", troopType: troop.type,
@@ -1886,7 +1927,7 @@ function updateTileMelee(session, troop, config, events) {
     const impact = troop.pendingImpact;
     const occupants = enemiesInTileMeleeRange(session, troop, config);
     occupants.forEach((enemy) => {
-      damageEnemy(session, enemy, impact.damage, events, { direct: true, sourceX: troop.x });
+      damageEnemy(session, enemy, impact.damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type });
       if (impact.stunMs) stunEnemy(session, enemy, impact.stunMs);
     });
     events.push({
@@ -1946,7 +1987,7 @@ function updateTroops(session, events, dt) {
       updateExecutorArco(session, troop, config, events, {
         color: config.color,
         enemyColumn,
-        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events, { direct: true, sourceX: troop.x }),
+        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type }),
         damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
         nextEffectSeed: () => nextEffectSeed(session),
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
@@ -2019,7 +2060,7 @@ function updateProjectiles(session, dt, events) {
         continue;
       }
 
-      damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: source?.x ?? projectile.origin?.x });
+      damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: source?.x ?? projectile.origin?.x, sourceTroopType: projectile.troopType });
       const pushedFromX = target.x;
       let stunned = false;
       if (!target.dead) {
@@ -3607,6 +3648,7 @@ export function getSnapshot(session) {
     refundRate: session.modifiers.refundRate,
     shieldCharges: session.shieldCharges,
     fortifiedRow: session.fortifiedRow,
+    pendingPositionalDecision: session.pendingPositionalDecision ? { ...session.pendingPositionalDecision } : null,
     activeTemporaryDecisions: [...session.activeTemporaryDecisions],
     queuedTemporaryDecisions: [...session.queuedTemporaryDecisions],
     prismaticMantle: { ...session.prismaticMantle },

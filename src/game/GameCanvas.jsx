@@ -249,6 +249,19 @@ function drawHealth(ctx, entity, runtime, now, width = 54, offset = 47, accent =
   ctx.fillRect(x + 1, y + 1, (width - 2) * trail, 4);
   ctx.fillStyle = accent || (ratio > 0.55 ? "#34d399" : ratio > 0.25 ? "#fbbf24" : "#fb7185");
   ctx.fillRect(x + 1, y + 1, (width - 2) * ratio, 4);
+  const baseMaxHp = entity.baseMaxHp ?? entity.maxHp;
+  const bonusMaxHp = entity.fortificationBonusMaxHp ?? 0;
+  const bonusCurrentHp = Math.max(0, Math.min(bonusMaxHp, entity.hp - baseMaxHp));
+  if (bonusCurrentHp > 0 && bonusMaxHp > 0) {
+    const blueWidth = (width - 2) * Math.min(0.2, bonusCurrentHp / baseMaxHp);
+    const gradient = ctx.createLinearGradient(x + 1, y, x + 1 + blueWidth, y);
+    gradient.addColorStop(0, "#67e8f9"); gradient.addColorStop(1, "#38bdf8");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(x + 1, y + 1, blueWidth, 4);
+    ctx.strokeStyle = "rgba(224,242,254,.9)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x + 1 + blueWidth, y); ctx.lineTo(x + 1 + blueWidth, y + 6); ctx.stroke();
+  }
   if (entity.shieldMax > 0 && entity.shield > 0) {
     const shieldRatio = Math.max(0, Math.min(1, entity.shield / entity.shieldMax));
     ctx.fillStyle = "rgba(15,23,42,.95)";
@@ -1108,6 +1121,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [spawnGrouped, setSpawnGrouped] = useState(false);
   const [selectedTroop, setSelectedTroop] = useState(null);
   const [removeMode, setRemoveMode] = useState(false);
+  const [targetingDecision, setTargetingDecision] = useState(null);
+  const [hoveredDecisionRow, setHoveredDecisionRow] = useState(null);
   const [graphicsMetrics, setGraphicsMetrics] = useState(null);
   const showGraphicsMetrics = useMemo(() => import.meta.env.DEV && new URLSearchParams(window.location.search).has("gfxstats"), []);
   const [message, setMessage] = useState("Selecione uma unidade e posicione-a no campo.");
@@ -1124,6 +1139,18 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
+  useEffect(() => {
+    if (!targetingDecision) return undefined;
+    const cancel = (event) => {
+      if (event.key === "Escape") {
+        setTargetingDecision(null);
+        setHoveredDecisionRow(null);
+        setMessage("Seleção de rota cancelada.");
+      }
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [targetingDecision]);
 
   const configureAudio = useCallback((assets) => {
     const build = (name, loop = false) => {
@@ -1280,6 +1307,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleCanvasMove = (event) => {
     const point = canvasPointFromPointer(event);
     hoveredCellRef.current = point ? cellFromPoint(point.x, point.y) : null;
+    const row = targetingDecision && point ? Math.floor(point.y / CELL.height) : null;
+    setHoveredDecisionRow(row);
+    if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.hoveredRow = row;
     setEnergyPickupPointer(sessionRef.current, point);
   };
 
@@ -1291,6 +1321,12 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleCanvasContextMenu = (event) => {
     event.preventDefault();
+    if (targetingDecision) {
+      setTargetingDecision(null);
+      setHoveredDecisionRow(null);
+      setMessage("Seleção de rota cancelada.");
+      return;
+    }
     releaseMouseTool();
   };
 
@@ -1308,6 +1344,28 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleCanvasClick = (event) => {
     if (snapshot.outcome) return;
+    if (targetingDecision) {
+      const point = canvasPointFromPointer(event);
+      const row = point ? Math.floor(point.y / CELL.height) : -1;
+      const occupied = sessionRef.current.troops.some((troop) => !troop.dead && troop.row === row);
+      if (!occupied) {
+        setMessage(`A Rota ${row + 1} está vazia e não pode ser fortificada.`);
+        return;
+      }
+      if (selectDecision(sessionRef.current, targetingDecision, { row })) {
+        sessionRef.current.pendingPositionalDecision = null;
+        const troopIds = sessionRef.current.troops.filter((troop) => !troop.dead && troop.row === row).map((troop) => troop.id);
+        const eventData = { type: "routeFortified", row, hpBonus: 0.2, troopIds };
+        sessionRef.current.routeFortificationPulse = { row, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1150 };
+        consumeGraphicsEvents(graphicsRef.current, [eventData], sessionRef.current.elapsed, settings);
+        pushEventParticles(particlesRef.current, [eventData], sessionRef.current.elapsed, adaptiveSettingsRef.current);
+        setTargetingDecision(null);
+        setHoveredDecisionRow(null);
+        setMessage(`Rota ${row + 1} fortificada. Tropas atuais e futuras recebem +20% de HP máximo.`);
+        setSnapshot(getSnapshot(sessionRef.current));
+      }
+      return;
+    }
     const action = resolveCanvasClickAction(
       sessionRef.current,
       canvasPointFromPointer(event),
@@ -1340,6 +1398,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   };
 
   const handleStartWave = () => {
+    if (targetingDecision) return;
     if (startWave(sessionRef.current)) {
       consumeGraphicsEvents(graphicsRef.current, [{ type: "waveStart" }], sessionRef.current.elapsed, settings);
       setBanner(`ONDA ${sessionRef.current.waveIndex + 1} · CONTATO`);
@@ -1351,6 +1410,14 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   };
 
   const handleDecision = (option) => {
+    if (option.id === "route_fortification") {
+      sessionRef.current.pendingPositionalDecision = { id: option.id };
+      setTargetingDecision(option);
+      setSelectedTroop(null);
+      setRemoveMode(false);
+      setMessage("Selecione uma rota ocupada para receber a fortificação.");
+      return;
+    }
     if (selectDecision(sessionRef.current, option)) {
       setMessage(`${option.label}: efeito aplicado.`);
       setSnapshot(getSnapshot(sessionRef.current));
@@ -1458,7 +1525,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             return speeds[(speeds.indexOf(value) + 1) % speeds.length];
           })}>{speed}×</button>
           <button type="button" className="release-tool-button topbar-tool-button" onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
-          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !snapshot.outcome && <button className="start-wave topbar-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>}
+          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !targetingDecision && !snapshot.outcome && <button className="start-wave topbar-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>}
           <button className="ghost-button" onClick={onExit}>Sair</button>
         </div>
       </header>
@@ -1496,7 +1563,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         </aside>
 
         <div className="canvas-wrap">
-          <div className={`wave-banner ${sandstormBanner ? "sandstorm-banner" : ""}`}>{sandstormBanner || banner}</div>
+          <div className={`wave-banner ${sandstormBanner ? "sandstorm-banner" : ""}`}>{targetingDecision ? "SELEÇÃO DE ROTA · passe o mouse e clique para fortificar" : (sandstormBanner || banner)}</div>
           <div className="battle-canvas-stage">
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
               hoveredCellRef.current = null;
@@ -1540,7 +1607,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         />}
       </div>
 
-      {snapshot.pendingDecision && <DecisionModal level={snapshot.pendingDecisionLevel} options={snapshot.pendingDecision} onChoose={handleDecision} />}
+      {snapshot.pendingDecision && !targetingDecision && <DecisionModal level={snapshot.pendingDecisionLevel} options={snapshot.pendingDecision} onChoose={handleDecision} />}
     </section>
   );
 }

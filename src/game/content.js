@@ -1,5 +1,6 @@
 export const TROOPS = {
   colono: {
+    glassEchoShatter: true,
     id: "colono",
     label: "Colono",
     role: "Linha de frente",
@@ -228,6 +229,7 @@ export const TROOPS = {
       "Cura a tropa mais ferida à sua frente. Após restaurar até 20 de vida, precisa recarregar sua arma.",
   },
   lumiUrsa7: {
+    glassEchoShatter: true,
     id: "lumiUrsa7",
     label: "Lumi e URSA-7",
     role: "Controle / Defesa",
@@ -877,6 +879,7 @@ export const TROOPS = {
       "Morteiro automático que ignora inimigos próximos e bombardeia grupos distantes.",
   },
   executorArco: {
+    glassEchoShatter: true,
     id: "executorArco",
     label: "Vórtice",
     title: "Executor de Arco",
@@ -968,6 +971,7 @@ export const TROOPS = {
       "Duelista de ataque rápido que bloqueia um alvo em um combo de três golpes. A finalização causa dano elevado e 30% aos demais inimigos no mesmo tile.",
   },
   colossoImpacto: {
+    glassEchoShatter: true,
     id: "colossoImpacto",
     label: "Colosso de Impacto",
     role: "Tanque / Controle",

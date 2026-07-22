@@ -455,6 +455,54 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
   const motionTime = settings.reduceMotion ? 0 : time;
   const theme = phase.battlefieldTheme;
   drawDamageMarks(ctx, phase, intensity);
+  const targeting = session.pendingPositionalDecision;
+  if (targeting) {
+    const hoveredRow = Number.isInteger(targeting.hoveredRow) ? targeting.hoveredRow : -1;
+    ctx.save();
+    ctx.fillStyle = "rgba(2,6,23,.38)";
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    for (let row = 0; row < FIELD.rows; row += 1) {
+      const occupied = session.troops.some((troop) => !troop.dead && troop.row === row);
+      const y = row * CELL.height;
+      ctx.fillStyle = row === hoveredRow && occupied ? "rgba(56,189,248,.22)" : "rgba(2,6,23,.12)";
+      ctx.fillRect(0, y, FIELD.width, CELL.height);
+      ctx.strokeStyle = row === hoveredRow && occupied ? "rgba(103,232,249,.95)" : "rgba(56,189,248,.22)";
+      ctx.lineWidth = row === hoveredRow && occupied ? 2 : 1;
+      ctx.beginPath(); ctx.moveTo(0, y + 2); ctx.lineTo(FIELD.width, y + 2); ctx.moveTo(0, y + CELL.height - 2); ctx.lineTo(FIELD.width, y + CELL.height - 2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+  const pulse = session.routeFortificationPulse;
+  if (pulse && time <= pulse.until) {
+    const progress = Math.max(0, Math.min(1, (time - pulse.startedAt) / Math.max(1, pulse.until - pulse.startedAt)));
+    const y = pulse.row * CELL.height + CELL.height * 0.5;
+    ctx.save();
+    ctx.globalCompositeOperation = "screen";
+    ctx.globalAlpha = 0.7 * (1 - progress);
+    ctx.fillStyle = "#38bdf8";
+    for (let i = 0; i < 14; i += 1) {
+      const x = 80 + ((i * 137) % Math.max(1, FIELD.width - 140));
+      const bubbleY = y + CELL.height * 0.35 - progress * (24 + (i % 4) * 7) - (i % 3) * 9;
+      ctx.beginPath(); ctx.arc(x, bubbleY, 3 + (i % 3), 0, Math.PI * 2); ctx.fill();
+      if (i % 4 === 0) { ctx.font = "700 16px system-ui"; ctx.fillText("+", x + 8, bubbleY); }
+    }
+    ctx.strokeStyle = "#67e8f9"; ctx.lineWidth = 3; ctx.globalAlpha = 0.55 * (1 - progress);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(FIELD.width, y); ctx.stroke();
+    ctx.restore();
+  }
+  if (Number.isInteger(session.fortifiedRow)) {
+    const y = session.fortifiedRow * CELL.height;
+    ctx.save();
+    ctx.fillStyle = "rgba(56,189,248,.06)";
+    ctx.fillRect(0, y, FIELD.width, CELL.height);
+    ctx.strokeStyle = "rgba(56,189,248,.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, y + 2); ctx.lineTo(FIELD.width, y + 2); ctx.moveTo(0, y + CELL.height - 2); ctx.lineTo(FIELD.width, y + CELL.height - 2); ctx.stroke();
+    ctx.fillStyle = "#67e8f9";
+    ctx.font = "700 12px system-ui";
+    ctx.fillText(`R${session.fortifiedRow + 1} 🛡`, FIELD.baseX + 8, y + 16);
+    ctx.restore();
+  }
 
   ctx.save();
   if (profile.parallax > 0) {

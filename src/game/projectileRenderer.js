@@ -25,7 +25,7 @@ function profile(settings = {}, essential = false) {
 
 export function isEssentialParticleEvent(event = {}) {
   return event.type === "hit" || event.type === "troopHit" || event.type === "shieldHit"
-    || event.type === "shieldBreak" || event.type === "bossPhase" || event.type === "bossDeath"
+    || event.type === "shieldBreak" || event.type === "glassEchoShatter" || event.type === "bossPhase" || event.type === "bossDeath"
     || event.type === "prismaticPulse" || event.type === "iceImpact"
     || event.type === "scarabTransitionStart" || event.type === "scarabTransitionComplete"
     || (event.type === "repulsorImpact" && event.stunned);
@@ -238,15 +238,15 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
 
-    if (event.type === "shieldHit" || event.type === "shieldBreak") {
+    if (event.type === "shieldHit" || event.type === "shieldBreak" || event.type === "glassEchoShatter") {
       particles.push({
         kind: "ring", x: event.x, y: event.y, color,
-        born: now, life: event.type === "shieldBreak" ? 360 : 190,
-        maxRadius: event.type === "shieldBreak" ? 48 : 24,
+        born: now, life: event.type === "glassEchoShatter" ? 340 : event.type === "shieldBreak" ? 360 : 190,
+        maxRadius: event.type === "glassEchoShatter" ? 58 : event.type === "shieldBreak" ? 48 : 24,
       });
       addSparks(particles, event, now, Math.max(3, Math.round((event.type === "shieldBreak" ? 16 : 6) * quality.density)), random, {
-        color: event.type === "shieldBreak" ? "#e9d5ff" : "#7fffd4",
-        minSpeed: 24, speed: event.type === "shieldBreak" ? 115 : 65, life: 360, size: 1.8,
+        color: event.type === "glassEchoShatter" ? "#f0fdff" : event.type === "shieldBreak" ? "#e9d5ff" : "#7fffd4",
+        minSpeed: 24, speed: event.type === "glassEchoShatter" ? 135 : event.type === "shieldBreak" ? 115 : 65, life: 360, size: 1.8,
       });
       continue;
     }
