@@ -18,6 +18,13 @@ STATES = {
     "attack1": SHEETS / "executor-arco-attack1.png",
     "attack2": SHEETS / "executor-arco-attack2.png",
     "attack3": SHEETS / "executor-arco-attack3.png",
+    "attackRanged": SHEETS / "executor-arco-attackRanged.png",
+}
+BASE_STATES = ("idle", "attack1", "attack2", "attack3")
+EFFECT_TARGET = ROOT / "src" / "game" / "assets" / "effects" / "executorArcSlash"
+EFFECT_STATES = {
+    "flying": (SHEETS / "executor-arc-slash-flying.png", (4, 2), (96, 48)),
+    "impact": (SHEETS / "executor-arc-slash-impact.png", (3, 2), (64, 64)),
 }
 
 
@@ -120,6 +127,42 @@ def normalize_cell(cell: Image.Image, scale: float) -> Image.Image:
     return frame
 
 
+def split_fixed_grid(sheet: Image.Image, grid: tuple[int, int]) -> list[Image.Image]:
+    cells = []
+    for row in range(grid[1]):
+        for col in range(grid[0]):
+            left = round(col * sheet.width / grid[0])
+            top = round(row * sheet.height / grid[1])
+            right = round((col + 1) * sheet.width / grid[0])
+            bottom = round((row + 1) * sheet.height / grid[1])
+            rough = sheet.crop((left, top, right, bottom))
+            bbox = visible_bbox(rough)
+            cells.append(rough.crop((
+                max(0, bbox[0] - PADDING),
+                max(0, bbox[1] - PADDING),
+                min(rough.width, bbox[2] + PADDING),
+                min(rough.height, bbox[3] + PADDING),
+            )))
+    return cells
+
+
+def normalize_effect_cell(cell: Image.Image, frame_size: tuple[int, int]) -> Image.Image:
+    scale = min(
+        (frame_size[0] - 4) / cell.width,
+        (frame_size[1] - 4) / cell.height,
+    )
+    resized = cell.resize(
+        (max(1, round(cell.width * scale)), max(1, round(cell.height * scale))),
+        Image.Resampling.LANCZOS,
+    )
+    frame = Image.new("RGBA", frame_size, (0, 0, 0, 0))
+    frame.alpha_composite(resized, (
+        (frame_size[0] - resized.width) // 2,
+        (frame_size[1] - resized.height) // 2,
+    ))
+    return frame
+
+
 def validate() -> None:
     total_bytes = 0
     for state in STATES:
@@ -133,16 +176,33 @@ def validate() -> None:
             if any(frame.getchannel("A").getpixel(point) for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
                 raise SystemExit(f"opaque corner: {path}")
             total_bytes += path.stat().st_size
-    if total_bytes > 700_000:
+    if total_bytes > 900_000:
         raise SystemExit(f"executorArco frame budget exceeded: {total_bytes} bytes")
+
+    for state, (_, grid, frame_size) in EFFECT_STATES.items():
+        frames = sorted((EFFECT_TARGET / state).glob("frame*.png"))
+        if len(frames) != grid[0] * grid[1]:
+            raise SystemExit(f"expected {grid[0] * grid[1]} {state} effect frames, found {len(frames)}")
+        for path in frames:
+            frame = Image.open(path).convert("RGBA")
+            if frame.size != frame_size or not frame.getchannel("A").getbbox():
+                raise SystemExit(f"invalid effect frame: {path}")
 
 
 if __name__ == "__main__":
     cells_by_state = {
-        state: split_sheet(Image.open(path).convert("RGBA"))
+        state: (
+            split_fixed_grid(Image.open(path).convert("RGBA"), GRID)
+            if state == "attackRanged"
+            else split_sheet(Image.open(path).convert("RGBA"))
+        )
         for state, path in STATES.items()
     }
-    all_boxes = [visible_bbox(cell) for cells in cells_by_state.values() for cell in cells]
+    all_boxes = [
+        visible_bbox(cell)
+        for state in BASE_STATES
+        for cell in cells_by_state[state]
+    ]
     max_width = max(box[2] - box[0] for box in all_boxes)
     max_height = max(box[3] - box[1] for box in all_boxes)
     scale = min(
@@ -157,6 +217,19 @@ if __name__ == "__main__":
             frame = normalize_cell(cell, scale)
             indexed = frame.quantize(
                 colors=192,
+                method=Image.Quantize.FASTOCTREE,
+                dither=Image.Dither.NONE,
+            )
+            indexed.save(output / f"frame{index}.png", optimize=True, compress_level=9)
+
+    for state, (path, grid, frame_size) in EFFECT_STATES.items():
+        cells = split_fixed_grid(Image.open(path).convert("RGBA"), grid)
+        output = EFFECT_TARGET / state
+        output.mkdir(parents=True, exist_ok=True)
+        for index, cell in enumerate(cells):
+            frame = normalize_effect_cell(cell, frame_size)
+            indexed = frame.quantize(
+                colors=128,
                 method=Image.Quantize.FASTOCTREE,
                 dither=Image.Dither.NONE,
             )

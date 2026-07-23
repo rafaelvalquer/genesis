@@ -252,6 +252,7 @@ a .phase-card:hover .phase-art img { transform: scale(1.07); filter: saturate(1.
 .chapter-3-battle { --cyan: #f59e0b; --cyan-soft: #fef3c7; --amber: #22d3ee; }
 .chapter-3-battle .battle-topbar, .chapter-3-battle .battle-sidebar { border-color: rgba(245,158,11,.22); }
 .sandstorm-banner { border-color: rgba(251,191,36,.72); color: #fff7ed; background: linear-gradient(90deg, rgba(120,53,15,.45), rgba(245,158,11,.2), rgba(120,53,15,.45)), linear-gradient(180deg, rgba(67,35,16,.98), rgba(20,10,5,.98)); box-shadow: inset 0 1px rgba(255,237,213,.2), inset 0 -2px rgba(245,158,11,.2), 0 0 0 3px rgba(20,10,5,.72), 0 8px 18px rgba(0,0,0,.42), 0 0 28px rgba(245,158,11,.28); text-shadow: 0 0 9px rgba(251,191,36,.72); }
+.wind-current-banner { border-color: rgba(165,243,252,.82); color: #ecfeff; background: linear-gradient(90deg, rgba(30,41,59,.68), rgba(14,116,144,.32), rgba(76,29,149,.38)), linear-gradient(180deg, rgba(15,23,42,.98), rgba(2,6,23,.98)); box-shadow: inset 0 1px rgba(224,242,254,.22), inset 0 -2px rgba(103,232,249,.18), 0 0 0 3px rgba(2,6,23,.7), 0 8px 18px rgba(0,0,0,.42), 0 0 30px rgba(56,189,248,.3); text-shadow: 0 0 10px rgba(165,243,252,.82); }
 .wave-banner {
   isolation: isolate;
   min-width: 230px;
@@ -358,6 +359,7 @@ body:has(.test-page) { min-width: 0; }
 .sandbox-battle .troop-slot { min-height: 54px; }
 .sandbox-battle .battle-canvas-stage { width: min(100%, calc((100vh - 160px) * 1.61765)); }
 .sandbox-panel { min-height: 0; padding: 13px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(8,19,32,.98), rgba(4,10,18,.97)); box-shadow: 0 22px 70px rgba(0,0,0,.3); }
+.interaction-locked { opacity: .48; filter: saturate(.45); pointer-events: none; }
 .sandbox-panel button { cursor: pointer; }
 .sandbox-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding-bottom: 11px; border-bottom: 1px solid var(--line); }
 .sandbox-panel-heading h2 { margin: 4px 0 0; font-size: 17px; }

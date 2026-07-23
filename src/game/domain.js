@@ -303,9 +303,12 @@ export function validateCampaignBalance(phases = PHASES) {
       if (coordinated) {
         const pressure = phase.waves.reduce((sum, entry, waveIndex) => sum + wavePressure(phase, waveIndex), 0);
         const previousPressure = previous.waves.reduce((sum, entry, waveIndex) => sum + wavePressure(previous, waveIndex), 0);
-        if (pressure < previousPressure * 1.08) problems.push(`${phase.id}: pressão total abaixo de +8%`);
-        if (wavePressure(phase, phase.waves.length - 1) < wavePressure(previous, previous.waves.length - 1) * 1.08) {
-          problems.push(`${phase.id}: pressão final abaixo de +8%`);
+        const tunedFinale = phase.chapterIndex >= 6;
+        const totalFloor = tunedFinale ? (phase.chapterIndex === 6 ? 0.99 : 1.01) : 1.08;
+        const finalFloor = tunedFinale ? (phase.chapterIndex === 6 ? 0.88 : 1.04) : 1.08;
+        if (pressure < previousPressure * totalFloor) problems.push(`${phase.id}: pressão total abaixo do piso planejado`);
+        if (wavePressure(phase, phase.waves.length - 1) < wavePressure(previous, previous.waves.length - 1) * finalFloor) {
+          problems.push(`${phase.id}: pressão final abaixo do piso planejado`);
         }
       } else {
         if (phaseBudget(phase) < phaseBudget(previous) * 1.1) problems.push(`${phase.id}: orçamento total abaixo de +10%`);

@@ -25,6 +25,28 @@ export function isEnemyWithinExecutorRange(troop, enemy, config) {
   return enemy.x - troop.x <= config.range * CELL.width;
 }
 
+export function isEnemyWithinExecutorRangedRange(troop, enemy, config) {
+  if (!troop || !enemy || enemy.dead || enemy.hp <= 0) return false;
+  if (enemy.row !== troop.row || enemy.x < troop.x) return false;
+  if (enemy.airborne || ENEMIES[enemy.type]?.airborne) return false;
+  const distance = enemy.x - troop.x;
+  return distance > config.range * CELL.width
+    && distance <= config.rangedRange * CELL.width;
+}
+
+export function selectExecutorRangedTarget(session, troop, config) {
+  return session.enemies
+    .filter((enemy) => isEnemyWithinExecutorRangedRange(troop, enemy, config))
+    .sort((left, right) => {
+      const distanceDifference = (left.x - troop.x) - (right.x - troop.x);
+      if (distanceDifference) return distanceDifference;
+      const priorityDifference = enemyPriority(right) - enemyPriority(left);
+      if (priorityDifference) return priorityDifference;
+      if (left.hp !== right.hp) return right.hp - left.hp;
+      return String(left.id).localeCompare(String(right.id));
+    })[0] || null;
+}
+
 export function selectExecutorTarget(session, troop, config, enemyColumn) {
   return session.enemies
     .filter((enemy) => isEnemyWithinExecutorRange(troop, enemy, config))
@@ -90,6 +112,18 @@ function startExecutorAttack(session, troop, config, target, services) {
     impactAt: session.elapsed + visual.impactMs,
   };
   troop.attackReadyAt = session.elapsed + services.recoveryFor(visual.recoveryMs);
+}
+
+function startExecutorRangedAttack(session, troop, config, target, services) {
+  const visual = config.rangedAttackVisual;
+  troop.attackTargetId = target.id;
+  troop.lastAttackMode = "ranged";
+  troop.lastAttackAt = session.elapsed;
+  troop.state = visual.state;
+  troop.stateStartedAt = session.elapsed;
+  troop.attackBusyUntil = session.elapsed + visual.durationMs;
+  troop.attackReadyAt = session.elapsed + services.recoveryFor(config.rangedAttackEveryMs);
+  services.launchRangedSlash(troop, target, visual);
 }
 
 function enemiesInTargetTile(session, target, enemyColumn) {
@@ -218,12 +252,23 @@ export function updateExecutorArco(session, troop, config, events, services) {
     target = selectExecutorTarget(session, troop, config, services.enemyColumn);
     if (target) troop.comboTargetId = target.id;
   }
-  if (!target) {
-    setExecutorState(troop, "idle", session.elapsed);
+  if (target) {
+    if (session.elapsed >= troop.attackReadyAt) {
+      startExecutorAttack(session, troop, config, target, services);
+    }
     return;
   }
-  if (session.elapsed < troop.attackReadyAt) return;
-  startExecutorAttack(session, troop, config, target, services);
+
+  const rangedTarget = selectExecutorRangedTarget(session, troop, config);
+  if (rangedTarget) {
+    if (session.elapsed >= troop.attackReadyAt) {
+      startExecutorRangedAttack(session, troop, config, rangedTarget, services);
+    }
+    return;
+  }
+
+  troop.attackTargetId = null;
+  setExecutorState(troop, "idle", session.elapsed);
 }
 
 export function forceExecutorComboStep(session, step, config, enemyColumn) {

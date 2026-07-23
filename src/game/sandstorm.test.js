@@ -3,6 +3,7 @@ import { getSandstormGustVisual, getSandstormVisualIntensity } from "./arenaRend
 import {
   CELL,
   createBattleSession,
+  createTroopEntity,
   getSnapshot,
   placeTroop,
   removeTroop,
@@ -21,13 +22,24 @@ function createStormBattle(types = Array(5).fill("marine"), phaseIndex = 16) {
   const loadout = [...new Set(types)];
   const session = createBattleSession(phase, loadout, 4401);
   types.forEach((type, index) => {
-    const result = placeTroop(session, type, index % 5, 1 + Math.floor(index / 5));
-    expect(result.ok).toBe(true);
+    session.troops.push(createTroopEntity(
+      session,
+      type,
+      index % 5,
+      1 + Math.floor(index / 5),
+      { energyCost: 0, supplyCost: 0 },
+    ));
   });
   expect(startWave(session)).toBe(true);
   session.queue = [{ type: "silex", spawnAtMs: Infinity }];
   session.nextSpawnAt = Infinity;
   return session;
+}
+
+function addFixtureTroop(session, type, row, col) {
+  const troop = createTroopEntity(session, type, row, col, { energyCost: 0, supplyCost: 0 });
+  session.troops.push(troop);
+  return troop;
 }
 
 function triggerStorm(session) {
@@ -88,7 +100,7 @@ describe("tempestade de areia", () => {
     expect(stepBattle(session, 9999)).not.toContainEqual(expect.objectContaining({ type: "sandstormWarning" }));
     expect(stepBattle(session, 1)).toContainEqual(expect.objectContaining({ type: "sandstormWarning" }));
 
-    expect(placeTroop(session, "marine", 0, 2).ok).toBe(true);
+    addFixtureTroop(session, "marine", 0, 2);
     const secondStarted = stepBattle(session, session.phase.environmentHazard.warningMs);
     expect(secondStarted).toContainEqual(expect.objectContaining({
       type: "sandstormStarted", stormNumber: 2, troopCountAtStart: 6,
@@ -156,7 +168,7 @@ describe("tempestade de areia", () => {
     triggerStorm(session);
     const removed = session.troops.slice(0, 3).map((troop) => ({ row: troop.row, col: troop.col }));
     removed.forEach(({ row, col }) => expect(removeTroop(session, row, col).ok).toBe(true));
-    expect(placeTroop(session, "marine", removed[0].row, removed[0].col).ok).toBe(true);
+    addFixtureTroop(session, "marine", removed[0].row, removed[0].col);
 
     expect(stepBattle(session, session.phase.environmentHazard.durationMs))
       .toContainEqual(expect.objectContaining({

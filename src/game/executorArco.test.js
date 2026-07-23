@@ -5,7 +5,10 @@ import {
 } from "./battleModel.js";
 import { ENEMIES, PHASES, TROOPS, getUnlockedTroops } from "./content.js";
 import {
-  isEnemyWithinExecutorRange, selectExecutorTarget,
+  isEnemyWithinExecutorRange,
+  isEnemyWithinExecutorRangedRange,
+  selectExecutorRangedTarget,
+  selectExecutorTarget,
 } from "./executorArco.js";
 import { createExecutorParticles } from "./executorArcoRenderer.js";
 import { getTroopInfo } from "./troopInfo.js";
@@ -60,13 +63,21 @@ describe("Vórtice — Executor de Arco", () => {
       deployCooldownMs: 6000,
       hp: 42,
       range: 1.25,
+      rangedRange: 2,
+      rangedDamage: 4,
+      rangedAttackEveryMs: 1200,
+      rangedProjectileSpeed: 520,
       combo1Damage: 6,
       combo2Damage: 7,
       combo3Damage: 24,
       combo3CollateralFactor: 0.3,
       comboWindowMs: 1800,
       unlockAt: 8,
-      assetStates: ["idle", "attack1", "attack2", "attack3"],
+      assetStates: ["idle", "attack1", "attack2", "attack3", "attackRanged"],
+    });
+    expect(TROOPS.executorArco.rangedAttackVisual).toMatchObject({
+      state: "attackRanged", durationMs: 640, releaseMs: 320,
+      effect: "executorArcSlash",
     });
     expect(TROOPS.executorArco.attackVisuals.combo3.recoveryMs)
       .toBeGreaterThan(TROOPS.executorArco.attackVisuals.combo2.recoveryMs);
@@ -127,6 +138,64 @@ describe("Vórtice — Executor de Arco", () => {
     const highA = enemy("a", troop, { hp: 80 });
     session.enemies = [highB, highA];
     expect(selectExecutorTarget(session, troop, TROOPS.executorArco, column)).toBe(highA);
+  });
+
+  it("limita o Corte de Arco à zona entre corpo a corpo e duas células", () => {
+    const session = createSession();
+    const troop = place(session);
+    const melee = enemy("melee", troop, { x: troop.x + 1.25 * CELL.width });
+    const edge = enemy("edge", troop, { x: troop.x + 2 * CELL.width });
+    expect(isEnemyWithinExecutorRangedRange(troop, melee, TROOPS.executorArco)).toBe(false);
+    expect(isEnemyWithinExecutorRangedRange(troop, edge, TROOPS.executorArco)).toBe(true);
+    expect(isEnemyWithinExecutorRangedRange(troop,
+      enemy("far", troop, { x: troop.x + 2 * CELL.width + 1 }), TROOPS.executorArco)).toBe(false);
+    expect(isEnemyWithinExecutorRangedRange(troop,
+      enemy("air", troop, { x: troop.x + 1.8 * CELL.width, airborne: true }), TROOPS.executorArco)).toBe(false);
+
+    const nearest = enemy("nearest", troop, { x: troop.x + 1.5 * CELL.width, hp: 5 });
+    const alpha = enemy("alpha", troop, { x: troop.x + 1.8 * CELL.width, variant: "alpha", hp: 999 });
+    session.enemies = [alpha, nearest];
+    expect(selectExecutorRangedTarget(session, troop, TROOPS.executorArco)).toBe(nearest);
+  });
+
+  it("dispara em alvo único sem avançar o combo e compartilha o cooldown", () => {
+    const session = createSession();
+    const troop = place(session);
+    const target = enemy("target", troop, { x: troop.x + 1.8 * CELL.width });
+    const bystander = enemy("bystander", troop, { x: target.x + 2 });
+    session.enemies = [target, bystander];
+
+    stepBattle(session, 1);
+    expect(troop).toMatchObject({
+      state: "attackRanged", lastAttackMode: "ranged", comboStep: 0, comboTargetId: null,
+    });
+    expect(session.projectiles[0]).toMatchObject({
+      kind: "executorArcSlash", targetId: target.id, launched: false, damage: 4,
+    });
+    stepBattle(session, 570);
+    expect(target.hp).toBe(96);
+    expect(bystander.hp).toBe(100);
+    expect(troop.comboStep).toBe(0);
+
+    target.x = troop.x + CELL.width;
+    stepBattle(session, 629);
+    expect(troop.comboStep).toBe(0);
+    stepBattle(session, 1);
+    expect(troop.lastAttackMode).toBe("combo1");
+  });
+
+  it("descarta o Corte de Arco quando o alvo morre antes do impacto", () => {
+    const session = createSession();
+    const troop = place(session);
+    const target = enemy("target", troop, { x: troop.x + 1.8 * CELL.width });
+    const replacement = enemy("replacement", troop, { x: target.x + 3 });
+    session.enemies = [target, replacement];
+    stepBattle(session, 1);
+    target.dead = true;
+    target.hp = 0;
+    stepBattle(session, TROOPS.executorArco.rangedAttackVisual.releaseMs);
+    expect(replacement.hp).toBe(100);
+    expect(session.projectiles).toHaveLength(0);
   });
 
   it("aplica Ataque 1 somente no impacto e mantém o alvo bloqueado", () => {
@@ -314,6 +383,12 @@ describe("Vórtice — Executor de Arco", () => {
       lastAttackAt: 100, stateStartedAt: 100,
     };
     expect(getTroopAnimation(troop, config, 360, { attack2: 8 })).toEqual({ state: "attack2", frame: 4 });
+    troop.state = "attackRanged";
+    troop.lastAttackMode = "ranged";
+    troop.lastAttackAt = 100;
+    troop.stateStartedAt = 100;
+    expect(getTroopAnimation(troop, config, 420, { attackRanged: 8 }))
+      .toEqual({ state: "attackRanged", frame: 4 });
     const idle = { id: "idle" };
     expect(resolveTroopFrame({ attack2: Array(8), idle: [idle] }, "attack2", 4)).toBe(idle);
     expect(resolveTroopFrame({}, "attack3", 7)).toBeNull();

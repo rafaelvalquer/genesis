@@ -76,6 +76,10 @@ export function getTroopInfo(troop) {
     label: "Janela do combo",
     value: formatDuration(troop.comboWindowMs),
   });
+  if (troop.rangedRange != null && troop.rangedDamage != null) specials.push({
+    label: "Corte de Arco",
+    value: `${formatNumber(troop.rangedDamage)} de dano a até ${formatNumber(troop.rangedRange)} células · alvo único terrestre`,
+  });
   if (troop.slowFactor != null) specials.push({
     label: "Lentidão",
     value: `-${Math.round((1 - troop.slowFactor) * 100)}% por ${formatDuration(troop.slowMs)}`,

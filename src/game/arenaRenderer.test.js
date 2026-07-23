@@ -4,11 +4,14 @@ import { getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets }
 import { createBattleSession, placeTroop } from "./battleModel.js";
 import {
   getArenaIntensity,
+  getAdvancedFormationOverlay,
   getBattlefieldBlueprint,
   getBattlefieldCacheKey,
   getGridCellState,
   getPlacementPreviewGeometry,
   getQualityProfile,
+  getRouteFortificationOverlay,
+  getRouteFortificationPulseVisual,
   shouldShowGrid,
 } from "./arenaRenderer.js";
 
@@ -16,7 +19,7 @@ describe("arenas cinematograficas", () => {
   it("atribui uma arena exclusiva e carregavel a cada fase", () => {
     const arenaIds = PHASES.map((phase) => phase.arenaId);
     expect(new Set(arenaIds).size).toBe(24);
-    expect(Object.keys(ARENAS)).toHaveLength(24);
+    expect(Object.keys(ARENAS)).toHaveLength(32);
     for (const phase of PHASES) {
       expect(getArenaUrl(phase.arenaId)).toMatch(/fase_\d{2}.*\.webp/i);
       expect(phase.ambientEffects.length).toBeGreaterThan(0);
@@ -233,6 +236,28 @@ describe("arenas cinematograficas", () => {
     expect(shouldShowGrid({ selectedTroop: null, removeMode: false, hoveredCell: { row: 1, col: 2 } })).toBe(true);
   });
 
+  it("apaga colunas inativas e acende o bloco de três colunas da Formação avançada", () => {
+    expect(getAdvancedFormationOverlay({
+      pendingPositionalDecision: {
+        targetType: "columnBlock",
+        preview: { centerCol: 4, columns: [3, 4, 5] },
+      },
+      advancedFormationColumns: [],
+    })).toMatchObject({
+      targeting: true,
+      dimInactive: true,
+      columns: [3, 4, 5],
+    });
+    expect(getAdvancedFormationOverlay({
+      pendingPositionalDecision: null,
+      advancedFormationColumns: [6, 7, 8],
+    })).toMatchObject({
+      targeting: false,
+      dimInactive: false,
+      columns: [6, 7, 8],
+    });
+  });
+
   it("diferencia celulas validas, ocupadas e fora da zona de implantacao", () => {
     const session = createBattleSession(PHASES[0], ["marine"], 1);
     expect(getGridCellState(session, 0, 1, "marine", false, null).state).toBe("valid");
@@ -290,5 +315,29 @@ describe("arenas cinematograficas", () => {
     expect(getQualityProfile({ quality: "low" }).particles).toBeLessThan(getQualityProfile({ quality: "medium" }).particles);
     expect(getQualityProfile({ quality: "medium" }).particles).toBeLessThan(getQualityProfile({ quality: "high" }).particles);
     expect(getQualityProfile({ quality: "low" }).parallax).toBe(0);
+  });
+
+  it("apaga as rotas e acende somente a rota ocupada indicada pelo preview", () => {
+    const session = createBattleSession(PHASES[0], ["marine"], 19);
+    placeTroop(session, "marine", 2, 1);
+    session.pendingPositionalDecision = {
+      id: "route_fortification", targetType: "occupiedRow", targetSize: 1, preview: { type: "row", row: 2 },
+    };
+    expect(getRouteFortificationOverlay(session)).toMatchObject({
+      targeting: true, dimInactive: true, hoveredRow: 2, valid: true, occupiedRows: [2],
+    });
+    session.pendingPositionalDecision.preview = { type: "row", row: 3 };
+    expect(getRouteFortificationOverlay(session)).toMatchObject({ hoveredRow: null, valid: false });
+    session.pendingPositionalDecision.preview = null;
+    expect(getRouteFortificationOverlay(session)).toMatchObject({ hoveredRow: null, valid: false });
+  });
+
+  it("mantém o pulso na base de tempo da sessão e adapta símbolos e movimento", () => {
+    const session = { elapsed: 1700, routeFortificationPulse: { row: 1, startedAt: 1000, until: 2400 } };
+    expect(getRouteFortificationPulseVisual(session, { quality: "high" })).toMatchObject({ row: 1, progress: 0.5, symbolCount: 16, travelScale: 1 });
+    expect(getRouteFortificationPulseVisual(session, { quality: "low" }).symbolCount).toBe(7);
+    expect(getRouteFortificationPulseVisual(session, { quality: "high", reduceMotion: true })).toMatchObject({ symbolCount: 5, travelScale: 0.14 });
+    session.elapsed = 2401;
+    expect(getRouteFortificationPulseVisual(session, { quality: "high" })).toBeNull();
   });
 });

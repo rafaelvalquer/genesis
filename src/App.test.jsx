@@ -32,7 +32,7 @@ describe("informações das tropas no loadout", () => {
     expect(container.querySelectorAll(".unit-portrait.wide-sprite")).toHaveLength(1);
   });
 
-  it("amplia o loadout do capítulo 2 para seis tropas", () => {
+  it("mantem o loadout do capítulo 2 em cinco tropas", () => {
     render(<MemoryRouter initialEntries={["/jogar/fase_09"]}>
       <Routes><Route path="/jogar/:phaseId" element={<PlayPage
         campaign={{ unlockedPhaseIndex: 8, phaseStats: {} }}
@@ -40,15 +40,15 @@ describe("informações das tropas no loadout", () => {
       />} /></Routes>
     </MemoryRouter>);
 
-    expect(screen.getByText(/Escolha de uma a seis unidades/)).toBeInTheDocument();
-    expect(screen.getByText(/\/ 6/)).toBeInTheDocument();
+    expect(screen.getByText(/Escolha de uma a cinco unidades/)).toBeInTheDocument();
+    expect(screen.getByText(/\/ 5/)).toBeInTheDocument();
 
     ["Marine", "Sniper", "Ranger", "Incinerador"].forEach((name) => {
       const button = screen.queryByRole("button", { name: `Selecionar ${name}` });
       if (button) fireEvent.click(button);
     });
 
-    expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(6);
+    expect(screen.getAllByRole("button", { pressed: true })).toHaveLength(5);
     expect(screen.getByRole("button", { name: "Selecionar Incinerador" })).toHaveAttribute("aria-pressed", "false");
   });
 

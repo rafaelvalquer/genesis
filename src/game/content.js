@@ -1,4 +1,7 @@
-export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6 });
+import { createWindCurrentHazard } from "./windCurrent.js";
+export { createWindCurrentHazard } from "./windCurrent.js";
+
+export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 6 });
 export const DEFAULT_MAX_DEPLOYED_PER_TROOP = 5;
 
 export const TROOPS = {
@@ -893,6 +896,10 @@ export const TROOPS = {
     deployCooldownMs: 6000,
     hp: 42,
     range: 1.25,
+    rangedRange: 2,
+    rangedDamage: 4,
+    rangedAttackEveryMs: 1200,
+    rangedProjectileSpeed: 520,
     attack: "arcCombo",
     damage: 6,
     combo1Damage: 6,
@@ -902,7 +909,7 @@ export const TROOPS = {
     comboWindowMs: 1800,
     color: "#fb923c",
     unlockAt: 8,
-    assetStates: ["idle", "attack1", "attack2", "attack3"],
+    assetStates: ["idle", "attack1", "attack2", "attack3", "attackRanged"],
     idleVisual: {
       height: 146,
       durationMs: 1600,
@@ -970,8 +977,26 @@ export const TROOPS = {
         ],
       },
     },
+    rangedAttackVisual: {
+      state: "attackRanged",
+      height: 146,
+      durationMs: 640,
+      releaseMs: 320,
+      effect: "executorArcSlash",
+      timeline: [
+        { atMs: 0, frame: 0 },
+        { atMs: 80, frame: 1 },
+        { atMs: 160, frame: 2 },
+        { atMs: 240, frame: 3 },
+        { atMs: 320, frame: 4 },
+        { atMs: 400, frame: 5 },
+        { atMs: 480, frame: 6 },
+        { atMs: 560, frame: 7 },
+      ],
+      shots: [{ atMs: 320, frame: 4, muzzle: { x: 0.86, y: 0.43 } }],
+    },
     description:
-      "Duelista de ataque rápido que bloqueia um alvo em um combo de três golpes. A finalização causa dano elevado e 30% aos demais inimigos no mesmo tile.",
+      "Duelista que executa um combo de três golpes contra inimigos próximos. Quando não pode alcançar o alvo, dispara um Corte de Arco a até duas células.",
   },
   colossoImpacto: {
     glassEchoShatter: true,
@@ -1108,6 +1133,30 @@ export const TROOPS = {
       "Dispara projéteis incendiários contra o primeiro inimigo da rota.",
   },
 };
+
+const TROOP_WIND_CLASSES = Object.freeze({
+  colono: "medium",
+  reator: "structure",
+  marine: "medium",
+  medicaNanites: "light",
+  lumiUrsa7: "heavy",
+  muralhaReforcada: "structure",
+  demolidora: "light",
+  caçador: "medium",
+  sniper: "light",
+  incinerador: "medium",
+  krio: "light",
+  ranger: "light",
+  bombardeiro: "medium",
+  artilheiraMorteiro: "light",
+  executorArco: "medium",
+  colossoImpacto: "heavy",
+  guarda: "medium",
+});
+
+Object.values(TROOPS).forEach((troop) => {
+  troop.windClass = TROOP_WIND_CLASSES[troop.id] || "medium";
+});
 
 export const ENEMIES = {
   medu: {
@@ -1731,6 +1780,12 @@ export const ENEMIES = {
   },
 };
 
+Object.values(ENEMIES).forEach((enemy) => {
+  enemy.windResistance ??= 0;
+  enemy.windImmune ??= false;
+  enemy.canBeWindEjected ??= enemy.airborne !== true;
+});
+
 export const ARENAS = {
   fase_01: {
     arenaId: "fase_01",
@@ -2266,6 +2321,94 @@ export const ARENAS = {
       detail: "#67e8f9",
     },
   },
+  fase_25: {
+    arenaId: "fase_25",
+    palette: { primary: "#93c5fd", accent: "#fbbf24", shadow: "#111827", haze: "#cbd5e1" },
+    ambientEffects: ["wind", "clouds", "distantLightning"],
+    waveIntensity: [0.34, 0.48, 0.62, 0.76, 0.9, 1],
+    battlefieldTheme: {
+      id: "wind-pass", seed: 2525, material: "mountain-stone",
+      base: "highland-outpost", entrance: "storm-pass",
+      lane: "#566574", laneAlt: "#647585", edge: "#dbeafe", detail: "#fbbf24",
+    },
+  },
+  fase_26: {
+    arenaId: "fase_26",
+    palette: { primary: "#67e8f9", accent: "#a3e635", shadow: "#172033", haze: "#dbeafe" },
+    ambientEffects: ["wind", "clouds", "mist", "distantRain"],
+    waveIntensity: [0.36, 0.5, 0.64, 0.78, 0.92, 1],
+    battlefieldTheme: {
+      id: "alpine-fields", seed: 2626, material: "alpine-earth",
+      base: "ridge-outpost", entrance: "cloud-valley",
+      lane: "#476152", laneAlt: "#526f5b", edge: "#dbeafe", detail: "#a3e635",
+    },
+  },
+  fase_27: {
+    arenaId: "fase_27",
+    palette: { primary: "#60a5fa", accent: "#c084fc", shadow: "#0f172a", haze: "#94a3b8" },
+    ambientEffects: ["wind", "clouds", "rain", "distantLightning"],
+    waveIntensity: [0.38, 0.52, 0.66, 0.8, 0.93, 1],
+    battlefieldTheme: {
+      id: "thunder-gorge", seed: 2727, material: "gorge-stone",
+      base: "cliff-bastion", entrance: "thunder-cleft",
+      lane: "#414b59", laneAlt: "#4d5968", edge: "#94a3b8", detail: "#c084fc",
+    },
+  },
+  fase_28: {
+    arenaId: "fase_28",
+    palette: { primary: "#38bdf8", accent: "#facc15", shadow: "#111827", haze: "#64748b" },
+    ambientEffects: ["wind", "rain", "lightning", "stormClouds"],
+    waveIntensity: [0.4, 0.54, 0.68, 0.82, 0.94, 1],
+    battlefieldTheme: {
+      id: "lightning-plateau", seed: 2828, material: "storm-scarred-stone",
+      base: "grounding-fort", entrance: "open-plateau",
+      lane: "#3e4854", laneAlt: "#4c5966", edge: "#7dd3fc", detail: "#facc15",
+    },
+  },
+  fase_29: {
+    arenaId: "fase_29",
+    palette: { primary: "#22d3ee", accent: "#818cf8", shadow: "#0b1120", haze: "#bae6fd" },
+    ambientEffects: ["wind", "clouds", "mist", "streams", "distantLightning"],
+    waveIntensity: [0.42, 0.56, 0.7, 0.84, 0.95, 1],
+    battlefieldTheme: {
+      id: "current-valley", seed: 2929, material: "wet-highland-stone",
+      base: "valley-redoubt", entrance: "wind-channel",
+      lane: "#3f5860", laneAlt: "#4a6870", edge: "#bae6fd", detail: "#818cf8",
+    },
+  },
+  fase_30: {
+    arenaId: "fase_30",
+    palette: { primary: "#7dd3fc", accent: "#fb923c", shadow: "#0f172a", haze: "#94a3b8" },
+    ambientEffects: ["strongWind", "stormClouds", "rain", "lightning", "debris"],
+    waveIntensity: [0.44, 0.58, 0.72, 0.86, 0.96, 1],
+    battlefieldTheme: {
+      id: "broken-summit", seed: 3030, material: "fractured-stone",
+      base: "summit-fort", entrance: "broken-ridge",
+      lane: "#424a55", laneAlt: "#505965", edge: "#bae6fd", detail: "#fb923c",
+    },
+  },
+  fase_31: {
+    arenaId: "fase_31",
+    palette: { primary: "#c4b5fd", accent: "#67e8f9", shadow: "#09090b", haze: "#a5b4fc" },
+    ambientEffects: ["strongWind", "cloudWall", "circularLightning", "suspendedDebris"],
+    waveIntensity: [0.46, 0.6, 0.74, 0.88, 0.97, 1],
+    battlefieldTheme: {
+      id: "storm-eye", seed: 3131, material: "violet-stone",
+      base: "eye-sanctum", entrance: "cloud-wall",
+      lane: "#45445b", laneAlt: "#52516b", edge: "#c4b5fd", detail: "#67e8f9",
+    },
+  },
+  fase_32: {
+    arenaId: "fase_32",
+    palette: { primary: "#e0e7ff", accent: "#fbbf24", shadow: "#030712", haze: "#7c3aed" },
+    ambientEffects: ["gale", "stormClouds", "heavyRain", "nearLightning", "debris"],
+    waveIntensity: [0.48, 0.62, 0.76, 0.9, 0.98, 1],
+    battlefieldTheme: {
+      id: "storm-throne", seed: 3232, material: "electrified-peak",
+      base: "summit-throne", entrance: "tempest-heart",
+      lane: "#313544", laneAlt: "#3d4253", edge: "#a5b4fc", detail: "#fbbf24",
+    },
+  },
 };
 
 const decision = (id, label, description, category, power, options = {}) => ({
@@ -2307,7 +2450,9 @@ export const DECISIONS = {
     ...decision("continuous_suppression", "Supressão contínua", "Após três ataques no mesmo inimigo, a tropa causa +15% de dano contra ele.", "attack", 3),
   },
   advanced_formation: {
-    ...decision("advanced_formation", "Formação avançada", "Tropas nas três colunas avançadas causam +15% de dano, mas recebem +10% de dano.", "attack", 3, { positional: true, risk: true }),
+    ...decision("advanced_formation", "Formação avançada", "Tropas nas três colunas avançadas causam +15% de dano, mas recebem +10% de dano.", "attack", 3, {
+      positional: true, targetType: "columnBlock", targetSize: 3, risk: true,
+    }),
   },
   structural_armor: {
     ...decision("structural_armor", "Blindagem estrutural", "+15 de integridade máxima e atual nesta fase.", "defense", 3),
@@ -2349,7 +2494,7 @@ export const DECISIONS = {
     ...decision("reactive_barrier", "Barreira reativa", "A primeira tropa de cada rota abaixo de 30% de HP recebe um escudo temporário.", "defense", 4, { finalEligible: true }),
   },
   route_fortification: {
-    ...decision("route_fortification", "Fortificação de rota", "Uma rota ocupada recebe +20% de HP máximo até o fim da fase.", "defense", 3, { positional: true }),
+    ...decision("route_fortification", "Fortificação de rota", "Uma rota ocupada recebe +20% de HP máximo até o fim da fase.", "defense", 3, { positional: true, targetType: "occupiedRow", targetSize: 1 }),
   },
   organized_retreat: {
     ...decision("organized_retreat", "Retirada organizada", "Remover uma tropa abaixo de 30% de HP devolve 100% da energia paga.", "defense", 3),
@@ -2503,8 +2648,10 @@ const phase = (
     chapterIndex: (phaseNumber - 1) % 8,
     environmentHazard: chapterNumber === 3
       ? createSandstormHazard((phaseNumber - 1) % 8)
-      : null,
-    supplyLimit: chapterNumber >= 2 ? 30 : 20,
+      : chapterNumber === 4
+        ? createWindCurrentHazard((phaseNumber - 1) % 8)
+        : null,
+    supplyLimit: chapterNumber >= 4 ? 35 : chapterNumber >= 2 ? 30 : 20,
     loadoutLimit: CHAPTER_LOADOUT_LIMITS[chapterNumber] ?? 6,
     waveCompletionEnergy: phaseNumber >= 2 ? 20 : 0,
     targetDurationMs,
@@ -2513,6 +2660,43 @@ const phase = (
     ...extra,
   };
 };
+
+const CHAPTER_FOUR_BLUEPRINT_DATA = [
+  ["fase_25", "Passo dos Ventos", "As primeiras rajadas atravessam o desfiladeiro", 420, [0.5, 0.4, 0.1], [1, 1]],
+  ["fase_26", "Campos da Altitude", "A tempestade alcança os campos elevados", 450, [0.45, 0.35, 0.2], [1, 1]],
+  ["fase_27", "Garganta Trovejante", "O trovão ressoa entre as paredes de pedra", 480, [0.4, 0.3, 0.3], [1, 2]],
+  ["fase_28", "Planalto dos Relâmpagos", "O terreno aberto não oferece abrigo", 510, [0.4, 0.25, 0.35], [1, 2]],
+  ["fase_29", "Vale das Correntes", "Os ventos convergem sobre o vale elevado", 540, [0.35, 0.25, 0.4], [1, 2]],
+  ["fase_30", "Cume Partido", "A montanha termina em uma borda irregular", 570, [0.35, 0.2, 0.45], [2, 2]],
+  ["fase_31", "Olho da Tormenta", "O silêncio antecede cada nova rajada", 600, [0.3, 0.2, 0.5], [2, 2]],
+  ["fase_32", "Trono da Tempestade", "O cume final sustenta o coração do temporal", 640, [0.3, 0.15, 0.55], [2, 2]],
+];
+
+export const CHAPTER_FOUR_PHASE_BLUEPRINTS = Object.freeze(
+  CHAPTER_FOUR_BLUEPRINT_DATA.map((
+    [id, name, subtitle, energy, [headwind, tailwind, lateral], affectedRouteRange],
+    chapterIndex,
+  ) => Object.freeze({
+    id,
+    name,
+    subtitle,
+    energy,
+    energyMax: energy,
+    baseIntegrity: 100,
+    environment: "storm_highlands",
+    chapterId: "chapter_04",
+    chapterIndex,
+    arenaId: id,
+    supplyLimit: 35,
+    loadoutLimit: 6,
+    environmentHazard: createWindCurrentHazard(
+      chapterIndex,
+      { headwind, tailwind, lateral },
+      affectedRouteRange,
+    ),
+    ...ARENAS[id],
+  })),
+);
 
 const contentThreat = (entry) =>
   (ENEMIES[entry.type]?.threat || 1) * (entry.variant === "alpha" ? 8 : 1);
@@ -2723,8 +2907,8 @@ const CHAPTER_THREE_WAVE_CONFIGS = [
   { counts: [72, 80, 90, 100, 112], windows: [75, 82, 88, 95, 102], caps: { duneRipper: 3, workerQueen: 2, ramBeetle: 2 }, alphas: [5] },
   { counts: [76, 84, 92, 102, 114, 126], windows: [75, 80, 85, 90, 98, 105], caps: { duneRipper: 3, workerQueen: 3, ramBeetle: 3 }, alphas: [6] },
   { counts: [80, 88, 98, 108, 120, 138], windows: [75, 82, 88, 95, 102, 108], caps: { duneRipper: 4, workerQueen: 3, ramBeetle: 3 }, alphas: [4, 6] },
-  { counts: [84, 94, 104, 116, 132, 152], windows: [75, 82, 90, 98, 104, 110], caps: { duneRipper: 4, workerQueen: 4, ramBeetle: 4 }, alphas: [3, 5, 6] },
-  { counts: [88, 98, 110, 124, 142, 164], windows: [75, 82, 90, 98, 104, 110], caps: { duneRipper: 4, workerQueen: 3, ramBeetle: 4 }, alphas: [2, 4, 5] },
+  { counts: [82, 92, 102, 114, 128, 144], windows: [78, 85, 92, 100, 108, 116], caps: { duneRipper: 3, workerQueen: 3, ramBeetle: 3 }, alphas: [5] },
+  { counts: [84, 94, 104, 116, 130, 148], windows: [80, 88, 96, 105, 115, 130], caps: { duneRipper: 3, workerQueen: 2, ramBeetle: 3 }, alphas: [4] },
 ];
 
 function getChapterThreeWaves(chapterIndex) {

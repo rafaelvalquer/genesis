@@ -943,12 +943,68 @@ function drawRepulsorFist(ctx, projectile) {
   }
 }
 
+function drawExecutorArcSlash(ctx, projectile, quality, assets = {}) {
+  const phase = projectile.phase === "impact" ? "impact" : "flying";
+  const frames = assets.executorArcSlash?.[phase] || [];
+  const frameDuration = 60;
+  const age = phase === "impact" ? projectile.phaseAgeMs || 0 : projectile.ageMs || 0;
+  const rawIndex = Math.floor(age / frameDuration);
+  const frameIndex = phase === "impact"
+    ? Math.min(5, rawIndex)
+    : rawIndex % Math.max(1, frames.length || 8);
+  const image = frames[frameIndex] || frames.find(Boolean);
+
+  if (phase === "impact") {
+    if (image) {
+      ctx.drawImage(image, projectile.x - 32, projectile.y - 32, 64, 64);
+      return;
+    }
+    ctx.translate(projectile.x, projectile.y);
+    ctx.strokeStyle = "#fff7ed";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-15, -15);
+    ctx.lineTo(15, 15);
+    ctx.moveTo(15, -15);
+    ctx.lineTo(-15, 15);
+    ctx.stroke();
+    return;
+  }
+
+  const trail = (projectile.trail || []).slice(-Math.max(2, Math.round(6 * quality.trail)));
+  if (trail.length > 1) {
+    const gradient = ctx.createLinearGradient(trail[0].x, trail[0].y, projectile.x, projectile.y);
+    gradient.addColorStop(0, "rgba(194,65,12,0)");
+    gradient.addColorStop(1, "rgba(251,146,60,.55)");
+    ctx.strokeStyle = gradient;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(trail[0].x, trail[0].y);
+    for (const point of trail.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.stroke();
+  }
+  if (image) {
+    ctx.drawImage(image, projectile.x - 48, projectile.y - 24, 96, 48);
+    return;
+  }
+  ctx.translate(projectile.x, projectile.y);
+  ctx.strokeStyle = "#fff7ed";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(-4, 8, 28, Math.PI * 1.12, Math.PI * 1.88);
+  ctx.stroke();
+  ctx.strokeStyle = "#fb923c";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
 export function drawProjectiles(ctx, projectiles, settings = {}, assets = {}) {
   const quality = profile(settings);
   for (const projectile of projectiles) {
     if (!projectile.launched) continue;
     ctx.save();
-    if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectile.x, projectile.y, projectile.rotation, assets.mine?.[0], 46);
+    if (projectile.visualKind === "executorArcSlash") drawExecutorArcSlash(ctx, projectile, quality, assets);
+    else if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectile.x, projectile.y, projectile.rotation, assets.mine?.[0], 46);
     else if (projectile.visualKind === "repulsorFist") drawRepulsorFist(ctx, projectile);
     else if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectile);
     else if (projectile.visualKind === "marineBullet") drawMarineBullet(ctx, projectile);

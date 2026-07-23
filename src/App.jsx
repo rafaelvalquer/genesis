@@ -20,6 +20,26 @@ const formatTime = (milliseconds) => {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 };
 
+const getEnvironmentMechanicLabel = (phase) => {
+  if (phase.chapterMechanic) return "◇ Ecos de Vidro";
+  if (phase.environmentHazard?.id === "sandstorm") return "◇ Tempestade de Areia";
+  if (phase.environmentHazard?.id === "wind_current") return "◇ Correntes de Vento";
+  return `Ambiente · ${phase.environment}`;
+};
+
+const getEnvironmentMechanicDescription = (phase) => {
+  if (phase.chapterMechanic) {
+    return `${Math.round(phase.chapterMechanic.chance * 100)}% de chance: hostis comuns podem retornar com 45% de vida, mais velozes e com dano reduzido.`;
+  }
+  if (phase.environmentHazard?.id === "sandstorm") {
+    return "Após 18s, exércitos com 5+ tropas podem enfrentar soterramento, perda de alcance e cadência reduzida. Reduza a tropa durante a tempestade para impedir recorrências.";
+  }
+  if (phase.environmentHazard?.id === "wind_current") {
+    return "Após 18s, formações com 5+ tropas podem ser deslocadas por correntes contrárias, favoráveis ou laterais.";
+  }
+  return "Tratamento visual, sem penalidades ocultas.";
+};
+
 const TEST_PHASE = {
   ...PHASES[0],
   id: "campo_de_provas",
@@ -121,7 +141,7 @@ export function PhaseSelectPage({ campaign }) {
         <div className="phase-number">{String(index + 1).padStart(2, "0")}</div>
         <div className="phase-art"><img src={getArenaUrl(phase.arenaId)} alt="" /><span className="arena-card-shade" /><span className="terrain-lines" /><span className="phase-icon">{phase.boss ? "◉" : locked ? "◇" : "⬡"}</span></div>
         <div className="phase-body"><span className="eyebrow">{locked ? "SETOR BLOQUEADO" : phase.subtitle}</span><h2>{phase.name}</h2><div className="enemy-tags">{enemyTypes.map((type) => <span key={type}>{ENEMIES[type]?.label || type}</span>)}</div><div className="phase-record"><Stars value={stats.bestStars || 0} /><span>Melhor tempo <b>{formatTime(stats.bestTimeMs)}</b></span><span>Integridade <b>{stats.bestIntegrity || 0}%</b></span></div></div>
-        <div className="phase-footer"><span>⚡ {phase.energy}</span><span>◫ {phase.waves.length} ondas</span><span>{phase.chapterMechanic ? `${Math.round(phase.chapterMechanic.chance * 100)}% ECOS` : phase.environmentHazard?.id === "sandstorm" ? "TEMPESTADE" : phase.environment.toUpperCase()}</span></div>
+        <div className="phase-footer"><span>⚡ {phase.energy}</span><span>◫ {phase.waves.length} ondas</span><span>{phase.chapterMechanic ? `${Math.round(phase.chapterMechanic.chance * 100)}% ECOS` : phase.environmentHazard?.id === "sandstorm" ? "TEMPESTADE" : phase.environmentHazard?.id === "wind_current" ? "VENTANIA" : phase.environment.toUpperCase()}</span></div>
       </article>;
       return locked ? <div key={phase.id}>{card}</div> : <Link key={phase.id} to={`/jogar/${phase.id}`} aria-label={`Jogar ${phase.name}`}>{card}</Link>;
     })}</section>
@@ -318,7 +338,7 @@ export function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
         <div className="brief-arena"><img src={getArenaUrl(phase.arenaId)} alt={`Campo de batalha ${phase.name}`} /><span>ARENA SINCRONIZADA</span></div>
         <span className="eyebrow amber">Parâmetros da missão</span><h2>Dados táticos</h2>
         <dl><div><dt>Ondas</dt><dd>{phase.waves.length}</dd></div><div><dt>Energia</dt><dd>{phase.energy}</dd></div><div><dt>Integridade</dt><dd>100%</dd></div><div><dt>Cadência</dt><dd>{(phase.cadenceMs / 1000).toFixed(2)}s</dd></div><div><dt>Tempo-alvo</dt><dd>{formatTime(phase.targetDurationMs)}</dd></div></dl>
-        <div className={`environment-note ${phase.chapterMechanic || phase.environmentHazard ? "mechanic-warning" : ""}`}><b>{phase.chapterMechanic ? "◇ Ecos de Vidro" : phase.environmentHazard?.id === "sandstorm" ? "◇ Tempestade de Areia" : `Ambiente · ${phase.environment}`}</b><span>{phase.chapterMechanic ? `${Math.round(phase.chapterMechanic.chance * 100)}% de chance: hostis comuns podem retornar com 45% de vida, mais velozes e com dano reduzido.` : phase.environmentHazard?.id === "sandstorm" ? "Após 18s, exércitos com 5+ tropas podem enfrentar soterramento, perda de alcance e cadência reduzida. Reduza a tropa durante a tempestade para impedir recorrências." : "Tratamento visual, sem penalidades ocultas."}</span></div>
+        <div className={`environment-note ${phase.chapterMechanic || phase.environmentHazard ? "mechanic-warning" : ""}`}><b>{getEnvironmentMechanicLabel(phase)}</b><span>{getEnvironmentMechanicDescription(phase)}</span></div>
         <button className="primary-button full" disabled={selected.length < 1 || selected.length > loadoutLimit} onClick={onStart}>Confirmar loadout <span>→</span></button>
       </aside>
     </section>

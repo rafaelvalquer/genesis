@@ -70,6 +70,7 @@ export function getTroopAttackVisual(troop, troopConfig = {}) {
   }
   if (troop?.type === "executorArco") {
     if (troop.state === "idle") return troopConfig.idleVisual;
+    if (troop.state === "attackRanged") return troopConfig.rangedAttackVisual || troopConfig.idleVisual;
     return troopConfig.attackVisuals?.[troop.lastAttackMode] || troopConfig.idleVisual;
   }
   return troopConfig.attackVisuals?.[troop?.lastAttackMode] || troopConfig.attackVisual;
@@ -450,8 +451,28 @@ export function writeInterpolatedPosition(entity, alpha, out = {}) {
   return out;
 }
 
+export function writeWindMotionPosition(entity, elapsed, reduceMotion, out = {}) {
+  const motion = entity?.windMotion;
+  if (reduceMotion || !motion || elapsed >= motion.endsAt) {
+    out.x = entity.x;
+    out.y = entity.y;
+    return out;
+  }
+  const duration = Math.max(1, motion.endsAt - motion.startedAt);
+  const progress = Math.max(0, Math.min(1, (elapsed - motion.startedAt) / duration));
+  const eased = 1 - (1 - progress) ** 3;
+  out.x = motion.fromX + (motion.toX - motion.fromX) * eased;
+  out.y = motion.fromY + (motion.toY - motion.fromY) * eased
+    - Math.sin(progress * Math.PI) * 20;
+  return out;
+}
+
 export function writeEnemyVisualPosition(entity, config, elapsed, alpha, reduceMotion, out = {}) {
-  writeInterpolatedPosition(entity, alpha, out);
+  if (entity.windMotion && elapsed < entity.windMotion.endsAt) {
+    writeWindMotionPosition(entity, elapsed, reduceMotion, out);
+  } else {
+    writeInterpolatedPosition(entity, alpha, out);
+  }
   out.x += getRepulsorKnockbackOffset(entity, elapsed, reduceMotion);
   if (entity.attachedToTroopId) {
     out.y += config.attachmentOffsetY || 0;
@@ -499,9 +520,16 @@ function insertRenderEntry(state, kind, entity, x, y) {
 export function buildBattleRenderRows(troops, enemies, interpolation, elapsed, reduceMotion = false, buffers = createBattleRowBuffers()) {
   buffers.poolCursor = 0;
   for (const row of buffers.rows) row.length = 0;
-  for (const troop of troops) insertRenderEntry(buffers, "troop", troop, troop.x, troop.y);
+  for (const troop of troops) {
+    writeWindMotionPosition(troop, elapsed, reduceMotion, buffers.position);
+    insertRenderEntry(buffers, "troop", troop, buffers.position.x, buffers.position.y);
+  }
   for (const enemy of enemies) {
-    writeInterpolatedPosition(enemy, interpolation, buffers.position);
+    if (enemy.windMotion && elapsed < enemy.windMotion.endsAt) {
+      writeWindMotionPosition(enemy, elapsed, reduceMotion, buffers.position);
+    } else {
+      writeInterpolatedPosition(enemy, interpolation, buffers.position);
+    }
     insertRenderEntry(
       buffers,
       "enemy",

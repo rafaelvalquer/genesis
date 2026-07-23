@@ -107,6 +107,19 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
     });
   }
 
+  if (troopIds.includes("executorArco")) {
+    result.effects.executorArcSlash = {};
+    for (const state of ["flying", "impact"]) {
+      tasks.push(async () => {
+        result.effects.executorArcSlash[state] = await loadFrameSet(
+          effectFrameModules,
+          "executorArcSlash",
+          state,
+        );
+      });
+    }
+  }
+
   if (phase.environmentHazard?.id === "sandstorm") {
     result.effects.sandBurial = {};
     tasks.push(async () => {
@@ -116,6 +129,19 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
         "buried",
       );
     });
+  }
+
+  if (phase.environmentHazard?.id === "wind_current") {
+    result.effects.windCurrent = {};
+    for (const state of ["dustDebris", "rockDebris", "emergencyReturn"]) {
+      tasks.push(async () => {
+        result.effects.windCurrent[state] = await loadFrameSet(
+          effectFrameModules,
+          "windCurrent",
+          state,
+        );
+      });
+    }
   }
 
   if (!options.skipDefenses) {

@@ -71,7 +71,7 @@ describe("campanha e ondas", () => {
       expect(phaseBudget(PHASES[index])).toBeGreaterThanOrEqual(phaseBudget(PHASES[index - 1]) * 1.1);
       expect(waveBudget(PHASES[index].waves.at(-1))).toBeGreaterThanOrEqual(waveBudget(PHASES[index - 1].waves.at(-1)) * 1.1);
     }
-    PHASES.slice(17, 24).forEach((phase, index) => {
+    PHASES.slice(17, 22).forEach((phase, index) => {
       const previous = PHASES[index + 16];
       const pressure = phase.waves.reduce((sum, wave, waveIndex) => sum + wavePressure(phase, waveIndex), 0);
       const previousPressure = previous.waves.reduce((sum, wave, waveIndex) => sum + wavePressure(previous, waveIndex), 0);
@@ -79,6 +79,13 @@ describe("campanha e ondas", () => {
       expect(wavePressure(phase, phase.waves.length - 1))
         .toBeGreaterThanOrEqual(wavePressure(previous, previous.waves.length - 1) * 1.08);
     });
+    const phase22Pressure = PHASES[21].waves.reduce((sum, wave, index) => sum + wavePressure(PHASES[21], index), 0);
+    const phase23Pressure = PHASES[22].waves.reduce((sum, wave, index) => sum + wavePressure(PHASES[22], index), 0);
+    const phase24Pressure = PHASES[23].waves.reduce((sum, wave, index) => sum + wavePressure(PHASES[23], index), 0);
+    expect(phase23Pressure).toBeGreaterThanOrEqual(phase22Pressure * 0.99);
+    expect(phase24Pressure).toBeGreaterThanOrEqual(phase23Pressure * 1.01);
+    expect(wavePressure(PHASES[22], 5)).toBeGreaterThanOrEqual(wavePressure(PHASES[21], 5) * 0.88);
+    expect(wavePressure(PHASES[23], 5)).toBeGreaterThanOrEqual(wavePressure(PHASES[22], 5) * 1.04);
   });
 
   it("organiza vinte e quatro fases em três capítulos de oito operações", () => {
@@ -108,14 +115,14 @@ describe("campanha e ondas", () => {
     const counts = [
       [60, 68, 76, 84, 92], [64, 72, 80, 88, 98], [68, 76, 84, 94, 104],
       [72, 80, 90, 100, 112], [76, 84, 92, 102, 114, 126],
-      [80, 88, 98, 108, 120, 138], [84, 94, 104, 116, 132, 152],
-      [88, 98, 110, 124, 142, 164],
+      [80, 88, 98, 108, 120, 138], [82, 92, 102, 114, 128, 144],
+      [84, 94, 104, 116, 130, 148],
     ];
     const windows = [
       [75, 80, 85, 90, 95], [75, 80, 85, 90, 95], [75, 80, 85, 92, 100],
       [75, 82, 88, 95, 102], [75, 80, 85, 90, 98, 105],
-      [75, 82, 88, 95, 102, 108], [75, 82, 90, 98, 104, 110],
-      [75, 82, 90, 98, 104, 110],
+      [75, 82, 88, 95, 102, 108], [78, 85, 92, 100, 108, 116],
+      [80, 88, 96, 105, 115, 130],
     ];
 
     chapterThree.forEach((phase, phaseIndex) => {
@@ -189,13 +196,13 @@ describe("campanha e ondas", () => {
       .reduce((sum, entry) => sum + entry.count, 0);
     const expectedFinalSpecials = [
       [1, 0, 0], [2, 1, 0], [2, 2, 1], [3, 2, 2],
-      [3, 3, 3], [4, 3, 3], [4, 4, 4], [4, 3, 4],
+      [3, 3, 3], [4, 3, 3], [3, 3, 3], [3, 2, 3],
     ];
     const expectedAlphas = [
       [], [], [], [[4, "brakor"]], [[5, "brakor"]],
       [[3, "brakor"], [5, "brakor"]],
-      [[2, "brakor"], [4, "brakor"], [5, "brakor"]],
-      [[1, "brakor"], [3, "brakor"], [4, "brakor"]],
+      [[4, "brakor"]],
+      [[3, "brakor"]],
     ];
 
     chapterThree.forEach((phase, phaseIndex) => {

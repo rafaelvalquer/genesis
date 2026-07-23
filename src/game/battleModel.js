@@ -1,11 +1,14 @@
 import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "./domain.js";
 import {
+  adaptiveAidBlocksIntermission,
   adaptiveAidCinematicFactor,
+  adaptiveAidPausesSimulation,
   calculateHardshipScore,
   capsuleReservesCell,
   clearExpiredTroopLosses,
   createAdaptiveAidState,
+  evaluateAdaptiveAid,
   getEligibleAdaptiveAidOptions,
   isCapsuleClickable,
   openAdaptiveAidCapsule as openAdaptiveAidCapsuleDomain,
@@ -14,6 +17,7 @@ import {
   selectAdaptiveAidOption as selectAdaptiveAidOptionDomain,
   simulateAdaptiveAid as simulateAdaptiveAidDomain,
   updateAdaptiveAid,
+  updateAdaptiveAidLifecycle,
 } from "./adaptiveAid.js";
 import {
   CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
@@ -22,16 +26,34 @@ import {
 import {
   forceExecutorComboStep, isExecutorArco, updateExecutorArco,
 } from "./executorArco.js";
+import {
+  createWindCurrentState,
+  endWindCurrent,
+  resetWindCurrentForWave,
+  updateWindCurrent,
+} from "./windCurrent.js";
+
+export {
+  createWindCurrentState,
+  endWindCurrent,
+  resetWindCurrentForWave,
+  updateWindCurrent,
+} from "./windCurrent.js";
 
 export { CELL, FIELD, VIEWPORT } from "./visualGeometry.js";
 export {
+  adaptiveAidBlocksIntermission,
   adaptiveAidCinematicFactor,
+  adaptiveAidPausesSimulation,
   calculateHardshipScore,
   clearExpiredTroopLosses,
+  evaluateAdaptiveAid,
   getEligibleAdaptiveAidOptions,
   isCapsuleClickable,
   pointHitsCapsule,
   recordTroopLoss,
+  updateAdaptiveAid,
+  updateAdaptiveAidLifecycle,
 };
 
 export function getTroopDeploymentLimit(troopId) {
@@ -224,6 +246,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
       buriedTroopIds: [],
       slowedTroopIds: [],
     },
+    windCurrent: createWindCurrentState(),
     deployCooldowns: {},
     modifiers: { ...DEFAULT_MODIFIERS },
     shieldCharges: 0,
@@ -253,6 +276,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     killed: 0,
     deployed: {},
     outcome: null,
+    pendingOutcome: null,
     result: null,
     sandbox,
     sandboxSettings: sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null,
@@ -278,41 +302,59 @@ export function canPlaceTroop(session, troopId, row, col) {
   return null;
 }
 
+function calculateTroopBaseMaxHp(session, troopId) {
+  const config = TROOPS[troopId];
+  const frontline = session.modifiers.frontlineDoctrine
+    && ["colono", "lumiUrsa7", "muralhaReforcada", "colossoImpacto"].includes(troopId) ? 1.2 : 1;
+  return config.hp * (isOffensiveConfig(config) && !isNaniteMedic(config) ? session.modifiers.aggressiveHp : 1)
+    * frontline;
+}
+
+export function createTroopEntity(session, troopId, row, col, options = {}) {
+  const config = TROOPS[troopId];
+  if (!config) return null;
+  const x = col * CELL.width + CELL.width / 2;
+  const y = row * CELL.height + CELL.height / 2;
+  const baseMaxHp = Number(options.baseMaxHp) > 0 ? Number(options.baseMaxHp) : calculateTroopBaseMaxHp(session, troopId);
+  const fortificationBonusMaxHp = session.fortifiedRow === row ? baseMaxHp * 0.2 : 0;
+  const maxHp = baseMaxHp + fortificationBonusMaxHp;
+  const hpRatio = Number.isFinite(options.hpRatio) ? clamp(options.hpRatio, 0, 1) : 1;
+  return {
+    id: options.id ?? id("troop"), type: troopId, row, col, x, y,
+    hp: Number.isFinite(options.hp) ? clamp(options.hp, 0, maxHp) : maxHp * hpRatio,
+    maxHp, baseMaxHp, fortificationBonusMaxHp,
+    energyCost: Number(options.energyCost) || 0,
+    supplyCost: Number.isFinite(options.supplyCost) ? Number(options.supplyCost) : config.supply,
+    reactiveShield: 0, reactiveShieldUntil: 0, swarmHpApplied: false,
+    attackReadyAt: session.elapsed, mineReadyAt: session.elapsed, gunReadyAt: session.elapsed,
+    energyAccumulator: 0, lastAttackAt: -Infinity, attackStartedAt: -Infinity,
+    channelingAttack: false, channelTickAccumulator: 0, lastAttackMode: null,
+    pendingImpact: null, pendingComboImpact: null, pendingRepulsorShot: null,
+    attackTargetId: null, specialRequested: false, attackBusyUntil: 0,
+    comboStep: 0, comboTargetId: null, comboExpiresAt: null,
+    specialReadyAt: config.specialEveryMs ? session.elapsed + config.specialEveryMs : Infinity,
+    state: "idle", stateStartedAt: session.elapsed, stateEndsAt: Infinity,
+    defenseActive: false, defenseThreatId: null, defenseExitAt: null,
+    lastRepulsorAt: -Infinity, healTargetId: null, healedThisCharge: 0,
+    lastHealPulseAt: -Infinity, cooldownStartedAt: null, cooldownEndsAt: null,
+    attackSpeedFactor: 1, attachedParasiteId: null,
+    webSlowUntil: 0, webSlowFactor: 1, webRangePenaltyUntil: 0, webRangePenaltyTiles: 0,
+    sandBuriedStartedAt: 0, sandBuriedUntil: 0, sandAttackSpeedFactor: 1,
+    windRecovery: false,
+    firstImpactAvailable: session.modifiers.firstImpact,
+    previousRenderX: x, previousRenderY: y, dead: false,
+  };
+}
+
 export function placeTroop(session, troopId, row, col) {
   const reason = canPlaceTroop(session, troopId, row, col);
   if (reason) return { ok: false, reason };
   const config = TROOPS[troopId];
   const effective = getEffectiveTroopStats(session, troopId);
-  const frontline = session.modifiers.frontlineDoctrine
-    && ["colono", "lumiUrsa7", "muralhaReforcada", "colossoImpacto"].includes(troopId) ? 1.2 : 1;
-  const maxHp = config.hp * (isOffensiveConfig(config) && !isNaniteMedic(config) ? session.modifiers.aggressiveHp : 1)
-    * frontline;
-  const fortificationBonusMaxHp = session.fortifiedRow === row ? maxHp * 0.2 : 0;
-  const troop = {
-    id: id("troop"), type: troopId, row, col,
-    x: col * CELL.width + CELL.width / 2,
-    y: row * CELL.height + CELL.height / 2,
-    hp: maxHp + fortificationBonusMaxHp, maxHp: maxHp + fortificationBonusMaxHp,
-    baseMaxHp: maxHp, fortificationBonusMaxHp, energyCost: effective.price, supplyCost: effective.supply,
-    reactiveShield: 0, reactiveShieldUntil: 0, swarmHpApplied: false,
-    attackReadyAt: 0, mineReadyAt: 0, gunReadyAt: 0, energyAccumulator: 0,
-    lastAttackAt: -Infinity, channelingAttack: false, attackStartedAt: -Infinity,
-    lastAttackMode: null, pendingImpact: null, specialRequested: false, attackBusyUntil: 0,
-    comboStep: 0, comboTargetId: null, comboExpiresAt: null, pendingComboImpact: null,
-    specialReadyAt: config.specialEveryMs ? session.elapsed + config.specialEveryMs : Infinity,
-    state: "idle", stateStartedAt: session.elapsed,
-    stateEndsAt: Infinity, defenseActive: false, defenseThreatId: null, defenseExitAt: null,
-    pendingRepulsorShot: null, lastRepulsorAt: -Infinity,
-    healTargetId: null, healedThisCharge: 0, lastHealPulseAt: -Infinity,
-    attackTargetId: null, cooldownStartedAt: null, cooldownEndsAt: null,
-    attackSpeedFactor: 1, attachedParasiteId: null,
-    webSlowUntil: 0, webSlowFactor: 1,
-    webRangePenaltyUntil: 0, webRangePenaltyTiles: 0,
-    sandBuriedStartedAt: 0, sandBuriedUntil: 0, sandAttackSpeedFactor: 1,
-    channelTickAccumulator: 0, firstImpactAvailable: session.modifiers.firstImpact,
-    previousRenderX: col * CELL.width + CELL.width / 2,
-    previousRenderY: row * CELL.height + CELL.height / 2, dead: false,
-  };
+  const troop = createTroopEntity(session, troopId, row, col, {
+    energyCost: effective.price,
+    supplyCost: effective.supply,
+  });
   session.troops.push(troop);
   const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
   const fortuneFree = !freePlacement && session.fortuneFreeDeploymentCharges > 0;
@@ -617,6 +659,7 @@ export function startWave(session) {
   session.sandstorm.nextCheckAt = hazard?.id === "sandstorm"
     ? session.elapsed + hazard.firstCheckDelayMs
     : Infinity;
+  resetWindCurrentForWave(session, hazard);
   session.troops.filter((troop) => !troop.dead && troop.type === "demolidora")
     .forEach((troop) => { troop.mineReadyAt = session.elapsed; });
   return true;
@@ -625,8 +668,7 @@ export function startWave(session) {
 export function selectDecision(session, option, target = null) {
   if (!session.pendingDecision?.some((entry) => entry.id === option.id)) return false;
   if (option.id === "route_fortification") {
-    const occupiedRows = [...new Set(session.troops.filter((troop) => !troop.dead).map((troop) => troop.row))];
-    const row = target?.row == null && occupiedRows.length === 1 ? occupiedRows[0] : Number(target?.row);
+    const row = Number(target?.row);
     if (!Number.isInteger(row) || row < 0 || row >= FIELD.rows) return false;
     if (!session.troops.some((troop) => !troop.dead && troop.row === row)) return false;
     target = { row };
@@ -1417,8 +1459,10 @@ function damageTroop(session, troop, amount, events) {
   const config = TROOPS[troop.type];
   const defenseFactor = isLumiUrsa7(config) && troop.defenseActive ? config.defenseDamageFactor : 1;
   const lastLineFactor = troop.col <= 1 ? session.modifiers.lastLineDamageTaken : 1;
+  const advancedFormationFactor = session.modifiers.advancedFormation
+    && session.advancedFormationColumns.includes(troop.col) ? 1.1 : 1;
   const finalFortressFactor = session.activeTemporaryDecisions.includes("final_fortress") ? 0.75 : 1;
-  let incoming = amount * defenseFactor * lastLineFactor * finalFortressFactor
+  let incoming = amount * defenseFactor * lastLineFactor * advancedFormationFactor * finalFortressFactor
     * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
   if (troop.reactiveShield > 0 && session.elapsed < troop.reactiveShieldUntil) {
     const absorbed = Math.min(troop.reactiveShield, incoming);
@@ -1702,6 +1746,7 @@ export function selectNaniteHealTarget(session, medic, config = TROOPS.medicaNan
   return session.troops
     .filter((troop) => troop.id !== medic.id
       && !troop.dead
+      && !troop.windRecovery
       && troop.hp > 0
       && troop.hp < troop.maxHp
       && troop.hp / troop.maxHp < healStartThreshold
@@ -1777,7 +1822,8 @@ function updateNaniteMedic(session, medic, config, events) {
   }
 
   if (medic.healTargetId) {
-    const lockedTarget = session.troops.find((troop) => troop.id === medic.healTargetId && !troop.dead && troop.hp > 0);
+    const lockedTarget = session.troops.find((troop) =>
+      troop.id === medic.healTargetId && !troop.dead && !troop.windRecovery && troop.hp > 0);
     if (!lockedTarget || lockedTarget.hp >= lockedTarget.maxHp) {
       startNaniteCooldown(session, medic, config);
       return;
@@ -1792,7 +1838,8 @@ function updateNaniteMedic(session, medic, config, events) {
   }
 
   if (medic.healTargetId) {
-    const target = session.troops.find((troop) => troop.id === medic.healTargetId && !troop.dead && troop.hp > 0);
+    const target = session.troops.find((troop) =>
+      troop.id === medic.healTargetId && !troop.dead && !troop.windRecovery && troop.hp > 0);
     if (!target) {
       startNaniteCooldown(session, medic, config);
       return;
@@ -2037,9 +2084,24 @@ function updateTileMelee(session, troop, config, events) {
   startTileMeleeAttack(session, troop, config, "normal");
 }
 
+function launchExecutorArcSlash(session, troop, config, target, visual) {
+  const origin = getMuzzleWorldPosition(troop, config, 0);
+  session.projectiles.push({
+    id: id("projectile"), kind: "executorArcSlash", visualKind: "executorArcSlash",
+    troopType: troop.type, sourceTroopId: troop.id, targetId: target.id, row: troop.row,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    origin: { ...origin }, targetX: target.x, ageMs: 0,
+    trail: [{ x: origin.x, y: origin.y }],
+    vx: config.rangedProjectileSpeed, vy: 0, visualArcHeight: 18,
+    damage: config.rangedDamage * attackDamageMultiplier(session, troop, { target }),
+    color: config.color, active: true, launched: false, phase: "flying",
+    seed: nextEffectSeed(session), launchAt: session.elapsed + visual.releaseMs,
+  });
+}
+
 function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
-    if (troop.dead) continue;
+    if (troop.dead || troop.windRecovery) continue;
     refreshTroopAttackSpeedFactor(session, troop);
     if (isSandBuried(session, troop)) {
       troop.defenseActive = false;
@@ -2080,6 +2142,8 @@ function updateTroops(session, events, dt) {
         damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
         nextEffectSeed: () => nextEffectSeed(session),
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+        launchRangedSlash: (source, target, visual) =>
+          launchExecutorArcSlash(session, source, config, target, visual),
       });
       continue;
     }
@@ -2123,6 +2187,59 @@ function updateProjectiles(session, dt, events) {
       });
     }
     projectile.ageMs += dt;
+    if (projectile.kind === "executorArcSlash") {
+      if (projectile.phase === "impact") {
+        projectile.phaseAgeMs += dt;
+        if (session.elapsed >= projectile.impactStartedAt + 360) projectile.active = false;
+        continue;
+      }
+      const target = session.enemies.find((enemy) =>
+        enemy.id === projectile.targetId && !enemy.dead && enemy.hp > 0);
+      if (!target) {
+        projectile.active = false;
+        continue;
+      }
+      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+      projectile.previousX = projectile.x;
+      projectile.previousY = projectile.y;
+      projectile.previousRenderX = projectile.x;
+      projectile.previousRenderY = projectile.y;
+      projectile.x += projectile.vx * dt / 1000;
+      const flightDistance = Math.max(1, projectile.targetX - projectile.origin.x);
+      const progress = Math.max(0, Math.min(1,
+        (projectile.x - projectile.origin.x) / flightDistance));
+      projectile.y = projectile.origin.y
+        + (targetPoint.y - projectile.origin.y) * progress
+        - projectile.visualArcHeight * 4 * progress * (1 - progress);
+      projectile.trail.push({ x: projectile.x, y: projectile.y });
+      if (projectile.trail.length > 8) projectile.trail.shift();
+      const crossedTarget = projectile.previousX <= targetPoint.x + 20
+        && projectile.x >= targetPoint.x - 20;
+      if (!crossedTarget) {
+        if (projectile.x <= FIELD.width + 80) continue;
+        projectile.active = false;
+        continue;
+      }
+      damageEnemy(session, target, projectile.damage, events, {
+        direct: true,
+        sourceX: projectile.origin.x,
+        sourceTroopType: projectile.troopType,
+      });
+      projectile.phase = "impact";
+      projectile.impactStartedAt = session.elapsed;
+      projectile.phaseAgeMs = 0;
+      projectile.x = targetPoint.x;
+      projectile.y = targetPoint.y;
+      projectile.previousX = projectile.x;
+      projectile.previousY = projectile.y;
+      events.push({
+        type: "executorArcSlashImpact", weapon: projectile.visualKind,
+        sourceTroopId: projectile.sourceTroopId, targetId: target.id,
+        x: targetPoint.x, y: targetPoint.y,
+        color: projectile.color, seed: projectile.seed,
+      });
+      continue;
+    }
     if (projectile.kind === "repulsorFist") {
       const target = session.enemies.find((enemy) => enemy.id === projectile.targetId && !enemy.dead);
       const source = session.troops.find((troop) => troop.id === projectile.sourceTroopId && !troop.dead);
@@ -3616,6 +3733,7 @@ function finish(session, outcome) {
   if (session.outcome) return;
   const integrityPercent = session.integrityMax > 0 ? session.integrity / session.integrityMax * 100 : 0;
   session.outcome = outcome;
+  session.pendingOutcome = null;
   session.waveActive = false;
   session.preparing = false;
   session.result = {
@@ -3659,6 +3777,10 @@ export function selectAdaptiveAidOption(session, optionId, target = null) {
   const result = selectAdaptiveAidOptionDomain(session, optionId, target, events, {
     stunEnemy,
     damageEnemy,
+    createTroopEntity,
+    getTroopDeploymentLimit,
+    getActiveTroopCount,
+    refreshSwarmDoctrine,
   });
   session.enemies = session.enemies.filter((enemy) => !enemy.dead);
   return { ...result, events };
@@ -3668,7 +3790,17 @@ export function stepBattle(session, dt = 32) {
   if (session.outcome) return [];
   const events = [];
   session.elapsed += dt;
+  updateAdaptiveAidLifecycle(session, events);
+  if (session.pendingOutcome && !adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) {
+    finish(session, session.pendingOutcome);
+    return events;
+  }
   updateEnergyPickups(session, dt, events);
+  updateWindCurrent(session, events, {
+    troops: TROOPS,
+    enemies: ENEMIES,
+    isCellReserved: capsuleReservesCell,
+  });
   updateSandstorm(session, events);
   if (session.waveActive || session.sandbox) {
     session.supplyAccumulator += dt;
@@ -3694,14 +3826,17 @@ export function stepBattle(session, dt = 32) {
     updateMines(session, events);
     if (!session.sandbox && session.integrity <= 0) {
       endSandstorm(session, events, true);
+      endWindCurrent(session, events, true);
       finish(session, "defeat");
-    } else {
-      updateAdaptiveAid(session, events);
+      return events;
     }
-    if (!session.sandbox && !session.outcome && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0) {
+    const waveCleared = !session.sandbox && !session.outcome && session.waveActive
+      && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0;
+    if (waveCleared) {
       session.waveActive = false;
       session.activeTemporaryDecisions = [];
       endSandstorm(session, events, true);
+      endWindCurrent(session, events, true);
       const completedWave = session.waveIndex;
       const waveCompletionEnergy = Math.max(0, Number(session.phase.waveCompletionEnergy) || 0);
       const waveCompletionAmount = Math.min(waveCompletionEnergy, Math.max(0, session.energyMax - session.energy));
@@ -3729,7 +3864,8 @@ export function stepBattle(session, dt = 32) {
         }
       }
       if (completedWave >= session.phase.waves.length - 1) {
-        finish(session, "victory");
+        if (adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) session.pendingOutcome = "victory";
+        else finish(session, "victory");
       } else {
         session.waveIndex += 1;
         session.preparing = true;
@@ -3752,9 +3888,8 @@ export function stepBattle(session, dt = 32) {
         });
         events.push({ type: "waveComplete", wave: completedWave + 1 });
       }
-    }
+    } else evaluateAdaptiveAid(session, events);
   }
-  if (!session.waveActive && session.adaptiveAid?.triggered && !session.outcome) updateAdaptiveAid(session, events);
   return events;
 }
 
@@ -3770,6 +3905,7 @@ export function getSnapshot(session) {
     supply: Math.round(session.supply * 10) / 10, supplyMax: session.supplyMax,
     integrity: Math.round(session.integrity), integrityMax: Math.round(session.integrityMax),
     wave: session.waveIndex + 1, totalWaves: session.phase.waves.length,
+    pendingOutcome: session.pendingOutcome,
     enemies: session.enemies.length, queued: session.queue.length,
     mines: session.mines.length,
     energyPickups: session.energyPickups.length,
@@ -3839,6 +3975,37 @@ export function getSnapshot(session) {
       nextCheckInMs: Number.isFinite(session.sandstorm.nextCheckAt)
         ? Math.max(0, session.sandstorm.nextCheckAt - session.elapsed)
         : 0,
+    },
+    windCurrent: {
+      state: session.windCurrent.state,
+      direction: session.windCurrent.direction,
+      verticalDirection: session.windCurrent.verticalDirection,
+      selectedRows: [...session.windCurrent.selectedRows],
+      sourceRow: session.windCurrent.sourceRow,
+      targetRow: session.windCurrent.targetRow,
+      startsInMs: session.windCurrent.state === "warning"
+        ? Math.max(0, session.windCurrent.startsAt - session.elapsed)
+        : 0,
+      remainingMs: session.windCurrent.state === "active"
+        ? Math.max(0, session.windCurrent.endsAt - session.elapsed)
+        : session.windCurrent.state === "recovering"
+          ? Math.max(0, session.windCurrent.recoveryEndsAt - session.elapsed)
+          : 0,
+      currentsThisWave: session.windCurrent.currentsThisWave,
+      selectedTroopId: session.windCurrent.selectedTroopId,
+      shiftedTroopIds: [...session.windCurrent.shiftedTroopIds],
+      shiftedEnemyIds: [...session.windCurrent.shiftedEnemyIds],
+      ejectedEnemyIds: [...session.windCurrent.ejectedEnemyIds],
+      troopCountAtStart: session.windCurrent.troopCountAtStart,
+      troopCountAtEnd: session.windCurrent.troopCountAtEnd,
+      troopLossCount: session.windCurrent.troopLossCount,
+      troopLossRatio: session.windCurrent.troopLossRatio,
+      repeatLossToleranceRatio: session.windCurrent.repeatLossToleranceRatio,
+      repeatEligible: session.windCurrent.repeatEligible,
+      nextCheckInMs: Number.isFinite(session.windCurrent.nextCheckAt)
+        ? Math.max(0, session.windCurrent.nextCheckAt - session.elapsed)
+        : 0,
+      recoveryQueue: session.windCurrent.recoveryQueue.map((entry) => ({ ...entry })),
     },
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,

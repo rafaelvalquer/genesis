@@ -1,5 +1,6 @@
 import { canPlaceTroop, CELL, FIELD } from "./battleModel.js";
 import { TROOPS } from "./content.js";
+import { drawWindCurrent, drawWindWarning } from "./windCurrentRenderer.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -449,61 +450,120 @@ function drawDamageMarks(ctx, phase, intensity) {
   ctx.restore();
 }
 
+export function getRouteFortificationOverlay(session) {
+  const decision = session?.pendingPositionalDecision;
+  const targeting = decision?.targetType === "occupiedRow";
+  const occupiedRows = targeting
+    ? [...new Set((session.troops || []).filter((troop) => !troop.dead).map((troop) => troop.row))]
+    : [];
+  const previewRow = Number.isInteger(decision?.preview?.row) ? decision.preview.row : null;
+  const valid = previewRow != null && occupiedRows.includes(previewRow);
+  return {
+    targeting,
+    dimInactive: targeting,
+    hoveredRow: valid ? previewRow : null,
+    valid,
+    occupiedRows,
+  };
+}
+
+export function getRouteFortificationPulseVisual(session, settings = {}) {
+  const pulse = session?.routeFortificationPulse;
+  if (!pulse) return null;
+  const duration = Math.max(1, pulse.until - pulse.startedAt);
+  const progress = clamp((session.elapsed - pulse.startedAt) / duration);
+  if (session.elapsed > pulse.until) return null;
+  const quality = settings.quality || "high";
+  return {
+    row: pulse.row,
+    progress,
+    alpha: 1 - progress,
+    symbolCount: settings.reduceMotion ? 5 : quality === "low" ? 7 : quality === "medium" ? 11 : 16,
+    travelScale: settings.reduceMotion ? 0.14 : 1,
+  };
+}
+
 export function drawArenaUnderlay(ctx, phase, settings, session, time) {
   const profile = getQualityProfile(settings);
   const intensity = getArenaIntensity(phase, session.waveIndex);
   const motionTime = settings.reduceMotion ? 0 : time;
   const theme = phase.battlefieldTheme;
   drawDamageMarks(ctx, phase, intensity);
-  const targeting = session.pendingPositionalDecision;
-  if (targeting) {
-    const hoveredRow = Number.isInteger(targeting.hoveredRow) ? targeting.hoveredRow : -1;
+  drawWindWarning(ctx, session, time, settings);
+  const routeOverlay = getRouteFortificationOverlay(session);
+  if (routeOverlay.targeting) {
     ctx.save();
-    ctx.fillStyle = "rgba(2,6,23,.38)";
+    ctx.fillStyle = "rgba(2,8,23,.5)";
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
     for (let row = 0; row < FIELD.rows; row += 1) {
-      const occupied = session.troops.some((troop) => !troop.dead && troop.row === row);
+      const highlighted = routeOverlay.hoveredRow === row;
       const y = row * CELL.height;
-      ctx.fillStyle = row === hoveredRow && occupied ? "rgba(56,189,248,.22)" : "rgba(2,6,23,.12)";
+      ctx.globalCompositeOperation = highlighted ? "screen" : "source-over";
+      ctx.fillStyle = highlighted ? "rgba(34,211,238,.32)" : "rgba(2,6,23,.22)";
       ctx.fillRect(0, y, FIELD.width, CELL.height);
-      ctx.strokeStyle = row === hoveredRow && occupied ? "rgba(103,232,249,.95)" : "rgba(56,189,248,.22)";
-      ctx.lineWidth = row === hoveredRow && occupied ? 2 : 1;
-      ctx.beginPath(); ctx.moveTo(0, y + 2); ctx.lineTo(FIELD.width, y + 2); ctx.moveTo(0, y + CELL.height - 2); ctx.lineTo(FIELD.width, y + CELL.height - 2); ctx.stroke();
+      ctx.strokeStyle = highlighted ? "rgba(103,232,249,.98)" : "rgba(56,189,248,.13)";
+      ctx.lineWidth = highlighted ? 3 : 1;
+      ctx.shadowColor = highlighted ? "#22d3ee" : "transparent";
+      ctx.shadowBlur = highlighted ? 16 : 0;
+      ctx.strokeRect(1.5, y + 2, FIELD.width - 3, CELL.height - 4);
     }
     ctx.restore();
   }
-  const formationPreview = targeting?.targetType === "columnBlock" ? targeting.preview : null;
-  const formationColumns = formationPreview?.columns || session.advancedFormationColumns || [];
+  const { targeting: formationTargeting, preview: formationPreview, columns: formationColumns } = getAdvancedFormationOverlay(session);
+  if (formationTargeting) {
+    ctx.save();
+    ctx.fillStyle = "rgba(2,6,23,.64)";
+    ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+    ctx.restore();
+  }
   if (formationColumns.length === 3) {
     ctx.save();
-    if (formationPreview) { ctx.fillStyle = "rgba(2,6,23,.52)"; ctx.fillRect(0, 0, FIELD.width, FIELD.height); }
     const left = formationColumns[0] * CELL.width;
     const width = 3 * CELL.width;
-    ctx.fillStyle = formationPreview ? "rgba(239,68,68,.22)" : "rgba(239,68,68,.07)";
+    if (formationPreview) ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = formationPreview ? "rgba(239,68,68,.3)" : "rgba(239,68,68,.07)";
     ctx.fillRect(left, 0, width, FIELD.height);
     ctx.strokeStyle = formationPreview ? "rgba(248,113,113,.95)" : "rgba(239,68,68,.4)";
-    ctx.lineWidth = formationPreview ? 2 : 1;
+    ctx.lineWidth = formationPreview ? 3 : 1;
     ctx.strokeRect(left + 1, 1, width - 2, FIELD.height - 2);
-    if (formationPreview) { ctx.fillStyle = "rgba(248,113,113,.34)"; ctx.fillRect(formationColumns[1] * CELL.width, 0, CELL.width, FIELD.height); }
+    if (formationPreview) {
+      ctx.fillStyle = "rgba(251,146,60,.26)";
+      formationColumns.forEach((column) => ctx.fillRect(column * CELL.width + 3, 3, CELL.width - 6, FIELD.height - 6));
+    }
     ctx.fillStyle = "#fca5a5"; ctx.font = "700 11px system-ui"; ctx.fillText(`C${formationColumns[0] + 1} · C${formationColumns[1] + 1} · C${formationColumns[2] + 1}  +15% DANO`, left + 8, 16);
     ctx.restore();
   }
-  const pulse = session.routeFortificationPulse;
-  if (pulse && time <= pulse.until) {
-    const progress = Math.max(0, Math.min(1, (time - pulse.startedAt) / Math.max(1, pulse.until - pulse.startedAt)));
-    const y = pulse.row * CELL.height + CELL.height * 0.5;
+  const routePulse = getRouteFortificationPulseVisual(session, settings);
+  if (routePulse) {
+    const { progress } = routePulse;
+    const y = routePulse.row * CELL.height + CELL.height * 0.5;
     ctx.save();
     ctx.globalCompositeOperation = "screen";
-    ctx.globalAlpha = 0.7 * (1 - progress);
-    ctx.fillStyle = "#38bdf8";
-    for (let i = 0; i < 14; i += 1) {
-      const x = 80 + ((i * 137) % Math.max(1, FIELD.width - 140));
-      const bubbleY = y + CELL.height * 0.35 - progress * (24 + (i % 4) * 7) - (i % 3) * 9;
-      ctx.beginPath(); ctx.arc(x, bubbleY, 3 + (i % 3), 0, Math.PI * 2); ctx.fill();
-      if (i % 4 === 0) { ctx.font = "700 16px system-ui"; ctx.fillText("+", x + 8, bubbleY); }
+    const flash = Math.max(0, 1 - progress * 1.8);
+    ctx.globalAlpha = 0.32 * flash;
+    ctx.fillStyle = "#0ea5e9";
+    ctx.fillRect(0, routePulse.row * CELL.height, FIELD.width, CELL.height);
+    ctx.fillStyle = "#67e8f9";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < routePulse.symbolCount; i += 1) {
+      const x = 38 + pseudo(i, routePulse.row + 731) * (FIELD.width - 76);
+      const speed = 30 + pseudo(i, routePulse.row + 919) * 45;
+      const startOffset = (pseudo(i, routePulse.row + 1103) - 0.5) * 22;
+      const bubbleY = y + CELL.height * 0.28 + startOffset - progress * speed * routePulse.travelScale;
+      const size = 13 + pseudo(i, routePulse.row + 1277) * 10;
+      ctx.globalAlpha = routePulse.alpha * (0.55 + pseudo(i, routePulse.row + 1459) * 0.4);
+      ctx.font = `800 ${size}px system-ui`;
+      ctx.shadowColor = "#22d3ee";
+      ctx.shadowBlur = settings.quality === "low" ? 4 : 10;
+      ctx.fillText("+", x, bubbleY);
     }
-    ctx.strokeStyle = "#67e8f9"; ctx.lineWidth = 3; ctx.globalAlpha = 0.55 * (1 - progress);
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(FIELD.width, y); ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = "#67e8f9";
+    ctx.lineWidth = 4;
+    ctx.globalAlpha = 0.72 * routePulse.alpha;
+    const waveX = FIELD.width * Math.min(1, progress * 1.4);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(waveX, y); ctx.stroke();
     ctx.restore();
   }
   if (Number.isInteger(session.fortifiedRow)) {
@@ -554,6 +614,17 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     }
   }
   ctx.restore();
+}
+
+export function getAdvancedFormationOverlay(session) {
+  const targeting = session.pendingPositionalDecision?.targetType === "columnBlock";
+  const preview = targeting ? session.pendingPositionalDecision.preview : null;
+  return {
+    targeting,
+    preview,
+    dimInactive: targeting,
+    columns: preview?.columns || session.advancedFormationColumns || [],
+  };
 }
 
 export function shouldShowGrid({ selectedTroop, removeMode, hoveredCell }) {
@@ -897,6 +968,7 @@ export function drawArenaForeground(ctx, phase, settings, session, time, adaptiv
   if (effects.includes("dust") || effects.includes("debris")) drawDriftingPoints(ctx, phase, Math.round((10 + 22 * profile.particles) * particleScale), motionTime, intensity, "dust");
   if (effects.includes("glassDust")) drawDriftingPoints(ctx, phase, Math.round((14 + 34 * profile.particles) * particleScale), motionTime * 0.72, intensity, "spores");
   drawSandstorm(ctx, session, time, settings, profile, adaptive);
+  drawWindCurrent(ctx, session, time, settings, adaptive);
 
   if (effects.includes("refraction")) {
     const drift = settings.reduceMotion ? 0 : Math.sin(motionTime / 1800) * 24;

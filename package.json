@@ -19,6 +19,8 @@
     "assets:colosso-impacto": "python scripts/process-colosso-impacto-sheets.py",
     "assets:executor-arco": "python scripts/process-executor-arco-sheets.py",
     "assets:pulso-desmaterializacao": "python scripts/process-dematerialization-pulse-sheets.py",
+    "assets:wind-sfx": "node scripts/generate-wind-sfx.mjs",
+    "assets:wind-effects": "node scripts/generate-wind-effects.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",

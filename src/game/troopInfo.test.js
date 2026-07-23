@@ -70,4 +70,11 @@ describe("apresentação das informações das tropas", () => {
       value: "30% nos demais inimigos do tile",
     });
   });
+
+  it("informa o Corte de Arco do Vórtice nos protocolos especiais", () => {
+    expect(getTroopInfo(TROOPS.executorArco).specials).toContainEqual({
+      label: "Corte de Arco",
+      value: "4 de dano a até 2 células · alvo único terrestre",
+    });
+  });
 });

@@ -13,6 +13,42 @@ const meleeTarget = (x = 304, row = 0) => ({
   slowUntil: 0, slowFactor: 1, baseDamage: 0, bossPhase: 0, dead: false,
 });
 
+describe("Corte de Arco do Vórtice", () => {
+  it("mantém o projétil preso ao alvo e conserva o impacto por 360 ms", () => {
+    const session = createBattleSession(PHASES[0], ["executorArco"], 7331, { sandbox: true });
+    const troop = placeTroop(session, "executorArco", 1, 2).troop;
+    const target = {
+      ...meleeTarget(troop.x + 1.8 * CELL.width, troop.row),
+      id: "arc_target",
+      y: troop.y,
+    };
+    session.enemies = [target];
+
+    stepBattle(session, 1);
+    const projectile = session.projectiles[0];
+    expect(projectile).toMatchObject({
+      kind: "executorArcSlash", phase: "flying", targetId: target.id,
+      launched: false, vx: TROOPS.executorArco.rangedProjectileSpeed,
+    });
+    const launchEvents = stepBattle(session, TROOPS.executorArco.rangedAttackVisual.releaseMs);
+    expect(launchEvents).toContainEqual(expect.objectContaining({
+      type: "shoot", weapon: "executorArcSlash",
+    }));
+    const impactEvents = stepBattle(session, 250);
+    expect(target.hp).toBe(96);
+    expect(projectile.phase).toBe("impact");
+    expect(projectile.phaseAgeMs).toBeGreaterThanOrEqual(0);
+    expect([...launchEvents, ...impactEvents]).toContainEqual(expect.objectContaining({
+      type: "executorArcSlashImpact", targetId: target.id,
+    }));
+    const impactRemaining = projectile.impactStartedAt + 360 - session.elapsed;
+    stepBattle(session, impactRemaining - 1);
+    expect(session.projectiles).toContain(projectile);
+    stepBattle(session, 1);
+    expect(session.projectiles).not.toContain(projectile);
+  });
+});
+
 describe("Pulso de Desmaterializacao", () => {
   it("reserva a nova coluna e inicia um dispositivo pronto por rota", () => {
     const session = createBattleSession(PHASES[0], ["marine"], 1201);
@@ -472,10 +508,10 @@ describe("Crisálio e Manto Prismático", () => {
   });
 });
 
-const chooseDecision = (session, id, level = 1) => {
+const chooseDecision = (session, id, level = 1, target = null) => {
   session.pendingDecision = [DECISIONS[id]];
   session.pendingDecisionLevel = level;
-  expect(selectDecision(session, DECISIONS[id])).toBe(true);
+  expect(selectDecision(session, DECISIONS[id], target)).toBe(true);
 };
 
 describe("Campo de Provas", () => {
@@ -1670,9 +1706,15 @@ describe("decisões táticas aleatórias", () => {
   });
 
   it("aplica fortificação de rota a tropas atuais e futuras e reembolsa retirada crítica", () => {
+    expect(DECISIONS.route_fortification).toMatchObject({
+      positional: true, targetType: "occupiedRow", targetSize: 1,
+    });
     const session = createBattleSession(decisionPhase, ["colono"], 915);
     const first = placeTroop(session, "colono", 2, 1).troop;
-    chooseDecision(session, "route_fortification");
+    session.pendingDecision = [DECISIONS.route_fortification];
+    session.pendingDecisionLevel = 1;
+    expect(selectDecision(session, DECISIONS.route_fortification, { row: 3 })).toBe(false);
+    chooseDecision(session, "route_fortification", 1, { row: 2 });
     expect(session.fortifiedRow).toBe(2);
     expect(first.maxHp).toBeCloseTo(TROOPS.colono.hp * 1.2);
     const second = placeTroop(session, "colono", 2, 2).troop;
@@ -1680,6 +1722,37 @@ describe("decisões táticas aleatórias", () => {
     chooseDecision(session, "organized_retreat");
     second.hp = second.maxHp * 0.2;
     expect(removeTroop(session, 2, 2).refund).toBe(second.energyCost);
+  });
+
+  it("seleciona três colunas para a Formação avançada e aplica risco e bônus somente nelas", () => {
+    expect(DECISIONS.advanced_formation).toMatchObject({
+      positional: true, targetType: "columnBlock", targetSize: 3,
+    });
+    const session = createBattleSession(decisionPhase, ["colono"], 919, { sandbox: true });
+    const advanced = placeTroop(session, "colono", 0, 2).troop;
+    const regular = placeTroop(session, "colono", 1, 5).troop;
+    session.pendingDecision = [DECISIONS.advanced_formation];
+    session.pendingDecisionLevel = 3;
+
+    expect(selectDecision(session, DECISIONS.advanced_formation, { columns: [1, 2, 3] })).toBe(true);
+    expect(session.advancedFormationColumns).toEqual([1, 2, 3]);
+    expect(session.pendingDecision).toBeNull();
+
+    const advancedEnemy = spawnEnemy(session, { type: "medu", row: 0 }).enemies[0];
+    const regularEnemy = spawnEnemy(session, { type: "medu", row: 1 }).enemies[0];
+    [advancedEnemy, regularEnemy].forEach((enemy, index) => {
+      const target = index === 0 ? advanced : regular;
+      enemy.x = target.x + 35;
+      enemy.previousRenderX = enemy.x;
+      enemy.speed = 0;
+      enemy.hp = 100000;
+      enemy.maxHp = 100000;
+    });
+    for (let index = 0; index < 80; index += 1) stepBattle(session, 32);
+    const advancedLoss = advanced.maxHp - advanced.hp;
+    const regularLoss = regular.maxHp - regular.hp;
+    expect(regularLoss).toBeGreaterThan(0);
+    expect(advancedLoss).toBeCloseTo(regularLoss * 1.1, 5);
   });
 
   it("ativa decisões temporárias somente na próxima onda e limpa ao concluí-la", () => {

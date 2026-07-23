@@ -2,8 +2,18 @@ import { ENEMIES, TROOPS } from "./content.js";
 import { CELL, FIELD } from "./visualGeometry.js";
 
 export const ADAPTIVE_AID_EVALUATION_MS = 1000;
-export const ADAPTIVE_AID_DIFFICULT_HOLD_MS = 2000;
+export const ADAPTIVE_AID_DIFFICULT_HOLD_MS = 6000;
 export const ADAPTIVE_AID_LOSS_WINDOW_MS = 30000;
+const INTERMISSION_BLOCKING_STATUSES = new Set(["incoming", "landed", "opening", "choosing", "targeting"]);
+const SIMULATION_PAUSING_STATUSES = new Set(["choosing", "targeting"]);
+
+export function adaptiveAidBlocksIntermission(status) {
+  return INTERMISSION_BLOCKING_STATUSES.has(status);
+}
+
+export function adaptiveAidPausesSimulation(status) {
+  return SIMULATION_PAUSING_STATUSES.has(status);
+}
 
 export function createAdaptiveAidState(enabled = true) {
   return {
@@ -12,7 +22,7 @@ export function createAdaptiveAidState(enabled = true) {
     triggered: false,
     used: false,
     hardshipScore: 0,
-    lastEvaluationAt: -Infinity,
+    lastEvaluationAt: 0,
     dangerSince: null,
     availableOptions: [],
     selectedOptionId: null,
@@ -26,12 +36,17 @@ export function createAdaptiveAidState(enabled = true) {
 
 export function recordTroopLoss(session, troop, cause = "enemy") {
   if (!session?.recentTroopLosses || !troop) return;
+  const swarmFactor = troop.swarmHpApplied ? 1.1 : 1;
   session.recentTroopLosses.push({
     troopId: troop.id,
     troopType: troop.type,
     row: troop.row,
     col: troop.col,
     maxHp: troop.maxHp,
+    baseMaxHp: Number.isFinite(troop.baseMaxHp) ? troop.baseMaxHp / swarmFactor : undefined,
+    fortificationBonusMaxHp: Number.isFinite(troop.fortificationBonusMaxHp)
+      ? troop.fortificationBonusMaxHp / swarmFactor
+      : undefined,
     energyCost: troop.energyCost,
     supplyCost: troop.supplyCost,
     at: session.elapsed,
@@ -72,7 +87,8 @@ export function calculateHardshipScore(session) {
     .filter((enemy) => enemy.x <= FIELD.width * 0.5)
     .map((enemy) => enemy.row))];
   const defendedRows = new Set(activeTroops(session).map((troop) => troop.row));
-  if (threatenedRows.length >= 2 && threatenedRows.every((row) => !defendedRows.has(row))) score += 1;
+  const undefendedThreatenedRows = threatenedRows.filter((row) => !defendedRows.has(row));
+  if (undefendedThreatenedRows.length >= 2) score += 1;
 
   const energyRatio = session.energyMax > 0 ? session.energy / session.energyMax : 1;
   const batteryFactor = session.efficientBatteryCharges > 0 ? 0.8 : 1;
@@ -218,7 +234,7 @@ export function simulateAdaptiveAid(session, tier, events = []) {
   return triggerFortuneEvent(session, events, tier);
 }
 
-export function updateAdaptiveAid(session, events = []) {
+export function updateAdaptiveAidLifecycle(session, events = []) {
   const aid = session.adaptiveAid;
   if (!aid) return;
   if (aid.status === "incoming" && session.elapsed >= aid.capsule.stateEndsAt) {
@@ -230,8 +246,17 @@ export function updateAdaptiveAid(session, events = []) {
     aid.capsule = null;
     aid.status = "choosing";
   }
+}
 
+export function evaluateAdaptiveAid(session, events = []) {
+  const aid = session.adaptiveAid;
+  if (!aid) return;
   if (!aid.enabled || session.sandbox || !session.waveActive || session.outcome || aid.triggered) return;
+  const hasLivingEnemy = session.enemies.some((enemy) => !enemy.dead);
+  if (!hasLivingEnemy && session.queue.length === 0) {
+    aid.dangerSince = null;
+    return;
+  }
   if (session.elapsed - aid.lastEvaluationAt < ADAPTIVE_AID_EVALUATION_MS) return;
   aid.lastEvaluationAt = session.elapsed;
   const progress = (session.waveIndex + 1) / Math.max(1, session.phase.waves.length);
@@ -247,6 +272,11 @@ export function updateAdaptiveAid(session, events = []) {
   } else {
     aid.dangerSince = null;
   }
+}
+
+export function updateAdaptiveAid(session, events = []) {
+  updateAdaptiveAidLifecycle(session, events);
+  evaluateAdaptiveAid(session, events);
 }
 
 export function isCapsuleClickable(session) {
@@ -279,39 +309,33 @@ function nearestFreeCell(session, row, col) {
   return cells.sort((a, b) => a.distance - b.distance)[0] || null;
 }
 
-function reconstructTroops(session, events) {
-  const losses = eligibleReconstructionLosses(session).slice(0, 2);
+function reconstructTroops(session, events, adapters = {}) {
+  const losses = eligibleReconstructionLosses(session);
   const restored = [];
   for (const loss of losses) {
-    const limit = TROOPS[loss.troopType].maxDeployed ?? 5;
-    if (activeTroops(session).filter((troop) => troop.type === loss.troopType).length >= limit) continue;
+    if (restored.length >= 2) break;
+    const limit = adapters.getTroopDeploymentLimit?.(loss.troopType) ?? TROOPS[loss.troopType].maxDeployed ?? 5;
+    const activeCount = adapters.getActiveTroopCount?.(session, loss.troopType)
+      ?? activeTroops(session).filter((troop) => troop.type === loss.troopType).length;
+    if (activeCount >= limit) continue;
     const cell = capsuleCellIsFree(session, loss.row, loss.col) ? { row: loss.row, col: loss.col } : nearestFreeCell(session, loss.row, loss.col);
     if (!cell) continue;
-    const source = loss.entity || {};
-    const troop = {
-      ...source,
+    const recordedBonus = Number(loss.fortificationBonusMaxHp ?? loss.entity?.fortificationBonusMaxHp) || 0;
+    const recordedBase = Number(loss.baseMaxHp ?? loss.entity?.baseMaxHp)
+      || Math.max(1, (Number(loss.maxHp) || TROOPS[loss.troopType].hp) - recordedBonus);
+    const troop = adapters.createTroopEntity?.(session, loss.troopType, cell.row, cell.col, {
       id: `fortune_reconstructed_${session.effectSequence++}`,
-      type: loss.troopType,
-      row: cell.row,
-      col: cell.col,
-      x: cell.col * CELL.width + CELL.width / 2,
-      y: cell.row * CELL.height + CELL.height / 2,
-      previousRenderX: cell.col * CELL.width + CELL.width / 2,
-      previousRenderY: cell.row * CELL.height + CELL.height / 2,
-      hp: loss.maxHp * 0.5,
-      maxHp: loss.maxHp,
-      dead: false,
-      state: "idle",
-      stateStartedAt: session.elapsed,
-      attackReadyAt: session.elapsed,
-      pendingImpact: null,
-      pendingRepulsorShot: null,
-      attachedParasiteId: null,
-    };
+      baseMaxHp: recordedBase,
+      hpRatio: 0.5,
+      energyCost: Number(loss.energyCost) || 0,
+      supplyCost: Number(loss.supplyCost) || TROOPS[loss.troopType].supply,
+    });
+    if (!troop) continue;
     session.troops.push(troop);
     restored.push(troop.id);
     events.push({ type: "fortuneReconstruction", x: troop.x, y: troop.y, troopId: troop.id, color: "#fbbf24" });
   }
+  if (restored.length) adapters.refreshSwarmDoctrine?.(session);
   return restored.length > 0;
 }
 
@@ -355,7 +379,7 @@ export function selectAdaptiveAidOption(session, optionId, target = null, events
       adapters.damageEnemy?.(session, enemy, enemy.maxHp * ratio, events, { fortuneOrbital: true });
     });
     events.push({ type: "fortuneOrbitalStrike", row, color: "#fbbf24" });
-  } else if (option.id === "combat_reconstruction") applied = reconstructTroops(session, events);
+  } else if (option.id === "combat_reconstruction") applied = reconstructTroops(session, events, adapters);
   else applied = false;
   if (!applied) return { ok: false, reason: "Não foi possível aplicar a recompensa." };
   resolveAid(session, option, events);

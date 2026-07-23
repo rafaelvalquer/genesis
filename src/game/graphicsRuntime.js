@@ -1,4 +1,8 @@
 import { FIELD, VIEWPORT } from "./battleModel.js";
+import {
+  consumeWindCurrentGraphicsEvents,
+  updateWindCurrentGraphics,
+} from "./windCurrentRenderer.js";
 
 const QUALITY_SCALE = { low: 1, medium: 1.5, high: 2 };
 const DECAL_LIMIT = { low: 28, medium: 64, high: 110 };
@@ -26,7 +30,7 @@ export function configureHiDPICanvas(canvas, settings = {}, devicePixelRatio = 1
 export function createGraphicsRuntime() {
   return {
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
-    pulseBeams: [], disintegrations: [], pulseScorches: [],
+    pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [],
     containmentArcs: [], containmentInterferenceUntil: 0,
     camera: { amplitude: 0, seed: 1, startedAt: 0 },
     health: new Map(),
@@ -91,7 +95,8 @@ function eventShake(type) {
   return ({ hit: 0.5, shieldHit: 0.35, shieldBreak: 1.4, troopHit: 1.2, projectileImpact: 1, fireImpact: 1.8, iceImpact: 1.5,
     explosion: 5, breach: 7, enemyDeath: 2, troopDeath: 3.5, bossPhase: 8, bossDeath: 12, tileImpact: 4,
     pulseFired: 9, enemyDisintegrated: 1.5, duneRipperRoar: 2.2,
-    inhibitorWebImpact: 0.8, workerQueenEggHatched: 1.6, workerQueenGuardSummoned: 1.1 })[type] || 0;
+    inhibitorWebImpact: 0.8, workerQueenEggHatched: 1.6, workerQueenGuardSummoned: 1.1,
+    windPrimaryGust: 4.5, windTroopEjected: 2.5, windEnemyEjected: 1.8 })[type] || 0;
 }
 
 function lightFor(event, now) {
@@ -125,6 +130,7 @@ function decalFor(event, now) {
 }
 
 export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
+  consumeWindCurrentGraphicsEvents(runtime, events, now);
   for (const event of events) {
     const shake = event.shake ?? eventShake(event.type);
     if (settings.cameraShake && !settings.reduceMotion && shake > 0) {
@@ -198,6 +204,7 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
   runtime.pulseScorches = runtime.pulseScorches.slice(-48);
   runtime.deployments = runtime.deployments.slice(-24);
   runtime.containmentArcs = runtime.containmentArcs.slice(-18);
+  runtime.windEffects = runtime.windEffects.slice(-48);
 }
 
 export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
@@ -209,6 +216,7 @@ export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
   runtime.lights = runtime.lights.filter((entry) => now - entry.born < entry.life);
   runtime.deployments = runtime.deployments.filter((entry) => now - entry.born < entry.life);
   runtime.containmentArcs = runtime.containmentArcs.filter((entry) => now - entry.born < entry.life);
+  updateWindCurrentGraphics(runtime, now);
   runtime.camera.amplitude *= Math.pow(0.004, frameMs / 1000);
   if (runtime.camera.amplitude < 0.05) runtime.camera.amplitude = 0;
   const instantFps = frameMs > 0 ? 1000 / frameMs : 60;
