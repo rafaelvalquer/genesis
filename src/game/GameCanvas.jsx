@@ -36,25 +36,33 @@ import {
 } from "./graphicsRenderer.js";
 import {
   CELL, FIELD, VIEWPORT,
+  adaptiveAidCinematicFactor,
+  activateTroopSpecial,
   cellFromPoint,
   clearSandboxEntities,
   createBattleSession,
+  getEligibleAdaptiveAidOptions,
   getSnapshot,
   getTroopRangePenaltyTiles,
   forceExecutorCombo,
   injureSandboxTroops,
-  activateTroopSpecial,
+  isCapsuleClickable,
+  openAdaptiveAidCapsule,
   placeTroop,
+  pointHitsCapsule,
   removeTroop,
+  selectAdaptiveAidOption,
   selectDecision,
   setEnergyPickupPointer,
   setSandboxSettings,
   spawnEnemy,
   startWave,
   stepBattle,
+  simulateAdaptiveAid,
 } from "./battleModel.js";
 import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
+import { drawAdaptiveAid, drawOrbitalTargeting } from "./adaptiveAidRenderer.js";
 import { loadSettings } from "../campaign/storage.js";
 
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
@@ -1029,6 +1037,12 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
   drawNaniteHealingBeams(ctx, session, settings);
 
   drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
+  if (session.adaptiveAid?.status === "targeting") {
+    for (let row = 0; row < FIELD.rows; row += 1) {
+      drawOrbitalTargeting(ctx, row, hoveredCell?.row === row, session.elapsed);
+    }
+  }
+  drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
 
   drawTroopPlacementPreview(ctx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(ctx, runtime, assets, now, session.phase);
@@ -1044,10 +1058,37 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
   drawContainmentForeground(ctx, session.phase, session, runtime, now, settings);
 }
 
-function SandboxPanel({
+export function CapsuleInteractionButton({ capsule, onOpen }) {
+  if (!capsule) return null;
+  return <button
+    type="button"
+    className="capsule-interaction-button"
+    style={{ left: `${capsule.x / FIELD.width * 100}%`, top: `${(capsule.y + VIEWPORT.fieldOffsetY) / VIEWPORT.height * 100}%` }}
+    aria-label="Abrir Cápsula da Colônia"
+    onClick={onOpen}
+  ><span aria-hidden="true">◇</span></button>;
+}
+
+const RARITY_LABELS = { common: "COMUM", rare: "RARA", epic: "ÉPICA" };
+
+export function FortuneChoiceModal({ tier, options, onChoose }) {
+  return <div className="modal-backdrop fortune-overlay" role="dialog" aria-modal="true" aria-labelledby="fortune-title">
+    <section className="decision-modal fortune-modal">
+      <span className="eyebrow amber">PROTOCOLO FORTUNA · {tier === "critical" ? "SITUAÇÃO CRÍTICA" : "SITUAÇÃO DIFÍCIL"}</span>
+      <h2 id="fortune-title">Transmissão aliada interceptada.</h2>
+      <p>Selecione um recurso de emergência.</p>
+      <div className="fortune-options">{options.map((option) => <button key={option.id} type="button" className={`fortune-option rarity-${option.rarity}`} onClick={() => onChoose(option.id)}>
+        <small>{RARITY_LABELS[option.rarity]}</small><b>{option.label}</b><span>{option.description}</span>{option.requiresTarget && <em>REQUER SELEÇÃO DE ROTA</em>}
+      </button>)}</div>
+    </section>
+  </div>;
+}
+
+export function SandboxPanel({
   selectedEnemy, onSelectEnemy, row, onRow, count, onCount, alpha, onAlpha,
   grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo,
-  onInjure, onClear, onReset,
+  onInjure, onClear, onReset, fortuneTier, onFortuneTier, onSimulateFortune,
+  fortuneDisabled, fortuneReason,
 }) {
   const selected = ENEMIES[selectedEnemy];
   const slider = (key, label, min, max) => <label className="sandbox-slider" key={key}>
@@ -1080,6 +1121,15 @@ function SandboxPanel({
     <section className="sandbox-spawn-card">
       <header><div><span>VÓRTICE</span><b>Controle de combo</b></div></header>
       <div className="sandbox-choice"><span>Próximo golpe</span><div>{[1, 2, 3].map((step) => <button key={step} onClick={() => onForceCombo(step)}>Combo {step}</button>)}</div></div>
+    </section>
+    <section className="sandbox-spawn-card fortune-lab-card">
+      <header><div><span>ASSISTÊNCIA ADAPTATIVA</span><b>Protocolo Fortuna</b></div></header>
+      <div className="sandbox-mode-toggle" role="group" aria-label="Nível da ajuda simulada">
+        <button type="button" className={fortuneTier === "difficult" ? "active" : ""} disabled={fortuneDisabled} onClick={() => onFortuneTier("difficult")}>Difícil</button>
+        <button type="button" className={fortuneTier === "critical" ? "active" : ""} disabled={fortuneDisabled} onClick={() => onFortuneTier("critical")}>Crítica</button>
+      </div>
+      <button type="button" className="sandbox-fortune-button" disabled={fortuneDisabled} onClick={onSimulateFortune}>SIMULAR AJUDA</button>
+      <small className="sandbox-fortune-reason" aria-live="polite">{fortuneReason || "Executa o fluxo completo da Cápsula da Colônia."}</small>
     </section>
     <details className="sandbox-balance" open>
       <summary>Balanceamento temporário</summary>
@@ -1119,6 +1169,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [spawnCount, setSpawnCount] = useState(1);
   const [spawnAlpha, setSpawnAlpha] = useState(false);
   const [spawnGrouped, setSpawnGrouped] = useState(false);
+  const [fortuneTier, setFortuneTier] = useState("critical");
   const [selectedTroop, setSelectedTroop] = useState(null);
   const [removeMode, setRemoveMode] = useState(false);
   const [targetingDecision, setTargetingDecision] = useState(null);
@@ -1224,7 +1275,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     const loop = (now) => {
       const frameDelta = Math.min(100, now - previous);
       previous = now;
-      if (!pausedRef.current) accumulator += frameDelta * speedRef.current;
+      const fortunePaused = sessionRef.current.adaptiveAid?.status === "choosing";
+      if (!pausedRef.current && !fortunePaused) {
+        accumulator += frameDelta * speedRef.current * adaptiveAidCinematicFactor(sessionRef.current);
+      }
       const stepStarted = performance.now();
       while (accumulator >= 32) {
         const events = stepBattle(sessionRef.current, 32);
@@ -1241,6 +1295,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "executorSlash" && event.combo === 2)) play("executorSlash2", 0.5);
         if (events.some((event) => event.type === "executorFinisher")) play("executorFinisher", 0.7);
         if (events.some((event) => event.type === "executorComboReset")) play("executorComboReset", 0.25);
+        if (events.some((event) => event.type === "capsuleIncoming")) {
+          setBanner("OPORTUNIDADE TÁTICA");
+          setMessage("Transmissão aliada interceptada. Recursos de emergência disponíveis.");
+          play("alert", 0.7);
+        }
+        if (events.some((event) => event.type === "capsuleLanded")) play("melee", 0.45);
+        if (events.some((event) => event.type === "capsuleOpening")) play("deploy", 0.5);
         const phaseEvent = events.find((event) => event.type === "bossPhase");
         if (phaseEvent) {
           const alpha = sessionRef.current.enemies.find((enemy) => enemy.variant === "alpha");
@@ -1349,8 +1410,33 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleCanvasClick = (event) => {
     if (snapshot.outcome) return;
+    const fieldPoint = canvasPointFromPointer(event);
+    if (sessionRef.current.adaptiveAid?.status === "targeting") {
+      const row = fieldPoint ? Math.floor(fieldPoint.y / CELL.height) : -1;
+      const result = selectAdaptiveAidOption(sessionRef.current, sessionRef.current.adaptiveAid.pendingTarget, { row });
+      if (result.ok) {
+        consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+        pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+        setMessage(`Ataque orbital confirmado na Rota ${row + 1}.`);
+      } else setMessage(result.reason);
+      setSnapshot(getSnapshot(sessionRef.current));
+      return;
+    }
+    if (isCapsuleClickable(sessionRef.current)
+      && pointHitsCapsule(sessionRef.current.adaptiveAid.capsule, fieldPoint)) {
+      const result = openAdaptiveAidCapsule(sessionRef.current);
+      if (result.ok) {
+        consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+        pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+        setSelectedTroop(null);
+        setRemoveMode(false);
+        setMessage("Cápsula em abertura. Aguarde a transmissão.");
+      }
+      setSnapshot(getSnapshot(sessionRef.current));
+      return;
+    }
     if (targetingDecision) {
-      const point = canvasPointFromPointer(event);
+      const point = fieldPoint;
       if (targetingDecision.targetType === "columnBlock") {
         const hoveredCol = point ? Math.floor(point.x / CELL.width) : -1;
         const centerCol = Math.max(FIELD.firstTroopCol + 1, Math.min(FIELD.lastTroopCol - 1, hoveredCol));
@@ -1387,7 +1473,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     }
     const action = resolveCanvasClickAction(
       sessionRef.current,
-      canvasPointFromPointer(event),
+      fieldPoint,
       selectedTroop,
       removeMode,
     );
@@ -1453,6 +1539,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     hoveredCellRef.current = null;
     setSelectedTroop(null);
     setRemoveMode(false);
+    setFortuneTier("critical");
     setSnapshot(getSnapshot(sessionRef.current));
     setBanner("LABORATÓRIO · CAMPO DE PROVAS");
     setMessage("Arena reiniciada. Selecione uma tropa ou gere hostis.");
@@ -1514,6 +1601,61 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setMessage(events.length ? "Tropas vivas perderam 10 HP para teste de cura." : "Posicione tropas antes de aplicar dano.");
   };
 
+  const handleOpenCapsule = () => {
+    const result = openAdaptiveAidCapsule(sessionRef.current);
+    if (!result.ok) {
+      setMessage(result.reason);
+      return;
+    }
+    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+    setSelectedTroop(null);
+    setRemoveMode(false);
+    setMessage("Cápsula em abertura. Aguarde a transmissão.");
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
+  const handleSimulateFortune = () => {
+    const result = simulateAdaptiveAid(sessionRef.current, fortuneTier);
+    if (!result.ok) {
+      setMessage(result.reason);
+      return;
+    }
+    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+    setSelectedTroop(null);
+    setRemoveMode(false);
+    setBanner("OPORTUNIDADE TÁTICA");
+    setMessage("Transmissão aliada interceptada. Recursos de emergência disponíveis.");
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
+  const handleFortuneChoice = (optionId) => {
+    const result = selectAdaptiveAidOption(sessionRef.current, optionId);
+    if (!result.ok) {
+      setMessage(result.reason);
+      return;
+    }
+    if (result.targeting) {
+      setSelectedTroop(null);
+      setRemoveMode(false);
+      setMessage("Selecione uma rota para o ataque orbital.");
+    } else {
+      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+      setMessage(`${result.option.label}: recurso aplicado.`);
+    }
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
+  const fortuneEligibleCount = sandbox ? getEligibleAdaptiveAidOptions(sessionRef.current, fortuneTier).length : 0;
+  const fortuneDisabled = Boolean(snapshot.adaptiveAid.triggered || fortuneEligibleCount < 2);
+  const fortuneReason = snapshot.adaptiveAid.triggered
+    ? "Ajuda já simulada. Use Reiniciar para testar novamente."
+    : fortuneEligibleCount < 2
+      ? "Prepare o campo para disponibilizar ao menos duas recompensas úteis."
+      : "Executa o fluxo completo da Cápsula da Colônia.";
+
   if (!loading.ready) {
     return <div className="battle-loader" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary }}><div className="loader-scrim" /><div className="loader-content"><div className="loader-mark">GD</div><span className="eyebrow">{phase.name}</span><h2>Preparando campo tático</h2><div className="progress-track"><span style={{ width: `${loading.percent}%` }} /></div><p>{loading.percent}% · sincronizando arena, loadout e hostis</p></div></div>;
   }
@@ -1557,11 +1699,12 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const deployment = snapshot.deploymentStats[troopId];
             const cooldown = snapshot.cooldowns[troopId] || 0;
             const coolingDown = cooldown > 0;
+            const deploymentLimitReached = deployment.limitReached;
             const cooldownEnding = coolingDown && cooldown <= 800;
             const lacksEnergy = snapshot.energy < deployment.price;
             const lacksSupply = snapshot.supply < troop.supply;
             const freeMode = sandbox && sandboxSettingsState.rulesMode === "free";
-            const disabled = !freeMode && (lacksEnergy || lacksSupply || coolingDown);
+            const disabled = !freeMode && (lacksEnergy || lacksSupply || coolingDown || deploymentLimitReached);
             const cooldownProgress = getDeployCooldownProgress(cooldown, deployment.deployCooldownMs);
             const cooldownSeconds = (cooldown / 1000).toFixed(1);
             const unavailableReason = freeMode ? "" : lacksEnergy ? "energia insuficiente" : lacksSupply ? "supply insuficiente" : "";
@@ -1574,7 +1717,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
                 {coolingDown && <span className="cooldown-sweep" aria-hidden="true" />}
               </span>
               <span className="troop-details"><b>{troop.label}</b><small>{troop.role}</small></span>
-              <span className="slot-cost">{freeMode ? "∞" : `⚡${deployment.price}`}<small aria-hidden={coolingDown ? undefined : "true"}>{freeMode ? "LIVRE" : coolingDown ? `${cooldownSeconds}s` : `S${troop.supply}`}</small></span>
+              <span className="slot-cost">{freeMode ? "∞" : `⚡${deployment.price}`}<small>{freeMode ? "LIVRE" : deploymentLimitReached ? `${deployment.activeCount}/${deployment.maxDeployed}` : coolingDown ? `${cooldownSeconds}s` : `S${troop.supply}`}</small></span>
             </button>;
           })}
           <button type="button" className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
@@ -1582,13 +1725,20 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         </aside>
 
         <div className="canvas-wrap">
-          <div className={`wave-banner ${sandstormBanner ? "sandstorm-banner" : ""}`}>{targetingDecision ? "SELEÇÃO DE ROTA · passe o mouse e clique para fortificar" : (sandstormBanner || banner)}</div>
+          <div className={`wave-banner ${sandstormBanner ? "sandstorm-banner" : ""}`}>{snapshot.adaptiveAid.status === "targeting"
+            ? "ATAQUE ORBITAL · PASSE O MOUSE E CLIQUE EM UMA ROTA"
+            : snapshot.adaptiveAid.status === "incoming"
+              ? "OPORTUNIDADE TÁTICA · CÁPSULA EM APROXIMAÇÃO"
+              : snapshot.adaptiveAid.status === "landed"
+                ? "OPORTUNIDADE TÁTICA · RECURSOS DE EMERGÊNCIA DISPONÍVEIS"
+                : targetingDecision ? "SELEÇÃO DE ROTA · passe o mouse e clique para fortificar" : (sandstormBanner || banner)}</div>
           <div className="battle-canvas-stage">
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
               hoveredCellRef.current = null;
               setEnergyPickupPointer(sessionRef.current, null);
             }} aria-label="Campo de batalha em cinco rotas" />
             <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />
+            {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
           </div>
           {graphicsMetrics && <div className="graphics-metrics">
             <b>{graphicsMetrics.fps.toFixed(0)} FPS · {graphicsMetrics.adaptiveLevel}</b>
@@ -1623,10 +1773,16 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           onInjure={handleInjureTroops}
           onClear={handleClear}
           onReset={() => resetSandbox()}
+          fortuneTier={fortuneTier}
+          onFortuneTier={setFortuneTier}
+          onSimulateFortune={handleSimulateFortune}
+          fortuneDisabled={fortuneDisabled}
+          fortuneReason={fortuneReason}
         />}
       </div>
 
       {snapshot.pendingDecision && !targetingDecision && <DecisionModal level={snapshot.pendingDecisionLevel} options={snapshot.pendingDecision} onChoose={handleDecision} />}
+      {snapshot.adaptiveAid.status === "choosing" && <FortuneChoiceModal tier={snapshot.adaptiveAid.triggerTier} options={snapshot.adaptiveAid.availableOptions} onChoose={handleFortuneChoice} />}
     </section>
   );
 }

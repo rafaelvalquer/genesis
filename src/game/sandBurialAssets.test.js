@@ -29,6 +29,9 @@ describe("assets do soterramento por areia", () => {
     const withStorm = await loadBattleAssets({ ...PHASES[16], waves: [] }, [], undefined, { skipDefenses: true });
     const withoutStorm = await loadBattleAssets({ ...PHASES[0], waves: [] }, [], undefined, { skipDefenses: true });
     expect(withStorm.effects.sandBurial.buried).toHaveLength(8);
-    expect(withoutStorm.effects).toEqual({});
+    expect(withoutStorm.effects.sandBurial).toBeUndefined();
+    expect(withoutStorm.effects.colonyCapsule).toMatchObject({
+      falling: expect.any(Array), idle: expect.any(Array), opening: expect.any(Array),
+    });
   });
 });

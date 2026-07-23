@@ -291,7 +291,7 @@ export function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
   const phaseIndex = getPhaseIndex(phase.id);
   const chapter = getChapterForPhase(phase);
   const loadoutLimit = phase.loadoutLimit ?? 5;
-  const loadoutLimitLabel = loadoutLimit === 6 ? "seis" : String(loadoutLimit);
+  const loadoutLimitLabel = ({ 4: "quatro", 5: "cinco", 6: "seis" })[loadoutLimit] ?? String(loadoutLimit);
   const available = getUnlockedTroops(phaseIndex);
   const [infoTroop, setInfoTroop] = useState(null);
   const infoTriggerRef = useRef(null);

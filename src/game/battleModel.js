@@ -1,5 +1,20 @@
-import { ENEMIES, TROOPS } from "./content.js";
+import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "./domain.js";
+import {
+  adaptiveAidCinematicFactor,
+  calculateHardshipScore,
+  capsuleReservesCell,
+  clearExpiredTroopLosses,
+  createAdaptiveAidState,
+  getEligibleAdaptiveAidOptions,
+  isCapsuleClickable,
+  openAdaptiveAidCapsule as openAdaptiveAidCapsuleDomain,
+  pointHitsCapsule,
+  recordTroopLoss,
+  selectAdaptiveAidOption as selectAdaptiveAidOptionDomain,
+  simulateAdaptiveAid as simulateAdaptiveAidDomain,
+  updateAdaptiveAid,
+} from "./adaptiveAid.js";
 import {
   CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
   getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
@@ -9,10 +24,36 @@ import {
 } from "./executorArco.js";
 
 export { CELL, FIELD, VIEWPORT } from "./visualGeometry.js";
+export {
+  adaptiveAidCinematicFactor,
+  calculateHardshipScore,
+  clearExpiredTroopLosses,
+  getEligibleAdaptiveAidOptions,
+  isCapsuleClickable,
+  pointHitsCapsule,
+  recordTroopLoss,
+};
+
+export function getTroopDeploymentLimit(troopId) {
+  return Number.isFinite(TROOPS[troopId]?.maxDeployed) ? TROOPS[troopId].maxDeployed : DEFAULT_MAX_DEPLOYED_PER_TROOP;
+}
+
+export function getActiveTroopCount(session, troopId) {
+  return session.troops.filter((troop) => !troop.dead && troop.type === troopId).length;
+}
+
+export function validateLoadoutForPhase(phase, loadout) {
+  const uniqueLoadout = [...new Set(loadout || [])];
+  if (!uniqueLoadout.length) return { ok: false, reason: "Selecione pelo menos uma tropa." };
+  if (uniqueLoadout.length > (phase.loadoutLimit ?? 6)) return { ok: false, reason: `Este capÃ­tulo permite no mÃ¡ximo ${phase.loadoutLimit} tropas.` };
+  if (uniqueLoadout.some((troopId) => !TROOPS[troopId])) return { ok: false, reason: "Loadout contÃ©m uma tropa invÃ¡lida." };
+  return { ok: true, loadout: uniqueLoadout };
+}
 
 let entityId = 1;
 const id = (prefix) => `${prefix}_${entityId++}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+export const CONCUSSIVE_IMPACT = Object.freeze({ baseDistance: 20, cooldownMs: 3000, heavyFactor: 0.5, alphaFactor: 0.25 });
 const ENERGY_PICKUP_LIFETIME_MS = 10000;
 const ENERGY_PICKUP_MAGNET_RADIUS = 140;
 const ENERGY_PICKUP_COLLECT_RADIUS = 24;
@@ -91,9 +132,10 @@ export function getEffectiveTroopStats(session, troopId) {
   const batteryFactor = session.efficientBatteryCharges > 0 ? 0.8 : 1;
   const contractFactor = session.emergencyContractCharges > 0 ? 0.5 : 1;
   const temporaryCooldown = session.activeTemporaryDecisions.includes("emergency_deployment") ? 0.6 : 1;
+  const fortuneFree = session.fortuneFreeDeploymentCharges > 0;
   return {
-    price: Math.ceil(config.price * session.modifiers.energyCost * batteryFactor * contractFactor),
-    supply: config.supply + (session.emergencyContractCharges > 0 ? 1 : 0),
+    price: fortuneFree ? 0 : Math.ceil(config.price * session.modifiers.energyCost * batteryFactor * contractFactor),
+    supply: config.supply + (!fortuneFree && session.emergencyContractCharges > 0 ? 1 : 0),
     deployCooldownMs: Math.round(config.deployCooldownMs * session.modifiers.deployCooldown * temporaryCooldown),
     refundRate: session.modifiers.refundRate,
   };
@@ -202,6 +244,11 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     nextWaveBaseDamageFactor: 1,
     currentWaveBaseDamageFactor: 1,
     nextWaveEnemyCountFactor: 1,
+    adaptiveAid: createAdaptiveAidState(!sandbox),
+    recentTroopLosses: [],
+    assistanceTriggered: false,
+    assistanceUsed: false,
+    fortuneFreeDeploymentCharges: 0,
     decisions: [],
     killed: 0,
     deployed: {},
@@ -222,7 +269,9 @@ export function canPlaceTroop(session, troopId, row, col) {
   if (session.troops.some((entry) => !entry.dead && entry.row === row && entry.col === col)) return "Célula ocupada.";
   if (session.mines.some((entry) => entry.active && entry.row === row && entry.col === col)
     || session.projectiles.some((entry) => entry.active && entry.kind === "mine" && entry.targetRow === row && entry.targetCol === col)) return "Célula reservada por uma mina.";
-  if (!freePlacement && troop.maxDeployed && session.troops.filter((entry) => !entry.dead && entry.type === troopId).length >= troop.maxDeployed) return `Limite de ${troop.maxDeployed} ${troop.label} por campo.`;
+  if (capsuleReservesCell(session, row, col)) return "Célula ocupada pela Cápsula da Colônia.";
+  const deploymentLimit = getTroopDeploymentLimit(troopId);
+  if (!freePlacement && getActiveTroopCount(session, troopId) >= deploymentLimit) return `Limite de ${deploymentLimit} ${troop.label} no campo.`;
   if (!freePlacement && session.energy < effective.price) return `Energia insuficiente: requer ${effective.price}.`;
   if (!freePlacement && session.supply < effective.supply) return `Supply insuficiente: requer ${effective.supply}.`;
   if (!freePlacement && (session.waveActive || session.sandbox || troop.cooldownDuringPreparation) && Number(session.deployCooldowns[troopId] || 0) > session.elapsed) return "Implantação recarregando.";
@@ -266,24 +315,29 @@ export function placeTroop(session, troopId, row, col) {
   };
   session.troops.push(troop);
   const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
+  const fortuneFree = !freePlacement && session.fortuneFreeDeploymentCharges > 0;
   if (!freePlacement) {
     session.energy -= effective.price;
     session.supply -= effective.supply;
-    if (session.efficientBatteryCharges > 0) session.efficientBatteryCharges -= 1;
-    if (session.emergencyContractCharges > 0) session.emergencyContractCharges -= 1;
+    if (fortuneFree) session.fortuneFreeDeploymentCharges -= 1;
+    else {
+      if (session.efficientBatteryCharges > 0) session.efficientBatteryCharges -= 1;
+      if (session.emergencyContractCharges > 0) session.emergencyContractCharges -= 1;
+    }
   }
   session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
   const skipCooldown = !freePlacement && session.earlyPreparationCharges > 0;
   if (skipCooldown) session.earlyPreparationCharges -= 1;
   if (!freePlacement && !skipCooldown && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
   refreshSwarmDoctrine(session);
-  return { ok: true, troop, event: { type: "deploy", x: troop.x, y: troop.y } };
+  return { ok: true, troop, activeCount: getActiveTroopCount(session, troopId), maxDeployed: getTroopDeploymentLimit(troopId), event: { type: "deploy", x: troop.x, y: troop.y } };
 }
 
 export function removeTroop(session, row, col) {
   const index = session.troops.findIndex((troop) => !troop.dead && troop.row === row && troop.col === col);
   if (index < 0) return { ok: false, reason: "Nenhuma unidade nessa célula." };
   const [troop] = session.troops.splice(index, 1);
+  recordTroopLoss(session, troop, "manualRemoval");
   releaseParasiteFromTroop(session, troop);
   const config = TROOPS[troop.type];
   session.mines = session.mines.filter((mine) => mine.ownerId !== troop.id);
@@ -1103,10 +1157,14 @@ function applyConcussiveImpact(session, enemy) {
     || ENEMIES[enemy.type]?.knockbackImmune || !isGroundTrapEligible(enemy)) return;
   if (session.elapsed < (enemy.concussiveReadyAt || 0)) return;
   interruptWorkerQueenEggLay(session, enemy);
-  const distance = 35 * (session.modifiers.territorialControl ? 1.15 : 1);
+  const resistanceFactor = enemy.variant === "alpha"
+    ? CONCUSSIVE_IMPACT.alphaFactor
+    : ENEMIES[enemy.type]?.knockbackFactor ?? 1;
+  const distance = CONCUSSIVE_IMPACT.baseDistance * resistanceFactor
+    * (session.modifiers.territorialControl ? 1.15 : 1);
   enemy.x = Math.min(FIELD.width + 40, enemy.x + distance);
   enemy.previousRenderX = enemy.x;
-  enemy.concussiveReadyAt = session.elapsed + 1500;
+  enemy.concussiveReadyAt = session.elapsed + CONCUSSIVE_IMPACT.cooldownMs;
 }
 
 function detachParasite(session, enemy) {
@@ -1167,6 +1225,20 @@ export function getEnemyDamageTakenFactor(enemy, context = {}) {
 
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
+  if (context.fortuneOrbital) {
+    enemy.hp -= amount;
+    const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
+    events.push({ type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y, color: "#fbbf24", fortuneOrbital: true });
+    if (enemy.hp <= 0) {
+      enemy.hp = 0;
+      enemy.dead = true;
+      detachParasite(session, enemy);
+      if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
+      const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
+      events.push({ type: bossDeath ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy }, fortuneOrbital: true });
+    }
+    return;
+  }
   const sourceConfig = TROOPS[context.sourceTroopType];
   if (enemy.isEcho && sourceConfig?.glassEchoShatter) {
     enemy.shield = 0;
@@ -1377,6 +1449,7 @@ function damageTroop(session, troop, amount, events) {
     troop.dead = true;
     troop.defenseActive = false;
     troop.pendingRepulsorShot = null;
+    recordTroopLoss(session, troop, session.sandbox ? "sandbox" : "enemy");
     releaseParasiteFromTroop(session, troop);
     refreshSwarmDoctrine(session);
     events.push({ type: "troopDeath", x: troop.x, y: troop.y, entity: { ...troop } });
@@ -1536,7 +1609,7 @@ function mineCellIsFree(session, row, col) {
     && projectile.kind === "mine"
     && projectile.targetRow === row
     && projectile.targetCol === col);
-  return !troopOccupied && !enemyOccupied && !mineOccupied && !reserved;
+  return !troopOccupied && !enemyOccupied && !mineOccupied && !reserved && !capsuleReservesCell(session, row, col);
 }
 
 function availableMineCells(session, troop, config) {
@@ -2433,6 +2506,12 @@ function workerQueenHasForwardDigger(session, queen) {
   ));
 }
 
+function countWorkerQueenForwardTroops(session, queen) {
+  return session.troops.filter((troop) => (
+    !troop.dead && troop.row === queen.row && troop.x < queen.x
+  )).length;
+}
+
 function countWorkerQueenGuards(session, queen) {
   return session.enemies.filter((candidate) => (
     !candidate.dead
@@ -2449,7 +2528,8 @@ function workerQueenGuardTier(enemy, config) {
 }
 
 function maintainWorkerQueenGuard(session, enemy, config, events) {
-  if (session.elapsed < enemy.queenGuardReadyAt || workerQueenHasForwardDigger(session, enemy)) return;
+  if (countWorkerQueenForwardTroops(session, enemy) < 3
+    || session.elapsed < enemy.queenGuardReadyAt || workerQueenHasForwardDigger(session, enemy)) return;
   const livingGuards = countWorkerQueenGuards(session, enemy);
   const capacity = Math.max(0, config.guardMaximumLiving - livingGuards);
   if (!capacity) return;
@@ -3550,7 +3630,38 @@ function finish(session, outcome) {
     enemiesDefeated: session.killed,
     composition: { ...session.deployed },
     decisions: [...session.decisions],
+    assistanceTriggered: session.assistanceTriggered,
+    assistanceUsed: session.assistanceUsed,
+    adaptiveAid: {
+      hardshipScore: session.adaptiveAid.hardshipScore,
+      triggerWave: session.adaptiveAid.triggerWave,
+      triggerTier: session.adaptiveAid.triggerTier,
+      offeredOptions: session.adaptiveAid.availableOptions.map((option) => option.id),
+      selectedOption: session.adaptiveAid.selectedOptionId,
+    },
   };
+}
+
+export function simulateAdaptiveAid(session, tier) {
+  const events = [];
+  const result = simulateAdaptiveAidDomain(session, tier, events);
+  return { ...result, events };
+}
+
+export function openAdaptiveAidCapsule(session) {
+  const events = [];
+  const result = openAdaptiveAidCapsuleDomain(session, events);
+  return { ...result, events };
+}
+
+export function selectAdaptiveAidOption(session, optionId, target = null) {
+  const events = [];
+  const result = selectAdaptiveAidOptionDomain(session, optionId, target, events, {
+    stunEnemy,
+    damageEnemy,
+  });
+  session.enemies = session.enemies.filter((enemy) => !enemy.dead);
+  return { ...result, events };
 }
 
 export function stepBattle(session, dt = 32) {
@@ -3584,6 +3695,8 @@ export function stepBattle(session, dt = 32) {
     if (!session.sandbox && session.integrity <= 0) {
       endSandstorm(session, events, true);
       finish(session, "defeat");
+    } else {
+      updateAdaptiveAid(session, events);
     }
     if (!session.sandbox && !session.outcome && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0) {
       session.waveActive = false;
@@ -3641,11 +3754,16 @@ export function stepBattle(session, dt = 32) {
       }
     }
   }
+  if (!session.waveActive && session.adaptiveAid?.triggered && !session.outcome) updateAdaptiveAid(session, events);
   return events;
 }
 
 export function getSnapshot(session) {
-  const deploymentStats = Object.fromEntries(session.loadout.map((troopId) => [troopId, getEffectiveTroopStats(session, troopId)]));
+  const deploymentStats = Object.fromEntries(session.loadout.map((troopId) => {
+    const activeCount = getActiveTroopCount(session, troopId);
+    const maxDeployed = getTroopDeploymentLimit(troopId);
+    return [troopId, { ...getEffectiveTroopStats(session, troopId), activeCount, maxDeployed, limitReached: activeCount >= maxDeployed }];
+  }));
   return {
     energy: Math.round(session.energy), energyMax: Math.round(session.energyMax),
     energyPulse: session.elapsed - session.lastEnergyGainAt < 700,
@@ -3668,6 +3786,22 @@ export function getSnapshot(session) {
     pendingPositionalDecision: session.pendingPositionalDecision ? { ...session.pendingPositionalDecision } : null,
     activeTemporaryDecisions: [...session.activeTemporaryDecisions],
     queuedTemporaryDecisions: [...session.queuedTemporaryDecisions],
+    adaptiveAid: {
+      status: session.adaptiveAid.status,
+      triggered: session.adaptiveAid.triggered,
+      used: session.adaptiveAid.used,
+      hardshipScore: session.adaptiveAid.hardshipScore,
+      triggerWave: session.adaptiveAid.triggerWave,
+      triggerTier: session.adaptiveAid.triggerTier,
+      selectedOptionId: session.adaptiveAid.selectedOptionId,
+      availableOptions: session.adaptiveAid.availableOptions.map((option) => ({ ...option })),
+      capsule: session.adaptiveAid.capsule ? { ...session.adaptiveAid.capsule } : null,
+      pendingTarget: session.adaptiveAid.pendingTarget,
+      battleNotice: session.adaptiveAid.battleNotice ? { ...session.adaptiveAid.battleNotice } : null,
+    },
+    assistanceTriggered: session.assistanceTriggered,
+    assistanceUsed: session.assistanceUsed,
+    fortuneFreeDeploymentCharges: session.fortuneFreeDeploymentCharges,
     prismaticMantle: { ...session.prismaticMantle },
     webDebuffs: session.troops
       .filter((troop) => session.elapsed < Math.max(

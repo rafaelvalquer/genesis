@@ -28,6 +28,7 @@ export function isEssentialParticleEvent(event = {}) {
     || event.type === "shieldBreak" || event.type === "glassEchoShatter" || event.type === "bossPhase" || event.type === "bossDeath"
     || event.type === "prismaticPulse" || event.type === "iceImpact"
     || event.type === "scarabTransitionStart" || event.type === "scarabTransitionComplete"
+    || event.type === "capsuleLanded" || event.type === "capsuleOpened" || event.type === "fortuneOrbitalStrike"
     || (event.type === "repulsorImpact" && event.stunned);
 }
 
@@ -196,6 +197,25 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     try {
     const random = seeded(event.seed || 1);
     const color = event.color || (event.type.includes("Death") ? "#fb7185" : "#67e8f9");
+    if (["capsuleIncoming", "capsuleLanded", "capsuleOpening", "capsuleOpened", "fortuneReconstruction"].includes(event.type)) {
+      const landed = event.type === "capsuleLanded";
+      const opened = event.type === "capsuleOpened";
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: landed ? "#fbbf24" : "#22d3ee", born: now, life: opened ? 700 : 480, maxRadius: opened ? 110 : landed ? 72 : 42, essential: landed || opened });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#fff7d6", born: now, life: opened ? 360 : 190, size: opened ? 48 : 24, essential: opened });
+      addSparks(particles, event, now, settings.reduceMotion ? 5 : Math.max(10, Math.round((opened ? 34 : 22) * quality.density)), random, {
+        color: "#fbbf24", minSpeed: 28, speed: opened ? 155 : 105, gravity: landed ? 150 : 30, life: 560, size: 2.3,
+      });
+      continue;
+    }
+    if (event.type === "fortuneOrbitalStrike") {
+      for (let index = 0; index < 8; index += 1) {
+        const x = 100 + index * 125;
+        const y = event.row * 120 + 60;
+        particles.push({ kind: "muzzle", x, y, color: index % 2 ? "#fbbf24" : "#67e8f9", born: now + index * 22, life: 420, size: 34, essential: true });
+        particles.push({ kind: "ring", x, y, color: "#fbbf24", born: now + index * 22, life: 520, maxRadius: 56, essential: true });
+      }
+      continue;
+    }
     const executorParticles = createExecutorParticles(event, now, settings);
     if (executorParticles) {
       particles.push(...executorParticles);

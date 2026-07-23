@@ -1,3 +1,6 @@
+export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6 });
+export const DEFAULT_MAX_DEPLOYED_PER_TROOP = 5;
+
 export const TROOPS = {
   colono: {
     glassEchoShatter: true,
@@ -989,7 +992,7 @@ export const TROOPS = {
     specialDamage: 14,
     specialEveryMs: 16000,
     specialStunMs: 800,
-    maxDeployed: 2,
+    maxDeployed: 5,
     healthBarOffset: 104,
     healthBarWidth: 74,
     spriteOffsetY: 8,
@@ -1211,6 +1214,7 @@ export const ENEMIES = {
   },
   krulax: {
     id: "krulax",
+    knockbackFactor: 0.5,
     label: "Krulax",
     role: "Resistente",
     hp: 54,
@@ -1226,6 +1230,7 @@ export const ENEMIES = {
   },
   myrkon: {
     id: "myrkon",
+    knockbackFactor: 0.5,
     label: "Myrkon",
     role: "Resistente de força",
     hp: 70,
@@ -1271,6 +1276,7 @@ export const ENEMIES = {
   },
   brakor: {
     id: "brakor",
+    knockbackFactor: 0.5,
     label: "Brakor",
     role: "Elite de força",
     hp: 135,
@@ -2337,7 +2343,7 @@ export const DECISIONS = {
     ...decision("field_maintenance", "Manutenção de campo", "Tropas sobreviventes recuperam 35% do HP perdido.", "defense", 3),
   },
   concussive_impact: {
-    ...decision("concussive_impact", "Impacto concussivo", "Explosões empurram inimigos terrestres 35 px, com cooldown por inimigo.", "specialization", 3),
+    ...decision("concussive_impact", "Impacto concussivo", "Explosões empurram inimigos leves em 20 px. Pesados e Alfas sofrem empurrão reduzido, com cooldown de 3s por inimigo.", "specialization", 3),
   },
   reactive_barrier: {
     ...decision("reactive_barrier", "Barreira reativa", "A primeira tropa de cada rota abaixo de 30% de HP recebe um escudo temporário.", "defense", 4, { finalEligible: true }),
@@ -2499,7 +2505,7 @@ const phase = (
       ? createSandstormHazard((phaseNumber - 1) % 8)
       : null,
     supplyLimit: chapterNumber >= 2 ? 30 : 20,
-    loadoutLimit: chapterNumber >= 2 ? 6 : 5,
+    loadoutLimit: CHAPTER_LOADOUT_LIMITS[chapterNumber] ?? 6,
     waveCompletionEnergy: phaseNumber >= 2 ? 20 : 0,
     targetDurationMs,
     waves: configuredWaves,

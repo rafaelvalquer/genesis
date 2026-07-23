@@ -100,6 +100,13 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
   const tasks = [];
   const result = { troops: {}, enemies: {}, defenses: {}, effects: {}, audio: {} };
 
+  result.effects.colonyCapsule = {};
+  for (const state of ["falling", "idle", "opening"]) {
+    tasks.push(async () => {
+      result.effects.colonyCapsule[state] = await loadFrameSet(effectFrameModules, "colonyCapsule", state);
+    });
+  }
+
   if (phase.environmentHazard?.id === "sandstorm") {
     result.effects.sandBurial = {};
     tasks.push(async () => {
