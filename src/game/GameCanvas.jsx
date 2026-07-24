@@ -12,6 +12,7 @@ import {
   drawContactShadow,
   drawPlacementRange,
   drawTacticalGrid,
+  drawThreatTelegraphy,
   getPlacementPreviewGeometry,
 } from "./arenaRenderer.js";
 import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectiles, drawStunnedEnemyEffect, pushEventParticles } from "./projectileRenderer.js";
@@ -1013,6 +1014,7 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
   drawArenaUnderlay(ctx, session.phase, settings, session, now);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);
   drawTacticalGrid(ctx, session, selectedTroop, removeMode, hoveredCell);
+  drawThreatTelegraphy(ctx, session.upcomingThreat, now);
   drawPlacementRange(ctx, placementPreview);
   drawDecals(ctx, runtime, settings);
   drawPulseScorches(ctx, runtime, now, settings);
@@ -1150,6 +1152,32 @@ export function SandboxPanel({
   </aside>;
 }
 
+function playCriticalAlarmBeep(volume = 0.5) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!window._genesisAudioCtx) window._genesisAudioCtx = new AudioCtx();
+    const ctx = window._genesisAudioCtx;
+    if (ctx.state === "suspended") ctx.resume();
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(140, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + 0.25);
+
+    gain.gain.setValueAtTime(Math.max(0, Math.min(1, volume * 0.45)), ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  } catch {}
+}
+
 export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sandbox = false }) {
   const loadout = useMemo(() => unlockedTroops.map((entry) => typeof entry === "string" ? entry : entry.id), [unlockedTroops]);
   const canvasRef = useRef(null);
@@ -1164,6 +1192,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const speedRef = useRef(1);
   const finishSentRef = useRef(false);
   const audioRef = useRef({});
+  const lastCriticalBeepRef = useRef(0);
   if (!sessionRef.current) sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox });
 
   const [loading, setLoading] = useState({ ready: false, percent: 0 });
@@ -1304,6 +1333,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       const fortunePaused = adaptiveAidPausesSimulation(sessionRef.current.adaptiveAid?.status);
       if (!pausedRef.current && !fortunePaused) {
         accumulator += frameDelta * speedRef.current * adaptiveAidCinematicFactor(sessionRef.current);
+      }
+      const activeSession = sessionRef.current;
+      if (activeSession && !activeSession.outcome && activeSession.integrity > 0 && (activeSession.integrity / activeSession.integrityMax) <= 0.25) {
+        if (now - lastCriticalBeepRef.current >= 1200) {
+          lastCriticalBeepRef.current = now;
+          playCriticalAlarmBeep(settings.masterVolume * settings.effectsVolume);
+        }
       }
       const stepStarted = performance.now();
       while (accumulator >= 32) {
@@ -1761,6 +1797,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           <div><span>{sandbox ? "Modo" : "Onda"}</span><strong>{sandbox ? (sandboxSettingsState.rulesMode === "free" ? "LIVRE" : "REAL") : `${snapshot.wave}/${snapshot.totalWaves}`}</strong></div>
           <div><span>Hostis</span><strong>{snapshot.enemies + snapshot.queued}</strong></div>
         </div>
+        {snapshot.upcomingThreat && (
+          <span className="threat-radar-pill">
+            ⚠ AMEAÇA: {snapshot.upcomingThreat.isAlpha ? "ALFA " : ""}{snapshot.upcomingThreat.label.toUpperCase()} · ROTA {snapshot.upcomingThreat.row + 1} {snapshot.upcomingThreat.active ? "(EM CAMPO)" : `(${(snapshot.upcomingThreat.startsInMs / 1000).toFixed(1)}s)`}
+          </span>
+        )}
         <div className="battle-actions">
           <button className="icon-button" disabled={fortuneTargeting} onClick={() => setPaused((value) => !value)}>{paused ? "▶" : "Ⅱ"}</button>
           <button className="speed-button" disabled={paused || fortuneTargeting} onClick={() => setSpeed((value) => {
@@ -1822,6 +1863,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.preview = null;
               setEnergyPickupPointer(sessionRef.current, null);
             }} aria-label="Campo de batalha em cinco rotas" />
+            {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}
             {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
           </div>

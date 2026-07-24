@@ -810,6 +810,32 @@ export function drawTacticalGrid(ctx, session, selectedTroop, removeMode, hovere
   }
 }
 
+export function drawThreatTelegraphy(ctx, upcomingThreat, now) {
+  if (!upcomingThreat || !Number.isInteger(upcomingThreat.row)) return;
+  const row = upcomingThreat.row;
+  const spawnX = FIELD.width - 24;
+  const y = row * CELL.height + CELL.height / 2;
+  const pulse = Math.abs(Math.sin(now / 220));
+
+  ctx.save();
+  ctx.translate(spawnX, y);
+
+  ctx.fillStyle = `rgba(239, 68, 68, ${0.15 + pulse * 0.35})`;
+  ctx.fillRect(-28, -CELL.height / 2 + 4, 28, CELL.height - 8);
+
+  ctx.strokeStyle = `rgba(239, 68, 68, ${0.5 + pulse * 0.5})`;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-28, -CELL.height / 2 + 4, 28, CELL.height - 8);
+
+  ctx.fillStyle = "#ef4444";
+  ctx.font = "bold 15px 'Chakra Petch', sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("⚠", -14, 0);
+
+  ctx.restore();
+}
+
 export function drawContactShadow(ctx, entity, scale = 1, settings = {}) {
   const strength = getQualityProfile(settings).shadows;
   ctx.save();

@@ -1311,7 +1311,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     enemy.hp -= incoming;
     events.push({
       type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y,
-      color: ENEMIES[enemy.type].color, damageTakenFactor,
+      color: ENEMIES[enemy.type].color, damageTakenFactor, amount: Math.round(incoming),
     });
   }
   if (enemy.hp <= 0) {
@@ -3922,6 +3922,30 @@ export function getSnapshot(session) {
     pendingPositionalDecision: session.pendingPositionalDecision ? { ...session.pendingPositionalDecision } : null,
     activeTemporaryDecisions: [...session.activeTemporaryDecisions],
     queuedTemporaryDecisions: [...session.queuedTemporaryDecisions],
+    upcomingThreat: (() => {
+      const activeBoss = session.enemies.find((enemy) => !enemy.dead && (enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss));
+      if (activeBoss) {
+        return {
+          label: ENEMIES[activeBoss.type]?.label || activeBoss.type,
+          isAlpha: activeBoss.variant === "alpha",
+          isBoss: Boolean(ENEMIES[activeBoss.type]?.boss),
+          row: activeBoss.row,
+          active: true,
+        };
+      }
+      const queuedThreat = session.queue.find((item) => item.variant === "alpha" || ENEMIES[item.type]?.boss);
+      if (queuedThreat) {
+        return {
+          label: ENEMIES[queuedThreat.type]?.label || queuedThreat.type,
+          isAlpha: queuedThreat.variant === "alpha",
+          isBoss: Boolean(ENEMIES[queuedThreat.type]?.boss),
+          row: Number.isInteger(queuedThreat.row) ? queuedThreat.row : 0,
+          startsInMs: Math.max(0, (session.waveStartedAt + queuedThreat.spawnAtMs) - session.elapsed),
+          active: false,
+        };
+      }
+      return null;
+    })(),
     adaptiveAid: {
       status: session.adaptiveAid.status,
       triggered: session.adaptiveAid.triggered,

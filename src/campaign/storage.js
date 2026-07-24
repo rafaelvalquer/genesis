@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS = {
   cameraShake: true,
   reduceMotion: false,
   colorMode: "normal",
+  floatingDamage: true,
 };
 
 export function createDefaultSave() {

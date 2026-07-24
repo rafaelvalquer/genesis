@@ -190,6 +190,57 @@ export function createFireTrailParticles(event, now, settings = {}) {
 }
 
 export function pushEventParticles(particles, events, now, settings = {}) {
+  if (settings.floatingDamage !== false) {
+    for (const event of events) {
+      if (event.type === "hit" && event.amount) {
+        const isCrit = event.damageTakenFactor > 1;
+        particles.push({
+          kind: "floatingText",
+          text: isCrit ? `⚡-${event.amount}` : `-${event.amount}`,
+          x: event.x + (Math.random() * 16 - 8),
+          y: event.y - 18,
+          vx: (Math.random() - 0.5) * 16,
+          vy: isCrit ? -54 : -46,
+          color: isCrit ? "#ff2a5f" : "#ffe600",
+          glowColor: isCrit ? "#ff0055" : "#f59e0b",
+          fontSize: isCrit ? 25 : 19,
+          born: now,
+          life: isCrit ? 850 : 750,
+          essential: true,
+        });
+      } else if (event.type === "shieldHit" && event.absorbed) {
+        particles.push({
+          kind: "floatingText",
+          text: `🛡-${event.absorbed}`,
+          x: event.x + (Math.random() * 12 - 6),
+          y: event.y - 20,
+          vx: 0,
+          vy: -42,
+          color: "#e0aaff",
+          glowColor: "#9333ea",
+          fontSize: 18,
+          born: now,
+          life: 750,
+          essential: true,
+        });
+      } else if (event.type === "glassEchoShatter") {
+        particles.push({
+          kind: "floatingText",
+          text: "💥 REFRATADO",
+          x: event.x,
+          y: event.y - 22,
+          vx: 0,
+          vy: -50,
+          color: "#5eead4",
+          glowColor: "#0d9488",
+          fontSize: 21,
+          born: now,
+          life: 800,
+          essential: true,
+        });
+      }
+    }
+  }
   for (const event of events) {
     const essential = isEssentialParticleEvent(event);
     const quality = profile(settings, essential);
@@ -1221,6 +1272,21 @@ export function drawParticles(ctx, particles, now, settings = {}) {
       ctx.beginPath();
       ctx.arc(x, y, particle.size * (0.7 + progress), 0, Math.PI * 2);
       ctx.fill();
+    } else if (particle.kind === "floatingText") {
+      const x = particle.x + (particle.vx || 0) * seconds;
+      const y = particle.y + (particle.vy || -46) * seconds;
+      const popFactor = progress < 0.15 ? 1 + (0.15 - progress) * 2.2 : 1;
+      const size = Math.round((particle.fontSize || 19) * popFactor);
+      ctx.font = `900 ${size}px 'Chakra Petch', 'Arial Black', sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.strokeStyle = "#000000";
+      ctx.lineWidth = 4;
+      ctx.strokeText(particle.text, x, y);
+      ctx.shadowColor = particle.glowColor || particle.color;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = particle.color;
+      ctx.fillText(particle.text, x, y);
     } else if (particle.kind === "laser") drawLaser(ctx, particle, progress, settings);
     else if (particle.kind === "shotgun") drawShotgun(ctx, particle, progress);
     else if (particle.kind === "repulsorWake") drawRepulsorWake(ctx, particle, progress);
