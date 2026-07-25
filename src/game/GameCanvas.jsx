@@ -1797,11 +1797,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           <div><span>{sandbox ? "Modo" : "Onda"}</span><strong>{sandbox ? (sandboxSettingsState.rulesMode === "free" ? "LIVRE" : "REAL") : `${snapshot.wave}/${snapshot.totalWaves}`}</strong></div>
           <div><span>Hostis</span><strong>{snapshot.enemies + snapshot.queued}</strong></div>
         </div>
-        {snapshot.upcomingThreat && (
-          <span className="threat-radar-pill">
-            ⚠ AMEAÇA: {snapshot.upcomingThreat.isAlpha ? "ALFA " : ""}{snapshot.upcomingThreat.label.toUpperCase()} · ROTA {snapshot.upcomingThreat.row + 1} {snapshot.upcomingThreat.active ? "(EM CAMPO)" : `(${(snapshot.upcomingThreat.startsInMs / 1000).toFixed(1)}s)`}
-          </span>
-        )}
+        
         <div className="battle-actions">
           <button className="icon-button" disabled={fortuneTargeting} onClick={() => setPaused((value) => !value)}>{paused ? "▶" : "Ⅱ"}</button>
           <button className="speed-button" disabled={paused || fortuneTargeting} onClick={() => setSpeed((value) => {
@@ -1857,6 +1853,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
                 : targetingDecision?.targetType === "columnBlock"
                   ? "FORMAÇÃO AVANÇADA · PASSE O MOUSE E CLIQUE EM TRÊS COLUNAS"
                 : targetingDecision ? "SELEÇÃO DE ROTA · passe o mouse e clique para fortificar" : (windBanner || sandstormBanner || banner)}</div>
+          {snapshot.upcomingThreat && (
+            <span className="threat-radar-pill">
+              ⚠ AMEAÇA: {snapshot.upcomingThreat.isAlpha ? "ALFA " : ""}{snapshot.upcomingThreat.label.toUpperCase()} · ROTA {snapshot.upcomingThreat.row + 1} {snapshot.upcomingThreat.active ? "(EM CAMPO)" : `(${(snapshot.upcomingThreat.startsInMs / 1000).toFixed(1)}s)`}
+            </span>
+          )}
           <div className="battle-canvas-stage">
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
               hoveredCellRef.current = null;
