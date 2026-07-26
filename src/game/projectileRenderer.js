@@ -309,6 +309,51 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
 
+    if (event.type === "electricCharge") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y, color: event.paralyzed ? "#f0f9ff" : "#22d3ee",
+        born: now, life: event.paralyzed ? 520 : 280, maxRadius: event.paralyzed ? 52 : 26,
+        essential: event.paralyzed,
+      });
+      addSparks(particles, event, now, Math.max(6, Math.round((event.paralyzed ? 24 : 12) * quality.density)), random, {
+        color: event.paralyzed ? "#ffffff" : "#67e8f9",
+        minSpeed: 24, speed: event.paralyzed ? 135 : 76, life: 440, size: 1.9,
+      });
+      continue;
+    }
+
+    if (event.type === "stormShieldPulse") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y, color: "#22d3ee",
+        born: now, life: 720, maxRadius: 118,
+      });
+      addSparks(particles, event, now, Math.max(10, Math.round(24 * quality.density)), random, {
+        color: "#a5f3fc", minSpeed: 30, speed: 112, life: 560, size: 2,
+      });
+      continue;
+    }
+
+    if (event.type === "gorjalChargeImpact") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y + 22, color: event.pushed ? "#22d3ee" : "#f59e0b",
+        born: now, life: 520, maxRadius: event.pushed ? 86 : 66,
+      });
+      addSparks(particles, { ...event, y: event.y + 26 }, now, Math.max(12, Math.round(30 * quality.density)), random, {
+        color: event.pushed ? "#67e8f9" : "#fbbf24",
+        minSpeed: 38, speed: 150, gravity: 190, life: 560, size: 2.8,
+      });
+      continue;
+    }
+
+    if (event.type === "groundingBeam") {
+      particles.push({ kind: "laser", ...event, color, born: now, life: 210 });
+      particles.push({ kind: "ring", x: event.x1, y: event.y1, color, born: now, life: 320, maxRadius: 34 });
+      addSparks(particles, event, now, Math.max(8, Math.round(20 * quality.density)), random, {
+        color: "#67e8f9", minSpeed: 28, speed: 110, life: 420, size: 2,
+      });
+      continue;
+    }
+
     if (event.type === "shieldHit" || event.type === "shieldBreak" || event.type === "glassEchoShatter") {
       particles.push({
         kind: "ring", x: event.x, y: event.y, color,

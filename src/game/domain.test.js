@@ -89,12 +89,13 @@ describe("campanha e ondas", () => {
   });
 
   it("organiza vinte e quatro fases em três capítulos de oito operações", () => {
-    expect(CHAPTERS).toHaveLength(3);
-    expect(PHASES).toHaveLength(24);
-    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8]);
+    expect(CHAPTERS).toHaveLength(4);
+    expect(PHASES).toHaveLength(32);
+    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8]);
     expect(getChapterForPhase("fase_08")?.id).toBe("chapter_01");
     expect(getChapterForPhase("fase_09")?.id).toBe("chapter_02");
     expect(getChapterForPhase("fase_17")?.id).toBe("chapter_03");
+    expect(getChapterForPhase("fase_25")?.id).toBe("chapter_04");
     expect(PHASES.slice(0, 8).every((phase) => phase.waves.length === 4)).toBe(true);
     expect(PHASES.slice(8, 20).every((phase) => phase.waves.length === 5)).toBe(true);
     expect(PHASES.slice(20, 24).every((phase) => phase.waves.length === 6)).toBe(true);

@@ -499,25 +499,243 @@ a .phase-card:hover .phase-art::before { transform: translateX(55%); }
   100% { opacity: 0.9; box-shadow: inset 0 0 85px rgba(239, 68, 68, 0.85), inset 0 0 150px rgba(220, 38, 38, 0.65); }
 }
 
-/* Threat Radar Pill */
-.threat-radar-pill {
-  display: inline-flex;
+/* Compact battle workspace */
+.app-shell:has(.test-page) .site-header { display: none; }
+body:has(.play-page),
+body:has(.test-page) {
+  min-width: 0;
+  overflow: hidden;
+}
+.play-page,
+.test-page {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.battle-shell,
+.test-page .battle-shell {
+  width: 100%;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.battle-topbar {
+  flex: 0 0 48px;
+  min-height: 48px;
+  height: 48px;
+  grid-template-columns: minmax(150px, 1fr) auto auto;
+  gap: 10px;
+  padding: 4px 10px;
+}
+.battle-operation { min-width: 0; }
+.battle-operation > span {
+  display: block;
+  color: var(--muted);
+  font: 700 7px "Chakra Petch", sans-serif;
+  letter-spacing: .13em;
+}
+.battle-operation h1 {
+  overflow: hidden;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.battle-stats {
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  border: 0;
+  background: transparent;
+}
+.battle-stats > div {
+  min-height: 32px;
+  padding: 2px 10px;
+  border-right: 1px solid var(--line);
+}
+.battle-stats > div:first-child { border-left: 1px solid var(--line); }
+.battle-stats strong { margin-top: 0; font-size: 12px; }
+.battle-actions { align-items: center; flex-wrap: nowrap; }
+.battle-actions .icon-button,
+.battle-actions .speed-button,
+.battle-actions .ghost-button,
+.topbar-tool-button {
+  min-height: 32px;
+  height: 32px;
+}
+.battle-main {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  overflow: hidden;
+}
+.troop-rail {
+  position: relative;
+  min-height: 0;
+  padding: 8px;
+  gap: 7px;
+  overflow: visible;
+}
+.rail-heading {
+  min-height: 28px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px 5px;
+}
+.rail-heading small {
+  color: var(--amber);
+  font: 700 8px "Chakra Petch", sans-serif;
+}
+.troop-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  align-content: start;
+}
+.troop-slot {
+  position: relative;
+  min-width: 0;
+  min-height: 64px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
+  grid-template-rows: 1fr;
+  gap: 8px;
+  padding: 6px 8px 6px 6px;
+}
+.troop-portrait {
+  grid-column: auto;
+  justify-self: start;
+  width: 48px;
+  height: 50px;
+}
+.troop-details {
+  min-width: 0;
+  justify-content: center;
+}
+.troop-slot b { font-size: 12px; }
+.troop-details small {
+  overflow: hidden;
+  font-size: 8px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slot-cost {
+  justify-content: center;
+  font-size: 11px;
+}
+.slot-cost small { font-size: 8px; }
+.remove-button {
+  min-height: 34px;
+  margin-top: 0;
+}
+.troop-tooltip {
+  position: absolute;
+  z-index: 60;
+  left: calc(100% + 8px);
+  top: 40px;
+  width: 260px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--troop-color) 58%, var(--line));
+  background: rgba(4,10,18,.97);
+  box-shadow: 0 16px 45px rgba(0,0,0,.65);
+  pointer-events: none;
+}
+.troop-tooltip b,
+.troop-tooltip span { display: block; }
+.troop-tooltip b { color: var(--troop-color); font: 700 12px "Chakra Petch", sans-serif; }
+.troop-tooltip span { margin-top: 2px; color: var(--muted); font-size: 8px; text-transform: uppercase; }
+.troop-tooltip p { margin: 8px 0 0; color: #c3d2dc; font-size: 10px; line-height: 1.45; }
+.canvas-wrap {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.battle-canvas-stage {
+  position: relative;
+  width: 100%;
+  max-width: calc((100dvh - 64px) * 1.61765);
+  max-height: 100%;
+  aspect-ratio: 55 / 34;
+}
+.containment-summary {
+  position: absolute;
+  z-index: 12;
+  top: 3px;
+  left: 50%;
+  translate: -50% 0;
+  width: min(72%, 720px);
+  min-height: 20px;
+  display: grid;
+  place-items: center;
+  color: var(--cyan-soft);
+  font: 800 10px "Chakra Petch", sans-serif;
+  letter-spacing: .12em;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(103,232,249,.58);
+  pointer-events: none;
+}
+.containment-start-wave {
+  min-height: 24px;
+  padding: 2px 16px;
+  pointer-events: auto;
+  font-size: 8px;
+}
+.containment-start-wave span { font-size: 7px; }
+.battle-notification {
+  position: absolute;
+  z-index: 50;
+  left: 14px;
+  bottom: 14px;
+  max-width: min(420px, 60%);
+  display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(220, 38, 38, 0.22);
-  border: 1px solid rgba(239, 68, 68, 0.65);
-  color: #fca5a5;
-  font-family: "Chakra Petch", sans-serif;
-  font-weight: 700;
-  font-size: 0.78rem;
-  padding: 4px 10px;
-  border-radius: 4px;
-  letter-spacing: 0.05em;
-  animation: threatPulse 1.4s infinite ease-in-out;
+  padding: 9px 12px;
+  border: 1px solid rgba(52,211,153,.42);
+  background: rgba(3,15,18,.92);
+  color: #d1fae5;
+  box-shadow: 0 10px 28px rgba(0,0,0,.45);
+  font: 700 10px "Chakra Petch", sans-serif;
+  pointer-events: none;
+  animation: result-arrive .2s ease-out both;
 }
-
-@keyframes threatPulse {
-  0%, 100% { border-color: rgba(239, 68, 68, 0.5); text-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
-  50% { border-color: rgba(248, 113, 113, 1); text-shadow: 0 0 12px rgba(248, 113, 113, 0.95); background: rgba(220, 38, 38, 0.38); }
+.battle-notification.tone-action {
+  border-color: rgba(251,191,36,.55);
+  color: #fde68a;
+  background: rgba(24,16,3,.94);
+}
+.battle-notification.persistent { box-shadow: 0 0 18px rgba(251,191,36,.12), 0 10px 28px rgba(0,0,0,.45); }
+.sandbox-battle .battle-main {
+  grid-template-columns: 200px minmax(0, 1fr) 270px;
+}
+.sandbox-panel {
+  max-height: none;
+  overflow: hidden;
+}
+.sandbox-battle .troop-rail { max-height: none; overflow: visible; }
+.sandbox-battle .troop-grid,
+.sandbox-panel {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-bright) transparent;
+}
+@media (max-width: 1050px) {
+  .sandbox-battle .battle-main { grid-template-columns: 190px minmax(0, 1fr) 250px; }
+  .sandbox-battle .battle-topbar { grid-template-columns: minmax(120px, 1fr) auto auto; }
+  .sandbox-battle .battle-stats { grid-column: auto; grid-row: auto; }
+  .sandbox-panel { grid-column: auto; max-height: none; }
+  .battle-topbar { grid-template-columns: minmax(120px, 1fr) auto auto; }
+  .battle-stats { grid-template-columns: repeat(3, minmax(68px, 1fr)); }
+  .topbar-tool-button { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
 }
 

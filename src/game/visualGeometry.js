@@ -149,6 +149,26 @@ export function getEnemyMuzzleWorldPosition(enemy, enemyConfig = {}) {
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.chapterId === "chapter_04") {
+    const stunned = elapsed < (enemy.stunnedUntil || 0);
+    const state = stunned
+      ? "stunned"
+      : enemy.chapterFourState
+        || (enemyConfig.airborne ? "flying" : enemy.moving ? "walking" : "idle");
+    const fallbackState = enemyConfig.airborne ? "flying" : enemy.moving ? "walking" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts[fallbackState] || 1);
+    const age = Math.max(0, elapsed - (enemy.chapterFourStateStartedAt || enemy.spawnedAt || 0));
+    const duration = Number.isFinite(enemy.chapterFourStateEndsAt)
+      ? Math.max(1, enemy.chapterFourStateEndsAt - enemy.chapterFourStateStartedAt)
+      : null;
+    if (duration) {
+      const progress = Math.min(0.999, age / duration);
+      return { state, frame: Math.min(count - 1, Math.floor(progress * count)) };
+    }
+    const frameMs = enemyConfig.animationFrameMs?.[state] || 105;
+    return { state, frame: Math.floor(age / frameMs) % count };
+  }
+
   if (enemyConfig.id === "silicaDigger" && enemy.emergeState === "emerging") {
     const state = "emerging";
     const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);

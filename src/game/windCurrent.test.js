@@ -94,9 +94,9 @@ function applyGust(session) {
 describe("conteudo do Capitulo 4", () => {
   it("mantem oito blueprints fora da campanha jogavel", () => {
     expect(CHAPTER_FOUR_PHASE_BLUEPRINTS).toHaveLength(8);
-    expect(PHASES).toHaveLength(24);
-    expect(CHAPTERS).toHaveLength(3);
-    expect(PHASES.some((phase) => phase.chapterId === "chapter_04")).toBe(false);
+    expect(PHASES).toHaveLength(32);
+    expect(CHAPTERS).toHaveLength(4);
+    expect(PHASES.filter((phase) => phase.chapterId === "chapter_04")).toHaveLength(8);
   });
 
   it.each([
@@ -117,7 +117,7 @@ describe("conteudo do Capitulo 4", () => {
       energy,
       energyMax: energy,
       supplyLimit: 35,
-      loadoutLimit: 6,
+      loadoutLimit: 7,
       baseIntegrity: 100,
       environment: "storm_highlands",
       chapterId: "chapter_04",
@@ -136,7 +136,7 @@ describe("conteudo do Capitulo 4", () => {
   });
 
   it("adiciona o limite de loadout do quarto capitulo", () => {
-    expect(CHAPTER_LOADOUT_LIMITS).toEqual({ 1: 4, 2: 5, 3: 6, 4: 6 });
+    expect(CHAPTER_LOADOUT_LIMITS).toEqual({ 1: 4, 2: 5, 3: 6, 4: 7 });
   });
 
   it("classifica todas as tropas e extensoes inimigas", () => {

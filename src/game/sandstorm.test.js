@@ -54,7 +54,7 @@ function triggerStorm(session) {
 describe("tempestade de areia", () => {
   it("configura apenas as fases 17 a 24 com progressao por fase", () => {
     expect(PHASES.slice(0, 16).every((phase) => phase.environmentHazard == null)).toBe(true);
-    PHASES.slice(16).forEach((phase, index) => {
+    PHASES.slice(16, 24).forEach((phase, index) => {
       expect(phase.environmentHazard).toMatchObject({
         id: "sandstorm",
         baseChance: 0.04 + index * 0.01,

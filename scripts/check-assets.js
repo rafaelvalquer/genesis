@@ -4,7 +4,7 @@ import { CHAPTERS, PHASES } from "../src/game/content.js";
 
 const root = path.resolve("dist/assets");
 if (!fs.existsSync(root)) throw new Error("Build sem diretório de assets.");
-const totalBudgetMb = 68;
+const totalBudgetMb = 74;
 
 const limits = {
   ".png": 700_000,

@@ -1,7 +1,9 @@
 import { createWindCurrentHazard } from "./windCurrent.js";
+import { CHAPTER_FOUR_ENEMIES } from "./chapterFourEnemies.js";
+import { createChapterFourWaves } from "./chapterFourWaves.js";
 export { createWindCurrentHazard } from "./windCurrent.js";
 
-export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 6 });
+export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 7 });
 export const DEFAULT_MAX_DEPLOYED_PER_TROOP = 5;
 
 export const TROOPS = {
@@ -1778,6 +1780,7 @@ export const ENEMIES = {
     description:
       "Ovo imóvel e destrutível que gera um Escavador de Sílica ao completar a incubação.",
   },
+  ...CHAPTER_FOUR_ENEMIES,
 };
 
 Object.values(ENEMIES).forEach((enemy) => {
@@ -2688,7 +2691,7 @@ export const CHAPTER_FOUR_PHASE_BLUEPRINTS = Object.freeze(
     chapterIndex,
     arenaId: id,
     supplyLimit: 35,
-    loadoutLimit: 6,
+    loadoutLimit: 7,
     environmentHazard: createWindCurrentHazard(
       chapterIndex,
       { headwind, tailwind, lateral },
@@ -3771,6 +3774,20 @@ export const PHASES = [
     ],
     { boss: true },
   ),
+  ...CHAPTER_FOUR_PHASE_BLUEPRINTS.map((blueprint, chapterIndex) => {
+    const waves = createChapterFourWaves(chapterIndex);
+    return {
+      ...blueprint,
+      cadenceMs: 1000,
+      targetDurationMs: 900000 + chapterIndex * 30000,
+      waves,
+      waveIntensity: waves.map((_, waveIndex) => (
+        0.34 + (0.66 * waveIndex) / Math.max(1, waves.length - 1)
+      )),
+      waveCompletionEnergy: 20,
+      ...(chapterIndex === 7 ? { boss: true } : {}),
+    };
+  }),
 ];
 
 export const CHAPTERS = [
@@ -3817,6 +3834,21 @@ export const CHAPTERS = [
       id: "sandstorm",
       label: "Tempestade de Areia",
       description: "Exércitos numerosos podem provocar uma tempestade que soterra tropas e reduz temporariamente alcance e cadência.",
+    },
+  },
+  {
+    id: "chapter_04",
+    number: 4,
+    name: "Cumes da Tempestade",
+    subtitle: "A formação se parte sob ventos e relâmpagos",
+    phaseIds: PHASES.slice(24, 32).map((entry) => entry.id),
+    coverArenaId: "fase_32",
+    exclusiveEnemyIds: ["voltriz", "nimbarca", "gorjal", "derivante", "raizFulgor"],
+    palette: { primary: "#22d3ee", accent: "#a855f7", shadow: "#050817" },
+    mechanic: {
+      id: "electric_charge",
+      label: "Carga Iônica",
+      description: "Ataques tempestuosos acumulam carga, paralisam tropas e expõem estruturas.",
     },
   },
 ];

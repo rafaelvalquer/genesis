@@ -32,6 +32,14 @@ import {
   resetWindCurrentForWave,
   updateWindCurrent,
 } from "./windCurrent.js";
+import { chapterFourAlphaMultipliers } from "./chapterFourEnemies.js";
+import {
+  applyConductivity,
+  applyElectricCharge,
+  electricDamageTakenFactor,
+  expireElectricState,
+  isElectricParalyzed,
+} from "./electricCharge.js";
 
 export {
   createWindCurrentState,
@@ -341,6 +349,10 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     webSlowUntil: 0, webSlowFactor: 1, webRangePenaltyUntil: 0, webRangePenaltyTiles: 0,
     sandBuriedStartedAt: 0, sandBuriedUntil: 0, sandAttackSpeedFactor: 1,
     windRecovery: false,
+    electricStacks: 0, electricStacksExpireAt: 0,
+    electricParalyzedUntil: 0, electricImmunityUntil: 0,
+    electricConductivityUntil: 0, electricVulnerabilityUntil: 0,
+    electricReactorPausedUntil: 0,
     firstImpactAvailable: session.modifiers.firstImpact,
     previousRenderX: x, previousRenderY: y, dead: false,
   };
@@ -695,7 +707,12 @@ function createEnemy(session, queued) {
   const echoHpFactor = echo ? mechanic?.hpFactor ?? 0.45 : 1;
   const echoSpeedFactor = echo ? mechanic?.speedFactor ?? 1.2 : 1;
   const echoDamageFactor = echo ? mechanic?.damageFactor ?? 0.6 : 1;
-  const maxHp = base.hp * (alpha ? 8 : 1) * echoHpFactor * (session.sandboxSettings?.enemyHpMultiplier ?? 1);
+  const chapterFourAlpha = alpha ? chapterFourAlphaMultipliers(queued.type) : null;
+  const alphaHpFactor = chapterFourAlpha?.hp ?? (alpha ? 8 : 1);
+  const alphaDamageFactor = chapterFourAlpha?.damage ?? (alpha ? 2 : 1);
+  const alphaSpeedFactor = chapterFourAlpha?.speed ?? (alpha ? 0.75 : 1);
+  const alphaScaleFactor = chapterFourAlpha?.scale ?? (alpha ? 1.45 : 1);
+  const maxHp = base.hp * alphaHpFactor * echoHpFactor * (session.sandboxSettings?.enemyHpMultiplier ?? 1);
   const firstLivingCrisalio = queued.type === "crisalio"
     && !session.enemies.some((entry) => !entry.dead && entry.type === "crisalio");
   const enemy = {
@@ -710,8 +727,8 @@ function createEnemy(session, queued) {
     packetId: queued.packetId || null,
     spawnBlock: queued.block || null,
     hp: maxHp, maxHp,
-    speed: base.speed * (alpha ? 0.75 : 1) * echoSpeedFactor,
-    damage: base.damage * (alpha ? 2 : 1) * echoDamageFactor,
+    speed: base.speed * alphaSpeedFactor * echoSpeedFactor,
+    damage: base.damage * alphaDamageFactor * echoDamageFactor,
     attackReadyAt: 0, lastAttackAt: -Infinity,
     casting: false, castStartedAt: -Infinity, castReadyAt: Infinity, moving: true,
     jumpConsumed: false, jumping: false, jumpStartedAt: -Infinity, jumpProgress: 0,
@@ -758,10 +775,27 @@ function createEnemy(session, queued) {
     eggOwnerId: queued.eggOwnerId || null,
     eggCreatedAt: queued.type === "workerQueenEgg" ? session.elapsed : null,
     eggHatchAt: queued.type === "workerQueenEgg" ? session.elapsed + base.hatchAfterMs : Infinity,
+    chapterFourState: base.chapterId === "chapter_04"
+      ? (queued.type === "voltriz" || queued.type === "nimbarca" ? "flying" : "walking")
+      : null,
+    chapterFourStateStartedAt: base.chapterId === "chapter_04" ? session.elapsed : -Infinity,
+    chapterFourStateEndsAt: Infinity,
+    chapterFourActionApplied: false,
+    nextSpecialAt: queued.type === "gorjal"
+      ? session.elapsed + base.firstChargeDelayMs
+      : queued.type === "derivante"
+        ? session.elapsed + base.breachCheckEveryMs
+        : queued.type === "nimbarca"
+          ? session.elapsed + (alpha ? 7000 : base.resonancePulseEveryMs)
+          : Infinity,
+    rooted: false,
+    blockedSince: null,
+    jumpTargetRow: null,
+    electricAttackTargetId: null,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
-    scale: base.scale * (alpha ? 1.45 : 1) * (echo ? 0.94 : 1),
+    scale: base.scale * alphaScaleFactor * (echo ? 0.94 : 1),
     previousRenderX: FIELD.spawnX, previousRenderY: 0, dead: false,
   };
   if (base.stationary) enemy.moving = false;
@@ -1196,7 +1230,7 @@ function attackDamageMultiplier(session, troop, { explosive = false, target = nu
 
 function applyConcussiveImpact(session, enemy) {
   if (!session.modifiers.concussiveImpact || enemy.dead || ENEMIES[enemy.type]?.controlImmune
-    || ENEMIES[enemy.type]?.knockbackImmune || !isGroundTrapEligible(enemy)) return;
+    || ENEMIES[enemy.type]?.knockbackImmune || enemy.rooted || !isGroundTrapEligible(enemy)) return;
   if (session.elapsed < (enemy.concussiveReadyAt || 0)) return;
   interruptWorkerQueenEggLay(session, enemy);
   const resistanceFactor = enemy.variant === "alpha"
@@ -1293,7 +1327,25 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     return;
   }
   const damageTakenFactor = getEnemyDamageTakenFactor(enemy, { ...context, elapsed: session.elapsed });
-  let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1) * damageTakenFactor;
+  let chapterFourFactor = 1;
+  if (enemy.type === "gorjal" && enemy.chapterFourState === "recover") {
+    chapterFourFactor *= ENEMIES.gorjal.recoverDamageTakenFactor;
+  }
+  if (enemy.type === "raizFulgor" && enemy.rooted) {
+    chapterFourFactor *= ENEMIES.raizFulgor.rootedDamageTakenFactor;
+  }
+  const protector = session.enemies.find((candidate) => {
+    if (candidate.dead || candidate.type !== "nimbarca" || candidate.id === enemy.id
+      || candidate.packetId !== enemy.packetId || candidate.row !== enemy.row) return false;
+    return Math.abs(candidate.x - enemy.x) <= ENEMIES.nimbarca.shieldRadiusTiles * CELL.width;
+  });
+  if (protector && context.direct !== false) {
+    chapterFourFactor *= protector.variant === "alpha" ? 0.75 : ENEMIES.nimbarca.alliedProjectileDamageFactor;
+  } else if (enemy.type === "nimbarca" && context.direct !== false) {
+    chapterFourFactor *= enemy.variant === "alpha" ? 0.85 : ENEMIES.nimbarca.selfProjectileDamageFactor;
+  }
+  let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1)
+    * damageTakenFactor * chapterFourFactor;
   const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
     const absorbed = Math.min(enemy.shield, incoming);
@@ -1398,9 +1450,17 @@ export function stunEnemy(session, enemy, durationMs) {
     enemy.duneRoarSummoned = false;
   }
   if (enemy.type === "workerQueen") interruptWorkerQueenEggLay(session, enemy);
+  if (enemy.type === "derivante" && enemy.chapterFourState === "jumpPrepare") {
+    enemy.jumping = false;
+    enemy.jumpProgress = 0;
+    enemy.jumpTargetRow = null;
+    enemy.nextSpecialAt = session.elapsed + ENEMIES.derivante.interruptedJumpCooldownMs;
+    setChapterFourState(session, enemy, "walking");
+  }
   for (const field of [
     "attackReadyAt", "castReadyAt", "meleeImpactAt", "ramStateEndsAt", "ramAttackImpactAt",
     "duneStateEndsAt", "duneAttackImpactAt",
+    "chapterFourStateEndsAt",
   ]) {
     if (Number.isFinite(enemy[field]) && enemy[field] >= session.elapsed) enemy[field] += pausedFor;
   }
@@ -1463,6 +1523,7 @@ function damageTroop(session, troop, amount, events) {
     && session.advancedFormationColumns.includes(troop.col) ? 1.1 : 1;
   const finalFortressFactor = session.activeTemporaryDecisions.includes("final_fortress") ? 0.75 : 1;
   let incoming = amount * defenseFactor * lastLineFactor * advancedFormationFactor * finalFortressFactor
+    * electricDamageTakenFactor(troop, session.elapsed)
     * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
   if (troop.reactiveShield > 0 && session.elapsed < troop.reactiveShieldUntil) {
     const absorbed = Math.min(troop.reactiveShield, incoming);
@@ -2102,6 +2163,11 @@ function launchExecutorArcSlash(session, troop, config, target, visual) {
 function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead || troop.windRecovery) continue;
+    expireElectricState(troop, session.elapsed);
+    if (isElectricParalyzed(troop, session.elapsed)) {
+      troop.defenseActive = false;
+      continue;
+    }
     refreshTroopAttackSpeedFactor(session, troop);
     if (isSandBuried(session, troop)) {
       troop.defenseActive = false;
@@ -2110,6 +2176,7 @@ function updateTroops(session, events, dt) {
     const baseConfig = TROOPS[troop.type];
     const config = effectiveCombatConfig(session, troop, baseConfig);
     if (config.attack === "energy") {
+      if (session.elapsed < Number(troop.electricReactorPausedUntil || 0)) continue;
       const reactorInactive = session.waveIndex === session.overchargedReactorInactiveWave
         && session.elapsed - session.waveStartedAt < 5000;
       if (reactorInactive) continue;
@@ -3379,6 +3446,49 @@ function launchArcaneProjectile(session, enemy, config, target, events) {
   });
 }
 
+function applyEnemyElectricCharge(session, enemy, target, events, options = {}) {
+  const result = applyElectricCharge(target, session.elapsed, {
+    stacks: options.stacks || 1,
+    troopType: target.type,
+    paralysisDurationMs: options.paralysisDurationMs,
+  });
+  events.push({
+    type: "electricCharge",
+    sourceEnemyId: enemy.id,
+    targetTroopId: target.id,
+    x: target.x,
+    y: target.y - 24,
+    stacks: result.stacks,
+    appliedStacks: result.appliedStacks,
+    paralyzed: result.paralyzed,
+    color: ENEMIES[enemy.type].color,
+    seed: nextEffectSeed(session),
+  });
+}
+
+function launchElectricProjectile(session, enemy, config, target, events) {
+  const origin = getEnemyMuzzleWorldPosition(enemy, config);
+  const flightSeconds = Math.max(0.1, (origin.x - target.x) / config.projectileSpeed);
+  const seed = nextEffectSeed(session);
+  session.enemyProjectiles.push({
+    id: id("enemy_projectile"), kind: "electric",
+    visualKind: config.attackVisual?.effect || "ionicSpine",
+    sourceEnemyId: enemy.id, targetTroopId: target.id, row: enemy.row,
+    x: origin.x, y: origin.y,
+    previousX: origin.x, previousY: origin.y,
+    previousRenderX: origin.x, previousRenderY: origin.y,
+    vx: -config.projectileSpeed,
+    vy: (target.y - 18 - origin.y) / flightSeconds,
+    damage: enemy.damage, color: config.color, active: true, launched: true,
+    trail: [{ x: origin.x, y: origin.y }], ageMs: 0, seed,
+  });
+  events.push({
+    type: "shoot", weapon: config.attackVisual?.effect || "ionicSpine",
+    faction: "enemy", sourceEnemyId: enemy.id,
+    x: origin.x, y: origin.y, color: config.color, seed,
+  });
+}
+
 function resolveInhibitorWebImpact(session, projectile, target, events) {
   damageTroop(session, target, projectile.damage, events);
   applyWorkerQueenWebDebuff(session, target, projectile);
@@ -3434,6 +3544,10 @@ function updateEnemyProjectiles(session, dt, events) {
       .sort((left, right) => right.x - left.x)[0] || null;
     if (target) {
       damageTroop(session, target, projectile.damage, events);
+      if (projectile.kind === "electric") {
+        const source = session.enemies.find((enemy) => enemy.id === projectile.sourceEnemyId);
+        if (source) applyEnemyElectricCharge(session, source, target, events);
+      }
       if (projectile.kind === "inhibitorWeb") {
         if (!intendedTarget || intendedTarget.id === target.id) {
           applyWorkerQueenWebDebuff(session, target, projectile);
@@ -3590,6 +3704,326 @@ function updateScarabEmperor(session, enemy, config, dt, events) {
   moveEnemy(session, enemy, dt, events);
 }
 
+function setChapterFourState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.chapterFourState !== state) enemy.chapterFourStateStartedAt = session.elapsed;
+  enemy.chapterFourState = state;
+  enemy.chapterFourStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.chapterFourActionApplied = false;
+}
+
+function chapterFourRangedTarget(session, enemy, rangeTiles) {
+  return closestTroopForEnemy(session, enemy, rangeTiles);
+}
+
+function updateVoltriz(session, enemy, config, dt, events) {
+  const target = chapterFourRangedTarget(session, enemy, config.range);
+  const packetWing = session.enemies.filter((candidate) => (
+    !candidate.dead && candidate.type === "voltriz" && candidate.packetId === enemy.packetId
+    && candidate.row === enemy.row
+  )).length;
+  const interval = config.attackEveryMs
+    * (packetWing >= config.resonanceMinimum ? config.resonanceAttackSpeedFactor : 1);
+  if (target && session.elapsed >= enemy.attackReadyAt) {
+    launchElectricProjectile(session, enemy, config, target, events);
+    enemy.attackReadyAt = session.elapsed + interval;
+    enemy.lastAttackAt = session.elapsed;
+    setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+  } else if (session.elapsed >= enemy.chapterFourStateEndsAt) {
+    setChapterFourState(session, enemy, "flying");
+  }
+  if (!target || enemy.x - target.x > troopBlockDistance(target)) {
+    const originalSpeed = enemy.speed;
+    if (target) enemy.speed *= config.movingAttackFactor;
+    moveEnemy(session, enemy, dt, events);
+    enemy.speed = originalSpeed;
+  } else {
+    enemy.moving = false;
+  }
+}
+
+function updateNimbarca(session, enemy, config, dt, events) {
+  if (session.elapsed >= enemy.nextSpecialAt) {
+    const pulseEvery = enemy.variant === "alpha" ? 7000 : config.resonancePulseEveryMs;
+    const allies = session.enemies.filter((candidate) => (
+      !candidate.dead && candidate.type === "voltriz" && candidate.packetId === enemy.packetId
+      && candidate.row === enemy.row
+      && Math.abs(candidate.x - enemy.x) <= config.shieldRadiusTiles * CELL.width
+    ));
+    allies.forEach((ally) => {
+      const remaining = Math.max(0, ally.attackReadyAt - session.elapsed);
+      ally.attackReadyAt = session.elapsed + remaining * config.resonanceCooldownFactor;
+    });
+    enemy.nextSpecialAt = session.elapsed + pulseEvery;
+    setChapterFourState(session, enemy, "shieldPulse", 700);
+    events.push({
+      type: "stormShieldPulse", sourceEnemyId: enemy.id,
+      targetIds: allies.map((ally) => ally.id), x: enemy.x, y: enemy.y,
+      color: config.color, seed: nextEffectSeed(session),
+    });
+  }
+  const target = chapterFourRangedTarget(session, enemy, config.range);
+  const distance = target ? enemy.x - target.x : Infinity;
+  if (target && distance <= config.range * CELL.width && session.elapsed >= enemy.attackReadyAt) {
+    launchElectricProjectile(session, enemy, config, target, events);
+    enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+    enemy.lastAttackAt = session.elapsed;
+    setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+  }
+  if (!target || distance > config.preferredRange * CELL.width) {
+    moveEnemy(session, enemy, dt, events);
+  } else {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.chapterFourStateEndsAt) setChapterFourState(session, enemy, "flying");
+  }
+}
+
+const GORJAL_ANCHORS = new Set(["colossoImpacto", "lumiUrsa7", "muralhaReforcada"]);
+
+export function tryGorjalFormationPush(session, enemy, events = []) {
+  const rowTroops = session.troops
+    .filter((troop) => !troop.dead && !troop.windRecovery && troop.row === enemy.row)
+    .sort((left, right) => left.col - right.col);
+  if (!rowTroops.length) return false;
+  const blocked = rowTroops.some((troop) => GORJAL_ANCHORS.has(troop.type))
+    || rowTroops.some((troop) => troop.col - 1 < FIELD.firstTroopCol)
+    || rowTroops.some((troop) => session.troops.some((other) => (
+      !other.dead && other.row === troop.row && other.col === troop.col - 1
+      && !rowTroops.includes(other)
+    )));
+  if (blocked) return false;
+  const moves = rowTroops.map((troop) => ({ troop, fromCol: troop.col, toCol: troop.col - 1 }));
+  moves.forEach(({ troop, fromCol, toCol }) => {
+    troop.col = toCol;
+    troop.x = toCol * CELL.width + CELL.width / 2;
+    troop.previousRenderX = troop.x;
+    events.push({
+      type: "gorjalFormationPushed", sourceEnemyId: enemy.id, troopId: troop.id,
+      row: troop.row, fromCol, toCol, x: troop.x, y: troop.y,
+    });
+  });
+  return true;
+}
+
+function updateGorjal(session, enemy, config, dt, events) {
+  const state = enemy.chapterFourState;
+  if (state === "chargePrep") {
+    enemy.moving = false;
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    setChapterFourState(session, enemy, "charge");
+    enemy.chargeEndX = Math.max(FIELD.baseX, enemy.x - config.chargeRange * CELL.width);
+  }
+  if (enemy.chapterFourState === "charge") {
+    enemy.moving = true;
+    enemy.x = Math.max(enemy.chargeEndX, enemy.x - config.chargeSpeed * dt / 1000);
+    const target = closestTroopForEnemy(session, enemy);
+    if (target && enemy.x - target.x <= troopBlockDistance(target) + 14) {
+      const pushed = tryGorjalFormationPush(session, enemy, events);
+      const damage = (enemy.variant === "alpha" ? 50 : config.chargeDamage)
+        * (pushed ? 1 : config.blockedDamageFactor);
+      damageTroop(session, target, damage, events);
+      applyConductivity(target, session.elapsed);
+      if (!pushed) target.electricParalyzedUntil = Math.max(
+        target.electricParalyzedUntil || 0,
+        session.elapsed + config.blockedStunMs,
+      );
+      setChapterFourState(session, enemy, "chargeImpact", 260);
+      events.push({
+        type: "gorjalChargeImpact", sourceEnemyId: enemy.id, targetTroopId: target.id,
+        pushed, x: target.x, y: target.y, color: config.color, seed: nextEffectSeed(session),
+      });
+      return;
+    }
+    if (enemy.x <= enemy.chargeEndX) setChapterFourState(session, enemy, "recover", config.recoverMs);
+    return;
+  }
+  if (state === "chargeImpact" && session.elapsed >= enemy.chapterFourStateEndsAt) {
+    setChapterFourState(session, enemy, "recover", config.recoverMs);
+  }
+  if (enemy.chapterFourState === "recover") {
+    enemy.moving = false;
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
+    setChapterFourState(session, enemy, "walking");
+  }
+  if (session.elapsed >= enemy.nextSpecialAt) {
+    setChapterFourState(
+      session,
+      enemy,
+      "chargePrep",
+      enemy.variant === "alpha" ? 700 : config.chargePrepMs,
+    );
+    return;
+  }
+  const target = closestTroopForEnemy(session, enemy);
+  if (target && enemy.x - target.x <= troopBlockDistance(target)) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      damageTroop(session, target, enemy.damage, events);
+      applyConductivity(target, session.elapsed);
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+      setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+    }
+  } else {
+    setChapterFourState(session, enemy, "walking");
+    moveEnemy(session, enemy, dt, events);
+  }
+}
+
+function derivanteRowScore(session, row) {
+  const troops = session.troops.filter((troop) => !troop.dead && troop.row === row);
+  const paralyzed = troops.some((troop) => isElectricParalyzed(troop, session.elapsed));
+  const hp = troops.reduce((sum, troop) => sum + troop.hp, 0);
+  return (paralyzed ? 100000 : 0) + (troops.length === 0 ? 50000 : 0) - hp - troops.length * 1000;
+}
+
+function startDerivanteJump(session, enemy, targetRow, config) {
+  enemy.jumpTargetRow = targetRow;
+  enemy.jumping = true;
+  enemy.jumpProgress = 0;
+  setChapterFourState(session, enemy, "jumpPrepare", config.jumpPrepareMs);
+  enemy.moving = false;
+}
+
+function updateDerivante(session, enemy, config, dt, events) {
+  const state = enemy.chapterFourState;
+  const jumpStates = ["jumpPrepare", "jumpTakeoff", "jumping", "landing", "windGlide"];
+  if (jumpStates.includes(state)) {
+    enemy.moving = false;
+    if (state === "jumping") {
+      const progress = clamp(
+        (session.elapsed - enemy.chapterFourStateStartedAt) / config.jumpingMs,
+        0,
+        1,
+      );
+      enemy.jumpProgress = progress;
+    }
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    if (state === "jumpPrepare") setChapterFourState(session, enemy, "jumpTakeoff", config.jumpTakeoffMs);
+    else if (state === "jumpTakeoff") setChapterFourState(session, enemy, "jumping", config.jumpingMs);
+    else if (state === "jumping" || state === "windGlide") {
+      if (Number.isInteger(enemy.jumpTargetRow)) {
+        enemy.row = clamp(enemy.jumpTargetRow, 0, FIELD.rows - 1);
+        enemy.y = enemy.row * CELL.height + CELL.height / 2;
+        enemy.previousRenderY = enemy.y;
+      }
+      setChapterFourState(session, enemy, "landing", config.landingMs);
+    } else {
+      enemy.nextSpecialAt = session.elapsed + config.breachCooldownMs;
+      enemy.jumpTargetRow = null;
+      enemy.jumping = false;
+      enemy.jumpProgress = 0;
+      setChapterFourState(session, enemy, "walking");
+    }
+    return;
+  }
+  const target = closestTroopForEnemy(session, enemy);
+  enemy.blockedSince = target && enemy.x - target.x <= troopBlockDistance(target)
+    ? (enemy.blockedSince ?? session.elapsed)
+    : null;
+  if (session.elapsed >= enemy.nextSpecialAt) {
+    const adjacent = [enemy.row - 1, enemy.row + 1].filter((row) => row >= 0 && row < FIELD.rows);
+    const currentScore = derivanteRowScore(session, enemy.row);
+    const best = adjacent.sort((a, b) => derivanteRowScore(session, b) - derivanteRowScore(session, a))[0];
+    const recentWind = session.windCurrent?.state === "active"
+      && session.windCurrent.selectedRows?.includes(enemy.row);
+    const shouldJump = best != null && (
+      (enemy.blockedSince != null && session.elapsed - enemy.blockedSince >= config.blockedThresholdMs)
+      || derivanteRowScore(session, best) > currentScore || recentWind
+    );
+    if (shouldJump) {
+      startDerivanteJump(session, enemy, best, config);
+      return;
+    }
+    enemy.nextSpecialAt = session.elapsed + config.breachCheckEveryMs;
+  }
+  if (target && enemy.x - target.x <= troopBlockDistance(target)) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      damageTroop(session, target, enemy.damage, events);
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+      setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+    }
+  } else {
+    setChapterFourState(session, enemy, "walking");
+    moveEnemy(session, enemy, dt, events);
+  }
+}
+
+function updateRaizFulgor(session, enemy, config, dt, events) {
+  const target = chapterFourRangedTarget(session, enemy, config.range);
+  const distance = target ? enemy.x - target.x : Infinity;
+  if (!enemy.rooted && target && distance <= config.preferredRange * CELL.width) {
+    enemy.moving = false;
+    setChapterFourState(session, enemy, "rooting", config.rootingMs);
+    enemy.rooted = true;
+    return;
+  }
+  if (enemy.chapterFourState === "rooting") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.chapterFourStateEndsAt) setChapterFourState(session, enemy, "rootedIdle");
+    return;
+  }
+  if (enemy.rooted && !target) {
+    if (enemy.chapterFourState !== "unrooting") setChapterFourState(session, enemy, "unrooting", config.unrootingMs);
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    enemy.rooted = false;
+    setChapterFourState(session, enemy, "walking");
+  }
+  if (enemy.rooted && target) {
+    enemy.moving = false;
+    if (enemy.chapterFourState === "attackCharge" && session.elapsed >= enemy.chapterFourStateEndsAt) {
+      damageTroop(session, target, enemy.damage, events);
+      const hadTwoStacks = Number(target.electricStacks || 0) >= 2;
+      if (hadTwoStacks) {
+        target.electricStacks = 0;
+        target.electricStacksExpireAt = 0;
+        applyEnemyElectricCharge(session, enemy, target, events, {
+          stacks: 3,
+          paralysisDurationMs: config.chargedParalysisMs,
+        });
+      } else {
+        applyEnemyElectricCharge(session, enemy, target, events);
+      }
+      const secondary = session.troops.find((troop) => (
+        !troop.dead && troop.id !== target.id
+        && Math.hypot(troop.x - target.x, troop.y - target.y) <= config.chainRadiusTiles * CELL.width
+      ));
+      if (secondary) damageTroop(session, secondary, enemy.damage * config.chainDamageFactor, events);
+      enemy.lastAttackAt = session.elapsed;
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      setChapterFourState(session, enemy, "attackRelease", 360);
+      events.push({
+        type: "groundingBeam", sourceEnemyId: enemy.id, targetTroopId: target.id,
+        secondaryTargetId: secondary?.id || null, x: target.x, y: target.y,
+        x0: enemy.x, y0: enemy.y - 24, x1: target.x, y1: target.y - 24,
+        color: config.color, seed: nextEffectSeed(session),
+      });
+    } else if (session.elapsed >= enemy.chapterFourStateEndsAt
+      && session.elapsed >= enemy.attackReadyAt
+      && enemy.chapterFourState !== "attackCharge") {
+      enemy.electricAttackTargetId = target.id;
+      setChapterFourState(session, enemy, "attackCharge", config.chargeMs);
+    } else if (session.elapsed >= enemy.chapterFourStateEndsAt
+      && enemy.chapterFourState === "attackRelease") {
+      setChapterFourState(session, enemy, "rootedIdle");
+    }
+    return;
+  }
+  moveEnemy(session, enemy, dt, events);
+}
+
+function updateChapterFourEnemy(session, enemy, config, dt, events) {
+  if (config.chapterId !== "chapter_04") return false;
+  if (enemy.type === "voltriz") updateVoltriz(session, enemy, config, dt, events);
+  else if (enemy.type === "nimbarca") updateNimbarca(session, enemy, config, dt, events);
+  else if (enemy.type === "gorjal") updateGorjal(session, enemy, config, dt, events);
+  else if (enemy.type === "derivante") updateDerivante(session, enemy, config, dt, events);
+  else if (enemy.type === "raizFulgor") updateRaizFulgor(session, enemy, config, dt, events);
+  return true;
+}
+
 function updateEnemies(session, dt, events) {
   for (const enemy of [...session.enemies]) {
     if (enemy.dead) continue;
@@ -3605,6 +4039,7 @@ function updateEnemies(session, dt, events) {
       enemy.moving = false;
       continue;
     }
+    if (updateChapterFourEnemy(session, enemy, config, dt, events)) continue;
     if (enemy.variant === "alpha") {
       const ratio = enemy.hp / enemy.maxHp;
       const targetPhase = ratio <= 0.33 ? 2 : ratio <= 0.66 ? 1 : 0;
@@ -3915,6 +4350,7 @@ export function getSnapshot(session) {
     sandboxSettings: session.sandboxSettings ? { ...session.sandboxSettings } : null,
     cooldowns: Object.fromEntries(Object.entries(session.deployCooldowns).map(([key, value]) => [key, Math.max(0, value - session.elapsed)])),
     deploymentStats,
+    routeTelemetry: getRouteTelemetry(session),
     refundRate: session.modifiers.refundRate,
     shieldCharges: session.shieldCharges,
     fortifiedRow: session.fortifiedRow,
@@ -4034,6 +4470,82 @@ export function getSnapshot(session) {
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,
   };
+}
+
+export function getRouteTelemetry(session) {
+  const activeEnemies = session.enemies.filter((enemy) => !enemy.dead);
+  const queue = session.queue || [];
+  const wind = session.windCurrent || {};
+  const affectedWindRows = new Set(
+    wind.state === "active"
+      ? [
+          ...(wind.selectedRows || []),
+          wind.sourceRow,
+          wind.targetRow,
+        ].filter((row) => Number.isInteger(row) && row >= 0 && row < FIELD.rows)
+      : [],
+  );
+  const sandstormActive = session.sandstorm?.state === "active";
+
+  return Array.from({ length: FIELD.rows }, (_, row) => {
+    const enemies = activeEnemies.filter((enemy) => enemy.row === row);
+    const nearest = enemies.reduce(
+      (current, enemy) => (!current || enemy.x < current.x ? enemy : current),
+      null,
+    );
+    const advance = nearest
+      ? clamp(((FIELD.spawnX - nearest.x) / (FIELD.spawnX - FIELD.baseX)) * 100, 0, 100)
+      : 0;
+    const activeSpecial = enemies.find(
+      (enemy) => enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss,
+    );
+    const queuedSpecial = queue
+      .filter((entry) => (Number.isInteger(entry.row) ? entry.row : 0) === row)
+      .filter((entry) => entry.variant === "alpha" || ENEMIES[entry.type]?.boss)
+      .map((entry) => ({
+        ...entry,
+        startsInMs: Math.max(0, ((session.waveStartedAt || 0) + entry.spawnAtMs) - (session.elapsed || 0)),
+      }))
+      .sort((left, right) => left.startsInMs - right.startsInMs)[0];
+    const imminentSpecial = queuedSpecial?.startsInMs <= 5000 ? queuedSpecial : null;
+    const environmentalDanger = sandstormActive || affectedWindRows.has(row);
+    const pressure = Math.round(clamp(
+      advance * 0.75
+        + Math.min(15, enemies.length * 3)
+        + (activeSpecial || imminentSpecial ? 10 : 0)
+        + (environmentalDanger ? 5 : 0),
+      0,
+      100,
+    ));
+    const state = pressure >= 70
+      ? "critical"
+      : pressure >= 35
+        ? "pressure"
+        : pressure > 0
+          ? "attention"
+          : "stable";
+    const special = activeSpecial || imminentSpecial;
+
+    return {
+      row,
+      state,
+      pressure,
+      activeCount: enemies.length,
+      nearestAdvance: Math.round(advance),
+      nearestThreat: nearest ? {
+        label: ENEMIES[nearest.type]?.label || nearest.type,
+        advance: Math.round(advance),
+      } : null,
+      imminentThreat: imminentSpecial ? {
+        label: ENEMIES[imminentSpecial.type]?.label || imminentSpecial.type,
+        startsInMs: imminentSpecial.startsInMs,
+      } : null,
+      isAlpha: Boolean(special?.variant === "alpha"),
+      isBoss: Boolean(special && ENEMIES[special.type]?.boss),
+      fortified: session.fortifiedRow === row,
+      environmentalDanger,
+    };
+  });
 }
 
 export function cellFromPoint(x, y) {

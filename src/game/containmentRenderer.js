@@ -1,4 +1,4 @@
-import { FIELD, VIEWPORT } from "./battleModel.js";
+import { FIELD, VIEWPORT, getRouteTelemetry } from "./battleModel.js";
 
 const staticContainmentCache = new Map();
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
@@ -240,13 +240,21 @@ export function getContainmentVisualState(session, runtime, now) {
   const bossActive = session.enemies.some((enemy) => !enemy.dead && enemy.variant === "alpha");
   const dangerous = !session.preparing && waveIntensity >= 0.72;
   const interference = bossActive || now < (runtime.containmentInterferenceUntil || 0);
-  const routeCharge = Array.from({ length: FIELD.rows }, (_, row) => {
-    const arcs = runtime.containmentArcs.filter((arc) => arc.row === row && now - arc.born < arc.life);
-    return clamp(arcs.reduce((maximum, arc) => Math.max(maximum, 1 - (now - arc.born) / arc.life), 0));
+  const routeTelemetry = getRouteTelemetry(session);
+  if (!runtime.routeTelemetryStates) runtime.routeTelemetryStates = routeTelemetry.map((route) => route.state);
+  if (!runtime.routeTelemetryChangedAt) runtime.routeTelemetryChangedAt = Array(FIELD.rows).fill(-Infinity);
+  routeTelemetry.forEach((route, row) => {
+    if (runtime.routeTelemetryStates[row] !== route.state) {
+      runtime.routeTelemetryStates[row] = route.state;
+      runtime.routeTelemetryChangedAt[row] = now;
+    }
   });
+  const routeCharge = routeTelemetry.map((route, row) => (
+    now - runtime.routeTelemetryChangedAt[row] < 600 ? 1 - (now - runtime.routeTelemetryChangedAt[row]) / 600 : 0
+  ));
   const alertLevel = interference ? 1 : dangerous ? 0.68 : 0;
   const flowIntensity = clamp(0.22 + waveIntensity * 0.32 + alertLevel * 0.28, 0.2, 1);
-  return { waveIntensity, bossActive, dangerous, interference, routeCharge, alertLevel, flowIntensity };
+  return { waveIntensity, bossActive, dangerous, interference, routeCharge, routeTelemetry, alertLevel, flowIntensity };
 }
 
 function drawEnergyRails(ctx, theme, state, now, settings) {
@@ -284,14 +292,26 @@ function drawEnergyRails(ctx, theme, state, now, settings) {
 
 function drawRouteModule(ctx, x, row, theme, state, now, settings) {
   const charge = state.routeCharge[row];
-  const pulse = settings.reduceMotion ? 0.5 : (Math.sin(now / 150 + row * 0.9) + 1) / 2;
-  const color = state.interference ? "#fb7185" : charge > 0 ? theme.accent : theme.primary;
-  const width = 76;
-  const height = 19;
-  const y = 47;
+  const route = state.routeTelemetry[row];
+  const colors = {
+    stable: theme.primary,
+    attention: "#fbbf24",
+    pressure: "#fb923c",
+    critical: "#fb7185",
+  };
+  const labels = {
+    stable: "ESTÁVEL",
+    attention: "ATENÇÃO",
+    pressure: "PRESSÃO",
+    critical: "CRÍTICA",
+  };
+  const color = colors[route.state];
+  const width = 204;
+  const height = 48;
+  const y = 27;
 
   ctx.save();
-  ctx.shadowBlur = charge > 0 ? 13 : 4;
+  ctx.shadowBlur = charge > 0 ? 15 * charge : 2;
   ctx.shadowColor = color;
   chamferedRect(ctx, x - width / 2, y, width, height, 4);
   const housing = ctx.createLinearGradient(0, y, 0, y + height);
@@ -300,30 +320,43 @@ function drawRouteModule(ctx, x, row, theme, state, now, settings) {
   housing.addColorStop(1, "rgba(1,6,12,.98)");
   ctx.fillStyle = housing;
   ctx.fill();
-  ctx.strokeStyle = rgba(color, 0.32 + charge * 0.6);
+  ctx.strokeStyle = rgba(color, 0.3 + charge * 0.7);
   ctx.lineWidth = 1;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
-  chamferedRect(ctx, x - width / 2 + 3, y + 3, width - 6, height - 6, 2);
-  ctx.strokeStyle = "rgba(226,232,240,.08)";
-  ctx.stroke();
-  ctx.fillStyle = rgba(color, 0.16 + charge * 0.34);
-  ctx.fillRect(x - width / 2 + 7, y + height - 4, (width - 14) * (0.18 + charge * 0.82), 1);
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  ctx.fillStyle = rgba(theme.primary, 0.96);
+  ctx.font = "700 10px 'Chakra Petch', system-ui";
+  ctx.fillText(`ROTA ${row + 1}`, x - width / 2 + 9, y + 10);
+  ctx.textAlign = "right";
+  ctx.fillStyle = color;
+  ctx.fillText(labels[route.state], x + width / 2 - 9, y + 10);
 
-  const ledX = x - width / 2 + 9;
-  ctx.fillStyle = rgba(color, 0.35 + pulse * 0.25 + charge * 0.4);
-  ctx.shadowBlur = charge > 0 ? 8 : 3;
-  ctx.shadowColor = color;
-  ctx.beginPath();
-  ctx.arc(ledX, y + 8, 1.8, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  const details = [`${route.activeCount} CAMPO`];
+  if (route.nearestThreat) details.push(`APROX ${route.nearestAdvance}%`);
+  else if (route.imminentThreat) details.push(`${Math.ceil(route.imminentThreat.startsInMs / 1000)}s`);
+  if (route.isAlpha) details.push("ALFA");
+  else if (route.isBoss) details.push("CHEFE");
+  if (route.fortified) details.push("FORT");
+  if (route.environmentalDanger) details.push("AMBIENTE");
+  ctx.textAlign = "left";
+  ctx.fillStyle = "rgba(241,245,249,.92)";
+  ctx.font = "600 8px 'Chakra Petch', system-ui";
+  ctx.fillText(details.join(" · "), x - width / 2 + 9, y + 25, width - 18);
 
-  ctx.fillStyle = charge > 0 ? "#f8fafc" : rgba(color, 0.8);
+  const trackX = x - width / 2 + 9;
+  const trackY = y + 35;
+  const trackWidth = width - 18;
+  ctx.fillStyle = "rgba(2,6,12,.9)";
+  ctx.fillRect(trackX, trackY, trackWidth, 7);
+  ctx.fillStyle = rgba(color, 0.92);
+  ctx.fillRect(trackX, trackY, trackWidth * route.pressure / 100, 7);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#f8fafc";
   ctx.font = "700 8px 'Chakra Petch', system-ui";
-  ctx.textAlign = "center";
-  ctx.fillText(`ROTA 0${row + 1}`, x + 4, y + 12);
+  ctx.fillText(`${route.pressure}%`, trackX + trackWidth - 3, trackY + 3.5);
   ctx.restore();
 }
 
@@ -355,7 +388,9 @@ export function drawContainmentUnderlay(ctx, phase, session, runtime, now, setti
   ctx.save();
   drawEnergyRails(ctx, theme, state, now, settings);
   drawAmbientParticles(ctx, theme, state, now, settings);
-  for (let row = 0; row < FIELD.rows; row += 1) drawRouteModule(ctx, 190 + row * 145, row, theme, state, now, settings);
+  for (let row = 0; row < FIELD.rows; row += 1) {
+    drawRouteModule(ctx, VIEWPORT.width / FIELD.rows * (row + 0.5), row, theme, state, now, settings);
+  }
 
   const scanY = settings.reduceMotion ? 31 : 23 + (now * 0.014 % 21);
   const scan = ctx.createLinearGradient(0, scanY - 4, 0, scanY + 4);
@@ -365,18 +400,6 @@ export function drawContainmentUnderlay(ctx, phase, session, runtime, now, setti
   ctx.fillStyle = scan;
   ctx.fillRect(0, scanY - 4, VIEWPORT.width, 8);
 
-  ctx.font = "700 8px 'Chakra Petch', system-ui";
-  ctx.textAlign = "left";
-  ctx.fillStyle = rgba(theme.primary, 0.82);
-  ctx.fillText("CONTENÇÃO SUPERIOR", 22, 15);
-  ctx.fillStyle = rgba(theme.primary, 0.3);
-  ctx.fillRect(22, 18, 118, 1);
-  ctx.textAlign = "right";
-  const statusColor = state.alertLevel ? "#fb7185" : theme.accent;
-  ctx.fillStyle = rgba(statusColor, state.alertLevel ? 0.95 : 0.62);
-  ctx.fillText(state.interference ? "INTERFERÊNCIA ALFA" : state.dangerous ? "CARGA DE ONDA ELEVADA" : "PERÍMETRO ESTÁVEL", VIEWPORT.width - 22, 15);
-  ctx.fillStyle = rgba(statusColor, 0.3 + state.alertLevel * 0.4);
-  ctx.fillRect(VIEWPORT.width - 140, 18, 118, 1);
   ctx.restore();
 }
 

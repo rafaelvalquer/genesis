@@ -326,7 +326,7 @@ function tryLateralTroopShift(session, config, dependencies, events) {
 
 function enemyEligible(enemy, dependencies) {
   const config = dependencies.enemies?.[enemy.type] || {};
-  return !enemy.dead && !config.windImmune;
+  return !enemy.dead && !enemy.rooted && !config.windImmune;
 }
 
 function applyLongitudinalEnemyPush(session, config, dependencies, events) {
@@ -375,7 +375,30 @@ function applyLateralEnemyPush(session, config, dependencies, events) {
   shuffled(eligible, session.rng).slice(0, amount).forEach((enemy) => {
     const enemyConfig = dependencies.enemies?.[enemy.type] || {};
     const from = { row: enemy.row, x: enemy.x, y: enemy.y };
+    if (enemy.type === "derivante") {
+      const remaining = Math.max(0, Number(enemy.nextSpecialAt || 0) - session.elapsed);
+      enemy.nextSpecialAt = session.elapsed + remaining * 0.5;
+    }
     if (wind.targetRow < 0 || wind.targetRow >= FIELD.rows) {
+      if (enemy.type === "derivante") {
+        const fallbackRow = clamp(wind.sourceRow - wind.verticalDirection, 0, FIELD.rows - 1);
+        enemy.row = fallbackRow;
+        enemy.y = fallbackRow * CELL.height + CELL.height / 2;
+        enemy.previousRenderY = enemy.y;
+        enemy.chapterFourState = "windGlide";
+        enemy.chapterFourStateStartedAt = session.elapsed;
+        enemy.chapterFourStateEndsAt = session.elapsed + (enemyConfig.windGlideMs || 900);
+        enemy.jumpTargetRow = fallbackRow;
+        enemy.jumping = true;
+        wind.shiftedEnemyIds.push(enemy.id);
+        events.push({
+          type: "windEnemyShifted", enemyId: enemy.id, enemyType: enemy.type,
+          from, to: { row: fallbackRow, x: enemy.x, y: enemy.y },
+          windGlide: true, startedAt: session.elapsed,
+          durationMs: enemyConfig.windGlideMs || 900,
+        });
+        return;
+      }
       if (enemyConfig.airborne || enemyConfig.canBeWindEjected === false) {
         events.push({
           type: "windEnemyShifted",
@@ -415,6 +438,13 @@ function applyLateralEnemyPush(session, config, dependencies, events) {
       startedAt: session.elapsed,
       endsAt: session.elapsed + 550,
     };
+    if (enemy.type === "derivante") {
+      enemy.chapterFourState = "windGlide";
+      enemy.chapterFourStateStartedAt = session.elapsed;
+      enemy.chapterFourStateEndsAt = session.elapsed + (enemyConfig.windGlideMs || 900);
+      enemy.jumpTargetRow = enemy.row;
+      enemy.jumping = true;
+    }
     wind.shiftedEnemyIds.push(enemy.id);
     events.push({
       type: "windEnemyShifted",

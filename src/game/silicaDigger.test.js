@@ -61,7 +61,7 @@ describe("Escavador de Sílica", () => {
     expect(PHASES.slice(0, 16).some((phase) => phase.waves.some((wave) => (
       wave.enemies.some((entry) => entry.type === "silicaDigger")
     )))).toBe(false);
-    expect(PHASES.slice(16).every((phase) => phase.waves.every((wave) => (
+    expect(PHASES.slice(16, 24).every((phase) => phase.waves.every((wave) => (
       wave.enemies.some((entry) => entry.type === "silicaDigger")
     )))).toBe(true);
     expect(getLumiKnockbackFactor({ type: "silicaDigger" })).toBe(1);

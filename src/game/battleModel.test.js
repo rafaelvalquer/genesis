@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DECISIONS, ENEMIES, PHASES, TROOPS } from "./content.js";
 import {
-  activateTroopSpecial, CELL, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getSnapshot, placeTroop, removeTroop,
+  activateTroopSpecial, CELL, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getRouteTelemetry, getSnapshot, placeTroop, removeTroop,
   selectDecision, setEnergyPickupPointer, setSandboxSettings, spawnEnemy, startWave, stepBattle,
   trySpawnEnergyPickup, trySpawnGlassEcho,
 } from "./battleModel.js";
@@ -11,6 +11,60 @@ const meleeTarget = (x = 304, row = 0) => ({
   id: `melee_target_${row}_${x}`, type: "medu", row, x, y: row * 120 + 60,
   hp: 100, maxHp: 100, speed: 0, damage: 0, attackReadyAt: Infinity,
   slowUntil: 0, slowFactor: 1, baseDamage: 0, bossPhase: 0, dead: false,
+});
+
+describe("telemetria de pressão por rota", () => {
+  const createTelemetrySession = () => createBattleSession(PHASES[0], ["marine"], 9101, { sandbox: true });
+
+  it("mantém rotas vazias estáveis e torna crítico um hostil junto à base", () => {
+    const session = createTelemetrySession();
+    expect(getRouteTelemetry(session).every((route) => route.state === "stable")).toBe(true);
+
+    session.enemies = [meleeTarget(FIELD.baseX, 2)];
+    expect(getRouteTelemetry(session)[2]).toMatchObject({
+      state: "critical",
+      pressure: 78,
+      activeCount: 1,
+      nearestAdvance: 100,
+    });
+  });
+
+  it("combina avanço e quantidade sem deixar a contagem dominar", () => {
+    const session = createTelemetrySession();
+    const midpoint = (FIELD.spawnX + FIELD.baseX) / 2;
+    session.enemies = Array.from({ length: 5 }, (_, index) => ({
+      ...meleeTarget(midpoint + index, 1),
+      id: `pressure_${index}`,
+    }));
+    expect(getRouteTelemetry(session)[1]).toMatchObject({
+      state: "pressure",
+      pressure: 53,
+      activeCount: 5,
+    });
+  });
+
+  it("marca alfa iminente, fortificação e perigos ambientais nas rotas corretas", () => {
+    const session = createTelemetrySession();
+    session.waveStartedAt = 0;
+    session.elapsed = 0;
+    session.queue = [{ type: "medu", variant: "alpha", row: 3, spawnAtMs: 4000 }];
+    session.fortifiedRow = 3;
+    session.windCurrent = { state: "active", selectedRows: [1], sourceRow: null, targetRow: null };
+    let routes = getRouteTelemetry(session);
+    expect(routes[3]).toMatchObject({
+      state: "attention",
+      pressure: 10,
+      isAlpha: true,
+      fortified: true,
+      environmentalDanger: false,
+    });
+    expect(routes[1]).toMatchObject({ pressure: 5, environmentalDanger: true });
+    expect(routes[0]).toMatchObject({ pressure: 0, environmentalDanger: false });
+
+    session.sandstorm.state = "active";
+    routes = getRouteTelemetry(session);
+    expect(routes.every((route) => route.environmentalDanger)).toBe(true);
+  });
 });
 
 describe("Corte de Arco do Vórtice", () => {

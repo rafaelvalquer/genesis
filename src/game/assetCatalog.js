@@ -15,8 +15,7 @@ const previewUrls = import.meta.glob([
   "./assets/troop/*/defense/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
 const enemyPreviewUrls = import.meta.glob([
-  "./assets/enemy/*/idle/frame0.png",
-  "./assets/enemy/scarabEmperor/phase1Idle/frame0.png",
+  "./assets/enemy/*/*/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
 const enemyConceptUrls = import.meta.glob("./assets/enemy/concepts/*.webp", { eager: true, query: "?url", import: "default" });
 

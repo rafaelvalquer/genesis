@@ -4,10 +4,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DECISIONS } from "./content.js";
 import {
   CapsuleInteractionButton, ColossusSpecialButtons, DecisionModal, FortuneChoiceModal,
-  SandboxPanel, resolveCanvasClickAction,
+  SandboxPanel, resolveCanvasClickAction, resolveInspectedTroopId,
 } from "./GameCanvas.jsx";
 
 afterEach(cleanup);
+
+describe("tooltip do loadout", () => {
+  it("inspeciona somente a tropa sob o mouse e ignora a selecao persistente", () => {
+    expect(resolveInspectedTroopId({ hoveredTroop: "marine", selectedTroop: "guard" })).toBe("marine");
+    expect(resolveInspectedTroopId({ hoveredTroop: null, selectedTroop: "guard" })).toBeNull();
+  });
+});
 
 describe("clique no Campo de Provas", () => {
   it("prioriza o especial do Colosso mesmo com uma tropa selecionada para implantação", () => {

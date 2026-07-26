@@ -12,7 +12,6 @@ import {
   drawContactShadow,
   drawPlacementRange,
   drawTacticalGrid,
-  drawThreatTelegraphy,
   getPlacementPreviewGeometry,
 } from "./arenaRenderer.js";
 import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectiles, drawStunnedEnemyEffect, pushEventParticles } from "./projectileRenderer.js";
@@ -100,6 +99,10 @@ export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = nu
   }
   if (selectedTroop) return { type: "place", cell, troopType: selectedTroop };
   return null;
+}
+
+export function resolveInspectedTroopId({ hoveredTroop }) {
+  return hoveredTroop || null;
 }
 
 export function ColossusSpecialButtons({ session, onActivate }) {
@@ -837,6 +840,38 @@ function getEnemyFrameCounts(enemyAssets) {
   return counts;
 }
 
+function drawElectricTroopStatus(ctx, troop, elapsed, settings) {
+  const stacks = Math.max(0, Math.min(3, Number(troop.electricStacks) || 0));
+  const paralyzed = elapsed < Number(troop.electricParalyzedUntil || 0);
+  const conductive = elapsed < Number(troop.electricConductivityUntil || 0);
+  if (!stacks && !paralyzed && !conductive) return;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = paralyzed ? "#ffffff" : conductive ? "#c084fc" : "#22d3ee";
+  ctx.fillStyle = paralyzed ? "#e0f2fe" : "#67e8f9";
+  ctx.shadowColor = ctx.strokeStyle;
+  ctx.shadowBlur = settings.reduceMotion ? 4 : 9;
+  ctx.lineWidth = 1.5;
+  const y = troop.y - 61;
+  for (let index = 0; index < Math.max(1, stacks); index += 1) {
+    const x = troop.x + (index - (Math.max(1, stacks) - 1) / 2) * 11;
+    ctx.beginPath();
+    ctx.moveTo(x - 3, y - 5);
+    ctx.lineTo(x + 1, y - 1);
+    ctx.lineTo(x - 1, y + 1);
+    ctx.lineTo(x + 4, y + 6);
+    ctx.stroke();
+  }
+  if (paralyzed && !settings.reduceMotion) {
+    const pulse = 18 + Math.sin(elapsed / 90) * 3;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.arc(troop.x, troop.y - 18, pulse, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   const reaction = getHitReaction(runtime, logicalEntity.id, now);
@@ -868,6 +903,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings);
   drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings);
   drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
+  drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
 }
 
@@ -911,7 +947,12 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
       };
     }
   }
-  const frames = enemyAssets[animation.state] || enemyAssets.walking || enemyAssets.idle || [];
+  const frames =
+    enemyAssets[animation.state] ||
+    enemyAssets.flying ||
+    enemyAssets.walking ||
+    enemyAssets.idle ||
+    [];
   const image = frames[animation.frame % Math.max(1, frames.length)];
   const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
   const enemyRect = getEnemySpriteRect(scratch, config, animation.state, animation.frame, enemyAspectRatio);
@@ -1014,7 +1055,6 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
   drawArenaUnderlay(ctx, session.phase, settings, session, now);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);
   drawTacticalGrid(ctx, session, selectedTroop, removeMode, hoveredCell);
-  drawThreatTelegraphy(ctx, session.upcomingThreat, now);
   drawPlacementRange(ctx, placementPreview);
   drawDecals(ctx, runtime, settings);
   drawPulseScorches(ctx, runtime, now, settings);
@@ -1193,6 +1233,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const finishSentRef = useRef(false);
   const audioRef = useRef({});
   const lastCriticalBeepRef = useRef(0);
+  const notificationIdRef = useRef(1);
   if (!sessionRef.current) sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox });
 
   const [loading, setLoading] = useState({ ready: false, percent: 0 });
@@ -1207,11 +1248,28 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [spawnGrouped, setSpawnGrouped] = useState(false);
   const [fortuneTier, setFortuneTier] = useState("critical");
   const [selectedTroop, setSelectedTroop] = useState(null);
+  const [hoveredTroop, setHoveredTroop] = useState(null);
   const [removeMode, setRemoveMode] = useState(false);
   const [targetingDecision, setTargetingDecision] = useState(null);
   const [graphicsMetrics, setGraphicsMetrics] = useState(null);
   const showGraphicsMetrics = useMemo(() => import.meta.env.DEV && new URLSearchParams(window.location.search).has("gfxstats"), []);
-  const [message, setMessage] = useState("Selecione uma unidade e posicione-a no campo.");
+  const [notification, setNotification] = useState({
+    id: 0,
+    text: "Selecione uma unidade e posicione-a no campo.",
+    tone: "info",
+    persistent: false,
+  });
+  const setMessage = useCallback((text, options = {}) => {
+    setNotification({
+      id: notificationIdRef.current++,
+      text,
+      tone: options.tone || "info",
+      persistent: Boolean(options.persistent),
+    });
+  }, []);
+  const setActionMessage = useCallback((text) => {
+    setMessage(text, { persistent: true, tone: "action" });
+  }, [setMessage]);
   const [banner, setBanner] = useState(sandbox
     ? "LABORATÓRIO · CAMPO DE PROVAS"
     : phase.chapterMechanic?.id === "glass_echoes"
@@ -1225,6 +1283,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   useEffect(() => {
     speedRef.current = speed;
   }, [speed]);
+  useEffect(() => {
+    if (!notification?.text || notification.persistent) return undefined;
+    const timeout = window.setTimeout(() => {
+      setNotification((current) => current?.id === notification.id ? null : current);
+    }, 3000);
+    return () => window.clearTimeout(timeout);
+  }, [notification]);
   useEffect(() => {
     if (!targetingDecision) return undefined;
     const cancel = (event) => {
@@ -1474,7 +1539,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     if (sessionRef.current.adaptiveAid?.status === "targeting") return;
     setSelectedTroop(null);
     setRemoveMode(false);
-    setMessage("Mão livre: clique em um Colosso carregado para usar o Esmagamento Total.");
+    setActionMessage("Mão livre: clique em um Colosso carregado para usar o Esmagamento Total.");
   };
 
   const handleCanvasContextMenu = (event) => {
@@ -1615,7 +1680,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setTargetingDecision(option);
       setSelectedTroop(null);
       setRemoveMode(false);
-      setMessage(option.targetType === "columnBlock"
+      setActionMessage(option.targetType === "columnBlock"
         ? "Passe o mouse pelo campo e clique para escolher três colunas adjacentes."
         : "Selecione uma rota ocupada para receber a fortificação.");
       return;
@@ -1736,7 +1801,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     if (result.targeting) {
       setSelectedTroop(null);
       setRemoveMode(false);
-      setMessage("Selecione uma rota para o ataque orbital.");
+      setActionMessage("Selecione uma rota para o ataque orbital.");
     } else {
       consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
       pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
@@ -1785,17 +1850,42 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       : wind?.state === "recovering"
         ? `CORRENTE DISSIPANDO · ${(wind.remainingMs / 1000).toFixed(1)}s`
         : null;
+  const canStartWave = !sandbox
+    && snapshot.preparing
+    && !snapshot.pendingDecision
+    && !targetingDecision
+    && !snapshot.outcome
+    && !fortuneBlocksIntermission;
+  const integrityPercent = Math.round(snapshot.integrity / Math.max(1, snapshot.integrityMax) * 100);
+  const hostileCount = snapshot.enemies + snapshot.queued;
+  const threatSummary = snapshot.upcomingThreat
+    ? ` · ${snapshot.upcomingThreat.isAlpha ? "AMEAÇA ALFA" : snapshot.upcomingThreat.isBoss ? "CHEFE" : "AMEAÇA"} NA ROTA ${snapshot.upcomingThreat.row + 1}`
+    : "";
+  const defaultContainmentSummary = sandbox
+    ? `CAMPO DE PROVAS · ${snapshot.enemies} HOSTIS EM CAMPO`
+    : `ONDA ${snapshot.wave}/${snapshot.totalWaves} · ${hostileCount} HOSTIS RESTANTES${threatSummary}`;
+  const containmentSummary = snapshot.adaptiveAid.status === "targeting"
+    ? "ATAQUE ORBITAL · PASSE O MOUSE E CLIQUE EM UMA ROTA"
+    : snapshot.adaptiveAid.status === "incoming"
+      ? "OPORTUNIDADE TÁTICA · CÁPSULA EM APROXIMAÇÃO"
+      : snapshot.adaptiveAid.status === "landed"
+        ? "OPORTUNIDADE TÁTICA · RECURSOS DE EMERGÊNCIA DISPONÍVEIS"
+        : targetingDecision?.targetType === "columnBlock"
+          ? "FORMAÇÃO AVANÇADA · PASSE O MOUSE E CLIQUE EM TRÊS COLUNAS"
+          : targetingDecision
+            ? "SELEÇÃO DE ROTA · CLIQUE PARA FORTIFICAR"
+            : windBanner || sandstormBanner || defaultContainmentSummary;
+  const inspectedTroopId = resolveInspectedTroopId({ hoveredTroop, selectedTroop });
+  const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
 
   return (
     <section className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
-        <div><span className="eyebrow">{phase.subtitle}</span><h1>{phase.name}</h1></div>
+        <div className="battle-operation"><span>OPERAÇÃO</span><h1>{sandbox ? "CAMPO DE PROVAS" : phase.name}</h1></div>
         <div className="battle-stats">
           <div className={snapshot.energyPulse ? "energy-pulse" : ""}><span>Energia</span><strong className="cyan">{sandboxSettingsState?.rulesMode === "free" ? "∞" : `${snapshot.energy}/${snapshot.energyMax}`}</strong></div>
           <div><span>Supply</span><strong>{sandboxSettingsState?.rulesMode === "free" ? "∞" : `${snapshot.supply}/${snapshot.supplyMax}`}</strong></div>
-          <div><span>Integridade</span><strong className={snapshot.integrity / snapshot.integrityMax <= 0.4 ? "danger" : "success"}>{snapshot.integrity}/{snapshot.integrityMax}</strong></div>
-          <div><span>{sandbox ? "Modo" : "Onda"}</span><strong>{sandbox ? (sandboxSettingsState.rulesMode === "free" ? "LIVRE" : "REAL") : `${snapshot.wave}/${snapshot.totalWaves}`}</strong></div>
-          <div><span>Hostis</span><strong>{snapshot.enemies + snapshot.queued}</strong></div>
+          <div><span>Integridade</span><strong className={integrityPercent <= 40 ? "danger" : "success"}>{integrityPercent}%</strong></div>
         </div>
         
         <div className="battle-actions">
@@ -1805,15 +1895,15 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             return speeds[(speeds.indexOf(value) + 1) % speeds.length];
           })}>{speed}×</button>
           <button type="button" className="release-tool-button topbar-tool-button" disabled={fortuneTargeting} onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
-          {!sandbox && snapshot.preparing && !snapshot.pendingDecision && !targetingDecision && !snapshot.outcome && !fortuneBlocksIntermission && <button className="start-wave topbar-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>}
           <button className="ghost-button" onClick={onExit}>Sair</button>
         </div>
       </header>
 
       <div className="battle-main">
         <aside className={`troop-rail ${fortuneTargeting ? "interaction-locked" : ""}`} aria-disabled={fortuneTargeting} inert={fortuneTargeting ? true : undefined}>
-          <div className="rail-heading"><span>LOADOUT</span><small>Selecione e posicione</small></div>
-          {loadout.map((troopId) => {
+          <div className="rail-heading"><span>LOADOUT</span><small>{sandboxSettingsState?.rulesMode === "free" ? "∞ ⚡ · ∞ SUP" : `${snapshot.energy} ⚡ · ${snapshot.supply} SUP`}</small></div>
+          <div className="troop-grid">
+            {loadout.map((troopId) => {
             const troop = TROOPS[troopId];
             const deployment = snapshot.deploymentStats[troopId];
             const cooldown = snapshot.cooldowns[troopId] || 0;
@@ -1830,7 +1920,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const slotLabel = coolingDown
               ? `${troop.label}, recarregando, ${cooldownSeconds} segundos restantes`
               : unavailableReason ? `${troop.label}, ${unavailableReason}` : `${troop.label}, disponível para implantação`;
-            return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} onClick={() => { setRemoveMode(false); setSelectedTroop(troopId); }}>
+            return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} aria-describedby={inspectedTroopId === troopId ? `troop-help-${troopId}` : undefined} onMouseEnter={() => setHoveredTroop(troopId)} onMouseLeave={() => setHoveredTroop(null)} onClick={() => { setRemoveMode(false); setSelectedTroop(troopId); }}>
               <span className="troop-portrait" style={{ "--cooldown-progress": `${cooldownProgress * 360}deg` }}>
                 <img src={getTroopPreviewUrl(troopId)} alt="" aria-hidden="true" />
                 {coolingDown && <span className="cooldown-sweep" aria-hidden="true" />}
@@ -1838,27 +1928,23 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               <span className="troop-details"><b>{troop.label}</b><small>{troop.role}</small></span>
               <span className="slot-cost">{freeMode ? "∞" : `⚡${deployment.price}`}<small>{freeMode ? "LIVRE" : deploymentLimitReached ? `${deployment.activeCount}/${deployment.maxDeployed}` : coolingDown ? `${cooldownSeconds}s` : `S${troop.supply}`}</small></span>
             </button>;
-          })}
+            })}
+          </div>
           <button type="button" disabled={fortuneTargeting} className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
-          <div className="rail-tip">{message}</div>
+          {inspectedTroop && <div id={`troop-help-${inspectedTroopId}`} className="troop-tooltip" role="tooltip" style={{ "--troop-color": inspectedTroop.color }}>
+            <b>{inspectedTroop.label}</b>
+            <span>{inspectedTroop.role}</span>
+            <p>{inspectedTroop.description}</p>
+          </div>}
         </aside>
 
         <div className="canvas-wrap">
-          <div className={`wave-banner ${windBanner ? "wind-current-banner" : sandstormBanner ? "sandstorm-banner" : ""}`}>{snapshot.adaptiveAid.status === "targeting"
-            ? "ATAQUE ORBITAL · PASSE O MOUSE E CLIQUE EM UMA ROTA"
-            : snapshot.adaptiveAid.status === "incoming"
-              ? "OPORTUNIDADE TÁTICA · CÁPSULA EM APROXIMAÇÃO"
-              : snapshot.adaptiveAid.status === "landed"
-                ? "OPORTUNIDADE TÁTICA · RECURSOS DE EMERGÊNCIA DISPONÍVEIS"
-                : targetingDecision?.targetType === "columnBlock"
-                  ? "FORMAÇÃO AVANÇADA · PASSE O MOUSE E CLIQUE EM TRÊS COLUNAS"
-                : targetingDecision ? "SELEÇÃO DE ROTA · passe o mouse e clique para fortificar" : (windBanner || sandstormBanner || banner)}</div>
-          {snapshot.upcomingThreat && (
-            <span className="threat-radar-pill">
-              ⚠ AMEAÇA: {snapshot.upcomingThreat.isAlpha ? "ALFA " : ""}{snapshot.upcomingThreat.label.toUpperCase()} · ROTA {snapshot.upcomingThreat.row + 1} {snapshot.upcomingThreat.active ? "(EM CAMPO)" : `(${(snapshot.upcomingThreat.startsInMs / 1000).toFixed(1)}s)`}
-            </span>
-          )}
           <div className="battle-canvas-stage">
+            <div className={`containment-summary ${windBanner ? "wind-current-banner" : sandstormBanner ? "sandstorm-banner" : ""}`}>
+              {canStartWave
+                ? <button className="start-wave containment-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>
+                : <span>{containmentSummary}</span>}
+            </div>
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
               hoveredCellRef.current = null;
               if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.preview = null;
@@ -1867,6 +1953,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}
             {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
+            {notification?.text && <div className={`battle-notification tone-${notification.tone} ${notification.persistent ? "persistent" : ""}`} role={notification.tone === "action" ? "status" : "alert"}>
+              <span>{notification.tone === "action" ? "◆" : "✓"}</span>{notification.text}
+            </div>}
           </div>
           {graphicsMetrics && <div className="graphics-metrics">
             <b>{graphicsMetrics.fps.toFixed(0)} FPS · {graphicsMetrics.adaptiveLevel}</b>
