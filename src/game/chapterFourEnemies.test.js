@@ -24,7 +24,11 @@ describe("inimigos do Capítulo 4", () => {
   it("configura resistências, voo e alcance conforme o papel tático", () => {
     expect(ENEMIES.voltriz).toMatchObject({ airborne: true, range: 3.5, canBeWindEjected: false });
     expect(ENEMIES.nimbarca).toMatchObject({ airborne: true, preferredRange: 2, windResistance: 0.7 });
-    expect(ENEMIES.gorjal).toMatchObject({ chargeDamage: 40, knockbackFactor: 0.3 });
+    expect(ENEMIES.gorjal).toMatchObject({
+      chargeDamage: 40,
+      knockbackFactor: 0.3,
+      meleeContactDistancePx: 115,
+    });
     expect(ENEMIES.derivante.assetStates).toContain("windGlide");
     expect(ENEMIES.raizFulgor).toMatchObject({ range: 4.5, preferredRange: 4 });
   });
@@ -198,6 +202,7 @@ describe("inimigos do Capítulo 4", () => {
     stepBattle(session, 1);
     expect(gorjal.chapterFourState).toBe("attack");
     expect(gorjal.gorjalAttackTargetId).toBe(troop.id);
+    expect(gorjal.x).toBe(troop.x + ENEMIES.gorjal.meleeContactDistancePx);
     stepBattle(session, 389);
     expect(troop.hp).toBe(initialHp);
 
@@ -218,7 +223,7 @@ describe("inimigos do Capítulo 4", () => {
     const normalSession = createBattleSession(PHASES[24], ["colono"], 44, { sandbox: true });
     const normalTroop = placeTroop(normalSession, "colono", 1, 4).troop;
     const normal = spawnEnemy(normalSession, { type: "gorjal", row: 1 }).enemies[0];
-    normal.x = normalTroop.x + 100;
+    normal.x = normalTroop.x + 200;
     normal.nextSpecialAt = 0;
     stepBattle(normalSession, 1);
     expect(normal.chapterFourState).toBe("chargePrep");
@@ -227,7 +232,7 @@ describe("inimigos do Capítulo 4", () => {
     const alphaSession = createBattleSession(PHASES[24], ["colono"], 45, { sandbox: true });
     const alphaTroop = placeTroop(alphaSession, "colono", 1, 4).troop;
     const alpha = spawnEnemy(alphaSession, { type: "gorjal", row: 1, variant: "alpha" }).enemies[0];
-    alpha.x = alphaTroop.x + 100;
+    alpha.x = alphaTroop.x + 200;
     alpha.nextSpecialAt = 0;
     stepBattle(alphaSession, 1);
     expect(alpha.chapterFourStateEndsAt - alpha.chapterFourStateStartedAt).toBe(700);

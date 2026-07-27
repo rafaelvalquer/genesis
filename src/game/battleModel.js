@@ -3179,6 +3179,10 @@ function troopBlockDistance(troop) {
   return troop?.type === "colossoImpacto" ? 48 : 54;
 }
 
+function gorjalContactDistance(troop, config) {
+  return Math.max(troopBlockDistance(troop), config.meleeContactDistancePx || 115);
+}
+
 function setDuneState(session, enemy, state, durationMs = Infinity) {
   if (enemy.duneState === state && !Number.isFinite(durationMs)
     && !Number.isFinite(enemy.duneStateEndsAt)) {
@@ -3895,6 +3899,28 @@ function updateVoltriz(session, enemy, config, dt, events) {
   }
 }
 
+function findNimbarcaEscortTarget(session, enemy) {
+  return session.enemies
+    .filter((candidate) => (
+      !candidate.dead
+      && candidate.type === "voltriz"
+      && candidate.packetId === enemy.packetId
+      && candidate.row === enemy.row
+      && candidate.x < enemy.x
+    ))
+    .sort((left, right) => left.x - right.x)[0] || null;
+}
+
+function moveNimbarca(session, enemy, config, dt, events) {
+  const escort = findNimbarcaEscortTarget(session, enemy);
+  const originalSpeed = enemy.speed;
+  if (escort && enemy.x - escort.x > config.maximumEscortDistanceTiles * CELL.width) {
+    enemy.speed = config.escortSpeed;
+  }
+  moveEnemy(session, enemy, dt, events);
+  enemy.speed = originalSpeed;
+}
+
 function updateNimbarca(session, enemy, config, dt, events) {
   if (enemy.chapterFourState === "shieldPulse") {
     enemy.moving = false;
@@ -3911,7 +3937,10 @@ function updateNimbarca(session, enemy, config, dt, events) {
       if (target) launchElectricProjectile(session, enemy, config, target, events);
       enemy.chapterFourActionApplied = true;
     }
-    enemy.moving = false;
+    const originalSpeed = enemy.speed;
+    enemy.speed *= config.movingAttackFactor;
+    moveEnemy(session, enemy, dt, events);
+    enemy.speed = originalSpeed;
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
     enemy.nimbarcaAttackTargetId = null;
     setChapterFourState(session, enemy, "flying");
@@ -3929,15 +3958,17 @@ function updateNimbarca(session, enemy, config, dt, events) {
       ally.attackReadyAt = session.elapsed + remaining * config.resonanceCooldownFactor;
     });
     enemy.nextSpecialAt = session.elapsed + pulseEvery;
-    setChapterFourState(session, enemy, "shieldPulse", 700);
-    events.push({
-      type: "stormShieldPulse", sourceEnemyId: enemy.id,
-      targetIds: allies.map((ally) => ally.id), x: enemy.x, y: enemy.y,
-      color: config.color, seed: nextEffectSeed(session),
-    });
-    enemy.chapterFourActionApplied = true;
-    enemy.moving = false;
-    return;
+    if (allies.length > 0) {
+      setChapterFourState(session, enemy, "shieldPulse", 700);
+      events.push({
+        type: "stormShieldPulse", sourceEnemyId: enemy.id,
+        targetIds: allies.map((ally) => ally.id), x: enemy.x, y: enemy.y,
+        color: config.color, seed: nextEffectSeed(session),
+      });
+      enemy.chapterFourActionApplied = true;
+      enemy.moving = false;
+      return;
+    }
   }
 
   const target = chapterFourRangedTarget(session, enemy, config.range);
@@ -3951,7 +3982,7 @@ function updateNimbarca(session, enemy, config, dt, events) {
     return;
   }
   if (!target || distance > config.preferredRange * CELL.width) {
-    moveEnemy(session, enemy, dt, events);
+    moveNimbarca(session, enemy, config, dt, events);
   } else {
     enemy.moving = false;
   }
@@ -3964,8 +3995,10 @@ function findGorjalChargeTarget(session, enemy, config) {
   const target = closestTroopForEnemy(session, enemy, config.chargeTriggerRangeTiles);
   if (!target) return null;
   const distance = enemy.x - target.x;
-  if (distance <= troopBlockDistance(target)) return null;
-  if (distance > config.chargeTriggerRangeTiles * CELL.width) return null;
+  const contactDistance = gorjalContactDistance(target, config);
+  const distanceToContact = distance - contactDistance;
+  if (distanceToContact <= 0) return null;
+  if (distanceToContact > config.chargeTriggerRangeTiles * CELL.width) return null;
   if (target.id === enemy.gorjalLastChargedTroopId) return null;
   return target;
 }
@@ -4011,7 +4044,10 @@ function updateGorjal(session, enemy, config, dt, events) {
       return;
     }
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
-    enemy.gorjalChargeEndX = Math.max(FIELD.baseX, target.x + troopBlockDistance(target));
+    enemy.gorjalChargeEndX = Math.max(
+      FIELD.baseX,
+      target.x + gorjalContactDistance(target, config),
+    );
     setChapterFourState(session, enemy, "charge");
   }
   if (enemy.chapterFourState === "charge") {
@@ -4023,6 +4059,9 @@ function updateGorjal(session, enemy, config, dt, events) {
       && troop.row === enemy.row
     ));
     if (target && enemy.x <= enemy.gorjalChargeEndX) {
+      const contactDistance = gorjalContactDistance(target, config);
+      enemy.x = target.x + contactDistance;
+      enemy.previousRenderX = enemy.x;
       const chargeDamage = enemy.variant === "alpha" ? 50 : config.chargeDamage;
       damageTroop(session, target, chargeDamage, events);
       const survived = !target.dead && target.hp > 0;
@@ -4060,7 +4099,7 @@ function updateGorjal(session, enemy, config, dt, events) {
     enemy.moving = false;
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
     const target = closestTroopForEnemy(session, enemy);
-    if (target && enemy.x - target.x <= troopBlockDistance(target)) {
+    if (target && enemy.x - target.x <= gorjalContactDistance(target, config)) {
       setChapterFourState(session, enemy, "idle");
       enemy.moving = false;
       return;
@@ -4075,7 +4114,9 @@ function updateGorjal(session, enemy, config, dt, events) {
         !troop.dead && troop.id === enemy.gorjalAttackTargetId
       ));
       if (attackTarget && attackTarget.row === enemy.row
-        && enemy.x - attackTarget.x <= troopBlockDistance(attackTarget)) {
+        && enemy.x - attackTarget.x <= gorjalContactDistance(attackTarget, config)) {
+        enemy.x = Math.max(enemy.x, attackTarget.x + gorjalContactDistance(attackTarget, config));
+        enemy.previousRenderX = enemy.x;
         damageTroop(session, attackTarget, enemy.damage, events);
         applyConductivity(attackTarget, session.elapsed);
       }
@@ -4084,7 +4125,7 @@ function updateGorjal(session, enemy, config, dt, events) {
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
     enemy.gorjalAttackTargetId = null;
     const currentTarget = closestTroopForEnemy(session, enemy);
-    if (currentTarget && enemy.x - currentTarget.x <= troopBlockDistance(currentTarget)) {
+    if (currentTarget && enemy.x - currentTarget.x <= gorjalContactDistance(currentTarget, config)) {
       setChapterFourState(session, enemy, "idle");
       enemy.moving = false;
       return;
@@ -4094,9 +4135,12 @@ function updateGorjal(session, enemy, config, dt, events) {
     return;
   }
   const target = closestTroopForEnemy(session, enemy);
-  if (target && enemy.x - target.x <= troopBlockDistance(target)) {
+  if (target && enemy.x - target.x <= gorjalContactDistance(target, config)) {
     enemy.moving = false;
     if (session.elapsed >= enemy.attackReadyAt) {
+      const contactDistance = gorjalContactDistance(target, config);
+      enemy.x = Math.max(enemy.x, target.x + contactDistance);
+      enemy.previousRenderX = enemy.x;
       enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
       enemy.lastAttackAt = session.elapsed;
       enemy.gorjalAttackTargetId = target.id;
