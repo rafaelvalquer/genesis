@@ -20,6 +20,7 @@ import {
   selectAdaptiveAidOption,
   simulateAdaptiveAid,
   spawnEnemy,
+  advanceWaveOutro,
   stepBattle,
 } from "./battleModel.js";
 
@@ -288,7 +289,7 @@ describe("Protocolo Fortuna", () => {
     expect(getSnapshot(session).pendingOutcome).toBe("victory");
     session.adaptiveAid.status = "resolved";
     session.adaptiveAid.capsule = null;
-    stepBattle(session, 1);
+    advanceWaveOutro(session, 4100);
     expect(session).toMatchObject({ outcome: "victory", pendingOutcome: null });
   });
 });

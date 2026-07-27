@@ -1,9 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   clearSpriteHaloCache,
   getCachedSpriteHalo,
   getSpriteFilter,
   getTroopSpriteFilter,
+  presentScene,
 } from "./graphicsRenderer.js";
 
 describe("politica de filtros e halos", () => {
@@ -38,5 +39,17 @@ describe("politica de filtros e halos", () => {
     expect(second).toBe(first);
     expect(stronger).not.toBe(first);
     expect(creations).toBe(2);
+  });
+
+  it("aplica zoom cinematográfico ao redor do foco sem alterar o renderScale", () => {
+    const ctx = {
+      setTransform: vi.fn(), clearRect: vi.fn(), save: vi.fn(), restore: vi.fn(),
+      translate: vi.fn(), scale: vi.fn(), drawImage: vi.fn(), filter: "none",
+    };
+    presentScene(ctx, {}, 2, { x: 0, y: 0, zoom: 1.04, focusX: 700, focusY: 300 }, { quality: "low" });
+    expect(ctx.setTransform).toHaveBeenCalledWith(2, 0, 0, 2, 0, 0);
+    expect(ctx.scale).toHaveBeenCalledWith(1.04, 1.04);
+    expect(ctx.translate).toHaveBeenCalledWith(700, 300);
+    expect(ctx.translate).toHaveBeenCalledWith(-700, -300);
   });
 });

@@ -171,6 +171,14 @@ export function presentScene(ctx, scene, renderScale, camera, settings = {}, ada
   ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   ctx.save();
   ctx.translate(camera.x, camera.y);
+  const zoom = Number(camera.zoom) > 0 ? Number(camera.zoom) : 1;
+  if (zoom !== 1) {
+    const focusX = Number.isFinite(camera.focusX) ? camera.focusX : VIEWPORT.width / 2;
+    const focusY = Number.isFinite(camera.focusY) ? camera.focusY : VIEWPORT.height / 2;
+    ctx.translate(focusX, focusY);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-focusX, -focusY);
+  }
   ctx.filter = colorModeFilter(settings.colorMode);
   if (settings.quality === "high" && adaptive.bloom !== false) {
     ctx.save(); ctx.globalAlpha = .09; ctx.globalCompositeOperation = "screen"; ctx.filter = "blur(6px) saturate(1.2)"; ctx.drawImage(scene, 0, 0); ctx.restore();

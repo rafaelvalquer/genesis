@@ -90,6 +90,20 @@ let entityId = 1;
 const id = (prefix) => `${prefix}_${entityId++}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 export const CONCUSSIVE_IMPACT = Object.freeze({ baseDistance: 20, cooldownMs: 3000, heavyFactor: 0.5, alphaFactor: 0.25 });
+export const WAVE_OUTRO_TIMINGS = Object.freeze({
+  finalKillSlowMotionMs: 600,
+  cleanupMs: 400,
+  waveCompletedBannerMs: 2000,
+  tacticalAdvantageIntroMs: 1100,
+  totalMs: 4100,
+});
+const WAVE_OUTRO_PHASE_ENDS = Object.freeze({
+  finalKill: WAVE_OUTRO_TIMINGS.finalKillSlowMotionMs,
+  cleanup: WAVE_OUTRO_TIMINGS.finalKillSlowMotionMs + WAVE_OUTRO_TIMINGS.cleanupMs,
+  banner: WAVE_OUTRO_TIMINGS.totalMs - WAVE_OUTRO_TIMINGS.tacticalAdvantageIntroMs,
+  decisionIntro: WAVE_OUTRO_TIMINGS.totalMs,
+});
+const MINIMUM_BANNER_VISIBLE_BEFORE_SKIP_MS = 1000;
 const ENERGY_PICKUP_LIFETIME_MS = 10000;
 const ENERGY_PICKUP_MAGNET_RADIUS = 140;
 const ENERGY_PICKUP_COLLECT_RADIUS = 24;
@@ -222,6 +236,22 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     preparing: !sandbox,
     pendingDecision: null,
     pendingDecisionLevel: null,
+    waveOutro: {
+      status: "idle",
+      elapsedMs: 0,
+      startedAt: null,
+      lastKill: null,
+      completedWave: null,
+      decisionOptions: null,
+      decisionLevel: null,
+      finalWave: false,
+      killed: 0,
+      survivors: 0,
+      integrityPercent: 100,
+      energyGained: 0,
+    },
+    waveKillStart: 0,
+    lastEnemyKillCandidate: null,
     queue: [],
     nextSpawnAt: 0,
     waveStartedAt: 0,
@@ -302,6 +332,7 @@ export function canPlaceTroop(session, troopId, row, col) {
   const troop = TROOPS[troopId];
   const effective = getEffectiveTroopStats(session, troopId);
   const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
+  if (session.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status)) return "Aguarde a conclusão da onda.";
   if (!troop || !session.loadout.includes(troopId)) return "Tropa fora do loadout.";
   if (col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) return "Posição reservada para a defesa da base.";
   if (row < 0 || row >= FIELD.rows || col < 0 || col >= FIELD.cols - 1) return "Posição fora da zona de combate.";
@@ -395,6 +426,9 @@ export function placeTroop(session, troopId, row, col) {
 }
 
 export function removeTroop(session, row, col) {
+  if (session.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status)) {
+    return { ok: false, reason: "Aguarde a conclusão da onda." };
+  }
   const index = session.troops.findIndex((troop) => !troop.dead && troop.row === row && troop.col === col);
   if (index < 0) return { ok: false, reason: "Nenhuma unidade nessa célula." };
   const [troop] = session.troops.splice(index, 1);
@@ -643,7 +677,8 @@ function applyDecision(session, decisionId, target = null) {
 }
 
 export function startWave(session) {
-  if (session.outcome || session.waveActive || session.pendingDecision || session.pendingPositionalDecision) return false;
+  if (session.outcome || session.waveActive || session.pendingDecision || session.pendingPositionalDecision
+    || (session.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status))) return false;
   if (session.nextWaveEnergy > 0) {
     const previousEnergy = session.energy;
     session.energy = Math.min(session.energyMax, session.energy + session.nextWaveEnergy);
@@ -666,6 +701,9 @@ export function startWave(session) {
   session.nextWaveBaseDamageFactor = 1;
   session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
   session.waveActive = true;
+  session.waveKillStart = session.killed;
+  session.lastEnemyKillCandidate = null;
+  session.waveOutro = { ...session.waveOutro, status: "idle", elapsedMs: 0, startedAt: null, lastKill: null, decisionOptions: null };
   session.preparing = false;
   session.waveStartedAt = session.elapsed;
   session.nextSpawnAt = session.elapsed + (session.queue[0]?.spawnAtMs || 0);
@@ -1318,6 +1356,16 @@ export function getEnemyDamageTakenFactor(enemy, context = {}) {
   return factor;
 }
 
+function rememberEnemyKill(session, enemy, sourceTroopId = null) {
+  const config = ENEMIES[enemy?.type] || {};
+  session.lastEnemyKillCandidate = {
+    enemy: getEnemyDeathEntity(enemy, session.elapsed),
+    sourceTroopId,
+    row: enemy.row,
+    cinematic: Boolean(enemy.variant === "alpha" || config.boss || config.elite),
+  };
+}
+
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
   if (context.fortuneOrbital) {
@@ -1329,12 +1377,14 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       enemy.dead = true;
       detachParasite(session, enemy);
       if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
+      rememberEnemyKill(session, enemy, context.sourceTroopId || null);
       const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
       events.push({
         type: bossDeath ? "bossDeath" : "enemyDeath",
         x: enemy.x,
         y: enemy.y,
         entity: getEnemyDeathEntity(enemy, session.elapsed),
+        sourceTroopId: context.sourceTroopId || null,
         fortuneOrbital: true,
       });
     }
@@ -1347,6 +1397,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     enemy.dead = true;
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
+    rememberEnemyKill(session, enemy, context.sourceTroopId || null);
     events.push({ type: "glassEchoShatter", targetId: enemy.id, sourceTroopType: context.sourceTroopType, x: enemy.x, y: enemy.y, entity: { ...enemy }, color: "#7fffd4", seed: nextEffectSeed(session) });
     trySpawnEnergyPickup(session, enemy, events);
     return;
@@ -1396,12 +1447,14 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     enemy.dead = true;
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
+    rememberEnemyKill(session, enemy, context.sourceTroopId || null);
     const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
     events.push({
       type: bossDeath ? "bossDeath" : "enemyDeath",
       x: enemy.x,
       y: enemy.y,
       entity: getEnemyDeathEntity(enemy, session.elapsed),
+      sourceTroopId: context.sourceTroopId || null,
     });
     trySpawnGlassEcho(session, enemy, events);
     trySpawnEnergyPickup(session, enemy, events);
@@ -1657,7 +1710,7 @@ function updateFlameChannel(session, troop, config, events, dt) {
     const origin = getMuzzleWorldPosition(troop, config, 0, animation.frame);
     activeTargets.forEach((enemy) => {
       const damage = config.damage * attackDamageMultiplier(session, troop, { target: enemy });
-      damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type });
+      damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
     });
     events.push({
       type: "flame", weapon: config.attackVisual?.effect || "flame", troopType: troop.type,
@@ -1678,7 +1731,7 @@ function fireTroop(session, troop, config, target, events) {
   const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
-    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type });
+    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
     events.push({ type: "melee", x: target.x, y: target.y });
   } else if (config.attack === "laser") {
     damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x });
@@ -2183,7 +2236,7 @@ function updateTileMelee(session, troop, config, events) {
     const impact = troop.pendingImpact;
     const occupants = enemiesInTileMeleeRange(session, troop, config);
     occupants.forEach((enemy) => {
-      damageEnemy(session, enemy, impact.damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type });
+      damageEnemy(session, enemy, impact.damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
       if (impact.stunMs) stunEnemy(session, enemy, impact.stunMs);
     });
     events.push({
@@ -2264,7 +2317,7 @@ function updateTroops(session, events, dt) {
       updateExecutorArco(session, troop, config, events, {
         color: config.color,
         enemyColumn,
-        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type }),
+        damageEnemy: (target, amount) => damageEnemy(session, target, amount, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id }),
         damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
         nextEffectSeed: () => nextEffectSeed(session),
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
@@ -2350,6 +2403,7 @@ function updateProjectiles(session, dt, events) {
         direct: true,
         sourceX: projectile.origin.x,
         sourceTroopType: projectile.troopType,
+        sourceTroopId: projectile.sourceTroopId,
       });
       projectile.phase = "impact";
       projectile.impactStartedAt = session.elapsed;
@@ -2392,7 +2446,7 @@ function updateProjectiles(session, dt, events) {
         continue;
       }
 
-      damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: source?.x ?? projectile.origin?.x, sourceTroopType: projectile.troopType });
+      damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: source?.x ?? projectile.origin?.x, sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId });
       const pushedFromX = target.x;
       let stunned = false;
       if (!target.dead) {
@@ -4443,7 +4497,8 @@ export function stepBattle(session, dt = 32) {
   const events = [];
   session.elapsed += dt;
   updateAdaptiveAidLifecycle(session, events);
-  if (session.pendingOutcome && !adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) {
+  if (session.pendingOutcome && !isWaveOutroActive(session)
+    && !adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) {
     finish(session, session.pendingOutcome);
     return events;
   }
@@ -4454,6 +4509,10 @@ export function stepBattle(session, dt = 32) {
     isCellReserved: capsuleReservesCell,
   });
   updateSandstorm(session, events);
+  const settlingWaveOutro = ["finalKill", "cleanup"].includes(session.waveOutro?.status);
+  if (settlingWaveOutro && !session.waveActive && !session.sandbox) {
+    updateProjectiles(session, dt, events);
+  }
   if (session.waveActive || session.sandbox) {
     session.supplyAccumulator += dt;
     while (session.supplyAccumulator >= 1000) {
@@ -4492,6 +4551,7 @@ export function stepBattle(session, dt = 32) {
       const completedWave = session.waveIndex;
       const waveCompletionEnergy = Math.max(0, Number(session.phase.waveCompletionEnergy) || 0);
       const waveCompletionAmount = Math.min(waveCompletionEnergy, Math.max(0, session.energyMax - session.energy));
+      let outroEnergyGained = waveCompletionAmount;
       if (waveCompletionAmount > 0) {
         session.energy += waveCompletionAmount;
         session.lastEnergyGainAt = session.elapsed;
@@ -4509,21 +4569,24 @@ export function stepBattle(session, dt = 32) {
         const config = TROOPS[reactor.type];
         const amount = Math.min(config.waveEnergyBonus, Math.max(0, session.energyMax - session.energy));
         if (amount > 0) {
+          outroEnergyGained += amount;
           session.energy += amount;
           session.lastEnergyGainAt = session.elapsed;
           reactor.lastAttackAt = session.elapsed;
           events.push({ type: "energyGenerated", sourceTroopId: reactor.id, x: reactor.x, y: reactor.y, amount, reason: "wave", color: config.color });
         }
       }
-      if (completedWave >= session.phase.waves.length - 1) {
-        if (adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) session.pendingOutcome = "victory";
-        else finish(session, "victory");
+      const finalWave = completedWave >= session.phase.waves.length - 1;
+      const completedWaveNumber = completedWave + 1;
+      let decisionLevel = null;
+      let decisionOptions = null;
+      if (finalWave) {
+        session.pendingOutcome = "victory";
       } else {
         session.waveIndex += 1;
-        session.preparing = true;
-        const completedWaveNumber = completedWave + 1;
-        session.pendingDecisionLevel = getDecisionStage(completedWaveNumber, session.phase.waves.length);
-        session.pendingDecision = getDecisionOptions({
+        session.preparing = false;
+        decisionLevel = getDecisionStage(completedWaveNumber, session.phase.waves.length);
+        decisionOptions = getDecisionOptions({
           completedWave: completedWaveNumber,
           totalWaves: session.phase.waves.length,
           integrity: session.integrity,
@@ -4538,8 +4601,37 @@ export function stepBattle(session, dt = 32) {
           decisions: session.decisions,
           seed: session.seed,
         });
-        events.push({ type: "waveComplete", wave: completedWave + 1 });
       }
+      const fatalEvent = [...events].reverse().find((event) =>
+        ["enemyDeath", "bossDeath", "glassEchoShatter"].includes(event.type));
+      const fatalEnemy = fatalEvent?.entity || null;
+      const fatalConfig = ENEMIES[fatalEnemy?.type] || {};
+      const eventLastKill = fatalEnemy ? {
+        enemy: { ...fatalEnemy },
+        sourceTroopId: fatalEvent.sourceTroopId || null,
+        row: fatalEnemy.row,
+        cinematic: Boolean(fatalEnemy.variant === "alpha" || fatalConfig.boss || fatalConfig.elite),
+      } : null;
+      const lastKill = session.lastEnemyKillCandidate
+        ? { ...session.lastEnemyKillCandidate, enemy: { ...session.lastEnemyKillCandidate.enemy } }
+        : eventLastKill;
+      session.waveOutro = {
+        status: "finalKill",
+        elapsedMs: 0,
+        startedAt: session.elapsed,
+        lastKill,
+        completedWave: completedWaveNumber,
+        decisionOptions,
+        decisionLevel,
+        finalWave,
+        killed: Math.max(0, session.killed - session.waveKillStart),
+        survivors: session.troops.filter((troop) => !troop.dead).length,
+        integrityPercent: Math.round(session.integrity / Math.max(1, session.integrityMax) * 100),
+        energyGained: outroEnergyGained,
+      };
+      if (lastKill) events.push({ type: "lastEnemyKilled", ...lastKill });
+      events.push({ type: "waveOutroStarted", wave: completedWaveNumber, finalWave });
+      events.push({ type: "waveComplete", wave: completedWaveNumber });
     } else evaluateAdaptiveAid(session, events);
   }
   return events;
@@ -4562,6 +4654,25 @@ export function getSnapshot(session) {
     mines: session.mines.length,
     energyPickups: session.energyPickups.length,
     preparing: session.preparing, pendingDecision: session.pendingDecision, pendingDecisionLevel: session.pendingDecisionLevel,
+    waveOutro: session.waveOutro ? {
+      status: session.waveOutro.status,
+      elapsedMs: session.waveOutro.elapsedMs,
+      completedWave: session.waveOutro.completedWave,
+      finalWave: session.waveOutro.finalWave,
+      killed: session.waveOutro.killed,
+      survivors: session.waveOutro.survivors,
+      integrityPercent: session.waveOutro.integrityPercent,
+      energyGained: session.waveOutro.energyGained,
+      decisionOptions: (session.waveOutro.decisionOptions || []).map((option) => ({
+        id: option.id,
+        label: option.label,
+      })),
+      lastKill: session.waveOutro.lastKill ? {
+        row: session.waveOutro.lastKill.row,
+        sourceTroopId: session.waveOutro.lastKill.sourceTroopId,
+        cinematic: session.waveOutro.lastKill.cinematic,
+      } : null,
+    } : null,
     outcome: session.outcome, elapsed: session.elapsed,
     sandbox: session.sandbox,
     sandboxSettings: session.sandboxSettings ? { ...session.sandboxSettings } : null,
@@ -4688,6 +4799,76 @@ export function getSnapshot(session) {
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,
   };
+}
+
+export function isWaveOutroActive(session) {
+  return Boolean(session?.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status));
+}
+
+export function getWaveOutroCinematicFactor(session, reduceMotion = false) {
+  const outro = session?.waveOutro;
+  if (reduceMotion || !outro) return 1;
+  if (outro.status === "finalKill") return 0.3;
+  if (outro.status === "cleanup") {
+    const cleanupElapsed = Math.max(0, outro.elapsedMs - WAVE_OUTRO_PHASE_ENDS.finalKill);
+    return 0.3 + 0.7 * Math.min(1, cleanupElapsed / WAVE_OUTRO_TIMINGS.cleanupMs);
+  }
+  return 1;
+}
+
+export function accelerateWaveOutro(session) {
+  const outro = session?.waveOutro;
+  const earliestSkipAt = WAVE_OUTRO_PHASE_ENDS.cleanup + MINIMUM_BANNER_VISIBLE_BEFORE_SKIP_MS;
+  if (outro?.status !== "waveCompleteBanner" || outro.elapsedMs < earliestSkipAt) return false;
+  outro.elapsedMs = Math.max(outro.elapsedMs, WAVE_OUTRO_PHASE_ENDS.banner);
+  return true;
+}
+
+export function advanceWaveOutro(session, realDt = 0) {
+  if (!isWaveOutroActive(session)) return [];
+  const outro = session.waveOutro;
+  const events = [];
+  outro.elapsedMs += Math.max(0, Number(realDt) || 0);
+  let transitioned = true;
+  while (transitioned) {
+    transitioned = false;
+    if (outro.status === "finalKill" && outro.elapsedMs >= WAVE_OUTRO_PHASE_ENDS.finalKill) {
+      outro.status = "cleanup";
+      events.push({ type: "waveOutroCleanup", wave: outro.completedWave });
+      transitioned = true;
+    } else if (outro.status === "cleanup" && outro.elapsedMs >= WAVE_OUTRO_PHASE_ENDS.cleanup) {
+      outro.status = "waveCompleteBanner";
+      events.push({
+        type: "waveCompleteBanner",
+        wave: outro.completedWave,
+        killed: outro.killed,
+        integrity: outro.integrityPercent,
+        survivors: outro.survivors,
+        energyGained: outro.energyGained,
+      });
+      transitioned = true;
+    } else if (outro.status === "waveCompleteBanner" && outro.elapsedMs >= WAVE_OUTRO_PHASE_ENDS.banner) {
+      outro.status = outro.finalWave ? "victoryIntro" : "decisionIntro";
+      events.push({
+        type: outro.finalWave ? "victoryIntro" : "decisionIntro",
+        wave: outro.completedWave,
+      });
+      transitioned = true;
+    } else if (["decisionIntro", "victoryIntro"].includes(outro.status)
+      && outro.elapsedMs >= WAVE_OUTRO_PHASE_ENDS.decisionIntro) {
+      outro.status = "completed";
+      if (outro.finalWave) {
+        if (!adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) finish(session, "victory");
+      } else {
+        session.pendingDecisionLevel = outro.decisionLevel;
+        session.pendingDecision = outro.decisionOptions;
+        session.preparing = true;
+        events.push({ type: "waveDecisionReady", wave: outro.completedWave });
+      }
+      transitioned = true;
+    }
+  }
+  return events;
 }
 
 export function getRouteTelemetry(session) {

@@ -306,6 +306,86 @@ a .phase-card:hover .phase-art img { transform: scale(1.07); filter: saturate(1.
   82%, 100% { translate: 330px 0; opacity: 0; }
 }
 .reduce-motion .wave-banner::after { animation: none; opacity: .25; translate: 95px 0; }
+.wave-outro {
+  position: absolute;
+  z-index: 9;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  pointer-events: none;
+  color: #ecfeff;
+  text-align: center;
+  text-transform: uppercase;
+  background: rgba(2, 8, 15, .42);
+  animation: wave-outro-fade .24s ease-out both;
+}
+.wave-outro::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 50%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(103,232,249,.95), transparent);
+  box-shadow: 0 0 18px rgba(34,211,238,.8);
+}
+.wave-outro b {
+  z-index: 1;
+  font: 800 clamp(19px, 3.2cqi, 34px) "Chakra Petch", system-ui;
+  letter-spacing: .16em;
+  text-shadow: 0 0 18px rgba(34,211,238,.75);
+}
+.wave-outro span {
+  z-index: 1;
+  color: #a5f3fc;
+  font: 700 clamp(9px, 1.25cqi, 13px) "Chakra Petch", system-ui;
+  letter-spacing: .12em;
+}
+.wave-outro small {
+  z-index: 1;
+  color: #cbd5e1;
+  font: 600 clamp(7px, 1cqi, 10px) Inter, system-ui;
+  letter-spacing: .08em;
+}
+.wave-outro.last-kill { justify-content: flex-end; padding-bottom: 14%; background: transparent; }
+.wave-outro.last-kill::before, .wave-outro.cleanup::before { display: none; }
+.wave-outro.last-kill small { color: #fde68a; text-shadow: 0 0 12px rgba(251,191,36,.8); }
+.wave-outro.cleanup { background: rgba(2,8,15,.14); }
+.wave-outro.wave-complete.entering { animation: wave-outro-fade .3s ease-out both; }
+.wave-outro.wave-complete.active { opacity: 1; }
+.wave-outro.wave-complete.leaving { animation: wave-outro-leave .3s ease-in both; }
+.wave-outro.decision-intro { background: rgba(2,8,15,.62); animation: wave-decision-rise .3s ease-out both; }
+.wave-outro.victory-intro b { color: #fde68a; text-shadow: 0 0 22px rgba(251,191,36,.72); }
+.wave-outro-card-preview {
+  position: absolute;
+  z-index: 1;
+  left: 50%;
+  bottom: 8%;
+  width: min(560px, 72%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  translate: -50% 0;
+  animation: wave-card-preview .3s ease-out both;
+}
+.wave-outro-card-preview div {
+  min-height: 72px;
+  padding: 14px;
+  border: 1px solid rgba(251,191,36,.38);
+  background: linear-gradient(180deg, rgba(13,27,43,.84), rgba(8,17,30,.92));
+  color: rgba(251,191,36,.72);
+  font: 700 clamp(8px, 1.1cqi, 11px) "Chakra Petch", system-ui;
+  letter-spacing: .08em;
+  box-shadow: 0 16px 36px rgba(0,0,0,.32);
+}
+.reduce-motion .wave-outro { animation: wave-outro-fade .12s linear both; }
+@keyframes wave-outro-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes wave-outro-leave { from { opacity: 1; } to { opacity: 0; } }
+@keyframes wave-decision-rise { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+@keyframes wave-card-preview { from { opacity: 0; translate: -50% 14px; } to { opacity: .82; translate: -50% 0; } }
 .canvas-wrap { container-type: inline-size; }
 @container (max-width: 800px) {
   .wave-banner {

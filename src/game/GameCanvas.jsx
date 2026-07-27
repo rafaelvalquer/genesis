@@ -40,12 +40,15 @@ import {
   adaptiveAidBlocksIntermission,
   adaptiveAidCinematicFactor,
   adaptiveAidPausesSimulation,
+  accelerateWaveOutro,
+  advanceWaveOutro,
   activateTroopSpecial,
   cellFromPoint,
   clearSandboxEntities,
   createBattleSession,
   getEligibleAdaptiveAidOptions,
   getSnapshot,
+  getWaveOutroCinematicFactor,
   getTroopRangePenaltyTiles,
   forceExecutorCombo,
   createPositionalConfirmationEvent,
@@ -64,6 +67,7 @@ import {
   startWave,
   stepBattle,
   simulateAdaptiveAid,
+  WAVE_OUTRO_TIMINGS,
 } from "./battleModel.js";
 import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
@@ -103,6 +107,77 @@ export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = nu
   }
   if (selectedTroop) return { type: "place", cell, troopType: selectedTroop };
   return null;
+}
+
+export function getWaveOutroCameraTransform(session, reduceMotion = false) {
+  const outro = session?.waveOutro;
+  if (reduceMotion || !outro || !["finalKill", "cleanup"].includes(outro.status)) return null;
+  const elapsed = outro.elapsedMs;
+  let zoomProgress;
+  if (elapsed < 150) zoomProgress = 1 - ((1 - elapsed / 150) ** 3);
+  else if (elapsed < 450) zoomProgress = 1;
+  else if (elapsed < WAVE_OUTRO_TIMINGS.finalKillSlowMotionMs) {
+    const returnStart = (elapsed - 450) / 150;
+    zoomProgress = 1 - returnStart * 0.25;
+  } else {
+    const cleanupProgress = Math.min(1,
+      (elapsed - WAVE_OUTRO_TIMINGS.finalKillSlowMotionMs) / WAVE_OUTRO_TIMINGS.cleanupMs);
+    zoomProgress = 0.75 * (1 - (cleanupProgress * cleanupProgress * (3 - 2 * cleanupProgress)));
+  }
+  const impactProgress = Math.min(1, elapsed / 140);
+  const impact = elapsed < 140 ? Math.sin(elapsed / 14 * Math.PI) * 3 * (1 - impactProgress) : 0;
+  return {
+    zoom: 1 + 0.08 * zoomProgress,
+    focusX: outro.lastKill?.enemy?.x ?? VIEWPORT.width * 0.64,
+    focusY: VIEWPORT.fieldOffsetY + ((outro.lastKill?.row ?? 2) + 0.5) * CELL.height,
+    impactX: impact,
+    impactY: -impact * 0.45,
+  };
+}
+
+export function WaveOutroOverlay({ outro }) {
+  if (!outro || ["idle", "completed"].includes(outro.status)) return null;
+  if (outro.status === "finalKill") {
+    return <div className="wave-outro last-kill" aria-live="polite"><small>ÚLTIMO ALVO NEUTRALIZADO</small></div>;
+  }
+  if (outro.status === "cleanup") return <div className="wave-outro cleanup" aria-hidden="true" />;
+  if (outro.status === "victoryIntro") {
+    return (
+      <div className="wave-outro decision-intro victory-intro" aria-live="polite">
+        <b>MISSÃO CONCLUÍDA</b>
+        <span>Perímetro assegurado</span>
+      </div>
+    );
+  }
+  if (outro.status === "decisionIntro") {
+    const introStartedAt = WAVE_OUTRO_TIMINGS.totalMs - WAVE_OUTRO_TIMINGS.tacticalAdvantageIntroMs;
+    const introElapsed = Math.max(0, outro.elapsedMs - introStartedAt);
+    const cardsEntering = introElapsed >= WAVE_OUTRO_TIMINGS.tacticalAdvantageIntroMs - 300;
+    return (
+      <div className="wave-outro decision-intro" aria-live="polite">
+        <b>NOVA VANTAGEM TÁTICA</b>
+        <span>Prepare sua defesa para a próxima onda</span>
+        {cardsEntering && (
+          <div className="wave-outro-card-preview" aria-hidden="true">
+            {(outro.decisionOptions || [{ id: "left" }, { id: "right" }]).map((option) => (
+              <div key={option.id}>{option.label || ""}</div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+  const bannerStartedAt = WAVE_OUTRO_TIMINGS.finalKillSlowMotionMs + WAVE_OUTRO_TIMINGS.cleanupMs;
+  const bannerElapsed = Math.max(0, outro.elapsedMs - bannerStartedAt);
+  const bannerStage = bannerElapsed < 300 ? "entering"
+    : bannerElapsed >= WAVE_OUTRO_TIMINGS.waveCompletedBannerMs - 300 ? "leaving" : "active";
+  return (
+    <div className={`wave-outro wave-complete ${bannerStage}`} aria-live="polite">
+      <b>ONDA {outro.completedWave} CONCLUÍDA</b>
+      <span>Perímetro temporariamente seguro</span>
+      <small>{outro.killed} inimigos eliminados</small>
+    </div>
+  );
 }
 
 export function resolveInspectedTroopId({ hoveredTroop }) {
@@ -1403,11 +1478,39 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       const frameDelta = Math.min(100, now - previous);
       previous = now;
       const fortunePaused = adaptiveAidPausesSimulation(sessionRef.current.adaptiveAid?.status);
+      const outroFactor = getWaveOutroCinematicFactor(sessionRef.current, settings.reduceMotion);
       if (!pausedRef.current && !fortunePaused) {
-        accumulator += frameDelta * speedRef.current * adaptiveAidCinematicFactor(sessionRef.current);
+        const battleSpeed = outroFactor < 1 ? outroFactor : speedRef.current;
+        accumulator += frameDelta * battleSpeed * adaptiveAidCinematicFactor(sessionRef.current);
+      }
+      const outroEvents = advanceWaveOutro(sessionRef.current, frameDelta);
+      if (outroEvents.length) {
+        pushEventParticles(particlesRef.current, outroEvents, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+        consumeGraphicsEvents(graphicsRef.current, outroEvents, sessionRef.current.elapsed, settings);
+        if (outroEvents.some((event) => event.type === "waveCompleteBanner")) {
+          audioRef.current.theme?.pause();
+          setBanner(`ONDA ${sessionRef.current.waveOutro.completedWave} CONCLUÍDA`);
+          play("alert", 0.38);
+        }
+        if (outroEvents.some((event) => event.type === "decisionIntro")) {
+          setBanner("NOVA VANTAGEM TÁTICA");
+        }
+        if (outroEvents.some((event) => event.type === "victoryIntro")) {
+          setBanner("MISSÃO CONCLUÍDA");
+        }
       }
       const activeSession = sessionRef.current;
-      if (activeSession && !activeSession.outcome && activeSession.integrity > 0 && (activeSession.integrity / activeSession.integrityMax) <= 0.25) {
+      const activeOutro = activeSession?.waveOutro?.status
+        && !["idle", "completed"].includes(activeSession.waveOutro.status);
+      const themeAudio = audioRef.current.theme;
+      if (themeAudio && activeSession?.waveOutro?.status === "cleanup") {
+        const cleanupProgress = Math.min(1, Math.max(0,
+          (activeSession.waveOutro.elapsedMs - WAVE_OUTRO_TIMINGS.finalKillSlowMotionMs)
+          / WAVE_OUTRO_TIMINGS.cleanupMs));
+        const baseMusicVolume = settings.masterVolume * settings.musicVolume;
+        themeAudio.volume = Math.max(0, Math.min(1, baseMusicVolume * (1 - cleanupProgress * 0.8)));
+      }
+      if (activeSession && !activeOutro && !activeSession.outcome && activeSession.integrity > 0 && (activeSession.integrity / activeSession.integrityMax) <= 0.25) {
         if (now - lastCriticalBeepRef.current >= 1200) {
           lastCriticalBeepRef.current = now;
           playCriticalAlarmBeep(settings.masterVolume * settings.effectsVolume);
@@ -1469,9 +1572,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           setBanner(`⚠ ${alphaName} ALFA · FASE ${phaseEvent.phase + 1}`);
         }
         if (events.some((event) => event.type === "waveComplete")) {
-          audioRef.current.theme?.pause();
           audioRef.current.windActiveLoop?.pause();
-          setBanner("ONDA CONCLUÍDA · REORGANIZE A DEFESA");
+          setBanner("PERÍMETRO SEGURO · REORGANIZAÇÃO EM CURSO");
         }
         accumulator -= 32;
       }
@@ -1497,9 +1599,17 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       );
       lastDrawMs = performance.now() - drawStarted;
       const presentStarted = performance.now();
+      const camera = getCameraOffset(graphicsRef.current, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+      const outroCamera = getWaveOutroCameraTransform(sessionRef.current, settings.reduceMotion);
+      const presentationCamera = outroCamera ? {
+        ...camera,
+        ...outroCamera,
+        x: camera.x + outroCamera.impactX,
+        y: camera.y + outroCamera.impactY,
+      } : camera;
       presentScene(
         ctx, scene, renderScale,
-        getCameraOffset(graphicsRef.current, sessionRef.current.elapsed, adaptiveSettingsRef.current),
+        presentationCamera,
         adaptiveSettingsRef.current, adaptive,
       );
       lastPresentMs = performance.now() - presentStarted;
@@ -1580,6 +1690,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleCanvasClick = (event) => {
     if (snapshot.outcome) return;
+    if (sessionRef.current.waveOutro?.status && !["idle", "completed"].includes(sessionRef.current.waveOutro.status)) {
+      if (accelerateWaveOutro(sessionRef.current)) setSnapshot(getSnapshot(sessionRef.current));
+      return;
+    }
     const fieldPoint = canvasPointFromPointer(event);
     if (sessionRef.current.adaptiveAid?.status === "targeting") {
       const row = fieldPoint ? Math.floor(fieldPoint.y / CELL.height) : -1;
@@ -1817,7 +1931,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const fortuneStatus = snapshot.adaptiveAid.status;
   const fortuneBlocksIntermission = adaptiveAidBlocksIntermission(fortuneStatus);
   const fortuneTargeting = fortuneStatus === "targeting";
-  const positionalTargeting = fortuneTargeting || Boolean(targetingDecision);
+  const waveOutroActive = Boolean(snapshot.waveOutro?.status && !["idle", "completed"].includes(snapshot.waveOutro.status));
+  const positionalTargeting = fortuneTargeting || Boolean(targetingDecision) || waveOutroActive;
 
   if (!loading.ready) {
     return <div className="battle-loader" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary }}><div className="loader-scrim" /><div className="loader-content"><div className="loader-mark">GD</div><span className="eyebrow">{phase.name}</span><h2>Preparando campo tático</h2><div className="progress-track"><span style={{ width: `${loading.percent}%` }} /></div><p>{loading.percent}% · sincronizando arena, loadout e hostis</p></div></div>;
@@ -1851,6 +1966,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const canStartWave = !sandbox
     && snapshot.preparing
     && !snapshot.pendingDecision
+    && !waveOutroActive
     && !targetingDecision
     && !snapshot.outcome
     && !fortuneBlocksIntermission;
@@ -1862,7 +1978,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const defaultContainmentSummary = sandbox
     ? `CAMPO DE PROVAS · ${snapshot.enemies} HOSTIS EM CAMPO`
     : `ONDA ${snapshot.wave}/${snapshot.totalWaves} · ${hostileCount} HOSTIS RESTANTES${threatSummary}`;
-  const containmentSummary = snapshot.adaptiveAid.status === "targeting"
+  const containmentSummary = waveOutroActive
+    ? "PERÍMETRO SEGURO · SISTEMAS EM REORGANIZAÇÃO"
+    : snapshot.adaptiveAid.status === "targeting"
     ? "ATAQUE ORBITAL · PASSE O MOUSE E CLIQUE EM UMA ROTA"
     : snapshot.adaptiveAid.status === "incoming"
       ? "OPORTUNIDADE TÁTICA · CÁPSULA EM APROXIMAÇÃO"
@@ -1955,6 +2073,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             {notification?.text && <div className={`battle-notification tone-${notification.tone} ${notification.persistent ? "persistent" : ""}`} role={notification.tone === "action" ? "status" : "alert"}>
               <span>{notification.tone === "action" ? "◆" : "✓"}</span>{notification.text}
             </div>}
+            <WaveOutroOverlay outro={snapshot.waveOutro} />
           </div>
           {graphicsMetrics && <div className="graphics-metrics">
             <b>{graphicsMetrics.fps.toFixed(0)} FPS · {graphicsMetrics.adaptiveLevel}</b>
@@ -2000,7 +2119,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
       {snapshot.adaptiveAid.status === "choosing"
         ? <FortuneChoiceModal tier={snapshot.adaptiveAid.triggerTier} options={snapshot.adaptiveAid.availableOptions} onChoose={handleFortuneChoice} />
-        : snapshot.pendingDecision && !targetingDecision && !fortuneBlocksIntermission
+        : snapshot.pendingDecision && !targetingDecision && !fortuneBlocksIntermission && !waveOutroActive
           ? <DecisionModal level={snapshot.pendingDecisionLevel} options={snapshot.pendingDecision} onChoose={handleDecision} />
           : null}
     </section>

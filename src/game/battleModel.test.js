@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DECISIONS, ENEMIES, PHASES, TROOPS } from "./content.js";
 import {
-  activateTroopSpecial, CELL, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getRouteTelemetry, getSnapshot, placeTroop, removeTroop,
+  accelerateWaveOutro, activateTroopSpecial, advanceWaveOutro, CELL, clearSandboxEntities, createBattleSession, DEMATERIALIZATION_PULSE, FIELD, getEffectiveTroopStats, getRouteTelemetry, getSnapshot, getWaveOutroCinematicFactor, placeTroop, removeTroop,
   selectDecision, setEnergyPickupPointer, setSandboxSettings, spawnEnemy, startWave, stepBattle,
   trySpawnEnergyPickup, trySpawnGlassEcho,
 } from "./battleModel.js";
@@ -830,6 +830,8 @@ describe("sessão de batalha", () => {
     startWave(secondMission);
     const secondMissionEvents = stepBattle(secondMission, 32);
     expect(secondMission.energy).toBe(60);
+    expect(secondMission.outcome).toBeNull();
+    advanceWaveOutro(secondMission, 4100);
     expect(secondMission.outcome).toBe("victory");
     expect(secondMissionEvents).toContainEqual(expect.objectContaining({
       type: "energyGenerated",
@@ -1457,6 +1459,7 @@ describe("Demolidora de Minas", () => {
     startWave(session);
     stepBattle(session, 1);
     expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(true);
+    advanceWaveOutro(session, 4100);
     removeTroop(session, 0, 1);
     expect(session.projectiles.some((entry) => entry.kind === "mine")).toBe(false);
 
@@ -1557,6 +1560,7 @@ describe("decisões táticas aleatórias", () => {
     for (let level = 1; level <= 3; level += 1) {
       expect(startWave(session)).toBe(true);
       stepBattle(session, 1);
+      advanceWaveOutro(session, 4100);
       expect(session.pendingDecisionLevel).toBe(stages[level - 1]);
       expect(session.pendingDecision).toHaveLength(2);
       const chosen = session.pendingDecision[0];
@@ -1565,9 +1569,70 @@ describe("decisões táticas aleatórias", () => {
     }
     expect(startWave(session)).toBe(true);
     stepBattle(session, 1);
+    const finalOutroEvents = advanceWaveOutro(session, 4100);
+    expect(finalOutroEvents).toContainEqual(expect.objectContaining({ type: "victoryIntro" }));
+    expect(finalOutroEvents).not.toContainEqual(expect.objectContaining({ type: "decisionIntro" }));
     expect(session.outcome).toBe("victory");
     expect(session.pendingDecision).toBeNull();
     expect(session.pendingDecisionLevel).toBeNull();
+  });
+
+  it("adia a decisão durante a finalização cinematográfica e usa tempo real", () => {
+    const session = createBattleSession(decisionPhase, ["marine"], 9901);
+    expect(startWave(session)).toBe(true);
+    session.queue = [];
+    const completionEvents = stepBattle(session, 1);
+
+    expect(completionEvents).toContainEqual(expect.objectContaining({ type: "waveOutroStarted", wave: 1 }));
+    expect(session.waveOutro.status).toBe("finalKill");
+    expect(session.pendingDecision).toBeNull();
+    expect(startWave(session)).toBe(false);
+    expect(placeTroop(session, "marine", 0, 1).reason).toMatch(/conclusão da onda/i);
+
+    expect(advanceWaveOutro(session, 599)).toEqual([]);
+    expect(advanceWaveOutro(session, 1)).toContainEqual(expect.objectContaining({ type: "waveOutroCleanup" }));
+    expect(advanceWaveOutro(session, 400)).toContainEqual(expect.objectContaining({ type: "waveCompleteBanner" }));
+    expect(session.pendingDecision).toBeNull();
+    expect(advanceWaveOutro(session, 2000)).toContainEqual(expect.objectContaining({ type: "decisionIntro" }));
+    expect(session.pendingDecision).toBeNull();
+    expect(advanceWaveOutro(session, 1099)).toEqual([]);
+    expect(advanceWaveOutro(session, 1)).toContainEqual(expect.objectContaining({ type: "waveDecisionReady" }));
+    expect(session.pendingDecision).toHaveLength(2);
+    expect(session.waveOutro.elapsedMs).toBe(4100);
+  });
+
+  it("permite acelerar somente o banner sem pular o último impacto", () => {
+    const session = createBattleSession(decisionPhase, [], 9902);
+    startWave(session);
+    session.queue = [];
+    stepBattle(session, 1);
+    expect(accelerateWaveOutro(session)).toBe(false);
+    advanceWaveOutro(session, 1000);
+    expect(session.waveOutro.status).toBe("waveCompleteBanner");
+    advanceWaveOutro(session, 999);
+    expect(accelerateWaveOutro(session)).toBe(false);
+    advanceWaveOutro(session, 1);
+    expect(accelerateWaveOutro(session)).toBe(true);
+    const events = advanceWaveOutro(session, 0);
+    expect(events).toContainEqual(expect.objectContaining({ type: "decisionIntro" }));
+    expect(session.pendingDecision).toBeNull();
+  });
+
+  it("usa câmera lenta apenas para eliminações relevantes e respeita reduceMotion", () => {
+    const session = createBattleSession(decisionPhase, [], 9903);
+    session.waveOutro.status = "finalKill";
+    session.waveOutro.elapsedMs = 50;
+    session.waveOutro.lastKill = { cinematic: false };
+    expect(getWaveOutroCinematicFactor(session)).toBe(0.3);
+    session.waveOutro.elapsedMs = 599;
+    expect(getWaveOutroCinematicFactor(session)).toBe(0.3);
+    session.waveOutro.status = "cleanup";
+    session.waveOutro.elapsedMs = 800;
+    expect(getWaveOutroCinematicFactor(session)).toBeCloseTo(0.65);
+    session.waveOutro.lastKill.cinematic = true;
+    session.waveOutro.status = "finalKill";
+    expect(getWaveOutroCinematicFactor(session)).toBe(0.3);
+    expect(getWaveOutroCinematicFactor(session, true)).toBe(1);
   });
 
   it("aplica recursos, integridade, escudo e modificadores persistentes", () => {

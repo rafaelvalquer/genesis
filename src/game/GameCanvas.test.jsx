@@ -3,7 +3,8 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DECISIONS } from "./content.js";
 import {
-  CapsuleInteractionButton, ColossusSpecialButtons, DecisionModal, FortuneChoiceModal,
+  CapsuleInteractionButton, ColossusSpecialButtons, DecisionModal, FortuneChoiceModal, WaveOutroOverlay,
+  getWaveOutroCameraTransform,
   SandboxPanel, resolveCanvasClickAction, resolveInspectedTroopId,
 } from "./GameCanvas.jsx";
 
@@ -101,6 +102,50 @@ describe("modal de decisões entre ondas", () => {
     expect(screen.getAllByRole("button")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: /Carga emergencial/i }));
     expect(onChoose).toHaveBeenCalledWith(DECISIONS.emergency_energy);
+  });
+});
+
+describe("finalização de onda", () => {
+  it("entra em zoom de 8%, sustenta o foco e retorna durante a limpeza", () => {
+    const session = {
+      waveOutro: {
+        status: "finalKill", elapsedMs: 150,
+        lastKill: { row: 2, enemy: { x: 720 } },
+      },
+    };
+    expect(getWaveOutroCameraTransform(session)).toMatchObject({
+      zoom: 1.08,
+      focusX: 720,
+    });
+    session.waveOutro.status = "cleanup";
+    session.waveOutro.elapsedMs = 1000;
+    expect(getWaveOutroCameraTransform(session).zoom).toBe(1);
+    expect(getWaveOutroCameraTransform(session, true)).toBeNull();
+  });
+
+  it("mostra o banner antes da introdução da vantagem", () => {
+    const { rerender } = render(<WaveOutroOverlay outro={{
+      status: "waveCompleteBanner", completedWave: 3, killed: 18,
+      integrityPercent: 82, survivors: 4, energyGained: 20,
+    }} />);
+    expect(screen.getByText("ONDA 3 CONCLUÍDA")).toBeInTheDocument();
+    expect(screen.getByText(/18 inimigos eliminados/i)).toBeInTheDocument();
+
+    rerender(<WaveOutroOverlay outro={{
+      status: "decisionIntro",
+      elapsedMs: 3900,
+      decisionOptions: [{ id: "one", label: "Escudo" }, { id: "two", label: "Energia" }],
+    }} />);
+    expect(screen.getByText("NOVA VANTAGEM TÁTICA")).toBeInTheDocument();
+    expect(screen.getByText("Escudo")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText("ONDA 3 CONCLUÍDA")).not.toBeInTheDocument();
+  });
+
+  it("troca a última onda por uma introdução de vitória", () => {
+    render(<WaveOutroOverlay outro={{ status: "victoryIntro" }} />);
+    expect(screen.getByText("MISSÃO CONCLUÍDA")).toBeInTheDocument();
+    expect(screen.queryByText("NOVA VANTAGEM TÁTICA")).not.toBeInTheDocument();
   });
 });
 
