@@ -2447,14 +2447,20 @@ export const DECISIONS = {
     ...decision("aggressive_line", "Linha agressiva", "Tropas ofensivas recebem +15% de dano e alcance, mas perdem 20% do HP máximo.", "attack", 4, { risk: true }),
   },
   focused_fire: {
-    ...decision("focused_fire", "Fogo concentrado", "+18% de dano contra o inimigo mais próximo da base.", "attack", 3, { positional: true }),
+    ...decision("focused_fire", "Fogo concentrado", "Escolha uma rota ocupada. Tropas dessa rota causam +18% de dano contra o inimigo mais próximo da base na mesma rota.", "attack", 3, {
+      positional: true, targetType: "occupiedRow", targetSize: 1, effectKind: "damage",
+      selectionColor: "#ef4444", confirmationColor: "#fb7185", requiresOccupiedTarget: true,
+      confirmationEventType: "focusedFireActivated",
+    }),
   },
   continuous_suppression: {
     ...decision("continuous_suppression", "Supressão contínua", "Após três ataques no mesmo inimigo, a tropa causa +15% de dano contra ele.", "attack", 3),
   },
   advanced_formation: {
     ...decision("advanced_formation", "Formação avançada", "Tropas nas três colunas avançadas causam +15% de dano, mas recebem +10% de dano.", "attack", 3, {
-      positional: true, targetType: "columnBlock", targetSize: 3, risk: true,
+      positional: true, targetType: "columnBlock", targetSize: 3, effectKind: "damage",
+      selectionColor: "#ef4444", confirmationColor: "#f97316", requiresOccupiedTarget: false,
+      confirmationEventType: "advancedFormationActivated", risk: true,
     }),
   },
   structural_armor: {
@@ -2497,7 +2503,11 @@ export const DECISIONS = {
     ...decision("reactive_barrier", "Barreira reativa", "A primeira tropa de cada rota abaixo de 30% de HP recebe um escudo temporário.", "defense", 4, { finalEligible: true }),
   },
   route_fortification: {
-    ...decision("route_fortification", "Fortificação de rota", "Uma rota ocupada recebe +20% de HP máximo até o fim da fase.", "defense", 3, { positional: true, targetType: "occupiedRow", targetSize: 1 }),
+    ...decision("route_fortification", "Fortificação de rota", "Uma rota ocupada recebe +20% de HP máximo até o fim da fase.", "defense", 3, {
+      positional: true, targetType: "occupiedRow", targetSize: 1, effectKind: "health",
+      selectionColor: "#22d3ee", confirmationColor: "#34d399", requiresOccupiedTarget: true,
+      confirmationEventType: "routeFortified",
+    }),
   },
   organized_retreat: {
     ...decision("organized_retreat", "Retirada organizada", "Remover uma tropa abaixo de 30% de HP devolve 100% da energia paga.", "defense", 3),

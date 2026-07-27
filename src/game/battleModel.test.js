@@ -1778,6 +1778,23 @@ describe("decisões táticas aleatórias", () => {
     expect(removeTroop(session, 2, 2).refund).toBe(second.energyCost);
   });
 
+  it("registra a rota do Fogo concentrado sem reutilizar fortificação", () => {
+    const session = createBattleSession(decisionPhase, ["colono"], 918);
+    placeTroop(session, "colono", 1, 1);
+    session.pendingDecision = [DECISIONS.focused_fire];
+    session.pendingDecisionLevel = 2;
+    expect(selectDecision(session, DECISIONS.focused_fire, { row: 4 })).toBe(false);
+    expect(session.pendingDecision).toEqual([DECISIONS.focused_fire]);
+    expect(selectDecision(session, DECISIONS.focused_fire, { row: 1 })).toBe(true);
+    expect(session.focusedFireRow).toBe(1);
+    expect(session.fortifiedRow).toBeNull();
+    expect(session.pendingRouteFortificationEvent).toBeNull();
+    expect(session.decisions.at(-1)).toMatchObject({
+      id: "focused_fire",
+      target: { row: 1 },
+    });
+  });
+
   it("seleciona três colunas para a Formação avançada e aplica risco e bônus somente nelas", () => {
     expect(DECISIONS.advanced_formation).toMatchObject({
       positional: true, targetType: "columnBlock", targetSize: 3,

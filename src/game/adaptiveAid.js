@@ -1,5 +1,6 @@
 import { ENEMIES, TROOPS } from "./content.js";
 import { CELL, FIELD } from "./visualGeometry.js";
+import { createPositionalConfirmationEvent, validatePositionalTarget } from "./positionalTargeting.js";
 
 export const ADAPTIVE_AID_EVALUATION_MS = 1000;
 export const ADAPTIVE_AID_DIFFICULT_HOLD_MS = 6000;
@@ -154,7 +155,13 @@ export const ADAPTIVE_AID_OPTIONS = Object.freeze([
   { id: "core_barrier", rarity: "rare", label: "Barreira do núcleo", description: "Bloqueia os próximos dois invasores.", isEligible: () => true },
   { id: "maintenance_drone", rarity: "rare", label: "Drone de manutenção", description: "Recupera 25% do HP perdido das tropas vivas.", isEligible: hasWoundedTroops },
   { id: "containment_pulse", rarity: "rare", label: "Pulso de contenção", description: "Paralisa hostis; Alfas resistem parcialmente e chefes são imunes.", isEligible: (s) => livingEnemies(s).some((enemy) => !ENEMIES[enemy.type]?.boss) },
-  { id: "emergency_orbital", rarity: "epic", label: "Ataque orbital de emergência", description: "Escolha uma rota. Hostis recebem dano proporcional.", requiresTarget: true, isEligible: (s) => livingEnemies(s).length > 0 },
+  {
+    id: "emergency_orbital", rarity: "epic", label: "Ataque orbital de emergência",
+    description: "Escolha uma rota. Hostis recebem dano proporcional.", requiresTarget: true,
+    positional: true, targetType: "row", targetSize: 1, effectKind: "orbital",
+    selectionColor: "#fbbf24", confirmationColor: "#fde68a", requiresOccupiedTarget: false,
+    confirmationEventType: "fortuneOrbitalStrike", isEligible: (s) => livingEnemies(s).length > 0,
+  },
   { id: "combat_reconstruction", rarity: "epic", label: "Reconstrução de combate", description: "Reconstrói até duas tropas destruídas por inimigos.", isEligible: (s) => eligibleReconstructionLosses(s).length > 0 },
 ]);
 
@@ -356,6 +363,7 @@ export function selectAdaptiveAidOption(session, optionId, target = null, events
   if (option.id === "emergency_orbital" && target?.row == null) {
     aid.status = "targeting";
     aid.pendingTarget = option.id;
+    session.pendingPositionalDecision = { ...option, preview: null };
     return { ok: true, targeting: true };
   }
   let applied = true;
@@ -370,19 +378,22 @@ export function selectAdaptiveAidOption(session, optionId, target = null, events
     adapters.stunEnemy?.(session, enemy, enemy.variant === "alpha" ? 500 : 2000);
   });
   else if (option.id === "emergency_orbital") {
-    const row = Number(target.row);
-    if (!Number.isInteger(row) || row < 0 || row >= FIELD.rows) return { ok: false, reason: "Rota inválida." };
+    const validation = validatePositionalTarget(session, option, target);
+    if (!validation.valid) return { ok: false, reason: "Rota inválida." };
+    const row = validation.target.row;
+    const confirmationEvent = createPositionalConfirmationEvent(session, option, validation.target);
     livingEnemies(session).filter((enemy) => enemy.row === row).forEach((enemy) => {
       const config = ENEMIES[enemy.type] || {};
       const elite = config.elite || /elite|resistente/i.test(config.role || "");
       const ratio = config.boss ? 0.05 : enemy.variant === "alpha" ? 0.1 : elite ? 0.25 : 0.5;
       adapters.damageEnemy?.(session, enemy, enemy.maxHp * ratio, events, { fortuneOrbital: true });
     });
-    events.push({ type: "fortuneOrbitalStrike", row, color: "#fbbf24" });
+    events.push(confirmationEvent);
   } else if (option.id === "combat_reconstruction") applied = reconstructTroops(session, events, adapters);
   else applied = false;
   if (!applied) return { ok: false, reason: "Não foi possível aplicar a recompensa." };
   resolveAid(session, option, events);
+  session.pendingPositionalDecision = null;
   events.push({
     type: `fortune${option.id.replace(/(^|_)(\w)/g, (_, __, letter) => letter.toUpperCase())}`,
     optionId: option.id,

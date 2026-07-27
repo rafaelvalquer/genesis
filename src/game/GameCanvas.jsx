@@ -48,6 +48,8 @@ import {
   getSnapshot,
   getTroopRangePenaltyTiles,
   forceExecutorCombo,
+  createPositionalConfirmationEvent,
+  getPositionalTargetPreview,
   injureSandboxTroops,
   isCapsuleClickable,
   openAdaptiveAidCapsule,
@@ -65,9 +67,10 @@ import {
 } from "./battleModel.js";
 import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
-import { drawAdaptiveAid, drawOrbitalTargeting } from "./adaptiveAidRenderer.js";
+import { drawAdaptiveAid } from "./adaptiveAidRenderer.js";
 import { drawWindEffects } from "./windCurrentRenderer.js";
 import { loadSettings } from "../campaign/storage.js";
+import { positionalTargetInstruction, positionalTargetMessage } from "./positionalTargeting.js";
 
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
   if (!fieldPoint) return null;
@@ -1090,11 +1093,6 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
 
   drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
   drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
-  if (session.adaptiveAid?.status === "targeting") {
-    for (let row = 0; row < FIELD.rows; row += 1) {
-      drawOrbitalTargeting(ctx, row, hoveredCell?.row === row, session.elapsed);
-    }
-  }
   drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
 
   drawTroopPlacementPreview(ctx, assets, selectedTroop, placementPreview, now, settings);
@@ -1295,17 +1293,22 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     return () => window.clearTimeout(timeout);
   }, [notification]);
   useEffect(() => {
-    if (!targetingDecision) return undefined;
+    if (!targetingDecision && snapshot.adaptiveAid.status !== "targeting") return undefined;
     const cancel = (event) => {
       if (event.key === "Escape") {
         setTargetingDecision(null);
         sessionRef.current.pendingPositionalDecision = null;
-        setMessage("Seleção de rota cancelada.");
+        if (sessionRef.current.adaptiveAid?.status === "targeting") {
+          sessionRef.current.adaptiveAid.status = "choosing";
+          sessionRef.current.adaptiveAid.pendingTarget = null;
+        }
+        setSnapshot(getSnapshot(sessionRef.current));
+        setMessage("Seleção de alvo cancelada.");
       }
     };
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
-  }, [targetingDecision]);
+  }, [targetingDecision, snapshot.adaptiveAid.status]);
 
   const configureAudio = useCallback((assets) => {
     const build = (name, loop = false) => {
@@ -1527,14 +1530,15 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleCanvasMove = (event) => {
     const point = canvasPointFromPointer(event);
     hoveredCellRef.current = point ? cellFromPoint(point.x, point.y) : null;
-    const row = targetingDecision?.targetType === "occupiedRow" && point ? Math.floor(point.y / CELL.height) : null;
-    const hoveredCol = targetingDecision?.targetType === "columnBlock" && point ? Math.floor(point.x / CELL.width) : null;
-    const centerCol = hoveredCol == null ? null : Math.max(FIELD.firstTroopCol + 1, Math.min(FIELD.lastTroopCol - 1, hoveredCol));
-    const preview = targetingDecision?.targetType === "columnBlock" && centerCol != null
-      ? { type: "columnBlock", centerCol, columns: [centerCol - 1, centerCol, centerCol + 1] }
-      : targetingDecision?.targetType === "occupiedRow" ? { type: "row", row } : null;
-    if (sessionRef.current.pendingPositionalDecision) {
-      sessionRef.current.pendingPositionalDecision.preview = preview;
+    const pending = sessionRef.current.pendingPositionalDecision;
+    if (pending) {
+      const preview = getPositionalTargetPreview(sessionRef.current, pending, hoveredCellRef.current);
+      if (preview && point) {
+        preview.pointerX = point.x;
+        preview.pointerY = point.y;
+      }
+      pending.preview = preview;
+      event.currentTarget.style.cursor = preview ? (preview.valid ? "pointer" : "not-allowed") : "default";
     }
     setEnergyPickupPointer(sessionRef.current, point);
   };
@@ -1548,13 +1552,15 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleCanvasContextMenu = (event) => {
     event.preventDefault();
-    if (sessionRef.current.adaptiveAid?.status === "targeting") return;
-    if (targetingDecision) {
+    if (targetingDecision || sessionRef.current.adaptiveAid?.status === "targeting") {
       setTargetingDecision(null);
       sessionRef.current.pendingPositionalDecision = null;
-      setMessage(targetingDecision.targetType === "columnBlock"
-        ? "Seleção da Formação avançada cancelada."
-        : "Seleção de rota cancelada.");
+      if (sessionRef.current.adaptiveAid?.status === "targeting") {
+        sessionRef.current.adaptiveAid.status = "choosing";
+        sessionRef.current.adaptiveAid.pendingTarget = null;
+      }
+      setSnapshot(getSnapshot(sessionRef.current));
+      setMessage("Seleção de alvo cancelada.");
       return;
     }
     releaseMouseTool();
@@ -1579,9 +1585,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       const row = fieldPoint ? Math.floor(fieldPoint.y / CELL.height) : -1;
       const result = selectAdaptiveAidOption(sessionRef.current, sessionRef.current.adaptiveAid.pendingTarget, { row });
       if (result.ok) {
+        const confirmation = result.events.find((entry) => entry.type === "fortuneOrbitalStrike");
+        if (confirmation) sessionRef.current.positionalConfirmationEffect = { ...confirmation, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1400 };
         consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
         pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-        setMessage(`Ataque orbital confirmado na Rota ${row + 1}.`);
+        setMessage(positionalTargetMessage({ id: "emergency_orbital" }, { row }));
       } else setMessage(result.reason);
       setSnapshot(getSnapshot(sessionRef.current));
       return;
@@ -1600,36 +1608,23 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       return;
     }
     if (targetingDecision) {
-      const point = fieldPoint;
-      if (targetingDecision.targetType === "columnBlock") {
-        const hoveredCol = point ? Math.floor(point.x / CELL.width) : -1;
-        const centerCol = Math.max(FIELD.firstTroopCol + 1, Math.min(FIELD.lastTroopCol - 1, hoveredCol));
-        const columns = [centerCol - 1, centerCol, centerCol + 1];
-        if (selectDecision(sessionRef.current, targetingDecision, { centerCol, columns })) {
-          sessionRef.current.pendingPositionalDecision = null;
-          const eventData = { type: "advancedFormationActivated", columns, centerCol, damageBonus: 0.15, color: "#ef4444" };
-          sessionRef.current.advancedFormationPulse = { columns, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1200 };
-          consumeGraphicsEvents(graphicsRef.current, [eventData], sessionRef.current.elapsed, settings);
-          setTargetingDecision(null); setSnapshot(getSnapshot(sessionRef.current));
-          setMessage(`Formação avançada ativada nas colunas C${columns[0] + 1} a C${columns[2] + 1}.`);
-        }
+      const preview = sessionRef.current.pendingPositionalDecision?.preview
+        || getPositionalTargetPreview(sessionRef.current, targetingDecision, fieldPoint ? cellFromPoint(fieldPoint.x, fieldPoint.y) : null);
+      const target = preview?.type === "columnBlock"
+        ? { centerCol: preview.centerCol, columns: preview.columns }
+        : { row: preview?.row };
+      if (!preview?.valid) {
+        setMessage(preview?.reason || "Alvo inválido.");
         return;
       }
-      const row = point ? Math.floor(point.y / CELL.height) : -1;
-      const occupied = sessionRef.current.troops.some((troop) => !troop.dead && troop.row === row);
-      if (!occupied) {
-        setMessage(`A Rota ${row + 1} está vazia e não pode ser fortificada.`);
-        return;
-      }
-      if (selectDecision(sessionRef.current, targetingDecision, { row })) {
+      const eventData = createPositionalConfirmationEvent(sessionRef.current, targetingDecision, target);
+      if (eventData && selectDecision(sessionRef.current, targetingDecision, target)) {
         sessionRef.current.pendingPositionalDecision = null;
-        const troopIds = sessionRef.current.troops.filter((troop) => !troop.dead && troop.row === row).map((troop) => troop.id);
-        const eventData = { type: "routeFortified", row, hpBonus: 0.2, troopIds };
-        sessionRef.current.routeFortificationPulse = { row, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1400 };
+        sessionRef.current.positionalConfirmationEffect = { ...eventData, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1400 };
         consumeGraphicsEvents(graphicsRef.current, [eventData], sessionRef.current.elapsed, settings);
         pushEventParticles(particlesRef.current, [eventData], sessionRef.current.elapsed, adaptiveSettingsRef.current);
         setTargetingDecision(null);
-        setMessage(`Rota ${row + 1} fortificada. Tropas atuais e futuras recebem +20% de HP máximo.`);
+        setMessage(positionalTargetMessage(targetingDecision, target));
         setSnapshot(getSnapshot(sessionRef.current));
       }
       return;
@@ -1680,13 +1675,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleDecision = (option) => {
     if (adaptiveAidBlocksIntermission(sessionRef.current.adaptiveAid?.status)) return;
     if (option.positional) {
-      sessionRef.current.pendingPositionalDecision = { id: option.id, targetType: option.targetType, targetSize: option.targetSize };
+      sessionRef.current.pendingPositionalDecision = { ...option, preview: null };
       setTargetingDecision(option);
       setSelectedTroop(null);
       setRemoveMode(false);
-      setActionMessage(option.targetType === "columnBlock"
-        ? "Passe o mouse pelo campo e clique para escolher três colunas adjacentes."
-        : "Selecione uma rota ocupada para receber a fortificação.");
+      setActionMessage(positionalTargetInstruction(option));
       return;
     }
     if (selectDecision(sessionRef.current, option)) {
@@ -1824,6 +1817,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const fortuneStatus = snapshot.adaptiveAid.status;
   const fortuneBlocksIntermission = adaptiveAidBlocksIntermission(fortuneStatus);
   const fortuneTargeting = fortuneStatus === "targeting";
+  const positionalTargeting = fortuneTargeting || Boolean(targetingDecision);
 
   if (!loading.ready) {
     return <div className="battle-loader" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary }}><div className="loader-scrim" /><div className="loader-content"><div className="loader-mark">GD</div><span className="eyebrow">{phase.name}</span><h2>Preparando campo tático</h2><div className="progress-track"><span style={{ width: `${loading.percent}%` }} /></div><p>{loading.percent}% · sincronizando arena, loadout e hostis</p></div></div>;
@@ -1898,13 +1892,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const speeds = sandbox ? [0.5, 1, 2, 4] : [1, 2];
             return speeds[(speeds.indexOf(value) + 1) % speeds.length];
           })}>{speed}×</button>
-          <button type="button" className="release-tool-button topbar-tool-button" disabled={fortuneTargeting} onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
+          <button type="button" className="release-tool-button topbar-tool-button" disabled={positionalTargeting} onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
           <button className="ghost-button" onClick={onExit}>Sair</button>
         </div>
       </header>
 
       <div className="battle-main">
-        <aside className={`troop-rail ${fortuneTargeting ? "interaction-locked" : ""}`} aria-disabled={fortuneTargeting} inert={fortuneTargeting ? true : undefined}>
+        <aside className={`troop-rail ${positionalTargeting ? "interaction-locked" : ""}`} aria-disabled={positionalTargeting} inert={positionalTargeting ? true : undefined}>
           <div className="rail-heading"><span>LOADOUT</span><small>{sandboxSettingsState?.rulesMode === "free" ? "∞ ⚡ · ∞ SUP" : `${snapshot.energy} ⚡ · ${snapshot.supply} SUP`}</small></div>
           <div className="troop-grid">
             {loadout.map((troopId) => {
@@ -1917,7 +1911,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const lacksEnergy = snapshot.energy < deployment.price;
             const lacksSupply = snapshot.supply < troop.supply;
             const freeMode = sandbox && sandboxSettingsState.rulesMode === "free";
-            const disabled = fortuneTargeting || (!freeMode && (lacksEnergy || lacksSupply || coolingDown || deploymentLimitReached));
+            const disabled = positionalTargeting || (!freeMode && (lacksEnergy || lacksSupply || coolingDown || deploymentLimitReached));
             const cooldownProgress = getDeployCooldownProgress(cooldown, deployment.deployCooldownMs);
             const cooldownSeconds = (cooldown / 1000).toFixed(1);
             const unavailableReason = freeMode ? "" : lacksEnergy ? "energia insuficiente" : lacksSupply ? "supply insuficiente" : "";
@@ -1934,7 +1928,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             </button>;
             })}
           </div>
-          <button type="button" disabled={fortuneTargeting} className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
+          <button type="button" disabled={positionalTargeting} className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
           {inspectedTroop && <div id={`troop-help-${inspectedTroopId}`} className="troop-tooltip" role="tooltip" style={{ "--troop-color": inspectedTroop.color }}>
             <b>{inspectedTroop.label}</b>
             <span>{inspectedTroop.role}</span>
@@ -1949,10 +1943,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
                 ? <button className="start-wave containment-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>
                 : <span>{containmentSummary}</span>}
             </div>
-            <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={() => {
+            <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={(event) => {
               hoveredCellRef.current = null;
               if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.preview = null;
               setEnergyPickupPointer(sessionRef.current, null);
+              event.currentTarget.style.cursor = "default";
             }} aria-label="Campo de batalha em cinco rotas" />
             {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}

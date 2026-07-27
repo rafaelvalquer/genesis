@@ -452,7 +452,7 @@ function drawDamageMarks(ctx, phase, intensity) {
 
 export function getRouteFortificationOverlay(session) {
   const decision = session?.pendingPositionalDecision;
-  const targeting = decision?.targetType === "occupiedRow";
+  const targeting = decision?.id === "route_fortification";
   const occupiedRows = targeting
     ? [...new Set((session.troops || []).filter((troop) => !troop.dead).map((troop) => troop.row))]
     : [];
@@ -465,6 +465,155 @@ export function getRouteFortificationOverlay(session) {
     valid,
     occupiedRows,
   };
+}
+
+export function getPositionalSelectionOverlay(session) {
+  const decision = session?.pendingPositionalDecision;
+  if (!decision?.targetType) return { targeting: false, preview: null, dimInactive: false };
+  const preview = decision.preview || null;
+  return {
+    targeting: true,
+    decisionId: decision.id,
+    targetType: decision.targetType,
+    preview,
+    valid: Boolean(preview?.valid),
+    dimInactive: true,
+    selectionColor: preview?.valid === false ? "#ef4444" : decision.selectionColor || "#22d3ee",
+    label: decision.label,
+  };
+}
+
+export function getPositionalConfirmationVisual(session, settings = {}) {
+  const effect = session?.positionalConfirmationEffect;
+  if (!effect || session.elapsed > effect.until) return null;
+  const progress = clamp((session.elapsed - effect.startedAt) / Math.max(1, effect.until - effect.startedAt));
+  const quality = settings.quality || "high";
+  return {
+    ...effect,
+    progress,
+    alpha: 1 - progress,
+    symbolCount: settings.reduceMotion ? 4 : quality === "low" ? 7 : quality === "medium" ? 11 : 16,
+    travelScale: settings.reduceMotion ? 0.12 : 1,
+  };
+}
+
+function positionalLabel(decisionId, preview) {
+  if (decisionId === "route_fortification") return preview?.valid ? `ROTA ${preview.row + 1} · +20% HP` : "ROTA VAZIA";
+  if (decisionId === "focused_fire") return preview?.valid ? `ROTA ${preview.row + 1} · FOGO CONCENTRADO · +18% DANO` : "ROTA VAZIA";
+  if (decisionId === "advanced_formation") return preview ? `COLUNAS C${preview.columns[0] + 1}–C${preview.columns[2] + 1} · +15% DANO · +10% DANO RECEBIDO` : "";
+  if (decisionId === "emergency_orbital") return preview ? `ROTA ${preview.row + 1} · ATAQUE ORBITAL${preview.enemyIds?.length ? "" : " · SEM ALVOS"}` : "";
+  return "";
+}
+
+export function drawPositionalSelectionOverlay(ctx, session) {
+  const overlay = getPositionalSelectionOverlay(session);
+  if (!overlay.targeting) return;
+  ctx.save();
+  ctx.fillStyle = "rgba(2,6,23,.64)";
+  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  const preview = overlay.preview;
+  if (preview) {
+    const color = overlay.selectionColor;
+    const x = preview.type === "columnBlock" ? preview.columns[0] * CELL.width : 0;
+    const y = preview.type === "row" ? preview.row * CELL.height : 0;
+    const width = preview.type === "columnBlock" ? preview.columns.length * CELL.width : FIELD.width;
+    const height = preview.type === "row" ? CELL.height : FIELD.height;
+    ctx.globalCompositeOperation = "screen";
+    ctx.fillStyle = rgba(color, preview.valid ? 0.3 : 0.16);
+    ctx.fillRect(x, y, width, height);
+    ctx.strokeStyle = rgba(color, 0.98);
+    ctx.lineWidth = 3;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 15;
+    ctx.strokeRect(x + 2, y + 2, width - 4, height - 4);
+    if (preview.type === "columnBlock") {
+      preview.columns.forEach((column) => ctx.strokeRect(column * CELL.width + 5, 5, CELL.width - 10, FIELD.height - 10));
+    }
+    ctx.shadowBlur = 0;
+    ctx.globalCompositeOperation = "source-over";
+    ctx.fillStyle = "#f8fafc";
+    ctx.font = "800 12px system-ui";
+    ctx.fillText(positionalLabel(overlay.decisionId, preview), x + 10, y + 20);
+    if (overlay.decisionId === "emergency_orbital") {
+      const cx = Math.max(FIELD.combatOffsetX, Math.min(FIELD.width - 40, preview.pointerX || FIELD.width * 0.62));
+      const cy = y + height / 2;
+      ctx.strokeStyle = color;
+      ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); ctx.moveTo(cx - 32, cy); ctx.lineTo(cx + 32, cy); ctx.moveTo(cx, cy - 32); ctx.lineTo(cx, cy + 32); ctx.stroke();
+      (preview.enemyIds || []).forEach((enemyId) => {
+        const enemy = session.enemies.find((entry) => entry.id === enemyId);
+        if (enemy) ctx.strokeRect(enemy.x - 18, enemy.y - 28, 36, 48);
+      });
+    }
+  }
+  ctx.restore();
+}
+
+export function drawPositionalConfirmationEffect(ctx, session, settings = {}) {
+  const visual = getPositionalConfirmationVisual(session, settings);
+  if (!visual) return;
+  const isColumns = Array.isArray(visual.columns);
+  const x = isColumns ? visual.columns[0] * CELL.width : 0;
+  const y = isColumns ? 0 : visual.row * CELL.height;
+  const width = isColumns ? visual.columns.length * CELL.width : FIELD.width;
+  const height = isColumns ? FIELD.height : CELL.height;
+  const health = visual.type === "routeFortified";
+  const orbital = visual.type === "fortuneOrbitalStrike";
+  const color = visual.color || (health ? "#22d3ee" : orbital ? "#fbbf24" : "#ef4444");
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.globalAlpha = visual.alpha * 0.42;
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, width, height);
+  if (orbital) {
+    const beamX = x + width * 0.62;
+    ctx.fillStyle = "#fff7cc";
+    ctx.fillRect(beamX - 7, y, 14, height);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(beamX, y + height / 2, 18 + visual.progress * 70, 0, Math.PI * 2); ctx.stroke();
+  } else {
+    for (let index = 0; index < visual.symbolCount; index += 1) {
+      const symbolX = x + 25 + pseudo(index, (visual.row || visual.columns?.[0] || 0) + 811) * Math.max(20, width - 50);
+      const symbolY = y + height * 0.8 - visual.progress * height * 0.7 * visual.travelScale
+        + (pseudo(index, 991) - 0.5) * height * 0.25;
+      ctx.globalAlpha = visual.alpha * (0.55 + pseudo(index, 1193) * 0.4);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+      if (health) {
+        const size = 5 + pseudo(index, 1291) * 4;
+        ctx.fillRect(symbolX - 2, symbolY - size, 4, size * 2);
+        ctx.fillRect(symbolX - size, symbolY - 2, size * 2, 4);
+      } else {
+        ctx.save(); ctx.translate(symbolX, symbolY); ctx.rotate(-0.7);
+        ctx.beginPath(); ctx.moveTo(-8, 8); ctx.lineTo(8, -8); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(5, -10); ctx.lineTo(11, -5); ctx.lineTo(8, -8); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(-11, 5); ctx.lineTo(-5, 11); ctx.stroke();
+        ctx.restore();
+      }
+    }
+    if (visual.type === "focusedFireActivated") {
+      ctx.globalAlpha = visual.alpha * 0.75;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      for (let line = 0; line < 5; line += 1) {
+        const lineY = y + 18 + line * Math.max(10, (height - 36) / 4);
+        const lead = FIELD.width * (0.35 + visual.progress * 0.55);
+        ctx.beginPath(); ctx.moveTo(lead + 45, lineY); ctx.lineTo(lead, lineY); ctx.stroke();
+      }
+    }
+  }
+  ctx.globalAlpha = visual.alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  (visual.troopIds || []).forEach((troopId) => {
+    const troop = session.troops.find((entry) => entry.id === troopId && !entry.dead);
+    if (!troop) return;
+    ctx.beginPath();
+    ctx.arc(troop.x, troop.y, 20 + Math.sin(visual.progress * Math.PI) * 10, 0, Math.PI * 2);
+    ctx.stroke();
+  });
+  ctx.restore();
 }
 
 export function getRouteFortificationPulseVisual(session, settings = {}) {
@@ -490,8 +639,9 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
   const theme = phase.battlefieldTheme;
   drawDamageMarks(ctx, phase, intensity);
   drawWindWarning(ctx, session, time, settings);
+  drawPositionalSelectionOverlay(ctx, session);
   const routeOverlay = getRouteFortificationOverlay(session);
-  if (routeOverlay.targeting) {
+  if (routeOverlay.targeting && !session.pendingPositionalDecision?.effectKind) {
     ctx.save();
     ctx.fillStyle = "rgba(2,8,23,.5)";
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
@@ -510,13 +660,13 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     ctx.restore();
   }
   const { targeting: formationTargeting, preview: formationPreview, columns: formationColumns } = getAdvancedFormationOverlay(session);
-  if (formationTargeting) {
+  if (formationTargeting && !session.pendingPositionalDecision?.effectKind) {
     ctx.save();
     ctx.fillStyle = "rgba(2,6,23,.64)";
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
     ctx.restore();
   }
-  if (formationColumns.length === 3) {
+  if (formationColumns.length === 3 && (!formationTargeting || !session.pendingPositionalDecision?.effectKind)) {
     ctx.save();
     const left = formationColumns[0] * CELL.width;
     const width = 3 * CELL.width;
@@ -566,6 +716,7 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(waveX, y); ctx.stroke();
     ctx.restore();
   }
+  drawPositionalConfirmationEffect(ctx, session, settings);
   if (Number.isInteger(session.fortifiedRow)) {
     const y = session.fortifiedRow * CELL.height;
     ctx.save();
@@ -576,7 +727,20 @@ export function drawArenaUnderlay(ctx, phase, settings, session, time) {
     ctx.beginPath(); ctx.moveTo(0, y + 2); ctx.lineTo(FIELD.width, y + 2); ctx.moveTo(0, y + CELL.height - 2); ctx.lineTo(FIELD.width, y + CELL.height - 2); ctx.stroke();
     ctx.fillStyle = "#67e8f9";
     ctx.font = "700 12px system-ui";
-    ctx.fillText(`R${session.fortifiedRow + 1} 🛡`, FIELD.baseX + 8, y + 16);
+    ctx.fillText(`R${session.fortifiedRow + 1} · FORTIFICADA`, FIELD.baseX + 8, y + 16);
+    ctx.restore();
+  }
+  if (Number.isInteger(session.focusedFireRow)) {
+    const y = session.focusedFireRow * CELL.height;
+    ctx.save();
+    ctx.fillStyle = "rgba(239,68,68,.045)";
+    ctx.fillRect(0, y, FIELD.width, CELL.height);
+    ctx.strokeStyle = "rgba(248,113,113,.38)";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, y + 3); ctx.lineTo(FIELD.width, y + 3); ctx.stroke();
+    ctx.fillStyle = "#fca5a5";
+    ctx.font = "700 11px system-ui";
+    ctx.fillText(`R${session.focusedFireRow + 1} · FOGO CONCENTRADO`, FIELD.baseX + 8, y + CELL.height - 10);
     ctx.restore();
   }
 

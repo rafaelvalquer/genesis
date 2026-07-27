@@ -5,6 +5,8 @@ import { createBattleSession, placeTroop } from "./battleModel.js";
 import {
   getArenaIntensity,
   getAdvancedFormationOverlay,
+  getPositionalConfirmationVisual,
+  getPositionalSelectionOverlay,
   getBattlefieldBlueprint,
   getBattlefieldCacheKey,
   getGridCellState,
@@ -339,5 +341,27 @@ describe("arenas cinematograficas", () => {
     expect(getRouteFortificationPulseVisual(session, { quality: "high", reduceMotion: true })).toMatchObject({ symbolCount: 5, travelScale: 0.14 });
     session.elapsed = 2401;
     expect(getRouteFortificationPulseVisual(session, { quality: "high" })).toBeNull();
+  });
+
+  it("generaliza overlays e efeitos por qualidade e movimento reduzido", () => {
+    const session = {
+      elapsed: 500,
+      troops: [],
+      pendingPositionalDecision: {
+        id: "focused_fire", targetType: "occupiedRow", effectKind: "damage",
+        selectionColor: "#ef4444", preview: { type: "row", row: 2, valid: true },
+      },
+      positionalConfirmationEffect: {
+        type: "focusedFireActivated", row: 2, startedAt: 0, until: 1000, color: "#ef4444",
+      },
+    };
+    expect(getPositionalSelectionOverlay(session)).toMatchObject({
+      targeting: true, decisionId: "focused_fire", valid: true, dimInactive: true,
+    });
+    expect(getPositionalConfirmationVisual(session, { quality: "low" }).symbolCount).toBe(7);
+    expect(getPositionalConfirmationVisual(session, { quality: "medium" }).symbolCount).toBe(11);
+    expect(getPositionalConfirmationVisual(session, { quality: "high" }).symbolCount).toBe(16);
+    expect(getPositionalConfirmationVisual(session, { quality: "high", reduceMotion: true }))
+      .toMatchObject({ symbolCount: 4, travelScale: 0.12 });
   });
 });

@@ -40,6 +40,11 @@ import {
   expireElectricState,
   isElectricParalyzed,
 } from "./electricCharge.js";
+import {
+  createPositionalConfirmationEvent,
+  getPositionalTargetPreview,
+  validatePositionalTarget,
+} from "./positionalTargeting.js";
 
 export {
   createWindCurrentState,
@@ -47,6 +52,7 @@ export {
   resetWindCurrentForWave,
   updateWindCurrent,
 } from "./windCurrent.js";
+export { createPositionalConfirmationEvent, getPositionalTargetPreview, validatePositionalTarget };
 
 export { CELL, FIELD, VIEWPORT } from "./visualGeometry.js";
 export {
@@ -260,6 +266,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     shieldCharges: 0,
     reactiveBarrierRows: [],
     fortifiedRow: null,
+    focusedFireRow: null,
     advancedFormationColumns: [],
     pendingPositionalDecision: null,
     pendingRouteFortificationEvent: null,
@@ -497,9 +504,14 @@ function applyDecision(session, decisionId, target = null) {
       session.troops.filter((troop) => !troop.dead && isOffensiveConfig(TROOPS[troop.type]) && !isNaniteMedic(TROOPS[troop.type]))
         .forEach((troop) => rescaleTroopHp(troop, 0.8));
       break;
-    case "focused_fire":
+    case "focused_fire": {
+      const selectedRow = Number(target?.row);
+      if (!Number.isInteger(selectedRow)
+        || !session.troops.some((troop) => !troop.dead && troop.row === selectedRow)) return false;
       session.modifiers.focusedFire = true;
+      session.focusedFireRow = selectedRow;
       break;
+    }
     case "continuous_suppression":
       session.modifiers.continuousSuppression = true;
       break;
@@ -631,7 +643,7 @@ function applyDecision(session, decisionId, target = null) {
 }
 
 export function startWave(session) {
-  if (session.outcome || session.waveActive || session.pendingDecision) return false;
+  if (session.outcome || session.waveActive || session.pendingDecision || session.pendingPositionalDecision) return false;
   if (session.nextWaveEnergy > 0) {
     const previousEnergy = session.energy;
     session.energy = Math.min(session.energyMax, session.energy + session.nextWaveEnergy);
@@ -679,16 +691,10 @@ export function startWave(session) {
 
 export function selectDecision(session, option, target = null) {
   if (!session.pendingDecision?.some((entry) => entry.id === option.id)) return false;
-  if (option.id === "route_fortification") {
-    const row = Number(target?.row);
-    if (!Number.isInteger(row) || row < 0 || row >= FIELD.rows) return false;
-    if (!session.troops.some((troop) => !troop.dead && troop.row === row)) return false;
-    target = { row };
-  }
-  if (option.id === "advanced_formation") {
-    const columns = normalizeAdvancedFormationColumns(target);
-    if (!columns) return false;
-    target = { centerCol: columns[1], columns };
+  if (option.positional) {
+    const validation = validatePositionalTarget(session, option, target);
+    if (!validation.valid) return false;
+    target = validation.target;
   }
   if (!applyDecision(session, option.id, target)) return false;
   session.decisions.push({ wave: session.waveIndex, level: session.pendingDecisionLevel, id: option.id, ...(target ? { target: { ...target, columns: target.columns ? [...target.columns] : undefined } } : {}) });
@@ -1204,6 +1210,15 @@ function attackIntervalFor(session, troop, config, interval) {
   return interval / ((troop.attackSpeedFactor || 1) * trainingSpeed * precisionSpeed);
 }
 
+export function getFocusedFireDamageMultiplier(session, troop, target) {
+  if (!target || !session.modifiers.focusedFire || troop.row !== session.focusedFireRow
+    || target.row !== session.focusedFireRow) return 1;
+  const closest = session.enemies
+    .filter((enemy) => !enemy.dead && enemy.row === session.focusedFireRow)
+    .reduce((best, enemy) => (!best || enemy.x < best.x ? enemy : best), null);
+  return closest?.id === target.id ? 1.18 : 1;
+}
+
 function attackDamageMultiplier(session, troop, { explosive = false, target = null } = {}) {
   let multiplier = session.modifiers.troopDamage;
   if (session.activeTemporaryDecisions.includes("final_overload")) multiplier *= 1.2;
@@ -1215,10 +1230,7 @@ function attackDamageMultiplier(session, troop, { explosive = false, target = nu
   if (session.modifiers.frontlineDoctrine && ["melee", "tileMelee"].includes(TROOPS[troop.type]?.attack)) multiplier *= 1.1;
   if (session.modifiers.advancedFormation && session.advancedFormationColumns.includes(troop.col)) multiplier *= 1.15;
   if (troop.swarmHpApplied) multiplier *= 1.1;
-  if (target && session.modifiers.focusedFire) {
-    const closest = session.enemies.filter((enemy) => !enemy.dead).sort((left, right) => left.x - right.x)[0];
-    if (closest?.id === target.id) multiplier *= 1.18;
-  }
+  multiplier *= getFocusedFireDamageMultiplier(session, troop, target);
   if (target && session.modifiers.continuousSuppression) {
     if (troop.suppressionTargetId === target.id) {
       if ((troop.suppressionHits || 0) >= 3) multiplier *= 1.15;
@@ -4559,6 +4571,7 @@ export function getSnapshot(session) {
     refundRate: session.modifiers.refundRate,
     shieldCharges: session.shieldCharges,
     fortifiedRow: session.fortifiedRow,
+    focusedFireRow: session.focusedFireRow,
     advancedFormationColumns: [...session.advancedFormationColumns],
     pendingPositionalDecision: session.pendingPositionalDecision ? { ...session.pendingPositionalDecision } : null,
     activeTemporaryDecisions: [...session.activeTemporaryDecisions],
