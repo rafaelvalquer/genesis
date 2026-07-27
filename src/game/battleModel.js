@@ -840,6 +840,8 @@ function createEnemy(session, queued) {
     jumpTargetRow: null,
     jumpTargetY: null,
     electricAttackTargetId: null,
+    voltrizTargetId: null,
+    voltrizBypassTroopIds: [],
     nimbarcaAttackTargetId: null,
     gorjalAttackTargetId: null,
     derivanteAttackTargetId: null,
@@ -3577,6 +3579,14 @@ function applyEnemyElectricCharge(session, enemy, target, events, options = {}) 
     color: ENEMIES[enemy.type].color,
     seed: nextEffectSeed(session),
   });
+  if (enemy.type === "voltriz" && result.paralyzed) {
+    if (!Array.isArray(enemy.voltrizBypassTroopIds)) enemy.voltrizBypassTroopIds = [];
+    if (!enemy.voltrizBypassTroopIds.includes(target.id)) enemy.voltrizBypassTroopIds.push(target.id);
+    enemy.voltrizTargetId = null;
+    enemy.moving = true;
+    setChapterFourState(session, enemy, "flying");
+  }
+  return result;
 }
 
 function launchElectricProjectile(session, enemy, config, target, events) {
@@ -3593,6 +3603,7 @@ function launchElectricProjectile(session, enemy, config, target, events) {
     vx: -config.projectileSpeed,
     vy: (target.y - 18 - origin.y) / flightSeconds,
     damage: enemy.damage, color: config.color, active: true, launched: true,
+    targetingVoltriz: enemy.type === "voltriz",
     trail: [{ x: origin.x, y: origin.y }], ageMs: 0, seed,
   });
   events.push({
@@ -3649,17 +3660,22 @@ function updateEnemyProjectiles(session, dt, events) {
       }
       continue;
     }
-    const target = session.troops
-      .filter((troop) => !troop.dead
-        && troop.row === projectile.row
-        && troop.x <= projectile.previousX + 24
-        && troop.x >= projectile.x - 24)
-      .sort((left, right) => right.x - left.x)[0] || null;
+    const sourceEnemy = projectile.kind === "electric"
+      ? session.enemies.find((enemy) => enemy.id === projectile.sourceEnemyId)
+      : null;
+    const crossesTroop = (troop) => troop && !troop.dead
+      && troop.row === projectile.row
+      && troop.x <= projectile.previousX + 24
+      && troop.x >= projectile.x - 24;
+    const target = projectile.targetingVoltriz
+      ? (crossesTroop(intendedTarget) ? intendedTarget : null)
+      : session.troops
+        .filter(crossesTroop)
+        .sort((left, right) => right.x - left.x)[0] || null;
     if (target) {
       damageTroop(session, target, projectile.damage, events);
       if (projectile.kind === "electric") {
-        const source = session.enemies.find((enemy) => enemy.id === projectile.sourceEnemyId);
-        if (source) applyEnemyElectricCharge(session, source, target, events);
+        if (sourceEnemy) applyEnemyElectricCharge(session, sourceEnemy, target, events);
       }
       if (projectile.kind === "inhibitorWeb") {
         if (!intendedTarget || intendedTarget.id === target.id) {
@@ -3828,8 +3844,32 @@ function chapterFourRangedTarget(session, enemy, rangeTiles) {
   return closestTroopForEnemy(session, enemy, rangeTiles);
 }
 
+function isVoltrizBypassTarget(session, enemy, troop) {
+  if (!troop || troop.dead || troop.row !== enemy.row) return true;
+  if (troop.x >= enemy.x) return true;
+  if (isElectricParalyzed(troop, session.elapsed)) return true;
+  if (session.elapsed < Number(troop.electricImmunityUntil || 0)) return true;
+  return (enemy.voltrizBypassTroopIds || []).includes(troop.id);
+}
+
+function findVoltrizTarget(session, enemy, config) {
+  const maxDistance = config.range * CELL.width;
+  let selected = null;
+  for (const troop of session.troops) {
+    if (isVoltrizBypassTarget(session, enemy, troop)) continue;
+    const distance = enemy.x - troop.x;
+    if (distance > maxDistance) continue;
+    if (!selected || troop.x > selected.x) selected = troop;
+  }
+  return selected;
+}
+
 function updateVoltriz(session, enemy, config, dt, events) {
-  const target = chapterFourRangedTarget(session, enemy, config.range);
+  const target = findVoltrizTarget(session, enemy, config);
+  if (enemy.voltrizTargetId && (!target || target.id !== enemy.voltrizTargetId)) {
+    enemy.voltrizTargetId = null;
+    if (enemy.chapterFourState === "attack") setChapterFourState(session, enemy, "flying");
+  }
   const packetWing = session.enemies.filter((candidate) => (
     !candidate.dead && candidate.type === "voltriz" && candidate.packetId === enemy.packetId
     && candidate.row === enemy.row
@@ -3838,10 +3878,11 @@ function updateVoltriz(session, enemy, config, dt, events) {
     * (packetWing >= config.resonanceMinimum ? config.resonanceAttackSpeedFactor : 1);
   if (target && session.elapsed >= enemy.attackReadyAt) {
     launchElectricProjectile(session, enemy, config, target, events);
+    enemy.voltrizTargetId = target.id;
     enemy.attackReadyAt = session.elapsed + interval;
     enemy.lastAttackAt = session.elapsed;
     setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
-  } else if (session.elapsed >= enemy.chapterFourStateEndsAt) {
+  } else if (session.elapsed >= enemy.chapterFourStateEndsAt && enemy.chapterFourState !== "flying") {
     setChapterFourState(session, enemy, "flying");
   }
   if (!target || enemy.x - target.x > troopBlockDistance(target)) {

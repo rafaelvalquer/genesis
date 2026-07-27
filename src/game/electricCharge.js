@@ -1,7 +1,7 @@
 export const ELECTRIC_CHARGE = Object.freeze({
   maxStacks: 3,
   stackDurationMs: 6000,
-  paralysisDurationMs: 800,
+  paralysisDurationMs: 2000,
   paralysisImmunityMs: 3000,
   conductivityDurationMs: 5000,
   structureVulnerabilityMs: 4000,
@@ -33,30 +33,52 @@ export function isElectricParalyzed(entity, now) {
   return Number(entity?.electricParalyzedUntil || 0) > now;
 }
 
-export function applyElectricParalysis(entity, now, durationMs = ELECTRIC_CHARGE.paralysisDurationMs) {
+export function applyElectricParalysis(
+  entity,
+  now,
+  durationMs = ELECTRIC_CHARGE.paralysisDurationMs,
+) {
   initializeElectricState(entity);
   if (now < entity.electricImmunityUntil) return false;
-  entity.electricParalyzedUntil = Math.max(entity.electricParalyzedUntil, now + durationMs);
-  entity.electricImmunityUntil = entity.electricParalyzedUntil + ELECTRIC_CHARGE.paralysisImmunityMs;
+  entity.electricParalyzedUntil = Math.max(
+    entity.electricParalyzedUntil,
+    now + durationMs,
+  );
+  entity.electricImmunityUntil =
+    entity.electricParalyzedUntil + ELECTRIC_CHARGE.paralysisImmunityMs;
   return true;
 }
 
-export function applyConductivity(entity, now, durationMs = ELECTRIC_CHARGE.conductivityDurationMs) {
+export function applyConductivity(
+  entity,
+  now,
+  durationMs = ELECTRIC_CHARGE.conductivityDurationMs,
+) {
   initializeElectricState(entity);
-  entity.electricConductivityUntil = Math.max(entity.electricConductivityUntil, now + durationMs);
+  entity.electricConductivityUntil = Math.max(
+    entity.electricConductivityUntil,
+    now + durationMs,
+  );
 }
 
-export function applyElectricCharge(entity, now, {
-  stacks = 1,
-  troopType = entity?.type,
-  paralysisDurationMs = ELECTRIC_CHARGE.paralysisDurationMs,
-} = {}) {
+export function applyElectricCharge(
+  entity,
+  now,
+  {
+    stacks = 1,
+    troopType = entity?.type,
+    paralysisDurationMs = ELECTRIC_CHARGE.paralysisDurationMs,
+  } = {},
+) {
   initializeElectricState(entity);
   expireElectricState(entity, now);
   const conductivityActive = now < entity.electricConductivityUntil;
   const appliedStacks = conductivityActive ? Math.max(2, stacks) : stacks;
   if (conductivityActive) entity.electricConductivityUntil = 0;
-  entity.electricStacks = Math.min(ELECTRIC_CHARGE.maxStacks, entity.electricStacks + appliedStacks);
+  entity.electricStacks = Math.min(
+    ELECTRIC_CHARGE.maxStacks,
+    entity.electricStacks + appliedStacks,
+  );
   entity.electricStacksExpireAt = now + ELECTRIC_CHARGE.stackDurationMs;
 
   const result = {

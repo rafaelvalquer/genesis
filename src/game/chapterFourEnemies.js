@@ -33,7 +33,7 @@ export const CHAPTER_FOUR_ENEMIES = Object.freeze({
     previewState: "flying",
     animationFrameMs: { flying: 85, attack: 87, death: 100 },
     attackVisual: { durationMs: 520, releaseMs: 210, muzzle: { x: 0.28, y: 0.54 }, effect: "ionicSpine" },
-    description: "Predador aéreo veloz que acumula carga elétrica enquanto avança.",
+    description: "Predador aéreo que eletrifica uma tropa até paralisá-la e então atravessa a formação em busca do próximo alvo.",
   },
   nimbarca: {
     id: "nimbarca",

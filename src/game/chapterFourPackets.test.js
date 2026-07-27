@@ -15,6 +15,26 @@ describe("pacotes e ondas do Capítulo 4", () => {
     expect(CHAPTER_FOUR_PACKETS.P6.units.at(-1)).toMatchObject({
       type: "raizFulgor", count: 1, xOffsetTiles: 0.9, spawnDelayMs: 550,
     });
+    expect(CHAPTER_FOUR_PACKETS.P1.units[0].spawnIntervalMs).toBe(260);
+  });
+
+  it("escalona Voltrizes e preserva atrasos de um pacote misto", () => {
+    const phase = {
+      waves: [{ spawnBlocks: [{ id: "main", packets: [{
+        id: "mixed_packet", spawnAtMs: 100,
+        units: [
+          { type: "voltriz", count: 4, spawnDelayMs: 20, spawnIntervalMs: 260 },
+          { type: "nimbarca", count: 1, spawnDelayMs: 300 },
+        ],
+      }] }] }],
+    };
+    const queue = buildSpawnQueue(phase, 0, 991);
+    const voltriz = queue.filter((entry) => entry.type === "voltriz");
+    expect(voltriz.map((entry) => entry.spawnAtMs)).toEqual([120, 380, 640, 900]);
+    expect(voltriz.every((entry) => entry.formationOffsetPx === 0)).toBe(true);
+    expect(new Set(voltriz.map((entry) => entry.packetId))).toEqual(new Set(["mixed_packet"]));
+    expect(queue.find((entry) => entry.type === "nimbarca")).toMatchObject({ spawnAtMs: 400, packetId: "mixed_packet" });
+    expect(queue.map((entry) => entry.spawnAtMs)).toEqual([120, 380, 400, 640, 900]);
   });
 
   it("preserva packetId, rota comum e suporte atrás ao construir a fila", () => {

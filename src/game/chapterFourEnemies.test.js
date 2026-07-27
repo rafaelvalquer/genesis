@@ -78,6 +78,81 @@ describe("inimigos do Capítulo 4", () => {
     expect(session.enemyProjectiles.filter((projectile) => projectile.sourceEnemyId === nimbarca.id)).toHaveLength(1);
   });
 
+  it("para de disparar e volta a avançar quando o Voltriz paralisa o alvo", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 44, { sandbox: true });
+    const troop = placeTroop(session, "colono", 2, 4).troop;
+    troop.electricStacks = 2;
+    troop.electricStacksExpireAt = Infinity;
+    const voltriz = spawnEnemy(session, { type: "voltriz", row: 2 }).enemies[0];
+    voltriz.x = troop.x + 220;
+    voltriz.attackReadyAt = 0;
+
+    expect(stepBattle(session, 1).some((event) => event.type === "shoot")).toBe(true);
+    stepBattle(session, 1000);
+    expect(troop.electricParalyzedUntil).toBeGreaterThan(session.elapsed);
+    expect(voltriz.voltrizTargetId).toBeNull();
+    expect(voltriz.chapterFourState).toBe("flying");
+    const xAfterParalysis = voltriz.x;
+    stepBattle(session, 100);
+    expect(voltriz.x).toBeLessThan(xAfterParalysis);
+    expect(session.enemyProjectiles.filter((projectile) => projectile.sourceEnemyId === voltriz.id)).toHaveLength(0);
+  });
+
+  it("atravessa uma tropa paralisada e não a readquire depois da imunidade", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 45, { sandbox: true });
+    const troop = placeTroop(session, "colono", 2, 4).troop;
+    const voltriz = spawnEnemy(session, { type: "voltriz", row: 2 }).enemies[0];
+    voltriz.x = troop.x + 40;
+    troop.electricParalyzedUntil = session.elapsed + 800;
+    troop.electricImmunityUntil = session.elapsed + 3000;
+    const startX = voltriz.x;
+
+    stepBattle(session, 1000);
+    expect(voltriz.x).toBeLessThan(troop.x);
+    stepBattle(session, 4000);
+    expect(voltriz.x).toBeLessThan(startX);
+    expect(session.enemyProjectiles.filter((projectile) => projectile.sourceEnemyId === voltriz.id)).toHaveLength(0);
+  });
+
+  it("ignora a primeira tropa paralisada e seleciona a próxima saudável", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 46, { sandbox: true });
+    const front = placeTroop(session, "colono", 2, 4).troop;
+    const next = placeTroop(session, "colono", 2, 2).troop;
+    front.electricParalyzedUntil = Infinity;
+    front.electricImmunityUntil = Infinity;
+    front.electricStacks = 1;
+    front.electricStacksExpireAt = Infinity;
+    const voltriz = spawnEnemy(session, { type: "voltriz", row: 2 }).enemies[0];
+    voltriz.x = front.x + 130;
+    voltriz.attackReadyAt = 0;
+
+    const events = stepBattle(session, 1);
+    expect(session.enemyProjectiles.find((projectile) => projectile.sourceEnemyId === voltriz.id)?.targetTroopId)
+      .toBe(next.id);
+    expect(events.some((event) => event.type === "shoot")).toBe(true);
+    stepBattle(session, 1000);
+    expect(front.electricStacks).toBe(1);
+  });
+
+  it("continua voando sem atacar tropas já paralisadas ou ultrapassadas", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 47, { sandbox: true });
+    const troop = placeTroop(session, "colono", 2, 4).troop;
+    troop.electricParalyzedUntil = Infinity;
+    troop.electricImmunityUntil = Infinity;
+    const voltriz = spawnEnemy(session, { type: "voltriz", row: 2 }).enemies[0];
+    voltriz.x = troop.x + 80;
+    const firstX = voltriz.x;
+    const events = stepBattle(session, 250);
+    expect(voltriz.x).toBeLessThan(firstX);
+    expect(events.some((event) => event.type === "shoot")).toBe(false);
+
+    troop.electricParalyzedUntil = 0;
+    troop.electricImmunityUntil = 0;
+    voltriz.x = troop.x - 10;
+    const secondEvents = stepBattle(session, 250);
+    expect(secondEvents.some((event) => event.type === "shoot")).toBe(false);
+  });
+
   it("mantém shieldPulse acima do ataque e aplica o pulso somente uma vez", () => {
     const session = createBattleSession(PHASES[24], ["colono"], 42, { sandbox: true });
     const troop = placeTroop(session, "colono", 1, 4).troop;

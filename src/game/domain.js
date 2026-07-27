@@ -80,12 +80,17 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
       row,
       packetId: packet.id,
       block: packet.block,
-      spawnAtMs: packet.spawnAtMs + (unit.spawnDelayMs || 0),
+      spawnAtMs: packet.spawnAtMs + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
       xOffsetTiles: unit.xOffsetTiles || 0,
-      formationOffsetPx: (index - (unit.count - 1) / 2) * 10,
+      formationOffsetPx: unit.spawnIntervalMs
+        ? 0
+        : (index - (unit.count - 1) / 2) * 10,
     })));
   });
-  return queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs);
+  return queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs
+    || left.packetId.localeCompare(right.packetId)
+    || left.type.localeCompare(right.type)
+    || left.sourceIndex - right.sourceIndex);
 }
 
 export function buildSpawnQueue(phase, waveIndex, seed = 1, countMultiplier = 1) {
