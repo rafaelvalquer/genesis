@@ -72,6 +72,22 @@ export function applyElectricCharge(
 ) {
   initializeElectricState(entity);
   expireElectricState(entity, now);
+
+  if (isElectricParalyzed(entity, now)) {
+    entity.electricStacks = 0;
+    entity.electricStacksExpireAt = 0;
+    return {
+      appliedStacks: 0,
+      stacks: 0,
+      conductivityConsumed: false,
+      paralyzed: false,
+      reactorPaused: false,
+      structureExposed: false,
+      ignored: true,
+      ignoredReason: "paralyzed",
+    };
+  }
+
   const conductivityActive = now < entity.electricConductivityUntil;
   const appliedStacks = conductivityActive ? Math.max(2, stacks) : stacks;
   if (conductivityActive) entity.electricConductivityUntil = 0;

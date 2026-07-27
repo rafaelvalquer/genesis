@@ -3567,6 +3567,7 @@ function applyEnemyElectricCharge(session, enemy, target, events, options = {}) 
     troopType: target.type,
     paralysisDurationMs: options.paralysisDurationMs,
   });
+  if (result.ignored) return result;
   events.push({
     type: "electricCharge",
     sourceEnemyId: enemy.id,
@@ -4261,7 +4262,8 @@ function updateRaizFulgor(session, enemy, config, dt, events) {
     );
     if (releasedTarget) {
       damageTroop(session, releasedTarget, enemy.damage, events);
-      const hadTwoStacks = Number(releasedTarget.electricStacks || 0) >= 2;
+      const hadTwoStacks = !isElectricParalyzed(releasedTarget, session.elapsed)
+        && Number(releasedTarget.electricStacks || 0) >= 2;
       if (hadTwoStacks) {
         releasedTarget.electricStacks = 0;
         releasedTarget.electricStacksExpireAt = 0;

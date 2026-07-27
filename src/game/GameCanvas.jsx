@@ -935,7 +935,8 @@ function drawElectricTroopStatus(ctx, troop, elapsed, settings) {
   ctx.shadowBlur = settings.reduceMotion ? 4 : 9;
   ctx.lineWidth = 1.5;
   const y = troop.y - 61;
-  for (let index = 0; index < Math.max(1, stacks); index += 1) {
+  const visibleIndicators = paralyzed ? 1 : Math.max(1, stacks);
+  for (let index = 0; index < visibleIndicators; index += 1) {
     const x = troop.x + (index - (Math.max(1, stacks) - 1) / 2) * 11;
     ctx.beginPath();
     ctx.moveTo(x - 3, y - 5);
