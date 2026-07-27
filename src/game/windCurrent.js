@@ -382,20 +382,34 @@ function applyLateralEnemyPush(session, config, dependencies, events) {
     if (wind.targetRow < 0 || wind.targetRow >= FIELD.rows) {
       if (enemy.type === "derivante") {
         const fallbackRow = clamp(wind.sourceRow - wind.verticalDirection, 0, FIELD.rows - 1);
+        const targetY = fallbackRow * CELL.height + CELL.height / 2;
+        const durationMs = enemyConfig.windGlideMs || 900;
         enemy.row = fallbackRow;
-        enemy.y = fallbackRow * CELL.height + CELL.height / 2;
-        enemy.previousRenderY = enemy.y;
+        enemy.y = from.y;
+        enemy.previousRenderY = from.y;
+        enemy.windMotion = {
+          fromX: from.x,
+          fromY: from.y,
+          toX: enemy.x,
+          toY: targetY,
+          startedAt: session.elapsed,
+          endsAt: session.elapsed + durationMs,
+        };
         enemy.chapterFourState = "windGlide";
         enemy.chapterFourStateStartedAt = session.elapsed;
-        enemy.chapterFourStateEndsAt = session.elapsed + (enemyConfig.windGlideMs || 900);
+        enemy.chapterFourStateEndsAt = session.elapsed + durationMs;
+        enemy.jumpSourceRow = from.row;
+        enemy.jumpSourceY = from.y;
         enemy.jumpTargetRow = fallbackRow;
+        enemy.jumpTargetY = targetY;
         enemy.jumping = true;
+        enemy.jumpProgress = 0;
         wind.shiftedEnemyIds.push(enemy.id);
         events.push({
           type: "windEnemyShifted", enemyId: enemy.id, enemyType: enemy.type,
-          from, to: { row: fallbackRow, x: enemy.x, y: enemy.y },
+          from, to: { row: fallbackRow, x: enemy.x, y: targetY },
           windGlide: true, startedAt: session.elapsed,
-          durationMs: enemyConfig.windGlideMs || 900,
+          durationMs,
         });
         return;
       }
@@ -427,23 +441,30 @@ function applyLateralEnemyPush(session, config, dependencies, events) {
       });
       return;
     }
-    enemy.row = wind.targetRow;
-    enemy.y = wind.targetRow * CELL.height + CELL.height / 2;
+    const targetRow = wind.targetRow;
+    const targetY = targetRow * CELL.height + CELL.height / 2;
+    const durationMs = enemy.type === "derivante" ? (enemyConfig.windGlideMs || 900) : 550;
+    enemy.row = targetRow;
+    enemy.y = enemy.type === "derivante" ? from.y : targetY;
     enemy.previousRenderY = enemy.y;
     enemy.windMotion = {
       fromX: from.x,
       fromY: from.y,
       toX: enemy.x,
-      toY: enemy.y,
+      toY: targetY,
       startedAt: session.elapsed,
-      endsAt: session.elapsed + 550,
+      endsAt: session.elapsed + durationMs,
     };
     if (enemy.type === "derivante") {
       enemy.chapterFourState = "windGlide";
       enemy.chapterFourStateStartedAt = session.elapsed;
-      enemy.chapterFourStateEndsAt = session.elapsed + (enemyConfig.windGlideMs || 900);
-      enemy.jumpTargetRow = enemy.row;
+      enemy.chapterFourStateEndsAt = session.elapsed + durationMs;
+      enemy.jumpSourceRow = from.row;
+      enemy.jumpSourceY = from.y;
+      enemy.jumpTargetRow = targetRow;
+      enemy.jumpTargetY = targetY;
       enemy.jumping = true;
+      enemy.jumpProgress = 0;
     }
     wind.shiftedEnemyIds.push(enemy.id);
     events.push({
@@ -451,9 +472,9 @@ function applyLateralEnemyPush(session, config, dependencies, events) {
       enemyId: enemy.id,
       enemyType: enemy.type,
       from,
-      to: { row: enemy.row, x: enemy.x, y: enemy.y },
+      to: { row: targetRow, x: enemy.x, y: targetY },
       startedAt: session.elapsed,
-      durationMs: 550,
+      durationMs,
     });
   });
 }

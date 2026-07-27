@@ -27,6 +27,7 @@ import {
   getWindCurrentVisualState,
   updateWindCurrentGraphics,
 } from "./windCurrentRenderer.js";
+import { CELL } from "./visualGeometry.js";
 
 const dependencies = { troops: TROOPS, enemies: ENEMIES, isCellReserved: () => false };
 
@@ -379,6 +380,62 @@ describe("inimigos e Queda de Emergencia", () => {
     applyGust(session);
     expect(enemy.dead).toBe(false);
     expect(enemy.row).toBe(0);
+  });
+
+  it("Derivante usa windGlide por 900 ms sem teleporte nem arco duplicado", () => {
+    const session = createWindBattle({
+      direction: "lateral",
+      sourceRow: 2,
+      verticalDirection: 1,
+    });
+    const { enemies: [enemy] } = spawnEnemy(session, { type: "derivante", row: 2 });
+    const sourceY = enemy.y;
+    enemy.nextSpecialAt = 100_000;
+
+    const events = applyGust(session);
+
+    expect(enemy).toMatchObject({
+      row: 3,
+      y: sourceY,
+      chapterFourState: "windGlide",
+      jumpSourceRow: 2,
+      jumpTargetRow: 3,
+      jumping: true,
+      jumpProgress: 0,
+    });
+    expect(enemy.windMotion.endsAt - enemy.windMotion.startedAt).toBe(900);
+    expect(enemy.nextSpecialAt).toBe(session.elapsed + (100_000 - session.elapsed) * 0.5);
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "windEnemyShifted",
+      enemyId: enemy.id,
+      durationMs: 900,
+    }));
+  });
+
+  it("Derivante fora do campo recua para rota interna com windMotion completo", () => {
+    const session = createWindBattle({
+      direction: "lateral",
+      sourceRow: 0,
+      verticalDirection: -1,
+    });
+    const { enemies: [enemy] } = spawnEnemy(session, { type: "derivante", row: 0 });
+    const sourceY = enemy.y;
+
+    applyGust(session);
+
+    expect(enemy.dead).toBe(false);
+    expect(enemy).toMatchObject({
+      row: 1,
+      y: sourceY,
+      chapterFourState: "windGlide",
+      jumpSourceRow: 0,
+      jumpTargetRow: 1,
+    });
+    expect(enemy.windMotion).toMatchObject({
+      fromY: sourceY,
+      toY: CELL.height + CELL.height / 2,
+    });
+    expect(enemy.windMotion.endsAt - enemy.windMotion.startedAt).toBe(900);
   });
 
   it("tropa expulsa permanece viva, no supply e sofre 25 por cento de dano", () => {

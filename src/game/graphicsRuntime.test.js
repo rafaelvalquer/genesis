@@ -27,6 +27,32 @@ describe("runtime grafico", () => {
     expect(runtime.deaths).toHaveLength(0);
   });
 
+  it("mantém a morte visual do Voltriz por 600 ms sem prolongar a entidade lógica", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [
+      { type: "enemyDeath", entity: { id: "voltriz_dead", type: "voltriz", x: 240, y: 96 } },
+    ], 100, { quality: "low", cameraShake: false });
+
+    expect(runtime.deaths).toMatchObject([{ kind: "enemy", life: 600 }]);
+    updateGraphicsRuntime(runtime, 699, 16, {});
+    expect(runtime.deaths).toHaveLength(1);
+    updateGraphicsRuntime(runtime, 700, 16, {});
+    expect(runtime.deaths).toHaveLength(0);
+  });
+
+  it("mantém a morte visual do Nimbarca por 800 ms sem prolongar a entidade lógica", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [
+      { type: "enemyDeath", entity: { id: "nimbarca_dead", type: "nimbarca", x: 240, y: 96 } },
+    ], 100, { quality: "low", cameraShake: false });
+
+    expect(runtime.deaths).toMatchObject([{ kind: "enemy", life: 800 }]);
+    updateGraphicsRuntime(runtime, 899, 16, {});
+    expect(runtime.deaths).toHaveLength(1);
+    updateGraphicsRuntime(runtime, 900, 16, {});
+    expect(runtime.deaths).toHaveLength(0);
+  });
+
   it("interpola sem alterar a entidade logica e respeita acessibilidade", () => {
     const entity = { x: 100, y: 60, previousRenderX: 80, previousRenderY: 60 };
     expect(interpolateEntity(entity, 0.5).x).toBe(90);
@@ -91,5 +117,46 @@ describe("runtime grafico", () => {
     expect(busy).toMatchObject({ quality: "medium", bloom: false, reflections: true });
     expect(stress).toMatchObject({ quality: "medium", dynamicLightScale: 0, reflections: false, hideFullHealthEnemies: true });
     expect(stress.particleBudgetScale).toBeLessThan(busy.particleBudgetScale);
+  });
+
+  it("mantém a morte visual do Gorjal por 800 ms sem prolongar a entidade lógica", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [
+      { type: "enemyDeath", entity: { id: "gorjal_dead", type: "gorjal", x: 240, y: 96 } },
+    ], 100, { quality: "low", cameraShake: false });
+
+    expect(runtime.deaths).toMatchObject([{ kind: "enemy", life: 800 }]);
+    updateGraphicsRuntime(runtime, 899, 16, {});
+    expect(runtime.deaths).toHaveLength(1);
+    updateGraphicsRuntime(runtime, 900, 16, {});
+    expect(runtime.deaths).toHaveLength(0);
+  });
+
+  it("mantem a morte visual do Derivante por 800 ms, inclusive na variante alfa", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [
+      {
+        type: "enemyDeath",
+        entity: {
+          id: "derivante_dead",
+          type: "derivante",
+          variant: "alpha",
+          x: 240,
+          y: 180,
+          chapterFourState: "jumping",
+          deathVisualY: 132,
+        },
+      },
+    ], 100, { quality: "low", cameraShake: false });
+
+    expect(runtime.deaths).toMatchObject([{
+      kind: "enemy",
+      life: 800,
+      entity: { type: "derivante", deathVisualY: 132 },
+    }]);
+    updateGraphicsRuntime(runtime, 899, 16, {});
+    expect(runtime.deaths).toHaveLength(1);
+    updateGraphicsRuntime(runtime, 900, 16, {});
+    expect(runtime.deaths).toHaveLength(0);
   });
 });

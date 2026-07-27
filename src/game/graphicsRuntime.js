@@ -7,6 +7,13 @@ import {
 const QUALITY_SCALE = { low: 1, medium: 1.5, high: 2 };
 const DECAL_LIMIT = { low: 28, medium: 64, high: 110 };
 const DEATH_LIFE = { enemy: 480, troop: 560 };
+const ENEMY_DEATH_LIFE = {
+  voltriz: 600,
+  nimbarca: 800,
+  gorjal: 800,
+  derivante: 800,
+  raizFulgor: 800,
+};
 const PULSE_BEAM_LIFE = 360;
 const DISINTEGRATION_LIFE = 420;
 const PULSE_SCORCH_LIFE = 6000;
@@ -142,7 +149,9 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
       runtime.hits.set(event.targetId, { born: now, life: 170, direction: event.type === "hit" ? -1 : 1 });
     }
     if ((event.type === "enemyDeath" || event.type === "bossDeath") && event.entity) {
-      runtime.deaths.push({ kind: "enemy", entity: { ...event.entity }, born: now, life: event.type === "bossDeath" ? 900 : DEATH_LIFE.enemy });
+      const life = ENEMY_DEATH_LIFE[event.entity.type]
+        || (event.type === "bossDeath" ? 900 : DEATH_LIFE.enemy);
+      runtime.deaths.push({ kind: "enemy", entity: { ...event.entity }, born: now, life });
     }
     if (event.type === "enemyDisintegrated" && event.entity) {
       runtime.disintegrations.push({

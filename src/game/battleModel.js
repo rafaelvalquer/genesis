@@ -781,6 +781,7 @@ function createEnemy(session, queued) {
     chapterFourStateStartedAt: base.chapterId === "chapter_04" ? session.elapsed : -Infinity,
     chapterFourStateEndsAt: Infinity,
     chapterFourActionApplied: false,
+    stunnedStartedAt: -Infinity,
     nextSpecialAt: queued.type === "gorjal"
       ? session.elapsed + base.firstChargeDelayMs
       : queued.type === "derivante"
@@ -790,8 +791,14 @@ function createEnemy(session, queued) {
           : Infinity,
     rooted: false,
     blockedSince: null,
+    jumpSourceRow: null,
+    jumpSourceY: null,
     jumpTargetRow: null,
+    jumpTargetY: null,
     electricAttackTargetId: null,
+    nimbarcaAttackTargetId: null,
+    gorjalAttackTargetId: null,
+    derivanteAttackTargetId: null,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
@@ -1311,7 +1318,13 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       detachParasite(session, enemy);
       if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
       const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
-      events.push({ type: bossDeath ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy }, fortuneOrbital: true });
+      events.push({
+        type: bossDeath ? "bossDeath" : "enemyDeath",
+        x: enemy.x,
+        y: enemy.y,
+        entity: getEnemyDeathEntity(enemy, session.elapsed),
+        fortuneOrbital: true,
+      });
     }
     return;
   }
@@ -1372,10 +1385,31 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
-    events.push({ type: bossDeath ? "bossDeath" : "enemyDeath", x: enemy.x, y: enemy.y, entity: { ...enemy } });
+    events.push({
+      type: bossDeath ? "bossDeath" : "enemyDeath",
+      x: enemy.x,
+      y: enemy.y,
+      entity: getEnemyDeathEntity(enemy, session.elapsed),
+    });
     trySpawnGlassEcho(session, enemy, events);
     trySpawnEnergyPickup(session, enemy, events);
   }
+}
+
+function getEnemyDeathEntity(enemy, elapsed) {
+  const entity = { ...enemy };
+  if (enemy.type === "raizFulgor") {
+    entity.deathWasRooted = Boolean(enemy.rooted);
+    return entity;
+  }
+  if (enemy.type !== "derivante") return entity;
+  const progress = clamp(Number(enemy.jumpProgress) || 0, 0, 1);
+  const usesJumpArc = enemy.chapterFourState === "jumping"
+    && !(enemy.windMotion && enemy.windMotion.endsAt > elapsed);
+  entity.deathVisualY = enemy.y - (usesJumpArc
+    ? ENEMIES.derivante.jumpArcHeight * 4 * progress * (1 - progress)
+    : 0);
+  return entity;
 }
 
 function updateEnergyPickups(session, dt, events) {
@@ -1429,10 +1463,12 @@ function updateEnergyPickups(session, dt, events) {
 
 export function stunEnemy(session, enemy, durationMs) {
   if (!enemy || enemy.dead || durationMs <= 0 || ENEMIES[enemy.type]?.controlImmune) return;
+  const wasStunned = session.elapsed < (Number(enemy.stunnedUntil) || 0);
   const previousUntil = Math.max(session.elapsed, Number(enemy.stunnedUntil) || 0);
   const nextUntil = Math.max(previousUntil, session.elapsed + durationMs);
   const pausedFor = nextUntil - previousUntil;
   enemy.stunnedUntil = nextUntil;
+  if (!wasStunned) enemy.stunnedStartedAt = session.elapsed;
   if (enemy.type === "silicaDigger" && enemy.meleeAttackPending) {
     enemy.meleeAttackPending = false;
     enemy.meleeAttackStartedAt = -Infinity;
@@ -1450,10 +1486,21 @@ export function stunEnemy(session, enemy, durationMs) {
     enemy.duneRoarSummoned = false;
   }
   if (enemy.type === "workerQueen") interruptWorkerQueenEggLay(session, enemy);
-  if (enemy.type === "derivante" && enemy.chapterFourState === "jumpPrepare") {
+  if (
+    enemy.type === "derivante"
+    && ["jumpPrepare", "jumpTakeoff", "jumping", "landing", "windGlide"].includes(enemy.chapterFourState)
+  ) {
+    const nearestRow = clamp(Math.round((enemy.y - CELL.height / 2) / CELL.height), 0, FIELD.rows - 1);
     enemy.jumping = false;
     enemy.jumpProgress = 0;
+    enemy.row = nearestRow;
+    enemy.y = getRowCenter(nearestRow);
+    enemy.previousRenderY = enemy.y;
+    enemy.jumpSourceRow = null;
+    enemy.jumpSourceY = null;
     enemy.jumpTargetRow = null;
+    enemy.jumpTargetY = null;
+    enemy.windMotion = null;
     enemy.nextSpecialAt = session.elapsed + ENEMIES.derivante.interruptedJumpCooldownMs;
     setChapterFourState(session, enemy, "walking");
   }
@@ -3742,6 +3789,27 @@ function updateVoltriz(session, enemy, config, dt, events) {
 }
 
 function updateNimbarca(session, enemy, config, dt, events) {
+  if (enemy.chapterFourState === "shieldPulse") {
+    enemy.moving = false;
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    setChapterFourState(session, enemy, "flying");
+  }
+
+  if (enemy.chapterFourState === "attack") {
+    const releaseAt = enemy.chapterFourStateStartedAt + config.attackVisual.releaseMs;
+    if (!enemy.chapterFourActionApplied && session.elapsed >= releaseAt) {
+      const target = session.troops.find((troop) => (
+        !troop.dead && troop.id === enemy.nimbarcaAttackTargetId
+      ));
+      if (target) launchElectricProjectile(session, enemy, config, target, events);
+      enemy.chapterFourActionApplied = true;
+    }
+    enemy.moving = false;
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    enemy.nimbarcaAttackTargetId = null;
+    setChapterFourState(session, enemy, "flying");
+  }
+
   if (session.elapsed >= enemy.nextSpecialAt) {
     const pulseEvery = enemy.variant === "alpha" ? 7000 : config.resonancePulseEveryMs;
     const allies = session.enemies.filter((candidate) => (
@@ -3760,20 +3828,25 @@ function updateNimbarca(session, enemy, config, dt, events) {
       targetIds: allies.map((ally) => ally.id), x: enemy.x, y: enemy.y,
       color: config.color, seed: nextEffectSeed(session),
     });
+    enemy.chapterFourActionApplied = true;
+    enemy.moving = false;
+    return;
   }
+
   const target = chapterFourRangedTarget(session, enemy, config.range);
   const distance = target ? enemy.x - target.x : Infinity;
   if (target && distance <= config.range * CELL.width && session.elapsed >= enemy.attackReadyAt) {
-    launchElectricProjectile(session, enemy, config, target, events);
     enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
     enemy.lastAttackAt = session.elapsed;
+    enemy.nimbarcaAttackTargetId = target.id;
     setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+    enemy.moving = false;
+    return;
   }
   if (!target || distance > config.preferredRange * CELL.width) {
     moveEnemy(session, enemy, dt, events);
   } else {
     enemy.moving = false;
-    if (session.elapsed >= enemy.chapterFourStateEndsAt) setChapterFourState(session, enemy, "flying");
   }
 }
 
@@ -3845,6 +3918,32 @@ function updateGorjal(session, enemy, config, dt, events) {
     enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
     setChapterFourState(session, enemy, "walking");
   }
+  if (enemy.chapterFourState === "attack") {
+    enemy.moving = false;
+    const impactAt = enemy.chapterFourStateStartedAt + config.attackVisual.impactMs;
+    if (!enemy.chapterFourActionApplied && session.elapsed >= impactAt) {
+      const attackTarget = session.troops.find((troop) => (
+        !troop.dead && troop.id === enemy.gorjalAttackTargetId
+      ));
+      if (attackTarget && attackTarget.row === enemy.row
+        && enemy.x - attackTarget.x <= troopBlockDistance(attackTarget)) {
+        damageTroop(session, attackTarget, enemy.damage, events);
+        applyConductivity(attackTarget, session.elapsed);
+      }
+      enemy.chapterFourActionApplied = true;
+    }
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    enemy.gorjalAttackTargetId = null;
+    const currentTarget = closestTroopForEnemy(session, enemy);
+    if (currentTarget && enemy.x - currentTarget.x <= troopBlockDistance(currentTarget)) {
+      setChapterFourState(session, enemy, "idle");
+      enemy.moving = false;
+      return;
+    }
+    setChapterFourState(session, enemy, "walking");
+    moveEnemy(session, enemy, dt, events);
+    return;
+  }
   if (session.elapsed >= enemy.nextSpecialAt) {
     setChapterFourState(
       session,
@@ -3858,14 +3957,15 @@ function updateGorjal(session, enemy, config, dt, events) {
   if (target && enemy.x - target.x <= troopBlockDistance(target)) {
     enemy.moving = false;
     if (session.elapsed >= enemy.attackReadyAt) {
-      damageTroop(session, target, enemy.damage, events);
-      applyConductivity(target, session.elapsed);
       enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
       enemy.lastAttackAt = session.elapsed;
+      enemy.gorjalAttackTargetId = target.id;
       setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+    } else if (enemy.chapterFourState !== "idle") {
+      setChapterFourState(session, enemy, "idle");
     }
   } else {
-    setChapterFourState(session, enemy, "walking");
+    if (enemy.chapterFourState !== "walking") setChapterFourState(session, enemy, "walking");
     moveEnemy(session, enemy, dt, events);
   }
 }
@@ -3877,10 +3977,18 @@ function derivanteRowScore(session, row) {
   return (paralyzed ? 100000 : 0) + (troops.length === 0 ? 50000 : 0) - hp - troops.length * 1000;
 }
 
+function getRowCenter(row) {
+  return row * CELL.height + CELL.height / 2;
+}
+
 function startDerivanteJump(session, enemy, targetRow, config) {
+  enemy.jumpSourceRow = enemy.row;
+  enemy.jumpSourceY = enemy.y;
   enemy.jumpTargetRow = targetRow;
+  enemy.jumpTargetY = getRowCenter(targetRow);
   enemy.jumping = true;
   enemy.jumpProgress = 0;
+  enemy.windMotion = null;
   setChapterFourState(session, enemy, "jumpPrepare", config.jumpPrepareMs);
   enemy.moving = false;
 }
@@ -3897,6 +4005,18 @@ function updateDerivante(session, enemy, config, dt, events) {
         1,
       );
       enemy.jumpProgress = progress;
+      const eased = progress * progress * (3 - 2 * progress);
+      const sourceY = Number.isFinite(enemy.jumpSourceY) ? enemy.jumpSourceY : enemy.y;
+      const targetY = Number.isFinite(enemy.jumpTargetY)
+        ? enemy.jumpTargetY
+        : getRowCenter(enemy.jumpTargetRow ?? enemy.row);
+      enemy.y = sourceY + (targetY - sourceY) * eased;
+    } else if (state === "windGlide" && enemy.windMotion) {
+      const duration = Math.max(1, enemy.windMotion.endsAt - enemy.windMotion.startedAt);
+      const progress = clamp((session.elapsed - enemy.windMotion.startedAt) / duration, 0, 1);
+      const eased = 1 - ((1 - progress) ** 3);
+      enemy.jumpProgress = 0;
+      enemy.y = enemy.windMotion.fromY + (enemy.windMotion.toY - enemy.windMotion.fromY) * eased;
     }
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
     if (state === "jumpPrepare") setChapterFourState(session, enemy, "jumpTakeoff", config.jumpTakeoffMs);
@@ -3904,17 +4024,48 @@ function updateDerivante(session, enemy, config, dt, events) {
     else if (state === "jumping" || state === "windGlide") {
       if (Number.isInteger(enemy.jumpTargetRow)) {
         enemy.row = clamp(enemy.jumpTargetRow, 0, FIELD.rows - 1);
-        enemy.y = enemy.row * CELL.height + CELL.height / 2;
+        enemy.y = Number.isFinite(enemy.jumpTargetY)
+          ? enemy.jumpTargetY
+          : getRowCenter(enemy.row);
         enemy.previousRenderY = enemy.y;
       }
+      enemy.windMotion = null;
       setChapterFourState(session, enemy, "landing", config.landingMs);
     } else {
       enemy.nextSpecialAt = session.elapsed + config.breachCooldownMs;
+      enemy.jumpSourceRow = null;
+      enemy.jumpSourceY = null;
       enemy.jumpTargetRow = null;
+      enemy.jumpTargetY = null;
       enemy.jumping = false;
       enemy.jumpProgress = 0;
       setChapterFourState(session, enemy, "walking");
     }
+    return;
+  }
+  if (state === "attack") {
+    enemy.moving = false;
+    const impactAt = enemy.chapterFourStateStartedAt + config.attackVisual.impactMs;
+    if (!enemy.derivanteAttackApplied && session.elapsed >= impactAt) {
+      const storedTarget = session.troops.find((troop) => (
+        troop.id === enemy.derivanteAttackTargetId
+        && !troop.dead
+        && troop.row === enemy.row
+        && enemy.x - troop.x <= troopBlockDistance(troop)
+      ));
+      if (storedTarget) damageTroop(session, storedTarget, enemy.damage, events);
+      enemy.derivanteAttackApplied = true;
+    }
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    enemy.derivanteAttackTargetId = null;
+    enemy.derivanteAttackApplied = false;
+    const currentTarget = closestTroopForEnemy(session, enemy);
+    if (currentTarget && enemy.x - currentTarget.x <= troopBlockDistance(currentTarget)) {
+      setChapterFourState(session, enemy, "idle");
+      return;
+    }
+    setChapterFourState(session, enemy, "walking");
+    moveEnemy(session, enemy, dt, events);
     return;
   }
   const target = closestTroopForEnemy(session, enemy);
@@ -3940,77 +4091,131 @@ function updateDerivante(session, enemy, config, dt, events) {
   if (target && enemy.x - target.x <= troopBlockDistance(target)) {
     enemy.moving = false;
     if (session.elapsed >= enemy.attackReadyAt) {
-      damageTroop(session, target, enemy.damage, events);
       enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
       enemy.lastAttackAt = session.elapsed;
+      enemy.derivanteAttackTargetId = target.id;
+      enemy.derivanteAttackApplied = false;
       setChapterFourState(session, enemy, "attack", config.attackVisual.durationMs);
+    } else if (enemy.chapterFourState !== "idle") {
+      setChapterFourState(session, enemy, "idle");
     }
   } else {
-    setChapterFourState(session, enemy, "walking");
+    if (enemy.chapterFourState !== "walking") setChapterFourState(session, enemy, "walking");
     moveEnemy(session, enemy, dt, events);
   }
 }
 
 function updateRaizFulgor(session, enemy, config, dt, events) {
   const target = chapterFourRangedTarget(session, enemy, config.range);
-  const distance = target ? enemy.x - target.x : Infinity;
-  if (!enemy.rooted && target && distance <= config.preferredRange * CELL.width) {
-    enemy.moving = false;
-    setChapterFourState(session, enemy, "rooting", config.rootingMs);
-    enemy.rooted = true;
-    return;
-  }
+  const isValidLockedTarget = (candidate) => (
+    candidate
+    && !candidate.dead
+    && candidate.row === enemy.row
+    && enemy.x - candidate.x >= 0
+    && enemy.x - candidate.x <= config.range * CELL.width
+  );
+
   if (enemy.chapterFourState === "rooting") {
     enemy.moving = false;
     if (session.elapsed >= enemy.chapterFourStateEndsAt) setChapterFourState(session, enemy, "rootedIdle");
     return;
   }
-  if (enemy.rooted && !target) {
-    if (enemy.chapterFourState !== "unrooting") setChapterFourState(session, enemy, "unrooting", config.unrootingMs);
+
+  if (enemy.chapterFourState === "unrooting") {
+    enemy.moving = false;
+    if (target) {
+      enemy.rooted = true;
+      setChapterFourState(session, enemy, "rootedIdle");
+      return;
+    }
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
     enemy.rooted = false;
     setChapterFourState(session, enemy, "walking");
+    return;
   }
-  if (enemy.rooted && target) {
+
+  if (enemy.chapterFourState === "attackCharge") {
     enemy.moving = false;
-    if (enemy.chapterFourState === "attackCharge" && session.elapsed >= enemy.chapterFourStateEndsAt) {
-      damageTroop(session, target, enemy.damage, events);
-      const hadTwoStacks = Number(target.electricStacks || 0) >= 2;
+    if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    if (enemy.chapterFourActionApplied) return;
+    enemy.chapterFourActionApplied = true;
+    const lockedTarget = session.troops.find(
+      (troop) => troop.id === enemy.electricAttackTargetId,
+    );
+    const releasedTarget = isValidLockedTarget(lockedTarget) ? lockedTarget : null;
+    enemy.electricAttackTargetId = null;
+    enemy.lastAttackAt = session.elapsed;
+    enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+    setChapterFourState(
+      session,
+      enemy,
+      "attackRelease",
+      config.attackVisual.releaseDurationMs,
+    );
+    if (releasedTarget) {
+      damageTroop(session, releasedTarget, enemy.damage, events);
+      const hadTwoStacks = Number(releasedTarget.electricStacks || 0) >= 2;
       if (hadTwoStacks) {
-        target.electricStacks = 0;
-        target.electricStacksExpireAt = 0;
-        applyEnemyElectricCharge(session, enemy, target, events, {
+        releasedTarget.electricStacks = 0;
+        releasedTarget.electricStacksExpireAt = 0;
+        applyEnemyElectricCharge(session, enemy, releasedTarget, events, {
           stacks: 3,
           paralysisDurationMs: config.chargedParalysisMs,
         });
       } else {
-        applyEnemyElectricCharge(session, enemy, target, events);
+        applyEnemyElectricCharge(session, enemy, releasedTarget, events);
       }
       const secondary = session.troops.find((troop) => (
-        !troop.dead && troop.id !== target.id
-        && Math.hypot(troop.x - target.x, troop.y - target.y) <= config.chainRadiusTiles * CELL.width
+        !troop.dead && troop.id !== releasedTarget.id
+        && Math.hypot(troop.x - releasedTarget.x, troop.y - releasedTarget.y)
+          <= config.chainRadiusTiles * CELL.width
       ));
       if (secondary) damageTroop(session, secondary, enemy.damage * config.chainDamageFactor, events);
-      enemy.lastAttackAt = session.elapsed;
-      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
-      setChapterFourState(session, enemy, "attackRelease", 360);
+      const origin = getEnemyMuzzleWorldPosition(enemy, config, "attackRelease", 0);
       events.push({
-        type: "groundingBeam", sourceEnemyId: enemy.id, targetTroopId: target.id,
-        secondaryTargetId: secondary?.id || null, x: target.x, y: target.y,
-        x0: enemy.x, y0: enemy.y - 24, x1: target.x, y1: target.y - 24,
+        type: "groundingBeam", sourceEnemyId: enemy.id, targetTroopId: releasedTarget.id,
+        secondaryTargetId: secondary?.id || null, x: releasedTarget.x, y: releasedTarget.y,
+        x0: origin.x, y0: origin.y, x1: releasedTarget.x, y1: releasedTarget.y - 24,
         color: config.color, seed: nextEffectSeed(session),
       });
-    } else if (session.elapsed >= enemy.chapterFourStateEndsAt
-      && session.elapsed >= enemy.attackReadyAt
-      && enemy.chapterFourState !== "attackCharge") {
-      enemy.electricAttackTargetId = target.id;
-      setChapterFourState(session, enemy, "attackCharge", config.chargeMs);
-    } else if (session.elapsed >= enemy.chapterFourStateEndsAt
-      && enemy.chapterFourState === "attackRelease") {
+    }
+    return;
+  }
+
+  if (enemy.chapterFourState === "attackRelease") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.chapterFourStateEndsAt) {
       setChapterFourState(session, enemy, "rootedIdle");
     }
     return;
   }
+
+  if (!enemy.rooted && target
+    && enemy.x - target.x <= config.preferredRange * CELL.width) {
+    enemy.moving = false;
+    enemy.rooted = true;
+    setChapterFourState(session, enemy, "rooting", config.rootingMs);
+    return;
+  }
+
+  if (enemy.rooted) {
+    enemy.moving = false;
+    if (!target) {
+      setChapterFourState(session, enemy, "unrooting", config.unrootingMs);
+      return;
+    }
+    if (enemy.chapterFourState !== "rootedIdle") {
+      setChapterFourState(session, enemy, "rootedIdle");
+      return;
+    }
+    if (session.elapsed >= enemy.attackReadyAt) {
+      enemy.electricAttackTargetId = target.id;
+      setChapterFourState(session, enemy, "attackCharge", config.chargeMs);
+    }
+    return;
+  }
+
+  if (enemy.chapterFourState !== "walking") setChapterFourState(session, enemy, "walking");
   moveEnemy(session, enemy, dt, events);
 }
 

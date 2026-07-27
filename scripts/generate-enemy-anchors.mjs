@@ -6,7 +6,7 @@ import sharp from "sharp";
 const ROOT = path.resolve(import.meta.dirname, "..");
 const ENEMY_ROOT = path.join(ROOT, "src", "game", "assets", "enemy");
 const OUTPUT = path.join(ROOT, "src", "game", "enemyAnchors.generated.js");
-const AIRBORNE = new Set(["magoAbissal", "refrator"]);
+const AIRBORNE = new Set(["magoAbissal", "refrator", "voltriz", "nimbarca"]);
 const requested = new Set(process.argv.filter((argument) => argument.startsWith("--enemy=")).map((argument) => argument.slice(8)));
 
 const frameNumber = (file) => Number(/(\d+)\.png$/i.exec(file)?.[1] || 0);
@@ -65,6 +65,16 @@ async function buildAnchors() {
       for (const frame of frames) {
         stateAnchors[state.name].push(await calculateAnchor(path.join(directory, frame), AIRBORNE.has(enemy.name)));
       }
+    }
+    if (["voltriz", "nimbarca", "gorjal", "derivante", "raizFulgor"].includes(enemy.name)) {
+      const anchors = Object.values(stateAnchors).flat();
+      const sharedAnchor = {
+        x: rounded(quantile(anchors.map((anchor) => anchor.x), 0.5)),
+        y: rounded(quantile(anchors.map((anchor) => anchor.y), 0.5)),
+      };
+      Object.keys(stateAnchors).forEach((state) => {
+        stateAnchors[state] = stateAnchors[state].map(() => sharedAnchor);
+      });
     }
     if (Object.keys(stateAnchors).length) result[enemy.name] = stateAnchors;
   }

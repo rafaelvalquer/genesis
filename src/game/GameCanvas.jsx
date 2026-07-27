@@ -23,6 +23,7 @@ import {
 } from "./pulseRenderer.js";
 import {
   getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect,
+  getEnemyDeathVisualY,
   getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
   buildBattleRenderRows, createBattleRowBuffers, isEnemyFrozen, viewportPointToFieldPoint, writeEnemyVisualPosition,
 } from "./visualGeometry.js";
@@ -618,10 +619,13 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const frame = Math.min(frames.length - 1, Math.floor(progress * Math.max(1, frames.length)));
     const image = frames[frame] || frames[0];
     const height = death.kind === "troop" ? config?.attackVisual?.height || 126 : 128 * (entity.scale || 1);
+    const deathY = death.kind === "enemy" ? getEnemyDeathVisualY(entity, progress) : entity.y;
+    const airborneDerivante = entity.type === "derivante"
+      && ["jumpPrepare", "jumpTakeoff", "jumping", "windGlide", "landing"].includes(entity.chapterFourState);
     ctx.save();
-    ctx.translate(entity.x, entity.y);
+    ctx.translate(entity.x, deathY);
     if (!dedicatedDeathState) ctx.rotate((death.kind === "enemy" ? .22 : -.18) * progress);
-    const deathEntity = { ...entity, x: 0, y: progress * 9 };
+    const deathEntity = { ...entity, x: 0, y: airborneDerivante ? 0 : progress * 9 };
     const filter = dedicatedDeathState
       ? `drop-shadow(0 0 7px ${phase.palette.accent})`
       : `grayscale(${progress * .6}) drop-shadow(0 0 5px ${phase.palette.accent})`;

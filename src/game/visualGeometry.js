@@ -142,8 +142,19 @@ export function getEnemyHitPoint(enemy, enemyConfig = {}) {
   };
 }
 
-export function getEnemyMuzzleWorldPosition(enemy, enemyConfig = {}) {
-  const rect = getEnemySpriteRect(enemy, enemyConfig, "attack", 0);
+export function getEnemyMuzzleWorldPosition(
+  enemy,
+  enemyConfig = {},
+  state = "attack",
+  frame = 0,
+) {
+  const rect = getEnemySpriteRect(
+    enemy,
+    enemyConfig,
+    state,
+    frame,
+    enemyConfig.attackVisual?.aspectRatio || 1,
+  );
   const muzzle = enemyConfig.attackVisual?.muzzle || { x: 0.25, y: 0.25 };
   return { x: rect.x + rect.width * muzzle.x, y: rect.y + rect.height * muzzle.y };
 }
@@ -157,6 +168,11 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
         || (enemyConfig.airborne ? "flying" : enemy.moving ? "walking" : "idle");
     const fallbackState = enemyConfig.airborne ? "flying" : enemy.moving ? "walking" : "idle";
     const count = Math.max(1, frameCounts[state] || frameCounts[fallbackState] || 1);
+    if (stunned) {
+      const age = Math.max(0, elapsed - (enemy.stunnedStartedAt ?? elapsed));
+      const frameMs = enemyConfig.animationFrameMs?.stunned || 105;
+      return { state, frame: Math.floor(age / frameMs) % count };
+    }
     const age = Math.max(0, elapsed - (enemy.chapterFourStateStartedAt || enemy.spawnedAt || 0));
     const duration = Number.isFinite(enemy.chapterFourStateEndsAt)
       ? Math.max(1, enemy.chapterFourStateEndsAt - enemy.chapterFourStateStartedAt)
@@ -488,7 +504,8 @@ export function writeWindMotionPosition(entity, elapsed, reduceMotion, out = {})
 }
 
 export function writeEnemyVisualPosition(entity, config, elapsed, alpha, reduceMotion, out = {}) {
-  if (entity.windMotion && elapsed < entity.windMotion.endsAt) {
+  const activeWindMotion = entity.windMotion && elapsed < entity.windMotion.endsAt;
+  if (activeWindMotion) {
     writeWindMotionPosition(entity, elapsed, reduceMotion, out);
   } else {
     writeInterpolatedPosition(entity, alpha, out);
@@ -496,11 +513,25 @@ export function writeEnemyVisualPosition(entity, config, elapsed, alpha, reduceM
   out.x += getRepulsorKnockbackOffset(entity, elapsed, reduceMotion);
   if (entity.attachedToTroopId) {
     out.y += config.attachmentOffsetY || 0;
-  } else if (entity.jumping) {
+  } else if (entity.jumping && !activeWindMotion) {
     const progress = Math.max(0, Math.min(1, Number(entity.jumpProgress) || 0));
     out.y -= (config.jumpArcHeight || 0) * 4 * progress * (1 - progress);
   }
   return out;
+}
+
+export function getEnemyDeathVisualY(entity, progress) {
+  const airborneStates = ["jumpPrepare", "jumpTakeoff", "jumping", "windGlide", "landing"];
+  if (entity.type !== "derivante" || !airborneStates.includes(entity.chapterFourState)) return entity.y;
+  const startY = Number.isFinite(entity.deathVisualY) ? entity.deathVisualY : entity.y;
+  const nearestRow = Math.max(
+    0,
+    Math.min(FIELD.rows - 1, Math.round((startY - CELL.height / 2) / CELL.height)),
+  );
+  const groundY = nearestRow * CELL.height + CELL.height / 2;
+  const clamped = Math.max(0, Math.min(1, progress));
+  const eased = 1 - ((1 - clamped) ** 3);
+  return startY + (groundY - startY) * eased;
 }
 
 export function createBattleRowBuffers(rowCount = FIELD.rows) {
