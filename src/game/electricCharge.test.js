@@ -67,6 +67,15 @@ describe("Carga Iônica", () => {
       ? troop.electricParalyzedUntil + 1
       : 1000;
     expect(applyElectricCharge(troop, afterParalysis)).toMatchObject({
+      appliedStacks: 0,
+      stacks: 0,
+      paralyzed: false,
+      conductivityConsumed: false,
+      ignored: true,
+      ignoredReason: "immune",
+    });
+    const afterImmunity = troop.electricImmunityUntil + 1;
+    expect(applyElectricCharge(troop, afterImmunity)).toMatchObject({
       appliedStacks: 1,
       stacks: 1,
       paralyzed: false,

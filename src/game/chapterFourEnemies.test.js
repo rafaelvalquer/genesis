@@ -102,16 +102,21 @@ describe("inimigos do Capítulo 4", () => {
     const session = createBattleSession(PHASES[24], ["colono"], 45, { sandbox: true });
     const troop = placeTroop(session, "colono", 2, 4).troop;
     const voltriz = spawnEnemy(session, { type: "voltriz", row: 2 }).enemies[0];
-    voltriz.x = troop.x + 40;
+    voltriz.x = troop.x + 100;
+    voltriz.attackReadyAt = 0;
     troop.electricParalyzedUntil = session.elapsed + 800;
     troop.electricImmunityUntil = session.elapsed + 3000;
-    const startX = voltriz.x;
+    const duringParalysis = stepBattle(session, 700);
+    expect(duringParalysis.some((event) => event.type === "shoot")).toBe(false);
 
-    stepBattle(session, 1000);
-    expect(voltriz.x).toBeLessThan(troop.x);
-    stepBattle(session, 4000);
-    expect(voltriz.x).toBeLessThan(startX);
-    expect(session.enemyProjectiles.filter((projectile) => projectile.sourceEnemyId === voltriz.id)).toHaveLength(0);
+    const afterParalysis = stepBattle(session, 200);
+    const projectile = session.enemyProjectiles.find((candidate) => candidate.sourceEnemyId === voltriz.id);
+    expect(afterParalysis.some((event) => event.type === "shoot")).toBe(true);
+    expect(projectile?.targetTroopId).toBe(troop.id);
+
+    stepBattle(session, 300);
+    expect(troop.electricStacks).toBe(0);
+    expect(troop.electricParalyzedUntil).toBeLessThanOrEqual(session.elapsed);
   });
 
   it("ignora a primeira tropa paralisada e seleciona a próxima saudável", () => {
@@ -211,14 +216,18 @@ describe("inimigos do Capítulo 4", () => {
 
   it("usa 800/700 ms na preparação da carga e reproduz stunned em loop independente", () => {
     const normalSession = createBattleSession(PHASES[24], ["colono"], 44, { sandbox: true });
+    const normalTroop = placeTroop(normalSession, "colono", 1, 4).troop;
     const normal = spawnEnemy(normalSession, { type: "gorjal", row: 1 }).enemies[0];
+    normal.x = normalTroop.x + 100;
     normal.nextSpecialAt = 0;
     stepBattle(normalSession, 1);
     expect(normal.chapterFourState).toBe("chargePrep");
     expect(normal.chapterFourStateEndsAt - normal.chapterFourStateStartedAt).toBe(800);
 
     const alphaSession = createBattleSession(PHASES[24], ["colono"], 45, { sandbox: true });
+    const alphaTroop = placeTroop(alphaSession, "colono", 1, 4).troop;
     const alpha = spawnEnemy(alphaSession, { type: "gorjal", row: 1, variant: "alpha" }).enemies[0];
+    alpha.x = alphaTroop.x + 100;
     alpha.nextSpecialAt = 0;
     stepBattle(alphaSession, 1);
     expect(alpha.chapterFourStateEndsAt - alpha.chapterFourStateStartedAt).toBe(700);

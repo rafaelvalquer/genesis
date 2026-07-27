@@ -73,7 +73,9 @@ export function applyElectricCharge(
   initializeElectricState(entity);
   expireElectricState(entity, now);
 
-  if (isElectricParalyzed(entity, now)) {
+  const paralyzed = isElectricParalyzed(entity, now);
+  const immune = now < Number(entity.electricImmunityUntil || 0);
+  if (paralyzed || immune) {
     entity.electricStacks = 0;
     entity.electricStacksExpireAt = 0;
     return {
@@ -84,7 +86,7 @@ export function applyElectricCharge(
       reactorPaused: false,
       structureExposed: false,
       ignored: true,
-      ignoredReason: "paralyzed",
+      ignoredReason: paralyzed ? "paralyzed" : "immune",
     };
   }
 

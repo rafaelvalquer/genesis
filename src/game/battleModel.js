@@ -841,9 +841,12 @@ function createEnemy(session, queued) {
     jumpTargetY: null,
     electricAttackTargetId: null,
     voltrizTargetId: null,
-    voltrizBypassTroopIds: [],
     nimbarcaAttackTargetId: null,
     gorjalAttackTargetId: null,
+    gorjalChargeTargetId: null,
+    gorjalLastChargedTroopId: null,
+    gorjalChargeEndX: null,
+    gorjalChargeCooldownStartedAt: null,
     derivanteAttackTargetId: null,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
@@ -3581,8 +3584,6 @@ function applyEnemyElectricCharge(session, enemy, target, events, options = {}) 
     seed: nextEffectSeed(session),
   });
   if (enemy.type === "voltriz" && result.paralyzed) {
-    if (!Array.isArray(enemy.voltrizBypassTroopIds)) enemy.voltrizBypassTroopIds = [];
-    if (!enemy.voltrizBypassTroopIds.includes(target.id)) enemy.voltrizBypassTroopIds.push(target.id);
     enemy.voltrizTargetId = null;
     enemy.moving = true;
     setChapterFourState(session, enemy, "flying");
@@ -3848,9 +3849,7 @@ function chapterFourRangedTarget(session, enemy, rangeTiles) {
 function isVoltrizBypassTarget(session, enemy, troop) {
   if (!troop || troop.dead || troop.row !== enemy.row) return true;
   if (troop.x >= enemy.x) return true;
-  if (isElectricParalyzed(troop, session.elapsed)) return true;
-  if (session.elapsed < Number(troop.electricImmunityUntil || 0)) return true;
-  return (enemy.voltrizBypassTroopIds || []).includes(troop.id);
+  return isElectricParalyzed(troop, session.elapsed);
 }
 
 function findVoltrizTarget(session, enemy, config) {
@@ -3960,6 +3959,17 @@ function updateNimbarca(session, enemy, config, dt, events) {
 
 const GORJAL_ANCHORS = new Set(["colossoImpacto", "lumiUrsa7", "muralhaReforcada"]);
 
+function findGorjalChargeTarget(session, enemy, config) {
+  if (session.elapsed < enemy.nextSpecialAt) return null;
+  const target = closestTroopForEnemy(session, enemy, config.chargeTriggerRangeTiles);
+  if (!target) return null;
+  const distance = enemy.x - target.x;
+  if (distance <= troopBlockDistance(target)) return null;
+  if (distance > config.chargeTriggerRangeTiles * CELL.width) return null;
+  if (target.id === enemy.gorjalLastChargedTroopId) return null;
+  return target;
+}
+
 export function tryGorjalFormationPush(session, enemy, events = []) {
   const rowTroops = session.troops
     .filter((troop) => !troop.dead && !troop.windRecovery && troop.row === enemy.row)
@@ -3989,24 +3999,46 @@ function updateGorjal(session, enemy, config, dt, events) {
   const state = enemy.chapterFourState;
   if (state === "chargePrep") {
     enemy.moving = false;
+    const target = session.troops.find((troop) => (
+      troop.id === enemy.gorjalChargeTargetId
+      && !troop.dead
+      && troop.row === enemy.row
+      && troop.x < enemy.x
+    ));
+    if (!target) {
+      enemy.gorjalChargeTargetId = null;
+      setChapterFourState(session, enemy, "walking");
+      return;
+    }
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
+    enemy.gorjalChargeEndX = Math.max(FIELD.baseX, target.x + troopBlockDistance(target));
     setChapterFourState(session, enemy, "charge");
-    enemy.chargeEndX = Math.max(FIELD.baseX, enemy.x - config.chargeRange * CELL.width);
   }
   if (enemy.chapterFourState === "charge") {
     enemy.moving = true;
-    enemy.x = Math.max(enemy.chargeEndX, enemy.x - config.chargeSpeed * dt / 1000);
-    const target = closestTroopForEnemy(session, enemy);
-    if (target && enemy.x - target.x <= troopBlockDistance(target) + 14) {
-      const pushed = tryGorjalFormationPush(session, enemy, events);
-      const damage = (enemy.variant === "alpha" ? 50 : config.chargeDamage)
-        * (pushed ? 1 : config.blockedDamageFactor);
-      damageTroop(session, target, damage, events);
-      applyConductivity(target, session.elapsed);
-      if (!pushed) target.electricParalyzedUntil = Math.max(
-        target.electricParalyzedUntil || 0,
-        session.elapsed + config.blockedStunMs,
-      );
+    enemy.x = Math.max(enemy.gorjalChargeEndX, enemy.x - config.chargeSpeed * dt / 1000);
+    const target = session.troops.find((troop) => (
+      troop.id === enemy.gorjalChargeTargetId
+      && !troop.dead
+      && troop.row === enemy.row
+    ));
+    if (target && enemy.x <= enemy.gorjalChargeEndX) {
+      const chargeDamage = enemy.variant === "alpha" ? 50 : config.chargeDamage;
+      damageTroop(session, target, chargeDamage, events);
+      const survived = !target.dead && target.hp > 0;
+      let pushed = false;
+      if (survived) {
+        target.electricParalyzedUntil = Math.max(
+          Number(target.electricParalyzedUntil || 0),
+          session.elapsed + config.chargeParalysisMs,
+        );
+        pushed = tryGorjalFormationPush(session, enemy, events);
+      }
+      enemy.gorjalLastChargedTroopId = target.id;
+      enemy.gorjalChargeTargetId = null;
+      enemy.gorjalChargeEndX = null;
+      enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
+      enemy.gorjalChargeCooldownStartedAt = session.elapsed;
       setChapterFourState(session, enemy, "chargeImpact", 260);
       events.push({
         type: "gorjalChargeImpact", sourceEnemyId: enemy.id, targetTroopId: target.id,
@@ -4014,7 +4046,11 @@ function updateGorjal(session, enemy, config, dt, events) {
       });
       return;
     }
-    if (enemy.x <= enemy.chargeEndX) setChapterFourState(session, enemy, "recover", config.recoverMs);
+    if (enemy.x <= enemy.gorjalChargeEndX) {
+      enemy.gorjalChargeTargetId = null;
+      enemy.gorjalChargeEndX = null;
+      setChapterFourState(session, enemy, "walking");
+    }
     return;
   }
   if (state === "chargeImpact" && session.elapsed >= enemy.chapterFourStateEndsAt) {
@@ -4023,7 +4059,12 @@ function updateGorjal(session, enemy, config, dt, events) {
   if (enemy.chapterFourState === "recover") {
     enemy.moving = false;
     if (session.elapsed < enemy.chapterFourStateEndsAt) return;
-    enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
+    const target = closestTroopForEnemy(session, enemy);
+    if (target && enemy.x - target.x <= troopBlockDistance(target)) {
+      setChapterFourState(session, enemy, "idle");
+      enemy.moving = false;
+      return;
+    }
     setChapterFourState(session, enemy, "walking");
   }
   if (enemy.chapterFourState === "attack") {
@@ -4052,15 +4093,6 @@ function updateGorjal(session, enemy, config, dt, events) {
     moveEnemy(session, enemy, dt, events);
     return;
   }
-  if (session.elapsed >= enemy.nextSpecialAt) {
-    setChapterFourState(
-      session,
-      enemy,
-      "chargePrep",
-      enemy.variant === "alpha" ? 700 : config.chargePrepMs,
-    );
-    return;
-  }
   const target = closestTroopForEnemy(session, enemy);
   if (target && enemy.x - target.x <= troopBlockDistance(target)) {
     enemy.moving = false;
@@ -4073,6 +4105,21 @@ function updateGorjal(session, enemy, config, dt, events) {
       setChapterFourState(session, enemy, "idle");
     }
   } else {
+    const chargeTarget = findGorjalChargeTarget(session, enemy, config);
+    if (chargeTarget) {
+      enemy.gorjalChargeTargetId = chargeTarget.id;
+      setChapterFourState(
+        session,
+        enemy,
+        "chargePrep",
+        enemy.variant === "alpha" ? 700 : config.chargePrepMs,
+      );
+      events.push({
+        type: "gorjalChargePrep", sourceEnemyId: enemy.id, targetTroopId: chargeTarget.id,
+        x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session),
+      });
+      return;
+    }
     if (enemy.chapterFourState !== "walking") setChapterFourState(session, enemy, "walking");
     moveEnemy(session, enemy, dt, events);
   }
