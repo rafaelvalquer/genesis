@@ -12,7 +12,18 @@ const PHASE_PACKET_SEQUENCES = Object.freeze([
 ]);
 
 const PHASE_SPAWN_WINDOWS = [
-  [80,100],[82,104],[85,108],[88,112],[90,118],[92,122],[95,128],[98,138],
+  [48,60],[50,62],[52,66],[54,68],[56,72],[58,76],[60,80],[62,84],
+];
+const REINFORCEMENT_RATIOS = [0.5,0.5,0.5,0.6,0.6,0.6,0.7,0.7];
+const REINFORCEMENT_POOLS = [
+  ["P1"],
+  ["P1","P3"],
+  ["P1","P3","P4"],
+  ["P1","P2","P3"],
+  ["P1","P3","P4"],
+  ["P1","P3","P8"],
+  ["P1","P3","P4","P8"],
+  ["P1","P3","P4","P8"],
 ];
 const BLOCKS = ["opening", "main", "main", "elite", "counter", "climax", "climax", "final"];
 
@@ -38,20 +49,41 @@ function alphaFor(phaseIndex, waveIndex, packetIndex, packetKey) {
   return null;
 }
 
+function densifySequence(sequence, phaseIndex, waveIndex) {
+  const ratio = REINFORCEMENT_RATIOS[phaseIndex] ?? 0.5;
+  const pool = REINFORCEMENT_POOLS[phaseIndex] || ["P1"];
+  let reinforcementProgress = 0;
+  let reinforcementIndex = waveIndex;
+  const entries = [];
+
+  sequence.forEach((key, sourcePacketIndex) => {
+    entries.push({ key, sourcePacketIndex, reinforcement: false });
+    reinforcementProgress += ratio;
+    if (reinforcementProgress < 1) return;
+    reinforcementProgress -= 1;
+    const reinforcementKey = pool[reinforcementIndex % pool.length];
+    reinforcementIndex += 1;
+    entries.push({ key: reinforcementKey, sourcePacketIndex: -1, reinforcement: true });
+  });
+
+  return entries;
+}
+
 export function createChapterFourWaves(phaseIndex) {
   const sequences = PHASE_PACKET_SEQUENCES[phaseIndex] || [];
-  const [windowStart, windowEnd] = PHASE_SPAWN_WINDOWS[phaseIndex] || [90, 120];
+  const [windowStart, windowEnd] = PHASE_SPAWN_WINDOWS[phaseIndex] || [56, 72];
   return sequences.map((sequence, waveIndex) => {
     const waveProgress = sequences.length <= 1 ? 1 : waveIndex / (sequences.length - 1);
     const spawnWindowMs = Math.round((windowStart + (windowEnd - windowStart) * waveProgress) * 1000);
-    const packets = sequence.map((key, packetIndex) => {
-      const at = sequence.length <= 1 ? 0 : Math.round(packetIndex * spawnWindowMs / (sequence.length - 1));
+    const denseSequence = densifySequence(sequence, phaseIndex, waveIndex);
+    const packets = denseSequence.map((entry, packetIndex) => {
+      const at = denseSequence.length <= 1 ? 0 : Math.round(packetIndex * spawnWindowMs / (denseSequence.length - 1));
       return instantiateChapterFourPacket(
-        key,
+        entry.key,
         packetIndex,
         at,
         BLOCKS[Math.min(packetIndex, BLOCKS.length - 1)],
-        alphaFor(phaseIndex, waveIndex, packetIndex, key),
+        entry.reinforcement ? null : alphaFor(phaseIndex, waveIndex, entry.sourcePacketIndex, entry.key),
       );
     });
     const spawnBlocks = [...new Set(BLOCKS)].map((block) => ({
