@@ -195,6 +195,8 @@ describe("inimigos do Capítulo 4", () => {
     const troop = placeTroop(session, "colono", 2, 4).troop;
     troop.attackReadyAt = Infinity;
     const gorjal = spawnEnemy(session, { type: "gorjal", row: 2 }).enemies[0];
+    gorjal.gorjalInitialCharge = false;
+    gorjal.chapterFourState = "walking";
     gorjal.x = troop.x + 50;
     gorjal.nextSpecialAt = Infinity;
     const initialHp = troop.hp;
@@ -223,6 +225,8 @@ describe("inimigos do Capítulo 4", () => {
     const normalSession = createBattleSession(PHASES[24], ["colono"], 44, { sandbox: true });
     const normalTroop = placeTroop(normalSession, "colono", 1, 4).troop;
     const normal = spawnEnemy(normalSession, { type: "gorjal", row: 1 }).enemies[0];
+    normal.gorjalInitialCharge = false;
+    normal.chapterFourState = "walking";
     normal.x = normalTroop.x + 200;
     normal.nextSpecialAt = 0;
     stepBattle(normalSession, 1);
@@ -232,6 +236,8 @@ describe("inimigos do Capítulo 4", () => {
     const alphaSession = createBattleSession(PHASES[24], ["colono"], 45, { sandbox: true });
     const alphaTroop = placeTroop(alphaSession, "colono", 1, 4).troop;
     const alpha = spawnEnemy(alphaSession, { type: "gorjal", row: 1, variant: "alpha" }).enemies[0];
+    alpha.gorjalInitialCharge = false;
+    alpha.chapterFourState = "walking";
     alpha.x = alphaTroop.x + 200;
     alpha.nextSpecialAt = 0;
     stepBattle(alphaSession, 1);
@@ -242,5 +248,33 @@ describe("inimigos do Capítulo 4", () => {
       .toEqual({ state: "stunned", frame: 0 });
     expect(getEnemyAnimation(normal, ENEMIES.gorjal, normalSession.elapsed + 840, { stunned: 8 }))
       .toEqual({ state: "stunned", frame: 0 });
+  });
+
+  it("nasce em investida inicial sem depender de alcance ou recarga", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 48, { sandbox: true });
+    const gorjal = spawnEnemy(session, { type: "gorjal", row: 2 }).enemies[0];
+    expect(gorjal.chapterFourState).toBe("charge");
+    expect(gorjal.gorjalInitialCharge).toBe(true);
+    expect(gorjal.gorjalInitialChargeCompleted).toBe(false);
+    expect(gorjal.nextSpecialAt).toBe(Infinity);
+    expect(stepBattle(session, 1)).toContainEqual(expect.objectContaining({
+      type: "gorjalInitialChargeStarted",
+      sourceEnemyId: gorjal.id,
+    }));
+  });
+
+  it("atinge a primeira tropa encontrada durante a corrida inicial", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 49, { sandbox: true });
+    const troop = placeTroop(session, "colono", 2, 4).troop;
+    const gorjal = spawnEnemy(session, { type: "gorjal", row: 2 }).enemies[0];
+    const events = stepBattle(session, 5000);
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "gorjalChargeImpact",
+      sourceEnemyId: gorjal.id,
+      targetTroopId: troop.id,
+      initialCharge: true,
+    }));
+    expect(gorjal.gorjalInitialCharge).toBe(false);
+    expect(gorjal.gorjalInitialChargeCompleted).toBe(true);
   });
 });

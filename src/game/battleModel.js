@@ -820,14 +820,16 @@ function createEnemy(session, queued) {
     eggCreatedAt: queued.type === "workerQueenEgg" ? session.elapsed : null,
     eggHatchAt: queued.type === "workerQueenEgg" ? session.elapsed + base.hatchAfterMs : Infinity,
     chapterFourState: base.chapterId === "chapter_04"
-      ? (queued.type === "voltriz" || queued.type === "nimbarca" ? "flying" : "walking")
+      ? (queued.type === "gorjal"
+        ? "charge"
+        : queued.type === "voltriz" || queued.type === "nimbarca" ? "flying" : "walking")
       : null,
     chapterFourStateStartedAt: base.chapterId === "chapter_04" ? session.elapsed : -Infinity,
     chapterFourStateEndsAt: Infinity,
     chapterFourActionApplied: false,
     stunnedStartedAt: -Infinity,
     nextSpecialAt: queued.type === "gorjal"
-      ? session.elapsed + base.firstChargeDelayMs
+      ? Infinity
       : queued.type === "derivante"
         ? session.elapsed + base.breachCheckEveryMs
         : queued.type === "nimbarca"
@@ -845,9 +847,22 @@ function createEnemy(session, queued) {
     gorjalAttackTargetId: null,
     gorjalChargeTargetId: null,
     gorjalLastChargedTroopId: null,
-    gorjalChargeEndX: null,
+    gorjalChargeEndX: queued.type === "gorjal" ? FIELD.baseX : null,
     gorjalChargeCooldownStartedAt: null,
+    gorjalInitialCharge: queued.type === "gorjal" && base.initialChargeOnSpawn !== false,
+    gorjalInitialChargeCompleted: false,
+    gorjalInitialChargeStartedEventSent: false,
     derivanteAttackTargetId: null,
+    derivanteBehavior: queued.type === "derivante" ? "hunting" : null,
+    derivanteCoverEnemyId: null,
+    derivanteCoverTargetDistance: null,
+    derivanteCoverLostAt: queued.type === "derivante" ? -Infinity : null,
+    derivanteJumpReason: null,
+    derivanteJumpSourceX: queued.type === "derivante" ? FIELD.spawnX : null,
+    derivanteJumpTargetX: null,
+    derivanteNextDodgeAt: queued.type === "derivante" ? session.elapsed + 1500 : null,
+    derivanteIncomingProjectileId: null,
+    derivanteAttackApplied: false,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
@@ -2632,7 +2647,19 @@ function updateProjectiles(session, dt, events) {
         affected.forEach((enemy) => applyConcussiveImpact(session, enemy));
         events.push({ type: "explosion", weapon: projectile.visualKind, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
       } else {
-        damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: projectile.origin.x });
+        const derivanteDodging = target.type === "derivante"
+          && ["jumpTakeoff", "jumping"].includes(target.chapterFourState);
+        if (derivanteDodging) {
+          events.push({
+            type: "derivanteProjectileDodged",
+            enemyId: target.id,
+            projectileId: projectile.id,
+            x: target.x,
+            y: target.y,
+          });
+        } else {
+          damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: projectile.origin.x });
+        }
         events.push({
           type: projectile.kind === "ice" ? "iceImpact" : projectile.kind === "fireball" ? "fireImpact" : "projectileImpact",
           weapon: projectile.visualKind, x: targetPoint.x, y: targetPoint.y,
@@ -2743,6 +2770,29 @@ export function getSilicaDiggerSwarmSpeedFactor(session, enemy) {
   return grouped >= config.swarmMinCount ? config.swarmSpeedFactor : 1;
 }
 
+function resolveEnemyBreach(session, enemy, events) {
+  const pulse = pulseForRow(session, enemy.row);
+  if (canActivateDematerializationPulse(session, pulse, enemy)) {
+    enemy.x = FIELD.baseX;
+    enemy.moving = false;
+    activateDematerializationPulse(session, pulse, events);
+    return false;
+  }
+  if (pulse?.state === "charging") {
+    enemy.x = FIELD.baseX;
+    enemy.moving = false;
+    return false;
+  }
+  enemy.dead = true;
+  const shielded = !session.sandbox && session.shieldCharges > 0 && !ENEMIES[enemy.type]?.boss;
+  if (shielded) session.shieldCharges -= 1;
+  const breachDamage = shielded ? 0 : enemy.baseDamage * session.currentWaveBaseDamageFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+  if (!session.sandboxSettings?.invulnerableBase) session.integrity = Math.max(0, session.integrity - breachDamage);
+  if (shielded) events.push({ type: "shieldBlock", x: FIELD.baseX, y: enemy.y, remaining: session.shieldCharges });
+  events.push({ type: "breach", damage: breachDamage, x: FIELD.baseX, y: enemy.y });
+  return true;
+}
+
 function moveEnemy(session, enemy, dt, events) {
   enemy.moving = true;
   const slow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
@@ -2751,26 +2801,7 @@ function moveEnemy(session, enemy, dt, events) {
     * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
   if (enemy.x > FIELD.baseX) return;
 
-  const pulse = pulseForRow(session, enemy.row);
-  if (canActivateDematerializationPulse(session, pulse, enemy)) {
-    enemy.x = FIELD.baseX;
-    enemy.moving = false;
-    activateDematerializationPulse(session, pulse, events);
-    return;
-  }
-  if (pulse?.state === "charging") {
-    enemy.x = FIELD.baseX;
-    enemy.moving = false;
-    return;
-  }
-
-  enemy.dead = true;
-  const shielded = !session.sandbox && session.shieldCharges > 0 && !ENEMIES[enemy.type]?.boss;
-  if (shielded) session.shieldCharges -= 1;
-  const breachDamage = shielded ? 0 : enemy.baseDamage * session.currentWaveBaseDamageFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
-  if (!session.sandboxSettings?.invulnerableBase) session.integrity = Math.max(0, session.integrity - breachDamage);
-  if (shielded) events.push({ type: "shieldBlock", x: FIELD.baseX, y: enemy.y, remaining: session.shieldCharges });
-  events.push({ type: "breach", damage: breachDamage, x: FIELD.baseX, y: enemy.y });
+  resolveEnemyBreach(session, enemy, events);
 }
 
 function setWorkerQueenState(session, enemy, state, durationMs = Infinity) {
@@ -4042,7 +4073,74 @@ export function tryGorjalFormationPush(session, enemy, events = []) {
   return true;
 }
 
+function findGorjalChargeCollision(session, enemy, previousX, nextX, config) {
+  return session.troops
+    .filter((troop) => !troop.dead && troop.row === enemy.row && troop.x <= previousX)
+    .map((troop) => ({ troop, boundary: troop.x + gorjalContactDistance(troop, config) }))
+    .filter(({ boundary }) => boundary <= previousX && boundary >= nextX)
+    .sort((left, right) => right.boundary - left.boundary)[0] || null;
+}
+
+function resolveGorjalChargeImpact(session, enemy, target, config, events, options = {}) {
+  const contactDistance = gorjalContactDistance(target, config);
+  enemy.x = target.x + contactDistance;
+  enemy.previousRenderX = enemy.x;
+  const damage = enemy.variant === "alpha" ? 50 : config.chargeDamage;
+  damageTroop(session, target, damage, events);
+  const survived = !target.dead && target.hp > 0;
+  let pushed = false;
+  if (survived) {
+    target.electricParalyzedUntil = Math.max(
+      Number(target.electricParalyzedUntil || 0),
+      session.elapsed + config.chargeParalysisMs,
+    );
+    pushed = tryGorjalFormationPush(session, enemy, events);
+  }
+  enemy.gorjalLastChargedTroopId = target.id;
+  enemy.gorjalChargeTargetId = null;
+  enemy.gorjalChargeEndX = null;
+  if (options.initialCharge) {
+    enemy.gorjalInitialCharge = false;
+    enemy.gorjalInitialChargeCompleted = true;
+  }
+  enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
+  enemy.gorjalChargeCooldownStartedAt = session.elapsed;
+  setChapterFourState(session, enemy, "chargeImpact", 260);
+  events.push({
+    type: "gorjalChargeImpact", sourceEnemyId: enemy.id, targetTroopId: target.id,
+    initialCharge: Boolean(options.initialCharge), damage, pushed,
+    x: target.x, y: target.y, color: config.color, seed: nextEffectSeed(session),
+  });
+}
+
+function updateGorjalInitialCharge(session, enemy, config, dt, events) {
+  if (!enemy.gorjalInitialChargeStartedEventSent) {
+    enemy.gorjalInitialChargeStartedEventSent = true;
+    events.push({
+      type: "gorjalInitialChargeStarted", sourceEnemyId: enemy.id,
+      row: enemy.row, x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session),
+    });
+  }
+  enemy.moving = true;
+  const previousX = enemy.x;
+  const slowFactor = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
+  const distance = config.chargeSpeed * session.modifiers.enemySpeed
+    * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slowFactor * dt / 1000;
+  const nextX = Math.max(FIELD.baseX, previousX - distance);
+  const collision = findGorjalChargeCollision(session, enemy, previousX, nextX, config);
+  if (collision) {
+    resolveGorjalChargeImpact(session, enemy, collision.troop, config, events, { initialCharge: true });
+    return;
+  }
+  enemy.x = nextX;
+  if (enemy.x <= FIELD.baseX) resolveEnemyBreach(session, enemy, events);
+}
+
 function updateGorjal(session, enemy, config, dt, events) {
+  if (enemy.gorjalInitialCharge && enemy.chapterFourState === "charge") {
+    updateGorjalInitialCharge(session, enemy, config, dt, events);
+    return;
+  }
   const state = enemy.chapterFourState;
   if (state === "chargePrep") {
     enemy.moving = false;
@@ -4073,30 +4171,7 @@ function updateGorjal(session, enemy, config, dt, events) {
       && troop.row === enemy.row
     ));
     if (target && enemy.x <= enemy.gorjalChargeEndX) {
-      const contactDistance = gorjalContactDistance(target, config);
-      enemy.x = target.x + contactDistance;
-      enemy.previousRenderX = enemy.x;
-      const chargeDamage = enemy.variant === "alpha" ? 50 : config.chargeDamage;
-      damageTroop(session, target, chargeDamage, events);
-      const survived = !target.dead && target.hp > 0;
-      let pushed = false;
-      if (survived) {
-        target.electricParalyzedUntil = Math.max(
-          Number(target.electricParalyzedUntil || 0),
-          session.elapsed + config.chargeParalysisMs,
-        );
-        pushed = tryGorjalFormationPush(session, enemy, events);
-      }
-      enemy.gorjalLastChargedTroopId = target.id;
-      enemy.gorjalChargeTargetId = null;
-      enemy.gorjalChargeEndX = null;
-      enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
-      enemy.gorjalChargeCooldownStartedAt = session.elapsed;
-      setChapterFourState(session, enemy, "chargeImpact", 260);
-      events.push({
-        type: "gorjalChargeImpact", sourceEnemyId: enemy.id, targetTroopId: target.id,
-        pushed, x: target.x, y: target.y, color: config.color, seed: nextEffectSeed(session),
-      });
+      resolveGorjalChargeImpact(session, enemy, target, config, events);
       return;
     }
     if (enemy.x <= enemy.gorjalChargeEndX) {
@@ -4183,27 +4258,85 @@ function updateGorjal(session, enemy, config, dt, events) {
   }
 }
 
-function derivanteRowScore(session, row) {
-  const troops = session.troops.filter((troop) => !troop.dead && troop.row === row);
-  const paralyzed = troops.some((troop) => isElectricParalyzed(troop, session.elapsed));
-  const hp = troops.reduce((sum, troop) => sum + troop.hp, 0);
-  return (paralyzed ? 100000 : 0) + (troops.length === 0 ? 50000 : 0) - hp - troops.length * 1000;
+function findDerivanteCoverCandidates(session, enemy, row = enemy.row) {
+  return session.enemies.filter((candidate) => (
+    !candidate.dead
+    && candidate.id !== enemy.id
+    && candidate.row === row
+    && candidate.x < enemy.x
+    && candidate.hp > enemy.hp
+    && !ENEMIES[candidate.type]?.airborne
+    && candidate.type !== "workerQueenEgg"
+    && candidate.type !== "derivante"
+    && ["walking", "idle", "attack", "recover", "rooting", "rootedIdle", "attackCharge", "attackRelease"].includes(candidate.chapterFourState)
+  ));
+}
+
+function derivanteCoverScore(candidate) {
+  if (candidate.type === "gorjal") return 10000;
+  if (candidate.type === "raizFulgor") return 7000;
+  if (candidate.hp > 100) return 5000;
+  if (candidate.hp > 50) return 3000;
+  return 1000;
+}
+
+function derivanteRowScore(session, enemy, row) {
+  const troops = session.troops.filter((troop) => (
+    !troop.dead && troop.row === row && troop.x < enemy.x
+  ));
+  if (!troops.length) return -10000;
+  const covers = findDerivanteCoverCandidates(session, enemy, row);
+  const nearestTroop = [...troops].sort((left, right) => right.x - left.x)[0];
+  let score = 8000 + troops.length * 3000;
+  if (covers.length) score += 4000 + Math.max(...covers.map(derivanteCoverScore));
+  if (troops.some((troop) => isElectricParalyzed(troop, session.elapsed))) score += 3000;
+  if (troops.some((troop) => troop.hp / troop.maxHp < 0.4)) score += 2000;
+  if (nearestTroop) score += Math.max(0, 1500 - (enemy.x - nearestTroop.x));
+  return score;
 }
 
 function getRowCenter(row) {
   return row * CELL.height + CELL.height / 2;
 }
 
-function startDerivanteJump(session, enemy, targetRow, config) {
+function startDerivanteJump(session, enemy, targetRow, config, reason = "routeChange") {
   enemy.jumpSourceRow = enemy.row;
   enemy.jumpSourceY = enemy.y;
   enemy.jumpTargetRow = targetRow;
   enemy.jumpTargetY = getRowCenter(targetRow);
+  enemy.derivanteJumpSourceX = enemy.x;
+  enemy.derivanteJumpTargetX = Math.max(FIELD.baseX, enemy.x - config.jumpForwardTiles * CELL.width);
+  enemy.derivanteJumpReason = reason;
+  enemy.derivanteBehavior = "hunting";
   enemy.jumping = true;
   enemy.jumpProgress = 0;
   enemy.windMotion = null;
   setChapterFourState(session, enemy, "jumpPrepare", config.jumpPrepareMs);
   enemy.moving = false;
+}
+
+function selectDerivanteCover(session, enemy, row = enemy.row, events = []) {
+  const cover = findDerivanteCoverCandidates(session, enemy, row)
+    .sort((left, right) => derivanteCoverScore(right) - derivanteCoverScore(left))[0] || null;
+  if (cover && enemy.derivanteCoverEnemyId !== cover.id) {
+    enemy.derivanteCoverEnemyId = cover.id;
+    enemy.derivanteCoverTargetDistance = cover.x - enemy.x;
+    events.push({ type: "derivanteCoverSelected", enemyId: enemy.id, coverEnemyId: cover.id, row: enemy.row, x: enemy.x, y: enemy.y });
+  }
+  return cover;
+}
+
+function updateDerivanteCoverMovement(session, enemy, cover, config, dt, events) {
+  const desiredX = cover.x + config.coverDistanceTiles * CELL.width;
+  const delta = enemy.x - desiredX;
+  if (delta > 8) {
+    enemy.moving = false;
+    return;
+  }
+  const originalSpeed = enemy.speed;
+  enemy.speed = delta < -20 ? originalSpeed * 1.35 : originalSpeed * 0.35;
+  moveEnemy(session, enemy, dt, events);
+  enemy.speed = originalSpeed;
 }
 
 function updateDerivante(session, enemy, config, dt, events) {
@@ -4224,6 +4357,9 @@ function updateDerivante(session, enemy, config, dt, events) {
         ? enemy.jumpTargetY
         : getRowCenter(enemy.jumpTargetRow ?? enemy.row);
       enemy.y = sourceY + (targetY - sourceY) * eased;
+      const sourceX = Number.isFinite(enemy.derivanteJumpSourceX) ? enemy.derivanteJumpSourceX : enemy.x;
+      const targetX = Number.isFinite(enemy.derivanteJumpTargetX) ? enemy.derivanteJumpTargetX : sourceX;
+      enemy.x = sourceX + (targetX - sourceX) * eased;
     } else if (state === "windGlide" && enemy.windMotion) {
       const duration = Math.max(1, enemy.windMotion.endsAt - enemy.windMotion.startedAt);
       const progress = clamp((session.elapsed - enemy.windMotion.startedAt) / duration, 0, 1);
@@ -4243,6 +4379,7 @@ function updateDerivante(session, enemy, config, dt, events) {
         enemy.previousRenderY = enemy.y;
       }
       enemy.windMotion = null;
+      enemy.previousRenderX = enemy.x;
       setChapterFourState(session, enemy, "landing", config.landingMs);
     } else {
       enemy.nextSpecialAt = session.elapsed + config.breachCooldownMs;
@@ -4252,6 +4389,9 @@ function updateDerivante(session, enemy, config, dt, events) {
       enemy.jumpTargetY = null;
       enemy.jumping = false;
       enemy.jumpProgress = 0;
+      enemy.derivanteJumpSourceX = null;
+      enemy.derivanteJumpTargetX = null;
+      enemy.derivanteJumpReason = null;
       setChapterFourState(session, enemy, "walking");
     }
     return;
@@ -4281,19 +4421,32 @@ function updateDerivante(session, enemy, config, dt, events) {
     moveEnemy(session, enemy, dt, events);
     return;
   }
+  const cover = selectDerivanteCover(session, enemy, enemy.row, events);
+  if (enemy.derivanteCoverEnemyId && !cover) {
+    events.push({ type: "derivanteCoverLost", enemyId: enemy.id, coverEnemyId: enemy.derivanteCoverEnemyId, x: enemy.x, y: enemy.y });
+    enemy.derivanteCoverEnemyId = null;
+    enemy.derivanteCoverLostAt = session.elapsed;
+  }
+  if (cover && enemy.x >= cover.x && enemy.x - cover.x <= CELL.width * 1.5) {
+    enemy.derivanteBehavior = "covered";
+    updateDerivanteCoverMovement(session, enemy, cover, config, dt, events);
+  } else {
+    enemy.derivanteBehavior = cover ? "seekingCover" : "exposed";
+  }
   const target = closestTroopForEnemy(session, enemy);
   enemy.blockedSince = target && enemy.x - target.x <= troopBlockDistance(target)
     ? (enemy.blockedSince ?? session.elapsed)
     : null;
   if (session.elapsed >= enemy.nextSpecialAt) {
-    const adjacent = [enemy.row - 1, enemy.row + 1].filter((row) => row >= 0 && row < FIELD.rows);
-    const currentScore = derivanteRowScore(session, enemy.row);
-    const best = adjacent.sort((a, b) => derivanteRowScore(session, b) - derivanteRowScore(session, a))[0];
+    const candidateRows = Array.from({ length: FIELD.rows }, (_, row) => row)
+      .filter((row) => row !== enemy.row);
+    const currentScore = derivanteRowScore(session, enemy, enemy.row);
+    const best = candidateRows.sort((a, b) => derivanteRowScore(session, enemy, b) - derivanteRowScore(session, enemy, a))[0];
     const recentWind = session.windCurrent?.state === "active"
       && session.windCurrent.selectedRows?.includes(enemy.row);
     const shouldJump = best != null && (
       (enemy.blockedSince != null && session.elapsed - enemy.blockedSince >= config.blockedThresholdMs)
-      || derivanteRowScore(session, best) > currentScore || recentWind
+      || derivanteRowScore(session, enemy, best) > currentScore + config.minimumRowScoreImprovement || recentWind
     );
     if (shouldJump) {
       startDerivanteJump(session, enemy, best, config);
