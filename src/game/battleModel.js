@@ -1631,6 +1631,27 @@ function updatePrismaticMantle(session, events) {
   }
 }
 
+export function eliminateTroop(session, troop, events, reason = "enemy", options = {}) {
+  if (!troop || troop.dead) return false;
+  troop.hp = options.preserveHp ? troop.hp : 0;
+  troop.dead = true;
+  troop.removedByWind = reason === "wind";
+  troop.defenseActive = false;
+  troop.pendingRepulsorShot = null;
+  recordTroopLoss(session, troop, reason);
+  releaseParasiteFromTroop(session, troop);
+  refreshSwarmDoctrine(session);
+  if (!options.suppressEvent) {
+    events.push({
+      type: options.eventType ?? "troopDeath",
+      entity: { ...troop },
+      x: troop.x,
+      y: troop.y,
+    });
+  }
+  return true;
+}
+
 function damageTroop(session, troop, amount, events) {
   if (!troop || troop.dead) return;
   const config = TROOPS[troop.type];
@@ -1667,14 +1688,7 @@ function damageTroop(session, troop, amount, events) {
   }
   events.push({ type: "troopHit", targetId: troop.id, x: troop.x, y: troop.y });
   if (troop.hp <= 0) {
-    troop.hp = 0;
-    troop.dead = true;
-    troop.defenseActive = false;
-    troop.pendingRepulsorShot = null;
-    recordTroopLoss(session, troop, session.sandbox ? "sandbox" : "enemy");
-    releaseParasiteFromTroop(session, troop);
-    refreshSwarmDoctrine(session);
-    events.push({ type: "troopDeath", x: troop.x, y: troop.y, entity: { ...troop } });
+    eliminateTroop(session, troop, events, session.sandbox ? "sandbox" : "enemy");
   }
 }
 
@@ -4641,6 +4655,8 @@ export function stepBattle(session, dt = 32) {
     troops: TROOPS,
     enemies: ENEMIES,
     isCellReserved: capsuleReservesCell,
+    damageTroop,
+    eliminateTroop,
   });
   updateSandstorm(session, events);
   const settlingWaveOutro = ["finalKill", "cleanup"].includes(session.waveOutro?.status);
@@ -4905,6 +4921,7 @@ export function getSnapshot(session) {
       verticalDirection: session.windCurrent.verticalDirection,
       selectedRows: [...session.windCurrent.selectedRows],
       sourceRow: session.windCurrent.sourceRow,
+      sourceCol: session.windCurrent.sourceCol,
       targetRow: session.windCurrent.targetRow,
       startsInMs: session.windCurrent.state === "warning"
         ? Math.max(0, session.windCurrent.startsAt - session.elapsed)
@@ -4915,8 +4932,9 @@ export function getSnapshot(session) {
           ? Math.max(0, session.windCurrent.recoveryEndsAt - session.elapsed)
           : 0,
       currentsThisWave: session.windCurrent.currentsThisWave,
-      selectedTroopId: session.windCurrent.selectedTroopId,
       shiftedTroopIds: [...session.windCurrent.shiftedTroopIds],
+      ejectedTroopIds: [...session.windCurrent.ejectedTroopIds],
+      collisionTroopIds: [...session.windCurrent.collisionTroopIds],
       shiftedEnemyIds: [...session.windCurrent.shiftedEnemyIds],
       ejectedEnemyIds: [...session.windCurrent.ejectedEnemyIds],
       troopCountAtStart: session.windCurrent.troopCountAtStart,
@@ -4928,7 +4946,6 @@ export function getSnapshot(session) {
       nextCheckInMs: Number.isFinite(session.windCurrent.nextCheckAt)
         ? Math.max(0, session.windCurrent.nextCheckAt - session.elapsed)
         : 0,
-      recoveryQueue: session.windCurrent.recoveryQueue.map((entry) => ({ ...entry })),
     },
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,

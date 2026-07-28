@@ -6,17 +6,9 @@ export const WIND_CURRENT_DIRECTIONS = Object.freeze([
   "lateral",
 ]);
 
-const WIND_CLASS_WEIGHTS = Object.freeze({
-  light: 4,
-  medium: 2,
-  heavy: 1,
-  structure: 0,
-});
-
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const livingTroops = (session) => session.troops.filter((troop) => !troop.dead);
-const actionableTroops = (session) =>
-  livingTroops(session).filter((troop) => !troop.windRecovery);
+const actionableTroops = (session) => livingTroops(session);
 
 export function createWindCurrentHazard(
   chapterIndex,
@@ -40,8 +32,9 @@ export function createWindCurrentHazard(
     enemyLongitudinalPushTiles: 0.75,
     lateralEnemyMinRatio: 0.2,
     lateralEnemyMaxRatio: 0.4,
-    emergencyFallDurationMs: 8000,
-    emergencyFallHpFactor: 0.25,
+    troopLongitudinalShiftTiles: 1,
+    lateralShiftRows: 1,
+    collisionDamageRatio: 0.2,
     directionWeights: { ...directionWeights },
     affectedRouteRange: [...affectedRouteRange],
   };
@@ -64,7 +57,9 @@ export function createWindCurrentState() {
     targetRow: null,
     primaryGustAt: Infinity,
     displacementApplied: false,
-    selectedTroopId: null,
+    sourceCol: null,
+    ejectedTroopIds: [],
+    collisionTroopIds: [],
     shiftedTroopIds: [],
     shiftedEnemyIds: [],
     ejectedEnemyIds: [],
@@ -74,15 +69,12 @@ export function createWindCurrentState() {
     troopLossRatio: 0,
     repeatLossToleranceRatio: 0,
     repeatEligible: true,
-    recoveryQueue: [],
   };
 }
 
 export function resetWindCurrentForWave(session, config = session.phase?.environmentHazard) {
-  const recoveryQueue = session.windCurrent?.recoveryQueue || [];
   session.windCurrent = {
     ...createWindCurrentState(),
-    recoveryQueue,
     repeatLossToleranceRatio: config?.repeatLossToleranceRatio || 0,
     nextCheckAt: config?.id === "wind_current"
       ? session.elapsed + config.firstCheckDelayMs
@@ -135,15 +127,21 @@ function selectRouteCount(config, rng) {
   return min + Math.floor(rng() * (max - min + 1));
 }
 
-function prepareDirection(session, config) {
+function prepareDirection(session, config, dependencies = {}) {
   const wind = session.windCurrent;
   wind.direction = selectDirection(config, session.rng);
   wind.verticalDirection = null;
   wind.selectedRows = [];
   wind.sourceRow = null;
+  wind.sourceCol = null;
   wind.targetRow = null;
   if (wind.direction === "lateral") {
-    wind.sourceRow = Math.floor(session.rng() * FIELD.rows);
+    const candidates = actionableTroops(session).filter((troop) => !isWindAnchor(troop, dependencies));
+    const origin = candidates.length
+      ? candidates[Math.floor(session.rng() * candidates.length)]
+      : null;
+    wind.sourceRow = origin?.row ?? Math.floor(session.rng() * FIELD.rows);
+    wind.sourceCol = origin?.col ?? FIELD.firstTroopCol;
     wind.verticalDirection = session.rng() < 0.5 ? -1 : 1;
     wind.targetRow = wind.sourceRow + wind.verticalDirection;
     wind.selectedRows = [wind.sourceRow];
@@ -158,28 +156,26 @@ function eventDirectionPayload(wind) {
     verticalDirection: wind.verticalDirection,
     selectedRows: [...wind.selectedRows],
     sourceRow: wind.sourceRow,
+    sourceCol: wind.sourceCol,
     targetRow: wind.targetRow,
   };
-}
-
-function cellReservedByRecovery(session, row, col, ignoreTroopId = null) {
-  return session.windCurrent.recoveryQueue.some((entry) =>
-    entry.troopId !== ignoreTroopId
-    && entry.originalRow === row
-    && entry.originalCol === col);
 }
 
 function cellBlocked(session, row, col, dependencies = {}, ignoreTroopId = null) {
   if (row < 0 || row >= FIELD.rows || col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) return true;
   if (session.troops.some((troop) =>
-    !troop.dead && !troop.windRecovery && troop.id !== ignoreTroopId
+    !troop.dead && troop.id !== ignoreTroopId
     && troop.row === row && troop.col === col)) return true;
   if (session.mines.some((mine) => mine.active && mine.row === row && mine.col === col)) return true;
   if (session.projectiles.some((projectile) =>
     projectile.active && projectile.kind === "mine"
     && projectile.targetRow === row && projectile.targetCol === col)) return true;
   if (dependencies.isCellReserved?.(session, row, col)) return true;
-  return cellReservedByRecovery(session, row, col, ignoreTroopId);
+  return false;
+}
+
+function isWindAnchor(troop, dependencies) {
+  return Boolean(troop && (troop.windAnchor || dependencies.troops?.[troop.type]?.windAnchor));
 }
 
 function moveTroop(troop, row, col, now, events, type = "windTroopShifted", extra = {}) {
@@ -210,118 +206,110 @@ function moveTroop(troop, row, col, now, events, type = "windTroopShifted", extr
   });
 }
 
-function tryHeadwindTroopShift(session, row, dependencies, events) {
-  const candidates = shuffled(
-    actionableTroops(session).filter((troop) =>
-      troop.row === row
-      && (dependencies.troops?.[troop.type]?.windClass || "medium") !== "structure"),
-    session.rng,
-  );
-  for (const troop of candidates) {
-    const targetCol = troop.col - 1;
-    if (cellBlocked(session, row, targetCol, dependencies, troop.id)) continue;
-    moveTroop(troop, row, targetCol, session.elapsed, events);
-    session.windCurrent.shiftedTroopIds.push(troop.id);
-    return true;
-  }
-  return false;
+function troopAt(session, row, col) {
+  return session.troops.find((troop) => !troop.dead && troop.row === row && troop.col === col) || null;
 }
 
-function openLateralDestination(session, row, col, dependencies, events) {
-  if (!cellBlocked(session, row, col, dependencies)) return true;
-  let freeCol = null;
-  for (let candidate = col + 1; candidate <= FIELD.lastTroopCol; candidate += 1) {
-    const occupant = session.troops.find((troop) =>
-      !troop.dead && !troop.windRecovery && troop.row === row && troop.col === candidate);
-    if (occupant && dependencies.troops?.[occupant.type]?.windClass === "structure") return false;
-    if (!cellBlocked(session, row, candidate, dependencies)) {
-      freeCol = candidate;
-      break;
-    }
+function permanentlyEjectTroop(session, troop, direction, dependencies, events) {
+  if (!troop || troop.dead) return;
+  const from = { row: troop.row, col: troop.col, x: troop.x, y: troop.y };
+  if (dependencies.eliminateTroop) {
+    dependencies.eliminateTroop(session, troop, events, "wind", {
+      preserveHp: true,
+      suppressEvent: true,
+    });
+  } else {
+    troop.dead = true;
+    troop.removedByWind = true;
   }
-  if (freeCol == null) return false;
-  for (let current = freeCol - 1; current >= col; current -= 1) {
-    const occupant = session.troops.find((troop) =>
-      !troop.dead && !troop.windRecovery && troop.row === row && troop.col === current);
-    if (!occupant || dependencies.troops?.[occupant.type]?.windClass === "structure") return false;
-    moveTroop(
-      occupant,
-      row,
-      current + 1,
-      session.elapsed,
-      events,
-      "windTroopChainShifted",
-      { chain: true },
-    );
-    session.windCurrent.shiftedTroopIds.push(occupant.id);
-  }
-  return !cellBlocked(session, row, col, dependencies);
-}
-
-function ejectTroop(session, troop, config, events) {
-  const wind = session.windCurrent;
-  const entry = {
-    troopId: troop.id,
-    troopType: troop.type,
-    originalRow: troop.row,
-    originalCol: troop.col,
-    removedAt: session.elapsed,
-    returnsAt: session.elapsed + config.emergencyFallDurationMs,
-    hpBeforeFall: troop.hp,
-    damageAmount: troop.maxHp * config.emergencyFallHpFactor,
-    status: "falling",
-    direction: wind.verticalDirection,
-  };
-  troop.hp = Math.max(1, troop.hp - entry.damageAmount);
-  troop.windRecovery = true;
-  troop.row = -1;
-  troop.col = -1;
-  wind.recoveryQueue.push(entry);
-  wind.selectedTroopId = troop.id;
-  wind.shiftedTroopIds.push(troop.id);
+  troop.removedByWind = true;
+  session.windCurrent.ejectedTroopIds.push(troop.id);
+  session.windCurrent.shiftedTroopIds.push(troop.id);
   events.push({
-    type: "windTroopEjected",
+    type: "windTroopEjectedPermanent",
     troopId: troop.id,
     troopType: troop.type,
-    entity: {
-      ...troop,
-      row: entry.originalRow,
-      col: entry.originalCol,
-      x: entry.originalCol * CELL.width + CELL.width / 2,
-      y: entry.originalRow * CELL.height + CELL.height / 2,
-    },
-    originalRow: entry.originalRow,
-    originalCol: entry.originalCol,
-    verticalDirection: wind.verticalDirection,
+    entity: { ...troop, row: from.row, col: from.col, x: from.x, y: from.y },
+    from,
+    verticalDirection: direction,
     startedAt: session.elapsed,
-    durationMs: 800,
+    durationMs: 900,
   });
 }
 
-function tryLateralTroopShift(session, config, dependencies, events) {
-  const wind = session.windCurrent;
-  const remaining = actionableTroops(session).filter((troop) =>
-    troop.row === wind.sourceRow
-    && (dependencies.troops?.[troop.type]?.windClass || "medium") !== "structure");
-  while (remaining.length) {
-    const troop = weightedPick(
-      remaining,
-      (entry) => WIND_CLASS_WEIGHTS[dependencies.troops?.[entry.type]?.windClass || "medium"],
-      session.rng,
-    );
-    if (!troop) return false;
-    remaining.splice(remaining.indexOf(troop), 1);
-    if (wind.targetRow < 0 || wind.targetRow >= FIELD.rows) {
-      ejectTroop(session, troop, config, events);
-      return true;
+function applyWindCollisionDamage(session, troop, blocker, config, dependencies, events) {
+  const damage = troop.maxHp * config.collisionDamageRatio;
+  dependencies.damageTroop?.(session, troop, damage, events);
+  session.windCurrent.collisionTroopIds.push(troop.id);
+  events.push({
+    type: "windTroopCollision",
+    troopId: troop.id,
+    blockerId: blocker.id,
+    damage,
+    row: troop.row,
+    col: troop.col,
+  });
+}
+
+function applyHeadwindTroopShift(session, row, dependencies, events) {
+  const troops = actionableTroops(session)
+    .filter((troop) => troop.row === row)
+    .sort((left, right) => left.col - right.col);
+  for (const troop of troops) {
+    if (isWindAnchor(troop, dependencies)) continue;
+    if (troop.col === FIELD.firstTroopCol) {
+      permanentlyEjectTroop(session, troop, 0, dependencies, events);
+      continue;
     }
-    if (!openLateralDestination(session, wind.targetRow, troop.col, dependencies, events)) continue;
-    wind.selectedTroopId = troop.id;
-    moveTroop(troop, wind.targetRow, troop.col, session.elapsed, events);
-    wind.shiftedTroopIds.push(troop.id);
-    return true;
+    const targetCol = troop.col - 1;
+    if (!cellBlocked(session, row, targetCol, dependencies, troop.id)) {
+      moveTroop(troop, row, targetCol, session.elapsed, events);
+      session.windCurrent.shiftedTroopIds.push(troop.id);
+    }
   }
-  return false;
+}
+
+function applyTailwindTroopShift(session, row, config, dependencies, events) {
+  const troops = actionableTroops(session)
+    .filter((troop) => troop.row === row)
+    .sort((left, right) => right.col - left.col);
+  for (const troop of troops) {
+    if (isWindAnchor(troop, dependencies) || troop.col === FIELD.lastTroopCol) continue;
+    const blocker = troopAt(session, row, troop.col + 1);
+    if (blocker && isWindAnchor(blocker, dependencies)) {
+      applyWindCollisionDamage(session, troop, blocker, config, dependencies, events);
+      continue;
+    }
+    if (!blocker && !cellBlocked(session, row, troop.col + 1, dependencies, troop.id)) {
+      moveTroop(troop, row, troop.col + 1, session.elapsed, events);
+      session.windCurrent.shiftedTroopIds.push(troop.id);
+    }
+  }
+}
+
+function applyLateralTroopColumnShift(session, config, dependencies, events) {
+  const wind = session.windCurrent;
+  const rows = wind.verticalDirection < 0
+    ? Array.from({ length: wind.sourceRow + 1 }, (_, row) => row)
+    : Array.from({ length: FIELD.rows - wind.sourceRow }, (_, index) => FIELD.rows - 1 - index);
+  for (const row of rows) {
+    const troop = troopAt(session, row, wind.sourceCol);
+    if (!troop || isWindAnchor(troop, dependencies)) continue;
+    const targetRow = row + wind.verticalDirection;
+    if (targetRow < 0 || targetRow >= FIELD.rows) {
+      permanentlyEjectTroop(session, troop, wind.verticalDirection, dependencies, events);
+      continue;
+    }
+    const blocker = troopAt(session, targetRow, wind.sourceCol);
+    if (blocker && isWindAnchor(blocker, dependencies)) {
+      applyWindCollisionDamage(session, troop, blocker, config, dependencies, events);
+      continue;
+    }
+    if (!blocker && !cellBlocked(session, targetRow, wind.sourceCol, dependencies, troop.id)) {
+      moveTroop(troop, targetRow, wind.sourceCol, session.elapsed, events, "windTroopColumnShifted");
+      session.windCurrent.shiftedTroopIds.push(troop.id);
+    }
+  }
 }
 
 function enemyEligible(enemy, dependencies) {
@@ -490,95 +478,30 @@ function applyPrimaryGust(session, config, dependencies, events) {
   });
   if (wind.direction === "headwind") {
     applyLongitudinalEnemyPush(session, config, dependencies, events);
-    wind.selectedRows.forEach((row) => tryHeadwindTroopShift(session, row, dependencies, events));
+    wind.selectedRows.forEach((row) => applyHeadwindTroopShift(session, row, dependencies, events));
   } else if (wind.direction === "tailwind") {
     applyLongitudinalEnemyPush(session, config, dependencies, events);
+    wind.selectedRows.forEach((row) => applyTailwindTroopShift(session, row, config, dependencies, events));
   } else {
-    tryLateralTroopShift(session, config, dependencies, events);
+    applyLateralTroopColumnShift(session, config, dependencies, events);
     applyLateralEnemyPush(session, config, dependencies, events);
   }
 }
 
-function recoveryCandidates(entry) {
-  const result = [{ row: entry.originalRow, col: entry.originalCol }];
-  for (let distance = 1; distance <= FIELD.lastTroopCol - FIELD.firstTroopCol; distance += 1) {
-    for (const col of [entry.originalCol - distance, entry.originalCol + distance]) {
-      if (col >= FIELD.firstTroopCol && col <= FIELD.lastTroopCol) {
-        result.push({ row: entry.originalRow, col });
-      }
-    }
-  }
-  for (const row of [entry.originalRow - 1, entry.originalRow + 1]) {
-    if (row < 0 || row >= FIELD.rows) continue;
-    result.push({ row, col: entry.originalCol });
-    for (let distance = 1; distance <= FIELD.lastTroopCol - FIELD.firstTroopCol; distance += 1) {
-      for (const col of [entry.originalCol - distance, entry.originalCol + distance]) {
-        if (col >= FIELD.firstTroopCol && col <= FIELD.lastTroopCol) result.push({ row, col });
-      }
-    }
-  }
-  return result;
-}
-
-function updateEmergencyRecoveries(session, dependencies, events) {
+function beginWarning(session, config, events, dependencies) {
   const wind = session.windCurrent;
-  for (const entry of [...wind.recoveryQueue]) {
-    if (session.elapsed < entry.returnsAt) continue;
-    const troop = session.troops.find((candidate) => candidate.id === entry.troopId && !candidate.dead);
-    if (!troop) {
-      wind.recoveryQueue.splice(wind.recoveryQueue.indexOf(entry), 1);
-      continue;
-    }
-    const destination = recoveryCandidates(entry)
-      .find(({ row, col }) => !cellBlocked(session, row, col, dependencies, troop.id));
-    if (!destination) {
-      entry.returnsAt = session.elapsed + 1000;
-      entry.status = "waiting";
-      continue;
-    }
-    troop.row = destination.row;
-    troop.col = destination.col;
-    troop.x = destination.col * CELL.width + CELL.width / 2;
-    troop.y = destination.row * CELL.height + CELL.height / 2;
-    troop.previousRenderX = troop.x;
-    troop.previousRenderY = troop.y;
-    troop.windRecovery = false;
-    troop.windMotion = {
-      fromX: troop.x,
-      fromY: troop.y - 90,
-      toX: troop.x,
-      toY: troop.y,
-      startedAt: session.elapsed,
-      endsAt: session.elapsed + 650,
-    };
-    wind.recoveryQueue.splice(wind.recoveryQueue.indexOf(entry), 1);
-    events.push({
-      type: "windEmergencyReturn",
-      troopId: troop.id,
-      troopType: troop.type,
-      row: troop.row,
-      col: troop.col,
-      x: troop.x,
-      y: troop.y,
-      startedAt: session.elapsed,
-      durationMs: 650,
-    });
-  }
-}
-
-function beginWarning(session, config, events) {
-  const wind = session.windCurrent;
-  prepareDirection(session, config);
+  prepareDirection(session, config, dependencies);
   wind.state = "warning";
   wind.warningStartedAt = session.elapsed;
   wind.startsAt = session.elapsed + config.warningMs;
   wind.endsAt = wind.startsAt + config.durationMs;
   wind.primaryGustAt = wind.startsAt + config.primaryGustDelayMs;
   wind.displacementApplied = false;
-  wind.selectedTroopId = null;
   wind.shiftedTroopIds = [];
   wind.shiftedEnemyIds = [];
   wind.ejectedEnemyIds = [];
+  wind.ejectedTroopIds = [];
+  wind.collisionTroopIds = [];
   events.push({
     type: "windCurrentWarning",
     ...eventDirectionPayload(wind),
@@ -641,7 +564,6 @@ export function endWindCurrent(session, events = [], forced = false) {
 export function updateWindCurrent(session, events = [], dependencies = {}) {
   const config = session.phase?.environmentHazard;
   if (!session.windCurrent) session.windCurrent = createWindCurrentState();
-  updateEmergencyRecoveries(session, dependencies, events);
   if (config?.id !== "wind_current") return events;
   const wind = session.windCurrent;
   if (!session.waveActive && !session.sandbox) return events;
@@ -673,6 +595,6 @@ export function updateWindCurrent(session, events = [], dependencies = {}) {
     config.baseChance + (troopCount - config.minTroops) * config.chancePerExtraTroop,
   );
   if (session.rng() >= chance) return events;
-  beginWarning(session, config, events);
+  beginWarning(session, config, events, dependencies);
   return events;
 }

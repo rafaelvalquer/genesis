@@ -1551,6 +1551,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           || event.type === "windTroopChainShifted"
           || event.type === "windEnemyShifted")) play("windTroopShift", 0.42);
         if (events.some((event) => event.type === "windTroopEjected"
+          || event.type === "windTroopEjectedPermanent"
+          || event.type === "windTroopCollision"
           || event.type === "windEnemyEjected")) play("windEjection", 0.72);
         if (events.some((event) => event.type === "windCurrentRecovering")) {
           audioRef.current.windActiveLoop?.pause();

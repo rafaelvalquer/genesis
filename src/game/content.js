@@ -1156,8 +1156,15 @@ const TROOP_WIND_CLASSES = Object.freeze({
   guarda: "medium",
 });
 
+const TROOP_WIND_ANCHORS = Object.freeze({
+  muralhaReforcada: true,
+  lumiUrsa7: true,
+  colossoImpacto: true,
+});
+
 Object.values(TROOPS).forEach((troop) => {
   troop.windClass = TROOP_WIND_CLASSES[troop.id] || "medium";
+  troop.windAnchor = TROOP_WIND_ANCHORS[troop.id] === true;
 });
 
 export const ENEMIES = {

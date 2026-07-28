@@ -30,6 +30,7 @@ export function getWindCurrentVisualState(session, time = session?.elapsed || 0)
     verticalDirection: wind.verticalDirection,
     selectedRows: [...wind.selectedRows],
     sourceRow: wind.sourceRow,
+    sourceCol: wind.sourceCol,
     targetRow: wind.targetRow,
   };
 }
@@ -73,6 +74,12 @@ export function drawWindRouteOverlay(ctx, visual, time, settings = {}) {
       const arrowY = y + CELL.height / 2 + (vector.y ? ((index % 3) - 1) * 20 : 0);
       ctx.fillText(vector.glyph, x, arrowY);
     }
+  }
+  if (visual.direction === "lateral" && Number.isInteger(visual.sourceCol)) {
+    const x = visual.sourceCol * CELL.width;
+    ctx.strokeStyle = `${color}dd`;
+    ctx.lineWidth = visual.state === "warning" ? 3 : 2;
+    ctx.strokeRect(x + 2, 2, CELL.width - 4, FIELD.height - 4);
   }
   ctx.restore();
 }
@@ -137,10 +144,10 @@ export function consumeWindCurrentGraphicsEvents(runtime, events, now) {
   for (const event of events) {
     if (event.type === "windPrimaryGust") {
       runtime.windEffects.push({ kind: "gust", ...event, born: now, life: 480 });
-    } else if (event.type === "windTroopEjected" || event.type === "windEnemyEjected") {
+    } else if (event.type === "windTroopEjected" || event.type === "windTroopEjectedPermanent" || event.type === "windEnemyEjected") {
       runtime.windEffects.push({ kind: "ejection", ...event, born: now, life: event.durationMs || 800 });
-    } else if (event.type === "windEmergencyReturn") {
-      runtime.windEffects.push({ kind: "return", ...event, born: now, life: event.durationMs || 650 });
+    } else if (event.type === "windTroopCollision") {
+      runtime.windEffects.push({ kind: "collision", ...event, born: now, life: 420 });
     } else if (event.type === "windTroopShifted" || event.type === "windTroopChainShifted"
       || event.type === "windEnemyShifted") {
       runtime.windEffects.push({ kind: "shift", ...event, born: now, life: event.durationMs || 600 });
