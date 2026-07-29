@@ -33,6 +33,10 @@ const CHAPTER_FOUR_WAVE_OVERRIDES = Object.freeze({
     spawnWindowMs: 66000,
     densify: false,
   }),
+  // Reduz a pressão inicial da fase final sem alterar as ondas seguintes.
+  "7:0": Object.freeze({
+    sequence: Object.freeze(["P1", "P3", "P2", "P4", "P5"]),
+  }),
 });
 
 function aggregateEnemies(packets) {

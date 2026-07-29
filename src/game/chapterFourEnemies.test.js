@@ -7,6 +7,7 @@ import {
   tryGorjalFormationPush,
 } from "./battleModel.js";
 import { CHAPTER_FOUR_ENEMY_IDS } from "./chapterFourEnemies.js";
+import { createChapterFourWaves } from "./chapterFourWaves.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
 
 describe("inimigos do Capítulo 4", () => {
@@ -111,6 +112,15 @@ describe("inimigos do Capítulo 4", () => {
     expect(chapter.phaseIds).toHaveLength(8);
     expect(phases.map((phase) => phase.waves.length)).toEqual([5, 5, 5, 5, 6, 6, 6, 7]);
     expect(phases.every((phase) => phase.loadoutLimit === 7 && phase.supplyLimit === 35)).toBe(true);
+  });
+
+  it("alivia a primeira onda da fase 32", () => {
+    const openingWave = createChapterFourWaves(7)[0];
+    const enemyCount = openingWave.enemies.reduce((total, enemy) => total + enemy.count, 0);
+
+    expect(enemyCount).toBe(31);
+    expect(openingWave.packetThreat).toBe(384);
+    expect(openingWave.spawnBlocks.flatMap((block) => block.packets)).toHaveLength(8);
   });
 
   it("sincroniza o projétil do Nimbarca no quadro de liberação e o cria uma única vez", () => {
