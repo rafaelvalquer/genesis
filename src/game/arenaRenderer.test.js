@@ -281,6 +281,24 @@ describe("arenas cinematograficas", () => {
     expect(getPlacementPreviewGeometry(session, "sniper", { row: 4, col: 8 }).range.x1).toBe(1100);
   });
 
+  it("resolve o retrato e a prévia de empilhamento do Drone Sentinela", () => {
+    expect(getTroopPreviewUrl("droneSentinela")).toMatch(/idle1.*frame0.*\.png/i);
+    const session = createBattleSession(PHASES[0], ["droneSentinela"], 17);
+    session.energy = 30;
+    session.supply = 6;
+    expect(getPlacementPreviewGeometry(session, "droneSentinela", { row: 2, col: 2 })).toMatchObject({
+      valid: true,
+      droneCount: 1,
+      placementLabel: "Implantar Drone Sentinela — 1/3",
+    });
+    expect(placeTroop(session, "droneSentinela", 2, 2).ok).toBe(true);
+    expect(getPlacementPreviewGeometry(session, "droneSentinela", { row: 2, col: 2 })).toMatchObject({
+      valid: true,
+      droneCount: 2,
+      placementLabel: "Adicionar drone — 1/3 → 2/3",
+    });
+  });
+
   it("mostra as três colunas e todas as linhas na prévia da Demolidora", () => {
     const session = createBattleSession(PHASES[5], ["demolidora"], 7);
     expect(getPlacementPreviewGeometry(session, "demolidora", { row: 2, col: 1 }).range).toEqual({

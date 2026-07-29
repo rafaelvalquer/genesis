@@ -1,5 +1,7 @@
 import { ENEMIES } from "./content.js";
 import { CELL } from "./visualGeometry.js";
+import { getBattleIndex, livingEnemyById } from "./battleIndex.js";
+import { createProjectileTrail } from "./projectileTrail.js";
 
 const alive = (enemy) => enemy && !enemy.dead && enemy.hp > 0;
 const baseDistance = (enemy) => Number(enemy.x) || Infinity;
@@ -43,10 +45,18 @@ function comparePriority(left, right, priority) {
 }
 
 export function selectIcaroTarget(session, troop, config) {
-  const candidates = session.enemies.filter((enemy) => inNormalRange(enemy, troop, config));
-  const airTargets = candidates.filter(isIcaroAirTarget);
-  return [...(airTargets.length ? airTargets : candidates)]
-    .sort((left, right) => comparePriority(left, right, normalPriority))[0] || null;
+  const candidates = getBattleIndex(session)?.enemiesByRow[troop.row] || session.enemies;
+  let bestAir = null;
+  let bestGround = null;
+  for (const enemy of candidates) {
+    if (!inNormalRange(enemy, troop, config)) continue;
+    if (isIcaroAirTarget(enemy)) {
+      if (!bestAir || comparePriority(enemy, bestAir, normalPriority) < 0) bestAir = enemy;
+    } else if (!bestGround || comparePriority(enemy, bestGround, normalPriority) < 0) {
+      bestGround = enemy;
+    }
+  }
+  return bestAir || bestGround;
 }
 
 function inInterceptionRange(enemy, troop, config) {
@@ -63,20 +73,34 @@ function interceptionPriority(enemy) {
 }
 
 export function selectIcaroInterceptionTargets(session, troop, config) {
-  return session.enemies
-    .filter((enemy) => inInterceptionRange(enemy, troop, config))
-    .sort((left, right) => comparePriority(left, right, interceptionPriority))
-    .slice(0, config.interceptionMaxTargets);
+  const selected = [];
+  const rows = getBattleIndex(session)?.enemiesByRow;
+  const consider = (enemy) => {
+    if (!inInterceptionRange(enemy, troop, config)) return;
+    let insertAt = selected.length;
+    while (insertAt > 0
+      && comparePriority(enemy, selected[insertAt - 1], interceptionPriority) < 0) insertAt -= 1;
+    selected.splice(insertAt, 0, enemy);
+    if (selected.length > config.interceptionMaxTargets) selected.length = config.interceptionMaxTargets;
+  };
+  if (rows) {
+    for (const row of rows) for (const enemy of row) consider(enemy);
+  } else {
+    for (const enemy of session.enemies) consider(enemy);
+  }
+  return selected;
 }
 
 export function selectIcaroBurstRetarget(session, projectile, config) {
-  return session.enemies
-    .filter((enemy) => alive(enemy)
-      && enemy.row === projectile.row
-      && isIcaroAirTarget(enemy)
-      && enemy.x >= projectile.origin.x
-      && enemy.x - projectile.origin.x <= config.range * CELL.width)
-    .sort((left, right) => comparePriority(left, right, normalPriority))[0] || null;
+  const candidates = getBattleIndex(session)?.enemiesByRow[projectile.row] || session.enemies;
+  let best = null;
+  for (const enemy of candidates) {
+    if (!alive(enemy) || enemy.row !== projectile.row || !isIcaroAirTarget(enemy)
+      || enemy.x < projectile.origin.x
+      || enemy.x - projectile.origin.x > config.range * CELL.width) continue;
+    if (!best || comparePriority(enemy, best, normalPriority) < 0) best = enemy;
+  }
+  return best;
 }
 
 function setState(troop, state, now, durationMs) {
@@ -103,7 +127,7 @@ function launchProjectile(session, troop, config, target, special, shotIndex, de
     previousY: origin.y,
     origin: { ...origin },
     ageMs: 0,
-    trail: [{ x: origin.x, y: origin.y }],
+    trail: createProjectileTrail(special ? 8 : 4, origin.x, origin.y),
     speed: special ? config.interceptionProjectileSpeed : config.projectileSpeed,
     baseDamage: special ? config.interceptionDamage : config.damage,
     special,
@@ -135,9 +159,14 @@ function startInterception(session, troop, config, targets, events, dependencies
 }
 
 function fireInterception(session, troop, config, events, dependencies) {
-  const targets = troop.icaroLockedTargetIds
-    .map((targetId) => session.enemies.find((enemy) => enemy.id === targetId && alive(enemy)))
-    .filter((enemy) => enemy && isIcaroAirTarget(enemy));
+  const targets = [];
+  const index = getBattleIndex(session);
+  for (const targetId of troop.icaroLockedTargetIds) {
+    const enemy = index
+      ? livingEnemyById(index, targetId)
+      : session.enemies.find((candidate) => candidate.id === targetId && alive(candidate));
+    if (enemy && isIcaroAirTarget(enemy)) targets.push(enemy);
+  }
   targets.forEach((target, index) =>
     launchProjectile(session, troop, config, target, true, index, dependencies));
   setState(troop, "interceptionFire", session.elapsed, config.interceptionFireVisual.durationMs);

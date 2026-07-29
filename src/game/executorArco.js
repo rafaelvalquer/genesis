@@ -1,5 +1,6 @@
 import { ENEMIES } from "./content.js";
 import { CELL } from "./visualGeometry.js";
+import { getBattleIndex, livingEnemyById } from "./battleIndex.js";
 
 const MODES = ["combo1", "combo2", "combo3"];
 
@@ -35,31 +36,39 @@ export function isEnemyWithinExecutorRangedRange(troop, enemy, config) {
 }
 
 export function selectExecutorRangedTarget(session, troop, config) {
-  return session.enemies
-    .filter((enemy) => isEnemyWithinExecutorRangedRange(troop, enemy, config))
-    .sort((left, right) => {
-      const distanceDifference = (left.x - troop.x) - (right.x - troop.x);
-      if (distanceDifference) return distanceDifference;
-      const priorityDifference = enemyPriority(right) - enemyPriority(left);
-      if (priorityDifference) return priorityDifference;
-      if (left.hp !== right.hp) return right.hp - left.hp;
-      return String(left.id).localeCompare(String(right.id));
-    })[0] || null;
+  let selected = null;
+  const candidates = getBattleIndex(session)?.enemiesByRow[troop.row] || session.enemies;
+  for (const enemy of candidates) {
+    if (!isEnemyWithinExecutorRangedRange(troop, enemy, config)) continue;
+    if (!selected
+      || enemy.x < selected.x
+      || (enemy.x === selected.x && enemyPriority(enemy) > enemyPriority(selected))
+      || (enemy.x === selected.x && enemyPriority(enemy) === enemyPriority(selected) && enemy.hp > selected.hp)
+      || (enemy.x === selected.x && enemyPriority(enemy) === enemyPriority(selected)
+        && enemy.hp === selected.hp && String(enemy.id).localeCompare(String(selected.id)) < 0)) selected = enemy;
+  }
+  return selected;
 }
 
 export function selectExecutorTarget(session, troop, config, enemyColumn) {
-  return session.enemies
-    .filter((enemy) => isEnemyWithinExecutorRange(troop, enemy, config))
-    .sort((left, right) => {
-      const tileDifference = Number(enemyColumn(right) === troop.col) - Number(enemyColumn(left) === troop.col);
-      if (tileDifference) return tileDifference;
-      const distanceDifference = (left.x - troop.x) - (right.x - troop.x);
-      if (distanceDifference) return distanceDifference;
-      const priorityDifference = enemyPriority(right) - enemyPriority(left);
-      if (priorityDifference) return priorityDifference;
-      if (left.hp !== right.hp) return right.hp - left.hp;
-      return String(left.id).localeCompare(String(right.id));
-    })[0] || null;
+  let selected = null;
+  const candidates = getBattleIndex(session)?.enemiesByRow[troop.row] || session.enemies;
+  for (const enemy of candidates) {
+    if (!isEnemyWithinExecutorRange(troop, enemy, config)) continue;
+    const enemyInTile = Number(enemyColumn(enemy) === troop.col);
+    const selectedInTile = Number(selected && enemyColumn(selected) === troop.col);
+    if (!selected
+      || enemyInTile > selectedInTile
+      || (enemyInTile === selectedInTile && enemy.x < selected.x)
+      || (enemyInTile === selectedInTile && enemy.x === selected.x
+        && enemyPriority(enemy) > enemyPriority(selected))
+      || (enemyInTile === selectedInTile && enemy.x === selected.x
+        && enemyPriority(enemy) === enemyPriority(selected) && enemy.hp > selected.hp)
+      || (enemyInTile === selectedInTile && enemy.x === selected.x
+        && enemyPriority(enemy) === enemyPriority(selected) && enemy.hp === selected.hp
+        && String(enemy.id).localeCompare(String(selected.id)) < 0)) selected = enemy;
+  }
+  return selected;
 }
 
 export function resetExecutorCombo(
@@ -187,7 +196,10 @@ function resolveExecutorImpact(session, troop, config, events, services) {
   const impact = troop.pendingComboImpact;
   troop.pendingComboImpact = null;
   if (!impact) return;
-  const target = session.enemies.find((enemy) => enemy.id === impact.targetId && !enemy.dead);
+  const index = getBattleIndex(session);
+  const target = index
+    ? livingEnemyById(index, impact.targetId)
+    : session.enemies.find((enemy) => enemy.id === impact.targetId && !enemy.dead);
   if (!target || !isEnemyWithinExecutorRange(troop, target, config)) {
     resetExecutorCombo(troop, session.elapsed, events, services, target ? "outOfRange" : "targetLost");
     return;
@@ -238,8 +250,11 @@ export function updateExecutorArco(session, troop, config, events, services) {
     resetExecutorCombo(troop, session.elapsed, events, services, "expired");
   }
 
+  const index = getBattleIndex(session);
   let target = troop.comboTargetId
-    ? session.enemies.find((enemy) => enemy.id === troop.comboTargetId && !enemy.dead)
+    ? (index
+      ? livingEnemyById(index, troop.comboTargetId)
+      : session.enemies.find((enemy) => enemy.id === troop.comboTargetId && !enemy.dead))
     : null;
   if (troop.comboTargetId && !target) {
     resetExecutorCombo(troop, session.elapsed, events, services, "targetLost");

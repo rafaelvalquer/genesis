@@ -1,6 +1,7 @@
-import { canPlaceTroop, CELL, FIELD } from "./battleModel.js";
+import { canPlaceTroop, CELL, FIELD, getDroneStackAt } from "./battleModel.js";
 import { TROOPS } from "./content.js";
 import { drawWindCurrent, drawWindWarning } from "./windCurrentRenderer.js";
+import { drawCachedRadialGlow } from "./effectTextureCache.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -815,9 +816,22 @@ export function getPlacementPreviewGeometry(session, selectedTroop, hoveredCell,
   const x = col * CELL.width + CELL.width / 2;
   const y = row * CELL.height + CELL.height / 2;
   const reason = canPlaceTroop(session, selectedTroop, row, col);
+  const droneStack = selectedTroop === "droneSentinela" ? getDroneStackAt(session, row, col) : null;
+  const currentDroneCount = Number(droneStack?.droneCount || 0);
+  const dronePreviewCount = selectedTroop === "droneSentinela"
+    ? Math.min(config.maxDronesPerTile, currentDroneCount + 1)
+    : null;
+  const placementLabel = selectedTroop !== "droneSentinela"
+    ? null
+    : currentDroneCount >= config.maxDronesPerTile
+      ? `Formação completa — ${currentDroneCount}/3`
+      : currentDroneCount > 0
+        ? `Adicionar drone — ${currentDroneCount}/3 → ${currentDroneCount + 1}/3`
+        : reason || "Implantar Drone Sentinela — 1/3";
   const hasAttackRange = config.range > 0 && !["none", "energy"].includes(config.attack);
   return {
     row, col, x, y, valid: !reason, reason,
+    droneCount: dronePreviewCount, placementLabel,
     color: reason ? "#fb7185" : config.color,
     range: config.attack === "mine" ? {
       kind: "mine",
@@ -1006,11 +1020,21 @@ function drawFogOrSmoke(ctx, count, time, intensity, smoke = false) {
     const radius = 120 + pseudo(index, 12) * 180;
     const x = ((pseudo(index, 13) * (FIELD.width + radius * 2) + time * (smoke ? 0.004 : 0.009)) % (FIELD.width + radius * 2)) - radius;
     const y = smoke ? FIELD.height - ((time * 0.007 + pseudo(index, 14) * FIELD.height) % (FIELD.height + 180)) : 70 + pseudo(index, 14) * 470;
-    const cloud = ctx.createRadialGradient(x, y, 0, x, y, radius);
-    cloud.addColorStop(0, smoke ? `rgba(12,18,24,${0.045 + intensity * 0.055})` : `rgba(210,230,235,${0.026 + intensity * 0.035})`);
-    cloud.addColorStop(1, "transparent");
-    ctx.fillStyle = cloud;
-    ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    ctx.save();
+    ctx.globalAlpha = smoke ? 0.045 + intensity * 0.055 : 0.026 + intensity * 0.035;
+    drawCachedRadialGlow(
+      ctx,
+      smoke ? "ambient-smoke" : "ambient-fog",
+      x,
+      y,
+      radius,
+      radius,
+      smoke ? "rgb(12,18,24)" : "rgb(210,230,235)",
+      smoke ? "rgb(12,18,24)" : "rgb(210,230,235)",
+      "transparent",
+      0.12,
+    );
+    ctx.restore();
   }
 }
 
@@ -1094,11 +1118,13 @@ function drawSandstorm(ctx, session, time, settings, profile, adaptive) {
       const radius = 150 + pseudo(index, 920) * 190;
       const x = ((pseudo(index, 921) * (FIELD.width + radius * 2) + motionTime * 0.025) % (FIELD.width + radius * 2)) - radius;
       const y = FIELD.height - 35 - pseudo(index, 922) * 105;
-      const cloud = ctx.createRadialGradient(x, y, 0, x, y, radius);
-      cloud.addColorStop(0, `rgba(126,73,27,${0.075 * intensity})`);
-      cloud.addColorStop(1, "transparent");
-      ctx.fillStyle = cloud;
-      ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+      ctx.save();
+      ctx.globalAlpha = 0.075 * intensity;
+      drawCachedRadialGlow(
+        ctx, "sandstorm-cloud", x, y, radius, radius,
+        "rgb(126,73,27)", "rgb(126,73,27)", "transparent", 0.12,
+      );
+      ctx.restore();
     }
   }
 

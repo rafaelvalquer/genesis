@@ -63,6 +63,28 @@ describe("geometria visual dos disparos", () => {
     expect(muzzle.y).toBeCloseTo(285.29, 1);
   });
 
+  it("mantém os pés do Caçador de Leviatãs estáveis e dispara pela abertura medida do frame 4", () => {
+    const hunter = { type: "cacadorLeviatas", state: "attack", x: 500, y: 300 };
+    const config = TROOPS.cacadorLeviatas;
+    const anchors = config.attackVisual.frameAnchors;
+    Object.values(anchors).forEach((stateAnchors) => {
+      expect(stateAnchors).toHaveLength(8);
+      stateAnchors.forEach((anchor) => expect(anchor.y).toBe(0.9512));
+    });
+
+    const anchor = anchors.attack[4];
+    expect(anchor).toEqual({ x: 0.3311, y: 0.9512 });
+    const rect = getAnchoredSpriteRect(hunter, config.attackVisual.height, 1, anchor);
+    const muzzle = getMuzzleWorldPosition(hunter, config, 0, 4);
+    expect(config.attackVisual.shots[0]).toMatchObject({
+      atMs: 360,
+      frame: 4,
+      muzzle: { x: 0.6436, y: 0.3581 },
+    });
+    expect(muzzle.x).toBeCloseTo(rect.x + rect.width * 0.6436, 5);
+    expect(muzzle.y).toBeCloseTo(rect.y + rect.height * 0.3581, 5);
+  });
+
   it("sincroniza o ciclo criogenico do krio e dispara no primeiro frame", () => {
     const krio = { type: "krio", x: 460, y: 260, lastAttackAt: 100 };
     const counts = { idle: 8, attack: 8 };

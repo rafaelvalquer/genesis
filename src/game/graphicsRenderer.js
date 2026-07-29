@@ -1,5 +1,10 @@
 import { FIELD, VIEWPORT } from "./battleModel.js";
 import { colorModeFilter } from "./graphicsRuntime.js";
+import {
+  drawCachedRadialGlow,
+  getLinearEffectTexture,
+  getSceneTintTexture,
+} from "./effectTextureCache.js";
 
 const spriteHaloCache = new Map();
 
@@ -82,9 +87,10 @@ export function drawDecals(ctx, runtime, settings = {}) {
       ctx.beginPath(); ctx.ellipse(decal.x, decal.y, 5, 2, random() * Math.PI, 0, Math.PI * 2); ctx.fill();
     } else if (decal.kind === "scorch" || decal.kind === "crater") {
       const radius = decal.kind === "crater" ? 34 : 17;
-      const gradient = ctx.createRadialGradient(decal.x, decal.y, 1, decal.x, decal.y, radius);
-      gradient.addColorStop(0, "rgba(15,8,5,.62)"); gradient.addColorStop(.55, "rgba(45,15,7,.28)"); gradient.addColorStop(1, "transparent");
-      ctx.fillStyle = gradient; ctx.fillRect(decal.x - radius, decal.y - radius, radius * 2, radius * 2);
+      drawCachedRadialGlow(
+        ctx, "decal-scorch", decal.x, decal.y, radius, radius,
+        "rgba(15,8,5,.62)", "rgba(45,15,7,.28)", "transparent", 0.55,
+      );
     } else if (decal.kind === "frost") {
       ctx.strokeStyle = "rgba(165,243,252,.3)"; ctx.lineWidth = 1;
       for (let index = 0; index < 5; index += 1) {
@@ -107,10 +113,11 @@ export function drawDynamicLights(ctx, runtime, now, settings = {}, adaptive = {
   for (const light of runtime.lights) {
     const progress = Math.min(1, (now - light.born) / light.life);
     const alpha = (1 - progress) * (settings.quality === "high" ? .22 : .12) * lightScale;
-    const gradient = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius);
-    gradient.addColorStop(0, `${light.color}${Math.round(alpha * 255).toString(16).padStart(2, "0")}`);
-    gradient.addColorStop(1, "transparent");
-    ctx.fillStyle = gradient; ctx.fillRect(light.x - light.radius, light.y - light.radius, light.radius * 2, light.radius * 2);
+    ctx.globalAlpha = alpha;
+    drawCachedRadialGlow(
+      ctx, `dynamic-light:${light.color}`, light.x, light.y, light.radius, light.radius,
+      light.color, light.color, "transparent", 0.2,
+    );
   }
   ctx.restore();
 }
@@ -145,9 +152,17 @@ export function drawWetReflections(ctx, phase, rows, settings = {}, adaptive = {
       const entity = item.entity || item;
       const x = Number.isFinite(item.x) ? item.x : entity.x;
       const y = Number.isFinite(item.y) ? item.y : entity.y;
-      const gradient = ctx.createLinearGradient(x, y + 38, x, y + 90);
-      gradient.addColorStop(0, "rgba(125,211,252,.09)"); gradient.addColorStop(1, "transparent");
-      ctx.fillStyle = gradient; ctx.beginPath(); ctx.ellipse(x, y + 55, 18 * (entity.scale || 1), 34, 0, 0, Math.PI * 2); ctx.fill();
+      const reflection = getLinearEffectTexture(
+        "wet-reflection", "rgba(125,211,252,.09)", "transparent",
+      );
+      if (reflection) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(x, y + 55, 18 * (entity.scale || 1), 34, 0, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(reflection, x - 18 * (entity.scale || 1), y + 38, 36 * (entity.scale || 1), 52);
+        ctx.restore();
+      }
     }
   }
   ctx.restore();
@@ -155,9 +170,14 @@ export function drawWetReflections(ctx, phase, rows, settings = {}, adaptive = {
 
 export function drawPostProcessing(ctx, phase, settings, session, now) {
   ctx.save();
-  const tint = ctx.createLinearGradient(0, 0, FIELD.width, FIELD.height);
-  tint.addColorStop(0, `${phase.palette.primary}08`); tint.addColorStop(1, `${phase.palette.accent}0b`);
-  ctx.fillStyle = tint; ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  const tint = getSceneTintTexture(
+    `${phase.palette.primary}:${phase.palette.accent}`,
+    `${phase.palette.primary}08`,
+    `${phase.palette.accent}0b`,
+    FIELD.width,
+    FIELD.height,
+  );
+  if (tint) ctx.drawImage(tint, 0, 0);
   const boss = session.enemies.find((enemy) => enemy.variant === "alpha");
   if (boss?.bossPhase > 0 && settings.quality === "high" && !settings.reduceMotion) {
     const pulse = (Math.sin(now / 90) + 1) * .5;
@@ -166,7 +186,7 @@ export function drawPostProcessing(ctx, phase, settings, session, now) {
   ctx.restore();
 }
 
-export function presentScene(ctx, scene, renderScale, camera, settings = {}, adaptive = {}) {
+export function presentScene(ctx, scene, emissive, renderScale, camera, settings = {}, adaptive = {}) {
   ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
   ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   ctx.save();
@@ -179,11 +199,18 @@ export function presentScene(ctx, scene, renderScale, camera, settings = {}, ada
     ctx.scale(zoom, zoom);
     ctx.translate(-focusX, -focusY);
   }
-  ctx.filter = colorModeFilter(settings.colorMode);
-  if (settings.quality === "high" && adaptive.bloom !== false) {
-    ctx.save(); ctx.globalAlpha = .09; ctx.globalCompositeOperation = "screen"; ctx.filter = "blur(6px) saturate(1.2)"; ctx.drawImage(scene, 0, 0); ctx.restore();
-    ctx.filter = colorModeFilter(settings.colorMode);
-  }
+  const modeFilter = colorModeFilter(settings.colorMode);
+  ctx.filter = modeFilter;
   ctx.drawImage(scene, 0, 0);
+  if (settings.quality === "high" && adaptive.bloom !== false) {
+    ctx.save();
+    ctx.globalAlpha = .42;
+    ctx.globalCompositeOperation = "screen";
+    ctx.filter = modeFilter === "none"
+      ? "blur(6px) saturate(1.2)"
+      : `${modeFilter} blur(6px) saturate(1.2)`;
+    ctx.drawImage(emissive, 0, 0, VIEWPORT.width, VIEWPORT.height);
+    ctx.restore();
+  }
   ctx.restore();
 }

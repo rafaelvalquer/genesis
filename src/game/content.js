@@ -146,6 +146,67 @@ export const TROOPS = {
     },
     description: "Três disparos rápidos contra alvos comuns.",
   },
+  droneSentinela: {
+    id: "droneSentinela",
+    label: "Drone Sentinela",
+    role: "Suporte aéreo / Formação empilhável",
+    spriteKey: "droneSentinela",
+    price: 5,
+    supply: 1,
+    deployCooldownMs: 1800,
+    hp: 15,
+    damage: 2,
+    range: 4.5,
+    attackEveryMs: 1300,
+    projectileSpeed: 360,
+    attack: "droneVolley",
+    maxDeployed: 5,
+    maxDronesPerTile: 3,
+    maxTotalDrones: 15,
+    floatingVisual: true,
+    unlockAt: 0,
+    color: "#38bdf8",
+    assetStates: [
+      "idle1", "attack1", "death1",
+      "idle2", "attack2", "death2",
+      "idle3", "attack3", "death3",
+    ],
+    stackVisuals: {
+      1: {
+        idle: { state: "idle1", height: 150, aspectRatio: 4 / 3, durationMs: 960, loop: true },
+        attack: {
+          state: "attack1", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false,
+          shots: [{ atMs: 240, frame: 3, muzzle: { x: 0.68, y: 0.48 } }],
+        },
+        death: { state: "death1", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false },
+      },
+      2: {
+        idle: { state: "idle2", height: 150, aspectRatio: 4 / 3, durationMs: 960, loop: true },
+        attack: {
+          state: "attack2", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false,
+          shots: [
+            { atMs: 160, frame: 2, muzzle: { x: 0.53, y: 0.55 } },
+            { atMs: 400, frame: 5, muzzle: { x: 0.74, y: 0.39 } },
+          ],
+        },
+        death: { state: "death2", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false },
+      },
+      3: {
+        idle: { state: "idle3", height: 150, aspectRatio: 4 / 3, durationMs: 960, loop: true },
+        attack: {
+          state: "attack3", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false,
+          shots: [
+            { atMs: 80, frame: 1, muzzle: { x: 0.49, y: 0.58 } },
+            { atMs: 240, frame: 3, muzzle: { x: 0.76, y: 0.58 } },
+            { atMs: 400, frame: 5, muzzle: { x: 0.63, y: 0.34 } },
+          ],
+        },
+        death: { state: "death3", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false },
+      },
+    },
+    description:
+      "Drone flutuante barato que pode receber até dois drones adicionais na mesma célula. Cada unidade acrescenta vida e um disparo à formação.",
+  },
   interceptadorIcaro: {
     id: "interceptadorIcaro",
     label: "Interceptador Ícaro",
@@ -434,9 +495,115 @@ export const TROOPS = {
     attackEveryMs: 0,
     damage: 0,
     attack: "none",
+    windAnchor: true,
     color: "#94a3b8",
     unlockAt: 0,
     description: "Bloqueia uma rota e absorve muito dano.",
+  },
+  cacadorLeviatas: {
+    id: "cacadorLeviatas",
+    label: "Caçador de Leviatãs",
+    title: "Quebra-Titãs",
+    role: "Antitanque / Ruptura",
+    spriteKey: "cacadorLeviatas",
+    price: 42,
+    supply: 9,
+    deployCooldownMs: 12000,
+    maxDeployed: 2,
+    hp: 54,
+    range: 7,
+    minRange: 2.5,
+    attack: "leviathanCannon",
+    damage: 105,
+    chargeMs: 1500,
+    attackDurationMs: 720,
+    attackReleaseMs: 360,
+    cooldownMs: 4800,
+    failedChargeCooldownMs: 2400,
+    projectileSpeed: 1000,
+    secondTargetDamageFactor: 0.55,
+    maximumTargets: 2,
+    lightTargetDamageFactor: 0.35,
+    shieldIgnoreFactor: 0.8,
+    armorPierceFactor: 0.7,
+    nimbarcaShieldIgnoreFactor: 1,
+    ruptureRequiredHits: 3,
+    ruptureDamageTakenFactor: 1.25,
+    windAnchor: true,
+    color: "#38bdf8",
+    unlockAt: 31,
+    assetStates: ["idle", "charging", "attack", "cooldown"],
+    idleVisual: {
+      state: "idle",
+      height: 132,
+      durationMs: 1600,
+      loop: true,
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 200, frame })),
+    },
+    chargingVisual: {
+      state: "charging",
+      height: 132,
+      durationMs: 1500,
+      loop: false,
+    },
+    attackVisual: {
+      state: "attack",
+      height: 132,
+      durationMs: 720,
+      loop: false,
+      releaseMs: 360,
+      shots: [{ atMs: 360, frame: 4, muzzle: { x: 0.6436, y: 0.3581 } }],
+      frameAnchors: {
+        idle: [
+          { x: 0.4941, y: 0.9512 },
+          { x: 0.4912, y: 0.9512 },
+          { x: 0.4893, y: 0.9512 },
+          { x: 0.4873, y: 0.9512 },
+          { x: 0.5596, y: 0.9512 },
+          { x: 0.5156, y: 0.9512 },
+          { x: 0.5117, y: 0.9512 },
+          { x: 0.4961, y: 0.9512 },
+        ],
+        charging: [
+          { x: 0.4551, y: 0.9512 },
+          { x: 0.3711, y: 0.9512 },
+          { x: 0.373, y: 0.9512 },
+          { x: 0.3594, y: 0.9512 },
+          { x: 0.3594, y: 0.9512 },
+          { x: 0.3291, y: 0.9512 },
+          { x: 0.4014, y: 0.9512 },
+          { x: 0.3926, y: 0.9512 },
+        ],
+        attack: [
+          { x: 0.3721, y: 0.9512 },
+          { x: 0.4131, y: 0.9512 },
+          { x: 0.3711, y: 0.9512 },
+          { x: 0.3438, y: 0.9512 },
+          { x: 0.3311, y: 0.9512 },
+          { x: 0.3877, y: 0.9512 },
+          { x: 0.3613, y: 0.9512 },
+          { x: 0.3232, y: 0.9512 },
+        ],
+        cooldown: [
+          { x: 0.5195, y: 0.9512 },
+          { x: 0.5205, y: 0.9512 },
+          { x: 0.498, y: 0.9512 },
+          { x: 0.4873, y: 0.9512 },
+          { x: 0.4941, y: 0.9512 },
+          { x: 0.4902, y: 0.9512 },
+          { x: 0.4873, y: 0.9512 },
+          { x: 0.4912, y: 0.9512 },
+        ],
+      },
+    },
+    cooldownVisual: {
+      state: "cooldown",
+      height: 132,
+      durationMs: 1600,
+      loop: true,
+    },
+    description:
+      "Carrega um canhão eletromagnético capaz de atravessar escudos, blindagens e um segundo alvo.",
   },
   demolidora: {
     id: "demolidora",
@@ -1236,6 +1403,7 @@ const TROOP_WIND_CLASSES = Object.freeze({
   medicaNanites: "light",
   lumiUrsa7: "heavy",
   muralhaReforcada: "structure",
+  cacadorLeviatas: "heavy",
   demolidora: "light",
   caçador: "medium",
   sniper: "light",
@@ -1251,6 +1419,7 @@ const TROOP_WIND_CLASSES = Object.freeze({
 
 const TROOP_WIND_ANCHORS = Object.freeze({
   muralhaReforcada: true,
+  cacadorLeviatas: true,
   lumiUrsa7: true,
   colossoImpacto: true,
 });
@@ -1884,6 +2053,9 @@ export const ENEMIES = {
 };
 
 Object.values(ENEMIES).forEach((enemy) => {
+  const heavyRole = /tanque|colosso|santuário|blindad/i.test(enemy.role || "");
+  enemy.armorClass ??= enemy.boss || heavyRole ? "heavy" : enemy.hp >= 60 ? "medium" : "light";
+  enemy.armorDamageFactor ??= enemy.armorClass === "heavy" ? 0.65 : 1;
   enemy.windResistance ??= 0;
   enemy.windImmune ??= false;
   enemy.canBeWindEjected ??= enemy.airborne !== true;

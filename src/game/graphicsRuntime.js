@@ -180,7 +180,12 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
     if (event.type === "troopDeath" && event.entity) {
       runtime.deaths.push({ kind: "troop", entity: { ...event.entity }, born: now, life: DEATH_LIFE.troop });
     }
-    if (event.type === "deploy") runtime.deployments.push({ kind: "deploy", x: event.x, y: event.y, born: now, life: 520 });
+    if (["deploy", "droneStackCreated", "droneStackAdded"].includes(event.type)) {
+      runtime.deployments.push({
+        kind: event.type === "droneStackAdded" ? "droneStack" : "deploy",
+        x: event.x, y: event.y, born: now, life: 520,
+      });
+    }
     if (event.type === "remove") runtime.deployments.push({ kind: "remove", x: event.x, y: event.y, born: now, life: 380 });
     if (event.type === "waveStart") runtime.deployments.push({ kind: "wave", x: FIELD.width - 42, y: FIELD.height / 2, born: now, life: 780 });
     if (event.type === "spawn") {

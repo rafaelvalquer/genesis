@@ -1,5 +1,6 @@
 import { CELL, FIELD } from "./battleModel.js";
 import { getSpriteRect } from "./visualGeometry.js";
+import { drawCachedRadialGlow } from "./effectTextureCache.js";
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
@@ -106,13 +107,13 @@ export function drawPulseScorches(ctx, runtime, now, settings = {}) {
     const random = seeded(mark.seed);
     const radius = 13 + random() * 15;
     const alpha = (1 - progress) * (settings.quality === "low" ? 0.45 : 0.72);
-    const gradient = ctx.createRadialGradient(mark.x, mark.y, 1, mark.x, mark.y, radius);
-    gradient.addColorStop(0, `rgba(1,5,9,${alpha})`);
-    gradient.addColorStop(0.62, `rgba(7,22,27,${alpha * 0.8})`);
-    gradient.addColorStop(0.84, `rgba(34,211,238,${alpha * 0.34})`);
-    gradient.addColorStop(1, "transparent");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(mark.x - radius, mark.y - radius * 0.45, radius * 2, radius * 0.9);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    drawCachedRadialGlow(
+      ctx, "pulse-scorch", mark.x, mark.y, radius, radius * 0.45,
+      "rgb(1,5,9)", "rgb(7,22,27)", "transparent", 0.62,
+    );
+    ctx.restore();
     if (settings.quality === "high" && progress < 0.68) {
       ctx.globalAlpha = alpha * 0.22;
       ctx.fillStyle = "#94a3b8";

@@ -48,14 +48,14 @@ describe("campanha e ondas", () => {
 
   it("libera os defensores na nova ordem da campanha", () => {
     const expectedByPhase = [
-      ["reator", "colono", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "marine", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "muralhaReforcada"],
-      ["reator", "colono", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "krio", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "marine", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "marine", "sniper", "incinerador", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "marine", "sniper", "incinerador", "ranger", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "muralhaReforcada"],
+      ["reator", "colono", "droneSentinela", "guarda", "marine", "sniper", "incinerador", "ranger", "demolidora", "caçador", "bombardeiro", "krio", "muralhaReforcada"],
     ];
     expectedByPhase.forEach((expected, phaseIndex) => {
       expect(getUnlockedTroops(phaseIndex).map((troop) => troop.id)).toEqual(expected);

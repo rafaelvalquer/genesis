@@ -14,7 +14,7 @@ import {
   drawTacticalGrid,
   getPlacementPreviewGeometry,
 } from "./arenaRenderer.js";
-import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectiles, drawStunnedEnemyEffect, pushEventParticles } from "./projectileRenderer.js";
+import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectileCollection, drawStunnedEnemyEffect, pushEventParticles } from "./projectileRenderer.js";
 import {
   drawDematerializationPulses,
   drawPulseBeams,
@@ -29,7 +29,7 @@ import {
 } from "./visualGeometry.js";
 import {
   configureHiDPICanvas, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
-  getAdaptiveEffects, getHealthVisual, getHitReaction, interpolateEntity, updateGraphicsRuntime,
+  getAdaptiveEffects, getHealthVisual, getHitReaction, updateGraphicsRuntime,
 } from "./graphicsRuntime.js";
 import {
   drawCachedSpriteHalo, drawDecals, drawDeploymentEffects, drawDynamicLights, drawPostProcessing,
@@ -103,6 +103,7 @@ export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = nu
   }
   const troopInCell = session.troops.find((entry) => !entry.dead && entry.row === cell.row && entry.col === cell.col);
   if (troopInCell && !selectedTroop) {
+    if (troopInCell.type === "droneSentinela") return { type: "inspectDrone", cell, troop: troopInCell };
     return { type: "special", cell, troop: troopInCell };
   }
   if (selectedTroop) return { type: "place", cell, troopType: selectedTroop };
@@ -446,27 +447,37 @@ function drawNaniteTargetEffect(ctx, entity, session, settings) {
   ctx.restore();
 }
 
-function drawNaniteCooldown(ctx, entity, session, settings) {
-  if (entity.type !== "medicaNanites" || entity.state !== "cooldown") return;
-  const duration = Math.max(1, TROOPS.medicaNanites.healCooldownMs);
+function drawTroopCooldown(ctx, entity, session, settings) {
+  if (entity.state !== "cooldown") return;
+  const isNaniteMedic = entity.type === "medicaNanites";
+  const isLeviathanHunter = entity.type === "cacadorLeviatas";
+  if (!isNaniteMedic && !isLeviathanHunter) return;
+  const fallbackDuration = isNaniteMedic
+    ? TROOPS.medicaNanites.healCooldownMs
+    : TROOPS.cacadorLeviatas.cooldownMs;
+  const activeDuration = Number(entity.cooldownEndsAt) - Number(entity.cooldownStartedAt);
+  const duration = Math.max(1, Number.isFinite(activeDuration) && activeDuration > 0
+    ? activeDuration
+    : fallbackDuration);
   const progress = Math.max(0, Math.min(1, 1 - (entity.cooldownEndsAt - session.elapsed) / duration));
+  const indicatorY = entity.y - (isLeviathanHunter ? 77 : 62);
   ctx.save();
   ctx.strokeStyle = "rgba(45,212,191,.28)";
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.arc(entity.x, entity.y - 62, 10, 0, Math.PI * 2);
+  ctx.arc(entity.x, indicatorY, 10, 0, Math.PI * 2);
   ctx.stroke();
   ctx.strokeStyle = "#5eead4";
   ctx.shadowBlur = 8;
   ctx.shadowColor = "#2dd4bf";
   ctx.beginPath();
-  ctx.arc(entity.x, entity.y - 62, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+  ctx.arc(entity.x, indicatorY, 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
   ctx.stroke();
   if (!settings.reduceMotion) {
     ctx.fillStyle = "#ccfbf1";
     ctx.font = "700 8px Chakra Petch, system-ui";
     ctx.textAlign = "center";
-    ctx.fillText("RECARGA", entity.x, entity.y - 79);
+    ctx.fillText(isLeviathanHunter ? "RESFRIA" : "RECARGA", entity.x, indicatorY - 17);
   }
   ctx.restore();
 }
@@ -688,16 +699,21 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const entity = death.entity;
     const config = death.kind === "troop" ? TROOPS[entity.type] : ENEMIES[entity.type];
     const groups = death.kind === "troop" ? assets.troops[entity.type] : assets.enemies[entity.type];
-    const dedicatedDeathState = death.kind === "enemy"
+    const droneDeathState = death.kind === "troop" && entity.type === "droneSentinela"
+      ? `death${Math.max(1, Math.min(3, Number(entity.droneDeathLevel || entity.droneCount || 1)))}`
+      : null;
+    const dedicatedDeathState = droneDeathState || (death.kind === "enemy"
       ? (entity.type === "workerQueenEgg" ? "destroy" : groups?.death ? "death" : null)
-      : groups?.death ? "death" : null;
+      : groups?.death ? "death" : null);
     const state = dedicatedDeathState
       || (groups?.attack ? "attack" : groups?.walking ? "walking" : groups?.idle ? "idle" : "defense");
     const frames = groups?.[state] || [];
     const frame = Math.min(frames.length - 1, Math.floor(progress * Math.max(1, frames.length)));
     const image = frames[frame] || frames[0];
     const height = death.kind === "troop"
-      ? (config?.attackVisual?.height || 126) * (config?.spriteScale || 1)
+      ? (entity.type === "droneSentinela"
+        ? config.stackVisuals[Number(entity.droneDeathLevel || entity.droneCount || 1)].death.height
+        : config?.attackVisual?.height || 126) * (config?.spriteScale || 1)
       : 128 * (entity.scale || 1);
     const deathY = death.kind === "enemy" ? getEnemyDeathVisualY(entity, progress) : entity.y;
     const airborneDerivante = entity.type === "derivante"
@@ -837,6 +853,7 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
     stateStartedAt: 0,
     electricParalyzedUntil: 0,
     lastAttackAt: -Infinity,
+    droneCount: preview.droneCount || (selectedTroop === "droneSentinela" ? 1 : undefined),
   };
   const visualEntity = getTroopVisualEntity(entity, config);
   const animation = getTroopAnimation(entity, config, elapsed, {
@@ -869,6 +886,17 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
     ctx.globalAlpha = opacity;
     ctx.fillStyle = preview.color;
     ctx.fillRect(visualEntity.x - 24, visualEntity.y - 34, 48, 68);
+    ctx.restore();
+  }
+  if (preview.placementLabel) {
+    ctx.save();
+    ctx.font = "600 12px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = preview.valid ? "#a7f3d0" : "#fecdd3";
+    ctx.shadowColor = "#020617";
+    ctx.shadowBlur = 4;
+    ctx.fillText(preview.placementLabel, visualEntity.x, visualEntity.y - 74);
     ctx.restore();
   }
 }
@@ -925,6 +953,51 @@ function getEnemyFrameCounts(enemyAssets) {
   for (const state in enemyAssets) counts[state] = enemyAssets[state]?.length || 0;
   enemyFrameCountsCache.set(enemyAssets, counts);
   return counts;
+}
+
+function drawLeviathanStateEffect(ctx, entity, session, settings) {
+  if (entity.type !== "cacadorLeviatas" || entity.state !== "charging") return;
+  const config = TROOPS.cacadorLeviatas;
+  const duration = Math.max(1, entity.stateEndsAt - entity.stateStartedAt);
+  const progress = Math.max(0, Math.min(1, (session.elapsed - entity.stateStartedAt) / duration));
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  const pulse = settings.reduceMotion ? 1 : 0.86 + Math.sin(session.elapsed / 70) * 0.14;
+  ctx.fillStyle = `rgba(56,189,248,${0.12 + progress * 0.3})`;
+  ctx.shadowColor = config.color;
+  ctx.shadowBlur = 12 + progress * 24;
+  ctx.beginPath();
+  ctx.arc(entity.x - 25, entity.y - 54, (8 + progress * 10) * pulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawStructuralRupture(ctx, entity, elapsed, settings) {
+  const stacks = Number(entity.structuralRuptureHits || 0);
+  if (!stacks && !entity.structuralRuptured) return;
+  const y = entity.y - 58 * (entity.scale || 1) - 8;
+  ctx.save();
+  ctx.strokeStyle = entity.structuralRuptured ? "#e0f2fe" : "#38bdf8";
+  ctx.fillStyle = entity.structuralRuptured ? "#38bdf8" : "rgba(56,189,248,.25)";
+  ctx.shadowColor = "#38bdf8";
+  ctx.shadowBlur = entity.structuralRuptured ? 12 : 5;
+  for (let index = 0; index < 3; index += 1) {
+    ctx.strokeRect(entity.x - 13 + index * 10, y, 7, 3);
+    if (index < stacks) ctx.fillRect(entity.x - 13 + index * 10, y, 7, 3);
+  }
+  if (entity.structuralRuptured) {
+    const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 110) * 1.5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(entity.x - 18, entity.y - 25);
+    ctx.lineTo(entity.x - 7 + pulse, entity.y - 12);
+    ctx.lineTo(entity.x - 13, entity.y + 2);
+    ctx.moveTo(entity.x + 16, entity.y - 21);
+    ctx.lineTo(entity.x + 5 - pulse, entity.y - 7);
+    ctx.lineTo(entity.x + 12, entity.y + 8);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function drawElectricTroopStatus(ctx, troop, elapsed, settings) {
@@ -988,12 +1061,26 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
     drawTroopSpecialReady(ctx, scratch, session.elapsed, settings);
   }
   drawNaniteTargetEffect(ctx, scratch, session, settings);
-  drawNaniteCooldown(ctx, scratch, session, settings);
+  drawTroopCooldown(ctx, scratch, session, settings);
+  drawLeviathanStateEffect(ctx, scratch, session, settings);
   drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings);
   drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings);
   drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
   drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
+  if (logicalEntity.type === "droneSentinela") {
+    ctx.save();
+    ctx.font = "700 13px Inter, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#e0f2fe";
+    ctx.strokeStyle = "#082f49";
+    ctx.lineWidth = 3;
+    const countLabel = `×${Number(logicalEntity.droneCount || 1)}`;
+    ctx.strokeText(countLabel, scratch.x + 33, scratch.y - 58);
+    ctx.fillText(countLabel, scratch.x + 33, scratch.y - 58);
+    ctx.restore();
+  }
 }
 
 function shouldDrawEnemyHealth(entity, frozen, stunned, adaptive) {
@@ -1095,6 +1182,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.stroke();
     ctx.restore();
   }
+  drawStructuralRupture(ctx, scratch, session.elapsed, settings);
   if (emergenceProgress >= 0.45 && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
     drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
   }
@@ -1134,9 +1222,45 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
   }
 }
 
-function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, interpolation, rowBuffers) {
+function drawEmissiveBattle(
+  ctx,
+  session,
+  assets,
+  particles,
+  runtime,
+  settings,
+  adaptive,
+  now,
+  interpolation,
+  projectileAssets,
+) {
+  ctx.save();
+  ctx.translate(0, VIEWPORT.fieldOffsetY);
+  drawDematerializationPulses(
+    ctx,
+    session.dematerializationPulses,
+    assets.defenses?.pulsoDesmaterializacao,
+    session.elapsed,
+    settings,
+  );
+  drawProjectileCollection(ctx, session.projectiles, interpolation, settings, projectileAssets);
+  drawProjectileCollection(ctx, session.enemyProjectiles, interpolation, settings, projectileAssets);
+  drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
+  drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
+  drawPulseDisintegrations(ctx, runtime, assets, now, settings);
+  drawDeploymentEffects(ctx, runtime, now, settings);
+  drawDynamicLights(ctx, runtime, now, settings, adaptive);
+  drawPulseBeams(ctx, runtime, now, settings);
+  drawEnergyPickups(ctx, session.energyPickups, session.elapsed, settings);
+  drawParticles(ctx, particles, now, settings, true);
+  ctx.restore();
+}
+
+function drawBattle(ctx, emissiveCtx, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, interpolation, rowBuffers) {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
+  emissiveCtx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+  emissiveCtx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   drawContainmentUnderlay(ctx, session.phase, session, runtime, now, settings);
   ctx.save();
   ctx.translate(0, VIEWPORT.fieldOffsetY);
@@ -1164,13 +1288,22 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
 
   const mineAssets = assets.troops.demolidora || {};
   drawMines(ctx, session.mines, mineAssets.mine?.[0], session.elapsed);
-  drawProjectiles(ctx, [
-    ...session.projectiles.map((entity) => interpolateEntity(entity, interpolation)),
-    ...session.enemyProjectiles.map((entity) => interpolateEntity(entity, interpolation)),
-  ], settings, {
-    ...mineAssets,
-    executorArcSlash: assets.effects?.executorArcSlash,
-  });
+  if (!runtime.projectileAssets
+    || runtime.projectileAssets.mineSource !== mineAssets
+    || runtime.projectileAssets.executorSource !== assets.effects?.executorArcSlash) {
+    runtime.projectileAssets = {
+      ...mineAssets,
+      executorArcSlash: assets.effects?.executorArcSlash,
+      mineSource: mineAssets,
+      executorSource: assets.effects?.executorArcSlash,
+    };
+  }
+  drawProjectileCollection(
+    ctx, session.projectiles, interpolation, settings, runtime.projectileAssets,
+  );
+  drawProjectileCollection(
+    ctx, session.enemyProjectiles, interpolation, settings, runtime.projectileAssets,
+  );
   drawNaniteHealingBeams(ctx, session, settings);
 
   drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
@@ -1189,6 +1322,20 @@ function drawBattle(ctx, session, assets, particlesRef, runtime, selectedTroop, 
   drawPostProcessing(ctx, session.phase, settings, session, now);
   ctx.restore();
   drawContainmentForeground(ctx, session.phase, session, runtime, now, settings);
+  if (settings.quality === "high" && adaptive.bloom !== false) {
+    drawEmissiveBattle(
+      emissiveCtx,
+      session,
+      assets,
+      particlesRef.current,
+      runtime,
+      settings,
+      adaptive,
+      now,
+      interpolation,
+      runtime.projectileAssets,
+    );
+  }
 }
 
 export function CapsuleInteractionButton({ capsule, onOpen }) {
@@ -1416,6 +1563,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       icaroInterceptionLock: buildFirst("icaro_interception_lock"),
       icaroInterceptionFire: buildFirst("icaro_interception_fire"),
       icaroDeath: buildFirst("icaro_death"),
+      leviathanCharge: buildFirst("leviathan_charge"),
+      leviathanFire: buildFirst("leviathan_fire"),
+      leviathanImpact: buildFirst("leviathan_impact"),
+      leviathanRupture: buildFirst("leviathan_rupture"),
+      leviathanCooldown: buildFirst("leviathan_cooldown"),
       windWarning: build("wind_warning.ogg"),
       windActiveLoop: build("wind_active_loop.ogg", true),
       windPrimaryGust: build("wind_primary_gust.ogg"),
@@ -1479,6 +1631,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     scene.width = VIEWPORT.width;
     scene.height = VIEWPORT.height;
     const sceneCtx = scene.getContext("2d");
+    const emissive = document.createElement("canvas");
+    emissive.width = Math.ceil(VIEWPORT.width / 2);
+    emissive.height = Math.ceil(VIEWPORT.height / 2);
+    const emissiveCtx = emissive.getContext("2d");
     let animationId;
     let previous = performance.now();
     let accumulator = 0;
@@ -1539,6 +1695,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "icaroTargetLock")) play("icaroInterceptionLock", 0.5);
         if (events.some((event) => event.type === "icaroInterceptionFire")) play("icaroInterceptionFire", 0.58);
         if (events.some((event) => event.type === "troopDeath" && event.entity?.type === "interceptadorIcaro")) play("icaroDeath", 0.5);
+        if (events.some((event) => event.type === "leviathanChargeStarted")) play("leviathanCharge", 0.5);
+        if (events.some((event) => event.type === "leviathanFire")) play("leviathanFire", 0.78);
+        if (events.some((event) => ["leviathanImpact", "leviathanSecondImpact"].includes(event.type))) play("leviathanImpact", 0.58);
+        if (events.some((event) => event.type === "structuralRuptureApplied")) play("leviathanRupture", 0.72);
+        if (events.some((event) => event.type === "leviathanCooldownStarted")) play("leviathanCooldown", 0.35);
         if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);
         if (events.some((event) => event.type === "ramImpact")) play("melee", 0.65);
@@ -1610,7 +1771,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
       const drawStarted = performance.now();
       drawBattle(
-        sceneCtx, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
+        sceneCtx, emissiveCtx, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
         selectedTroop, removeMode, hoveredCellRef.current, adaptiveSettingsRef.current, adaptive,
         sessionRef.current.elapsed, interpolation, battleRowsRef.current,
       );
@@ -1625,7 +1786,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         y: camera.y + outroCamera.impactY,
       } : camera;
       presentScene(
-        ctx, scene, renderScale,
+        ctx, scene, emissive, renderScale,
         presentationCamera,
         adaptiveSettingsRef.current, adaptive,
       );
@@ -1781,8 +1942,20 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       activateColossusSpecial(action.troop.id);
       return;
     }
+    if (action.type === "inspectDrone") {
+      const count = Number(action.troop.droneCount || 1);
+      const damage = TROOPS.droneSentinela.damage;
+      setMessage(
+        `Drone Sentinela · Formação: ${count}/3 · Vida: ${Math.ceil(action.troop.hp)}/${Math.ceil(action.troop.maxHp)} · Disparos: ${count} · Dano por disparo: ${damage} · Dano por rajada: ${count * damage}`,
+      );
+      return;
+    }
     const result = placeTroop(sessionRef.current, action.troopType, action.cell.row, action.cell.col);
-    setMessage(result.ok ? `${TROOPS[action.troopType].label} implantado.` : result.reason);
+    setMessage(result.ok
+      ? result.upgraded
+        ? `Drone adicionado · Formação ${result.troop.droneCount}/3.`
+        : `${TROOPS[action.troopType].label} implantado.`
+      : result.reason);
     if (result.ok) {
       play("deploy", 0.55);
       pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
@@ -2041,7 +2214,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const deployment = snapshot.deploymentStats[troopId];
             const cooldown = snapshot.cooldowns[troopId] || 0;
             const coolingDown = cooldown > 0;
-            const deploymentLimitReached = deployment.limitReached;
+            const deploymentLimitReached = deployment.limitReached && troopId !== "droneSentinela";
             const cooldownEnding = coolingDown && cooldown <= 800;
             const lacksEnergy = snapshot.energy < deployment.price;
             const lacksSupply = snapshot.supply < troop.supply;
@@ -2053,9 +2226,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const slotLabel = coolingDown
               ? `${troop.label}, recarregando, ${cooldownSeconds} segundos restantes`
               : unavailableReason ? `${troop.label}, ${unavailableReason}` : `${troop.label}, disponível para implantação`;
+            const previewUrl = getTroopPreviewUrl(troopId);
             return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} aria-describedby={inspectedTroopId === troopId ? `troop-help-${troopId}` : undefined} onMouseEnter={() => setHoveredTroop(troopId)} onMouseLeave={() => setHoveredTroop(null)} onClick={() => { setRemoveMode(false); setSelectedTroop(troopId); }}>
               <span className="troop-portrait" style={{ "--cooldown-progress": `${cooldownProgress * 360}deg` }}>
-                <img src={getTroopPreviewUrl(troopId)} alt="" aria-hidden="true" />
+                {previewUrl && <img src={previewUrl} alt="" aria-hidden="true" />}
                 {coolingDown && <span className="cooldown-sweep" aria-hidden="true" />}
               </span>
               <span className="troop-details"><b>{troop.label}</b><small>{troop.role}</small></span>

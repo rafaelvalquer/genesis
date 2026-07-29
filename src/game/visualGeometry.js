@@ -57,6 +57,21 @@ export function getTroopFrameAnchor(troopConfig = {}, state = "idle", frame = 0)
 }
 
 export function getTroopAttackVisual(troop, troopConfig = {}) {
+  if (troop?.type === "cacadorLeviatas") {
+    if (troop.state === "charging") return troopConfig.chargingVisual;
+    if (troop.state === "attack") return troopConfig.attackVisual;
+    if (troop.state === "cooldown") return troopConfig.cooldownVisual;
+    return troopConfig.idleVisual;
+  }
+  if (troop?.type === "droneSentinela") {
+    const level = Math.max(1, Math.min(3, Number(
+      troop.state === "dead" ? troop.droneDeathLevel || troop.droneCount || 1 : troop.droneCount || 1,
+    )));
+    const visuals = troopConfig.stackVisuals?.[level];
+    if (troop.state === "attack") return visuals?.attack;
+    if (troop.state === "dead") return visuals?.death;
+    return visuals?.idle;
+  }
   if (troop?.type === "interceptadorIcaro") {
     if (troop.state === "interceptionLock") return troopConfig.interceptionLockVisual;
     if (troop.state === "interceptionFire") return troopConfig.interceptionFireVisual;
@@ -376,6 +391,41 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   if (troop.type === "muralhaReforcada") {
     const count = Math.max(1, frameCounts.defense || frameCounts.idle || 1);
     return { state: "defense", frame: getWallDamageFrame(troop, count) };
+  }
+
+  if (troop.type === "droneSentinela") {
+    const level = Math.max(1, Math.min(3, Number(
+      troop.state === "dead" ? troop.droneDeathLevel || troop.droneCount || 1 : troop.droneCount || 1,
+    )));
+    const phase = troop.state === "attack" ? "attack" : troop.state === "dead" ? "death" : "idle";
+    const state = `${phase}${level}`;
+    const stateVisual = troopConfig.stackVisuals[level][phase];
+    const count = Math.max(1, frameCounts[state] || 8);
+    const startedAt = Number.isFinite(troop.stateStartedAt) ? troop.stateStartedAt : 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const frame = stateVisual.loop
+      ? Math.floor(age / (stateVisual.durationMs / count)) % count
+      : Math.min(count - 1, Math.floor(age / (stateVisual.durationMs / count)));
+    return { state, frame };
+  }
+
+  if (troop.type === "cacadorLeviatas") {
+    const state = ["charging", "attack", "cooldown"].includes(troop.state)
+      ? troop.state
+      : "idle";
+    const visual = {
+      idle: troopConfig.idleVisual,
+      charging: troopConfig.chargingVisual,
+      attack: troopConfig.attackVisual,
+      cooldown: troopConfig.cooldownVisual,
+    }[state];
+    const count = Math.max(1, frameCounts[state] || 1);
+    const duration = Math.max(1, visual.durationMs);
+    const age = Math.max(0, elapsed - troop.stateStartedAt);
+    const frame = visual.loop
+      ? Math.floor(age / (duration / count)) % count
+      : Math.min(count - 1, Math.floor(age / (duration / count)));
+    return { state, frame };
   }
 
   const visual = getTroopAttackVisual(troop, troopConfig);

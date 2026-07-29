@@ -14,6 +14,7 @@ const ATTACK_LABELS = {
   tileMelee: "Impacto no tile",
   arcCombo: "Combo corpo a corpo",
   icaroBurst: "Rajada antiaérea",
+  leviathanCannon: "Canhão perfurante",
 };
 
 const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
@@ -35,6 +36,8 @@ export function getTroopInfo(troop) {
     ? "Não ataca"
     : generatesEnergy
       ? `${troop.energyPerPulse} energia a cada ${formatDuration(troop.attackEveryMs)}`
+      : troop.attack === "leviathanCannon"
+        ? `${formatDuration(troop.chargeMs)} de carga · ${formatDuration(troop.cooldownMs)} de resfriamento`
       : troop.attack === "arcCombo"
         ? `${formatDuration(troop.attackVisuals.combo1.recoveryMs)} / ${formatDuration(troop.attackVisuals.combo2.recoveryMs)} / ${formatDuration(troop.attackVisuals.combo3.recoveryMs)}`
         : `A cada ${formatDuration(troop.attackEveryMs)}`;
@@ -101,6 +104,20 @@ export function getTroopInfo(troop) {
     label: "Defesa próxima",
     value: `${formatNumber(troop.closeDamage)} de dano a cada ${formatDuration(troop.closeAttackEveryMs)} · ${formatNumber(troop.closeRange)} células`,
   });
+  if (troop.attack === "leviathanCannon") {
+    specials.push({
+      label: "Projétil perfurante",
+      value: `${troop.maximumTargets} alvos · ${Math.round(troop.secondTargetDamageFactor * 100)}% no segundo`,
+    });
+    specials.push({
+      label: "Penetração",
+      value: `${Math.round(troop.shieldIgnoreFactor * 100)}% de escudo · ${Math.round(troop.armorPierceFactor * 100)}% de armadura`,
+    });
+    specials.push({
+      label: "Ruptura Estrutural",
+      value: `${troop.ruptureRequiredHits} impactos em pesados · +${Math.round((troop.ruptureDamageTakenFactor - 1) * 100)}% de dano recebido`,
+    });
+  }
 
   if (troop.specialDamage) specials.push({
     label: "Esmagamento Total",

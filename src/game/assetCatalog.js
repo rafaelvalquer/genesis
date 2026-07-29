@@ -11,6 +11,7 @@ const arenaUrls = import.meta.glob("./assets/arenas/*.webp", { eager: true, quer
 const audioUrls = import.meta.glob("./assets/sfx/*.{ogg,wav}", { eager: true, query: "?url", import: "default" });
 const previewUrls = import.meta.glob([
   "./assets/troop/*/idle/frame0.png",
+  "./assets/troop/*/idle1/frame0.png",
   "!./assets/troop/muralhaReforcada/idle/frame0.png",
   "./assets/troop/*/defense/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
@@ -60,9 +61,11 @@ export function resolveTroopFrame(troopAssets, state, frame) {
 
 export function getTroopPreviewUrl(troopId) {
   const spriteKey = TROOPS[troopId]?.spriteKey || troopId;
-  const preferred = spriteKey === "muralhaReforcada" ? "defense" : "idle";
+  const preferred = spriteKey === "muralhaReforcada"
+    ? "defense"
+    : spriteKey === "droneSentinela" ? "idle1" : "idle";
   const match = Object.entries(previewUrls).find(([key]) => key.includes(`/${spriteKey}/${preferred}/frame0.png`));
-  return match?.[1] || "";
+  return match?.[1] || null;
 }
 
 export function getArenaUrl(arenaId) {

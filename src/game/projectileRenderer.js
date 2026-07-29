@@ -1,4 +1,10 @@
 import { createExecutorParticles, drawExecutorParticle } from "./executorArcoRenderer.js";
+import {
+  forEachProjectileTrailPoint,
+  projectileTrailLength,
+  projectileTrailPoint,
+} from "./projectileTrail.js";
+import { drawCachedRadialGlow } from "./effectTextureCache.js";
 
 const QUALITY = {
   low: { density: 0.3, trail: 0.45, budget: 140 },
@@ -270,6 +276,43 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     const executorParticles = createExecutorParticles(event, now, settings);
     if (executorParticles) {
       particles.push(...executorParticles);
+      continue;
+    }
+    if (event.type === "leviathanChargeStarted") {
+      particles.push({
+        kind: "ring", x: event.x, y: event.y - 34, color,
+        born: now, life: 1500, maxRadius: 52, essential: true,
+      });
+      addSparks(particles, event, now, settings.reduceMotion ? 4 : 12, random, {
+        color, minSpeed: 18, speed: 70, gravity: 0, life: 900, size: 1.8,
+      });
+      continue;
+    }
+    if (event.type === "leviathanFire") {
+      particles.push({
+        kind: "muzzle", x: event.x, y: event.y, color: "#ffffff",
+        born: now, life: 260, size: 52, essential: true,
+      });
+      particles.push({
+        kind: "ring", x: event.x, y: event.y, color,
+        born: now, life: 420, maxRadius: 74, essential: true,
+      });
+      addSparks(particles, event, now, settings.reduceMotion ? 6 : 20, random, {
+        color, minSpeed: 55, speed: 180, gravity: 35, life: 520, size: 2.2,
+      });
+      continue;
+    }
+    if (["leviathanImpact", "leviathanSecondImpact", "structuralRuptureApplied"].includes(event.type)) {
+      const ruptured = event.type === "structuralRuptureApplied";
+      particles.push({
+        kind: "ring", x: event.x, y: event.y, color,
+        born: now, life: ruptured ? 760 : 440, maxRadius: ruptured ? 84 : 46,
+        essential: ruptured,
+      });
+      addSparks(particles, event, now, settings.reduceMotion ? 5 : ruptured ? 24 : 14, random, {
+        color: ruptured ? "#e0f2fe" : color,
+        minSpeed: 35, speed: ruptured ? 155 : 105, gravity: 60, life: 620, size: 2,
+      });
       continue;
     }
 
@@ -682,11 +725,8 @@ function drawTracer(ctx, projectile, length, width, core) {
   const angle = Math.atan2(projectile.vy, projectile.vx);
   const tailX = projectile.x - Math.cos(angle) * length;
   const tailY = projectile.y - Math.sin(angle) * length;
-  const gradient = ctx.createLinearGradient(tailX, tailY, projectile.x, projectile.y);
-  gradient.addColorStop(0, "transparent");
-  gradient.addColorStop(0.5, projectile.color);
-  gradient.addColorStop(1, core);
-  ctx.strokeStyle = gradient;
+  ctx.strokeStyle = core;
+  ctx.globalAlpha *= 0.72;
   ctx.lineWidth = width;
   ctx.shadowBlur = 10;
   ctx.shadowColor = projectile.color;
@@ -697,15 +737,18 @@ function drawTracer(ctx, projectile, length, width, core) {
 }
 
 function drawRoundBullet(ctx, projectile, { radius, glowRadius, rim, glowEdge }) {
-  const glow = ctx.createRadialGradient(projectile.x - 1.5, projectile.y - 1.5, 0.5, projectile.x, projectile.y, glowRadius);
-  glow.addColorStop(0, "#ffffff");
-  glow.addColorStop(0.3, "#fff7ed");
-  glow.addColorStop(0.62, projectile.color);
-  glow.addColorStop(1, glowEdge);
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(projectile.x, projectile.y, glowRadius, 0, Math.PI * 2);
-  ctx.fill();
+  drawCachedRadialGlow(
+    ctx,
+    `round-bullet:${projectile.color}:${glowEdge}`,
+    projectile.x,
+    projectile.y,
+    glowRadius,
+    glowRadius,
+    "#ffffff",
+    projectile.color,
+    glowEdge,
+    0.62,
+  );
 
   ctx.fillStyle = "#f8fdff";
   ctx.strokeStyle = rim;
@@ -739,11 +782,7 @@ function drawIcaroBullet(ctx, projectile, special = false) {
     ctx.translate(x, y);
     ctx.rotate(angle);
 
-    const trail = ctx.createLinearGradient(-length * 1.7, 0, 2, 0);
-    trail.addColorStop(0, "rgba(34,211,238,0)");
-    trail.addColorStop(0.7, "rgba(34,211,238,.32)");
-    trail.addColorStop(1, "rgba(103,232,249,.8)");
-    ctx.strokeStyle = trail;
+    ctx.strokeStyle = "rgba(103,232,249,.62)";
     ctx.lineWidth = special ? 2 : 1.5;
     ctx.lineCap = "round";
     ctx.beginPath();
@@ -780,16 +819,14 @@ function drawIcaroBullet(ctx, projectile, special = false) {
 
 function drawNaniteBullet(ctx, projectile) {
   const angle = Math.atan2(projectile.vy, projectile.vx);
-  const trail = projectile.trail.slice(-4);
-  if (trail.length > 1) {
-    const gradient = ctx.createLinearGradient(trail[0].x, trail[0].y, projectile.x, projectile.y);
-    gradient.addColorStop(0, "rgba(45,212,191,0)");
-    gradient.addColorStop(1, "rgba(103,232,249,.72)");
-    ctx.strokeStyle = gradient;
+  const trailLength = Math.min(projectileTrailLength(projectile.trail), 4);
+  const trailStart = projectileTrailPoint(projectile.trail, 0, trailLength);
+  if (trailLength > 1) {
+    ctx.strokeStyle = "rgba(103,232,249,.58)";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(trail[0].x, trail[0].y);
+    ctx.moveTo(trailStart.x, trailStart.y);
     ctx.lineTo(projectile.x, projectile.y);
     ctx.stroke();
   }
@@ -812,16 +849,45 @@ function drawSniperBullet(ctx, projectile) {
   });
 }
 
-function drawIceProjectile(ctx, projectile) {
-  const glow = ctx.createRadialGradient(projectile.x - 1, projectile.y - 1, 0.5, projectile.x, projectile.y, 10);
-  glow.addColorStop(0, "#ffffff");
-  glow.addColorStop(0.25, "#78c8ff");
-  glow.addColorStop(0.58, "#167ece");
-  glow.addColorStop(1, "rgba(22,126,206,0)");
-  ctx.fillStyle = glow;
+function drawLeviathanRound(ctx, projectile, quality) {
+  const angle = Math.atan2(projectile.vy || 0, projectile.vx || 1);
+  const recent = quality === "low" ? 4 : 8;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  forEachProjectileTrailPoint(projectile.trail, recent, (point, index, count) => {
+    const alpha = (index + 1) / Math.max(1, count) * 0.42;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = index > count * 0.55 ? "#e0f2fe" : projectile.color || "#38bdf8";
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 2 + index / Math.max(1, count) * 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(angle);
+  ctx.shadowColor = projectile.color || "#38bdf8";
+  ctx.shadowBlur = quality === "low" ? 8 : 18;
+  const gradient = ctx.createLinearGradient(-25, 0, 15, 0);
+  gradient.addColorStop(0, "rgba(56, 189, 248, 0)");
+  gradient.addColorStop(0.55, projectile.color || "#38bdf8");
+  gradient.addColorStop(1, "#ffffff");
+  ctx.fillStyle = gradient;
   ctx.beginPath();
-  ctx.arc(projectile.x, projectile.y, 10, 0, Math.PI * 2);
+  ctx.moveTo(-28, -4);
+  ctx.lineTo(12, -3);
+  ctx.lineTo(20, 0);
+  ctx.lineTo(12, 3);
+  ctx.lineTo(-28, 4);
+  ctx.closePath();
   ctx.fill();
+  ctx.restore();
+}
+
+function drawIceProjectile(ctx, projectile) {
+  drawCachedRadialGlow(
+    ctx, "projectile-ice", projectile.x, projectile.y, 10, 10,
+    "#ffffff", "#167ece", "rgba(22,126,206,0)", 0.58,
+  );
   ctx.fillStyle = "#167ece";
   ctx.strokeStyle = "#bfe9ff";
   ctx.lineWidth = 1;
@@ -838,25 +904,28 @@ function drawFireball(ctx, projectile) {
 }
 
 function drawAbyssOrb(ctx, projectile, quality) {
-  const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
-  trail.forEach((point, index) => {
-    const ratio = (index + 1) / trail.length;
+  const recent = Math.max(4, Math.round(12 * quality.trail));
+  forEachProjectileTrailPoint(projectile.trail, recent, (point, index, count) => {
+    const ratio = (index + 1) / count;
     ctx.fillStyle = `rgba(168,85,247,${ratio * 0.24})`;
     ctx.beginPath();
     ctx.arc(point.x, point.y, 3 + ratio * 4, 0, Math.PI * 2);
     ctx.fill();
   });
-  const glow = ctx.createRadialGradient(projectile.x - 2, projectile.y - 2, 1, projectile.x, projectile.y, 16);
-  glow.addColorStop(0, "#ffffff");
-  glow.addColorStop(0.2, "#ead7ff");
-  glow.addColorStop(0.55, projectile.color || "#a855f7");
-  glow.addColorStop(1, "rgba(88,28,135,0)");
-  ctx.fillStyle = glow;
   ctx.shadowBlur = 18;
   ctx.shadowColor = projectile.color || "#a855f7";
-  ctx.beginPath();
-  ctx.arc(projectile.x, projectile.y, 16, 0, Math.PI * 2);
-  ctx.fill();
+  drawCachedRadialGlow(
+    ctx,
+    `abyss-orb:${projectile.color || "#a855f7"}`,
+    projectile.x,
+    projectile.y,
+    16,
+    16,
+    "#ffffff",
+    projectile.color || "#a855f7",
+    "rgba(88,28,135,0)",
+    0.55,
+  );
   ctx.fillStyle = "#f5e8ff";
   ctx.beginPath();
   ctx.arc(projectile.x, projectile.y, 5, 0, Math.PI * 2);
@@ -908,14 +977,13 @@ export function drawFrozenEnemyEffect(ctx, entity, elapsed, settings = {}) {
   const scale = entity.scale || 1;
   const radiusX = 28 * scale;
   const baseY = entity.y + 30 * scale;
-  const halo = ctx.createRadialGradient(entity.x, entity.y + 4, 2, entity.x, entity.y + 4, 48 * scale);
-  halo.addColorStop(0, `rgba(186,247,255,${0.16 * pulse})`);
-  halo.addColorStop(0.58, `rgba(34,211,238,${0.1 * pulse})`);
-  halo.addColorStop(1, "rgba(14,165,233,0)");
-  ctx.fillStyle = halo;
-  ctx.beginPath();
-  ctx.ellipse(entity.x, entity.y + 4, 48 * scale, 58 * scale, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.save();
+  ctx.globalAlpha = pulse;
+  drawCachedRadialGlow(
+    ctx, "frozen-enemy", entity.x, entity.y + 4, 48 * scale, 58 * scale,
+    "rgba(186,247,255,.16)", "rgba(34,211,238,.1)", "rgba(14,165,233,0)", 0.58,
+  );
+  ctx.restore();
 
   const crystals = settings.quality === "low" ? [-0.55, 0.5] : [-0.72, -0.2, 0.34, 0.72];
   ctx.fillStyle = `rgba(165,243,252,${0.72 * pulse})`;
@@ -959,10 +1027,10 @@ function drawMissileSalvo(ctx, projectile, quality) {
   const nx = -Math.sin(angle);
   const ny = Math.cos(angle);
   const offsets = projectile.visualCount === 3 ? [-7, 0, 7] : [0];
-  const trail = projectile.trail.slice(-Math.max(4, Math.round(14 * quality.trail)));
-  trail.forEach((point, index) => {
+  const recent = Math.max(4, Math.round(14 * quality.trail));
+  forEachProjectileTrailPoint(projectile.trail, recent, (point, index, count) => {
     if (index % 2) return;
-    const ratio = (index + 1) / trail.length;
+    const ratio = (index + 1) / count;
     ctx.fillStyle = `rgba(100,116,139,${0.06 + ratio * 0.16})`;
     ctx.beginPath();
     ctx.arc(point.x - Math.cos(angle) * 6, point.y - Math.sin(angle) * 6, 5 + (1 - ratio) * 5, 0, Math.PI * 2);
@@ -995,9 +1063,9 @@ function drawMissileSalvo(ctx, projectile, quality) {
 }
 
 function drawMortarShell(ctx, projectile, quality) {
-  const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
-  trail.forEach((point, index) => {
-    const ratio = (index + 1) / trail.length;
+  const recent = Math.max(4, Math.round(12 * quality.trail));
+  forEachProjectileTrailPoint(projectile.trail, recent, (point, index, count) => {
+    const ratio = (index + 1) / count;
     ctx.fillStyle = `rgba(148,163,184,${ratio * 0.18})`;
     ctx.beginPath();
     ctx.arc(point.x, point.y, 2 + (1 - ratio) * 4, 0, Math.PI * 2);
@@ -1035,9 +1103,9 @@ function drawMortarShell(ctx, projectile, quality) {
 }
 
 function drawPrismBolt(ctx, projectile, quality) {
-  const trail = projectile.trail.slice(-Math.max(4, Math.round(12 * quality.trail)));
-  trail.forEach((point, index) => {
-    const ratio = (index + 1) / trail.length;
+  const recent = Math.max(4, Math.round(12 * quality.trail));
+  forEachProjectileTrailPoint(projectile.trail, recent, (point, index, count) => {
+    const ratio = (index + 1) / count;
     ctx.strokeStyle = index % 2 ? `rgba(139,92,246,${ratio * .5})` : `rgba(127,255,212,${ratio * .62})`;
     ctx.lineWidth = 1 + ratio * 3;
     ctx.beginPath();
@@ -1084,17 +1152,17 @@ function drawInhibitorWeb(ctx, projectile) {
 }
 
 function drawRepulsorFist(ctx, projectile) {
-  const trail = projectile.trail || [];
-  if (trail.length > 1) {
-    const gradient = ctx.createLinearGradient(trail[0].x, trail[0].y, projectile.x, projectile.y);
-    gradient.addColorStop(0, "rgba(34,211,238,0)");
-    gradient.addColorStop(1, "rgba(165,243,252,.75)");
-    ctx.strokeStyle = gradient;
+  const trailLength = projectileTrailLength(projectile.trail);
+  const trailStart = projectileTrailPoint(projectile.trail, 0, trailLength);
+  if (trailLength > 1) {
+    ctx.strokeStyle = "rgba(165,243,252,.62)";
     ctx.lineWidth = 7;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(trail[0].x, trail[0].y);
-    for (const point of trail.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.moveTo(trailStart.x, trailStart.y);
+    forEachProjectileTrailPoint(projectile.trail, trailLength, (point, index) => {
+      if (index > 0) ctx.lineTo(point.x, point.y);
+    });
     ctx.stroke();
   }
 
@@ -1151,16 +1219,17 @@ function drawExecutorArcSlash(ctx, projectile, quality, assets = {}) {
     return;
   }
 
-  const trail = (projectile.trail || []).slice(-Math.max(2, Math.round(6 * quality.trail)));
-  if (trail.length > 1) {
-    const gradient = ctx.createLinearGradient(trail[0].x, trail[0].y, projectile.x, projectile.y);
-    gradient.addColorStop(0, "rgba(194,65,12,0)");
-    gradient.addColorStop(1, "rgba(251,146,60,.55)");
-    ctx.strokeStyle = gradient;
+  const recent = Math.max(2, Math.round(6 * quality.trail));
+  const trailLength = Math.min(projectileTrailLength(projectile.trail), recent);
+  const trailStart = projectileTrailPoint(projectile.trail, 0, trailLength);
+  if (trailLength > 1) {
+    ctx.strokeStyle = "rgba(251,146,60,.48)";
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.moveTo(trail[0].x, trail[0].y);
-    for (const point of trail.slice(1)) ctx.lineTo(point.x, point.y);
+    ctx.moveTo(trailStart.x, trailStart.y);
+    forEachProjectileTrailPoint(projectile.trail, recent, (point, index) => {
+      if (index > 0) ctx.lineTo(point.x, point.y);
+    });
     ctx.stroke();
   }
   if (image) {
@@ -1178,29 +1247,55 @@ function drawExecutorArcSlash(ctx, projectile, quality, assets = {}) {
   ctx.stroke();
 }
 
-export function drawProjectiles(ctx, projectiles, settings = {}, assets = {}) {
+const projectileScratchState = { entity: null, x: 0, y: 0 };
+const projectileScratch = new Proxy(projectileScratchState, {
+  get(state, property) {
+    if (property === "x" || property === "y") return state[property];
+    if (property === "entity") return state.entity;
+    return state.entity?.[property];
+  },
+});
+
+export function drawProjectileCollection(
+  ctx,
+  projectiles,
+  interpolation = 1,
+  settings = {},
+  assets = {},
+) {
   const quality = profile(settings);
   for (const projectile of projectiles) {
     if (!projectile.launched) continue;
+    const previousX = Number.isFinite(projectile.previousRenderX)
+      ? projectile.previousRenderX
+      : projectile.x;
+    const previousY = Number.isFinite(projectile.previousRenderY)
+      ? projectile.previousRenderY
+      : projectile.y;
+    projectileScratchState.entity = projectile;
+    projectileScratchState.x = previousX + (projectile.x - previousX) * interpolation;
+    projectileScratchState.y = previousY + (projectile.y - previousY) * interpolation;
     ctx.save();
-    if (projectile.visualKind === "executorArcSlash") drawExecutorArcSlash(ctx, projectile, quality, assets);
-    else if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectile.x, projectile.y, projectile.rotation, assets.mine?.[0], 46);
-    else if (projectile.visualKind === "repulsorFist") drawRepulsorFist(ctx, projectile);
-    else if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectile);
-    else if (projectile.visualKind === "marineBullet") drawMarineBullet(ctx, projectile);
-    else if (projectile.visualKind === "icaroBullet") drawIcaroBullet(ctx, projectile);
-    else if (projectile.visualKind === "icaroInterceptionShot") drawIcaroBullet(ctx, projectile, true);
-    else if (projectile.visualKind === "naniteBullet") drawNaniteBullet(ctx, projectile);
-    else if (projectile.visualKind === "ice") drawIceProjectile(ctx, projectile);
-    else if (projectile.visualKind === "fireball") drawFireball(ctx, projectile);
-    else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectile, quality);
-    else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectile, quality);
-    else if (projectile.visualKind === "inhibitorWeb") drawInhibitorWeb(ctx, projectile);
-    else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectile, quality);
-    else if (projectile.visualKind === "mortarShell") drawMortarShell(ctx, projectile, quality);
-    else drawTracer(ctx, projectile, 14, 2.5, "#ffffff");
+    if (projectile.visualKind === "leviathanRound") drawLeviathanRound(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "executorArcSlash") drawExecutorArcSlash(ctx, projectileScratch, quality, assets);
+    else if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectileScratch.x, projectileScratch.y, projectile.rotation, assets.mine?.[0], 46);
+    else if (projectile.visualKind === "repulsorFist") drawRepulsorFist(ctx, projectileScratch);
+    else if (projectile.visualKind === "sniperBullet") drawSniperBullet(ctx, projectileScratch);
+    else if (projectile.visualKind === "marineBullet") drawMarineBullet(ctx, projectileScratch);
+    else if (projectile.visualKind === "icaroBullet") drawIcaroBullet(ctx, projectileScratch);
+    else if (projectile.visualKind === "icaroInterceptionShot") drawIcaroBullet(ctx, projectileScratch, true);
+    else if (projectile.visualKind === "naniteBullet") drawNaniteBullet(ctx, projectileScratch);
+    else if (projectile.visualKind === "ice") drawIceProjectile(ctx, projectileScratch);
+    else if (projectile.visualKind === "fireball") drawFireball(ctx, projectileScratch);
+    else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "inhibitorWeb") drawInhibitorWeb(ctx, projectileScratch);
+    else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "mortarShell") drawMortarShell(ctx, projectileScratch, quality);
+    else drawTracer(ctx, projectileScratch, 14, 2.5, "#ffffff");
     ctx.restore();
   }
+  projectileScratchState.entity = null;
 }
 
 function drawLaser(ctx, particle, progress, settings) {
@@ -1229,10 +1324,7 @@ function drawShotgun(ctx, particle, progress) {
     const spread = (index - (count - 1) / 2) * 7 + (random() - 0.5) * 4;
     const endX = particle.x0 + length * (0.76 + random() * 0.22);
     const endY = particle.y0 + spread;
-    const gradient = ctx.createLinearGradient(particle.x0, particle.y0, endX, endY);
-    gradient.addColorStop(0, `rgba(255,247,214,${1 - progress})`);
-    gradient.addColorStop(1, `rgba(251,113,133,${0.08 * (1 - progress)})`);
-    ctx.strokeStyle = gradient;
+    ctx.strokeStyle = `rgba(255,247,214,${0.72 * (1 - progress)})`;
     ctx.lineWidth = 2.2;
     ctx.beginPath();
     ctx.moveTo(particle.x0, particle.y0);
@@ -1266,18 +1358,12 @@ function drawFlameJet(ctx, particle, progress, settings) {
     : Math.sin(particle.wavePhase + progress * Math.PI * 2) * particle.waveAmp;
   const controlX = particle.x0 + range * 0.54;
   const controlY = particle.y0 + wave;
-  const gradient = ctx.createLinearGradient(particle.x0, particle.y0, particle.x1, particle.y1);
-  gradient.addColorStop(0, `rgba(255,191,62,${0.96 * fade})`);
-  gradient.addColorStop(0.22, `rgba(255,137,28,${0.94 * fade})`);
-  gradient.addColorStop(0.72, `rgba(239,68,18,${0.8 * fade})`);
-  gradient.addColorStop(1, `rgba(127,29,18,${0.14 * fade})`);
-
   ctx.globalCompositeOperation = "lighter";
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   const startRadius = particle.bodyWidth * 0.22;
   const endRadius = particle.bodyWidth * 0.82;
-  ctx.fillStyle = gradient;
+  ctx.fillStyle = `rgba(249,115,22,${0.72 * fade})`;
   ctx.shadowBlur = 20;
   ctx.shadowColor = "rgba(249,115,22,.88)";
   ctx.beginPath();
@@ -1288,7 +1374,7 @@ function drawFlameJet(ctx, particle, progress, settings) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.strokeStyle = gradient;
+  ctx.strokeStyle = `rgba(255,137,28,${0.88 * fade})`;
   ctx.lineWidth = particle.bodyWidth * (0.48 + Math.sin(particle.wavePhase + progress * 9) * 0.06);
   ctx.beginPath();
   ctx.moveTo(particle.x0, particle.y0);
@@ -1296,11 +1382,7 @@ function drawFlameJet(ctx, particle, progress, settings) {
   ctx.stroke();
 
   const coreEndX = particle.x0 + range * 0.46;
-  const coreGradient = ctx.createLinearGradient(particle.x0, particle.y0, coreEndX, particle.y0);
-  coreGradient.addColorStop(0, `rgba(255,255,244,${fade})`);
-  coreGradient.addColorStop(0.48, `rgba(255,246,174,${0.92 * fade})`);
-  coreGradient.addColorStop(1, "rgba(255,177,69,0)");
-  ctx.strokeStyle = coreGradient;
+  ctx.strokeStyle = `rgba(255,246,174,${0.82 * fade})`;
   ctx.shadowBlur = 10;
   ctx.shadowColor = "#fff1a8";
   ctx.lineWidth = Math.max(2, particle.bodyWidth * 0.16);
@@ -1317,16 +1399,20 @@ function drawFlame(ctx, particle, progress, settings) {
   const pulse = 0.88 + Math.sin(particle.wavePhase + progress * 12) * 0.12;
   const radius = Math.max(1.5, particle.size * pulse * (1 - progress * (particle.soft ? 0.42 : 0.58)));
   const alpha = (particle.soft ? 0.28 : 0.88) * Math.pow(1 - progress, 0.72);
-  const glow = ctx.createRadialGradient(x, y, radius * 0.16, x, y, radius);
-  glow.addColorStop(0, `rgba(${particle.inner},${alpha})`);
-  glow.addColorStop(0.42, `rgba(${particle.outer},${alpha * 0.9})`);
-  glow.addColorStop(1, `rgba(${particle.outer},0)`);
   ctx.globalCompositeOperation = "lighter";
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = glow;
-  ctx.beginPath();
-  ctx.arc(x, y, radius, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.globalAlpha = alpha;
+  drawCachedRadialGlow(
+    ctx,
+    `flame:${particle.inner}:${particle.outer}`,
+    x,
+    y,
+    radius,
+    radius,
+    `rgb(${particle.inner})`,
+    `rgb(${particle.outer})`,
+    `rgba(${particle.outer},0)`,
+    0.42,
+  );
 }
 
 function drawFlameRibbon(ctx, particle, progress) {
@@ -1347,13 +1433,16 @@ function drawFlameRibbon(ctx, particle, progress) {
   ctx.stroke();
 }
 
-export function drawParticles(ctx, particles, now, settings = {}) {
+const NON_EMISSIVE_PARTICLE_KINDS = new Set(["casing", "smoke", "floatingText"]);
+
+export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly = false) {
   let write = 0;
   for (const particle of particles) {
     const progress = (now - particle.born) / particle.life;
     if (progress >= 1) continue;
     particles[write] = particle;
     write += 1;
+    if (emissiveOnly && NON_EMISSIVE_PARTICLE_KINDS.has(particle.kind)) continue;
     const seconds = (now - particle.born) / 1000;
     ctx.save();
     ctx.globalAlpha = 1 - progress;
@@ -1387,14 +1476,18 @@ export function drawParticles(ctx, particles, now, settings = {}) {
       ctx.stroke();
     } else if (particle.kind === "muzzle") {
       const radius = particle.size * (0.55 + progress * 0.85);
-      const glow = ctx.createRadialGradient(particle.x, particle.y, 0, particle.x, particle.y, radius);
-      glow.addColorStop(0, "#ffffff");
-      glow.addColorStop(0.28, particle.color);
-      glow.addColorStop(1, "rgba(255,160,40,0)");
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
-      ctx.fill();
+      drawCachedRadialGlow(
+        ctx,
+        `muzzle:${particle.color}`,
+        particle.x,
+        particle.y,
+        radius,
+        radius,
+        "#ffffff",
+        particle.color,
+        "rgba(255,160,40,0)",
+        0.28,
+      );
     } else if (particle.kind === "smoke") {
       const x = particle.x + particle.vx * seconds;
       const y = particle.y + particle.vy * seconds;

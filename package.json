@@ -22,6 +22,8 @@
     "assets:interceptador-icaro": "node scripts/process-interceptador-icaro-sprites.mjs && node scripts/generate-icaro-sfx.mjs",
     "assets:wind-sfx": "node scripts/generate-wind-sfx.mjs",
     "assets:wind-effects": "node scripts/generate-wind-effects.mjs",
+    "assets:drone-sentinela": "node scripts/process-drone-sentinela-sprites.mjs",
+    "assets:cacador-leviatas": "node scripts/process-cacador-leviatas-sheet.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",
