@@ -1,0 +1,458 @@
+body:has(.campaign-map) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.campaign-map {
+  --rail-width: clamp(286px, 24vw, 360px);
+  position: relative;
+  height: calc(100vh - 72px);
+  min-height: 620px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 45% 55%, color-mix(in srgb, var(--campaign-primary) 12%, transparent), transparent 37%),
+    linear-gradient(115deg, #01030a 0%, var(--campaign-fog) 62%, #02040a 100%);
+  isolation: isolate;
+}
+
+.campaign-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: .18;
+  background: var(--campaign-cover) center / cover;
+  filter: blur(26px) saturate(.55);
+  transform: scale(1.1);
+}
+
+.campaign-map::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+  opacity: .18;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(103, 232, 249, .025) 4px);
+  mix-blend-mode: screen;
+}
+
+.campaign-scanline {
+  position: absolute;
+  z-index: 21;
+  inset: 0 0 auto;
+  height: 18vh;
+  pointer-events: none;
+  opacity: .14;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--campaign-primary) 24%, transparent), transparent);
+}
+
+.campaign-header {
+  position: absolute;
+  z-index: 14;
+  top: 0;
+  left: 0;
+  right: var(--rail-width);
+  height: 112px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22px;
+  padding: 22px clamp(22px, 3vw, 48px);
+  border-bottom: 1px solid rgba(103, 232, 249, .14);
+  background: linear-gradient(180deg, rgba(2, 6, 14, .9), rgba(2, 6, 14, .34), transparent);
+  pointer-events: none;
+}
+
+.campaign-heading h1 {
+  margin: 2px 0 3px;
+  font-size: clamp(25px, 2.4vw, 38px);
+  line-height: 1;
+  letter-spacing: .035em;
+  text-transform: uppercase;
+}
+
+.campaign-heading p {
+  margin: 0;
+  color: #718da1;
+  font-size: 9px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.campaign-heading p i { margin: 0 7px; color: var(--campaign-primary); font-style: normal; }
+
+.campaign-overview { display: flex; align-items: stretch; }
+.campaign-overview > div {
+  min-width: 112px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 17px;
+  border-left: 1px solid rgba(103, 232, 249, .2);
+}
+.campaign-overview strong { color: var(--campaign-primary); font: 700 27px "Chakra Petch"; line-height: 1; }
+.campaign-overview strong small { font-size: 11px; color: #7a94a7; }
+.campaign-overview span, .campaign-overview > div:last-child small {
+  color: #7590a3;
+  font-size: 7px;
+  line-height: 1.35;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.campaign-overview > div:last-child { min-width: 190px; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px; }
+.campaign-overview b { max-width: 185px; overflow: hidden; font: 700 10px "Chakra Petch"; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; }
+
+.campaign-map-body { height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) var(--rail-width); }
+.campaign-world { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.campaign-planet-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  outline: none;
+  cursor: grab;
+  touch-action: none;
+}
+.campaign-planet-stage:active { cursor: grabbing; }
+.campaign-planet-stage:focus-visible { box-shadow: inset 0 0 0 2px var(--campaign-primary); }
+.campaign-canvas-mount, .campaign-canvas-mount canvas { width: 100%; height: 100%; display: block; }
+
+.campaign-marker-layer { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+.phase-marker-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.phase-marker-anchor[hidden] { display: none; }
+.phase-marker {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  color: #e8fbff;
+}
+.marker-core {
+  position: relative;
+  z-index: 3;
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--campaign-primary);
+  border-radius: 50%;
+  background: rgba(3, 12, 20, .94);
+  box-shadow: 0 0 11px color-mix(in srgb, var(--campaign-primary) 68%, transparent), inset 0 0 8px rgba(103, 232, 249, .15);
+  font: 700 8px "Chakra Petch";
+}
+.marker-pulse {
+  position: absolute;
+  z-index: 1;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--campaign-primary);
+  border-radius: 50%;
+}
+.marker-beam { position: absolute; bottom: 29px; width: 1px; height: 38px; background: linear-gradient(transparent, var(--campaign-primary)); opacity: 0; }
+.phase-marker.is-selected .marker-core { border-width: 2px; color: #fff; box-shadow: 0 0 18px var(--campaign-primary), inset 0 0 9px var(--campaign-primary); }
+.phase-marker.is-selected .marker-core::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border: 1px dashed var(--campaign-primary);
+  border-radius: 50%;
+  animation: campaign-marker-orbit 5s linear infinite;
+}
+.phase-marker.is-selected .marker-beam { opacity: .8; }
+.phase-marker.is-completed .marker-core { border-color: #5eead4; background: #063b3c; box-shadow: 0 0 8px rgba(94, 234, 212, .55); }
+.phase-marker.is-perfect .marker-core { border-color: #fbbf24; box-shadow: 0 0 12px rgba(251, 191, 36, .8); }
+.marker-perfect { position: absolute; z-index: 5; top: -4px; right: -1px; color: #fbbf24; font-size: 10px; text-shadow: 0 0 5px #f59e0b; }
+.phase-marker.is-boss { width: 48px; height: 48px; color: #fecdd3; }
+.phase-marker.is-boss .marker-core { width: 34px; height: 34px; border-color: var(--campaign-accent); box-shadow: 0 0 15px color-mix(in srgb, var(--campaign-accent) 72%, transparent); }
+.phase-marker.is-current::before { content: ""; position: absolute; inset: 0; border: 1px solid #fff; border-radius: 50%; }
+.phase-marker.is-locked .marker-core { border-color: #536474; color: #708292; background: rgba(7, 11, 17, .9); box-shadow: none; filter: grayscale(1); }
+.marker-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  min-width: max-content;
+  padding: 5px 8px;
+  border: 1px solid var(--campaign-primary);
+  background: rgba(2, 8, 15, .96);
+  opacity: 0;
+  transform: translate(-50%, 4px);
+  color: #dffaff;
+  font: 700 7px "Chakra Petch";
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  transition: .16s ease;
+  pointer-events: none;
+}
+.phase-marker:hover .marker-tooltip, .phase-marker:focus-visible .marker-tooltip { opacity: 1; transform: translate(-50%, 0); }
+@keyframes campaign-marker-orbit { to { transform: rotate(360deg); } }
+
+.campaign-environment { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; }
+.campaign-environment i { position: absolute; display: block; }
+.environment-hive i {
+  width: 3px; height: 3px; border-radius: 50%; background: #2dd4bf;
+  box-shadow: 0 0 9px #22d3ee; animation: organic-drift 7s ease-in-out infinite alternate;
+}
+.environment-hive i:nth-child(odd) { background: #fb7185; }
+.environment-glass i {
+  width: 8px; height: 18px; border: 1px solid #a7f3d0; background: rgba(139, 92, 246, .16);
+  clip-path: polygon(50% 0, 100% 70%, 35% 100%, 0 42%); animation: glass-drift 9s linear infinite;
+}
+.environment-chitin i {
+  width: 32px; height: 2px; background: linear-gradient(90deg, transparent, #fbbf24, transparent);
+  animation: sand-drift 5s linear infinite;
+}
+.environment-storm i {
+  width: 90px; height: 1px; background: linear-gradient(90deg, transparent, #67e8f9);
+  box-shadow: 18px 6px 0 rgba(168, 85, 247, .5); animation: storm-drift 3.4s linear infinite;
+}
+.campaign-environment i:nth-child(1) { left: 12%; top: 24%; animation-delay: -1s; }
+.campaign-environment i:nth-child(2) { left: 28%; top: 66%; animation-delay: -3s; }
+.campaign-environment i:nth-child(3) { left: 48%; top: 18%; animation-delay: -4.5s; }
+.campaign-environment i:nth-child(4) { left: 64%; top: 48%; animation-delay: -2s; }
+.campaign-environment i:nth-child(5) { left: 77%; top: 75%; animation-delay: -5.5s; }
+.campaign-environment i:nth-child(6) { left: 40%; top: 84%; animation-delay: -6.2s; }
+@keyframes organic-drift { to { transform: translate(20px, -35px) scale(1.8); opacity: .25; } }
+@keyframes glass-drift { to { transform: translate(70px, 120px) rotate(180deg); opacity: 0; } }
+@keyframes sand-drift { to { transform: translate(260px, -40px); opacity: 0; } }
+@keyframes storm-drift { to { transform: translate(-240px, 60px); opacity: 0; } }
+
+.campaign-biome-label {
+  position: absolute;
+  z-index: 8;
+  left: clamp(22px, 3vw, 48px);
+  top: 124px;
+  max-width: 280px;
+  display: grid;
+  gap: 3px;
+  padding-left: 10px;
+  border-left: 2px solid var(--campaign-primary);
+  pointer-events: none;
+}
+.campaign-biome-label span { color: var(--campaign-primary); font: 700 7px "Chakra Petch"; letter-spacing: .15em; }
+.campaign-biome-label b { color: #93a9b9; font-size: 8px; font-weight: 500; text-transform: uppercase; }
+
+.chapter-rail {
+  position: relative;
+  z-index: 15;
+  min-width: 0;
+  padding: 18px 0 0;
+  border-left: 1px solid rgba(103, 232, 249, .22);
+  background: linear-gradient(90deg, rgba(2, 7, 14, .75), rgba(4, 10, 20, .98));
+  box-shadow: -24px 0 52px rgba(0, 0, 0, .4);
+}
+.chapter-rail > header { height: 70px; display: grid; align-content: center; gap: 5px; padding: 0 22px; border-bottom: 1px solid rgba(103, 232, 249, .13); }
+.chapter-rail > header span { font: 700 10px "Chakra Petch"; letter-spacing: .14em; }
+.chapter-rail > header small { color: #60798c; font-size: 7px; letter-spacing: .12em; }
+.chapter-rail-list { display: grid; }
+.chapter-rail-list button {
+  position: relative;
+  min-width: 0;
+  min-height: 124px;
+  display: grid;
+  grid-template-columns: 46px 1fr;
+  gap: 13px;
+  align-items: center;
+  padding: 16px 19px;
+  overflow: hidden;
+  border: 0;
+  border-bottom: 1px solid rgba(103, 232, 249, .12);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.chapter-rail-list button.active { background: linear-gradient(90deg, color-mix(in srgb, var(--campaign-primary) 12%, transparent), transparent); }
+.chapter-rail-list button:disabled { opacity: .38; filter: grayscale(.8); }
+.chapter-active-indicator { position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--campaign-primary); box-shadow: 0 0 14px var(--campaign-primary); }
+.chapter-rail-number {
+  color: var(--campaign-primary);
+  font: 700 26px "Chakra Petch";
+  border-right: 1px solid rgba(103, 232, 249, .2);
+}
+.chapter-rail-copy { min-width: 0; display: grid; gap: 4px; }
+.chapter-rail-copy small { color: var(--campaign-primary); font: 700 7px "Chakra Petch"; letter-spacing: .1em; }
+.chapter-rail-copy b { overflow: hidden; font: 700 14px "Chakra Petch"; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.chapter-rail-copy em { overflow: hidden; color: #7d94a6; font-size: 8px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.chapter-rail-copy > i { height: 2px; margin-top: 5px; background: #122637; }
+.chapter-rail-copy > i span { display: block; height: 100%; background: linear-gradient(90deg, var(--campaign-primary), var(--campaign-accent)); box-shadow: 0 0 6px var(--campaign-primary); }
+
+.mission-panel {
+  position: absolute;
+  z-index: 12;
+  left: clamp(22px, 3vw, 48px);
+  bottom: 24px;
+  width: min(570px, calc(100% - 54px));
+  min-height: 238px;
+  display: grid;
+  grid-template-columns: 155px minmax(0, 1fr);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--campaign-primary) 48%, #1d3347);
+  background: linear-gradient(135deg, rgba(5, 16, 27, .97), rgba(3, 8, 16, .94));
+  box-shadow: 0 22px 54px rgba(0, 0, 0, .52), inset 0 1px rgba(255, 255, 255, .03);
+  backdrop-filter: blur(10px);
+}
+.mission-preview { position: relative; min-width: 0; overflow: hidden; }
+.mission-preview img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.72) contrast(1.08); }
+.mission-preview::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 55%, rgba(5, 16, 27, .98)), linear-gradient(0deg, rgba(4, 12, 21, .8), transparent 55%); }
+.mission-preview-grid { position: absolute; z-index: 2; inset: 0; opacity: .22; background: linear-gradient(rgba(103,232,249,.2) 1px, transparent 1px), linear-gradient(90deg, rgba(103,232,249,.2) 1px, transparent 1px); background-size: 22px 22px; }
+.mission-preview small { position: absolute; z-index: 3; left: 12px; bottom: 12px; color: var(--campaign-primary); font: 700 7px "Chakra Petch"; letter-spacing: .1em; }
+.mission-copy { min-width: 0; padding: 16px 18px; }
+.mission-copy header { position: relative; padding-right: 20px; }
+.mission-copy h2 { margin: 2px 0; overflow: hidden; font-size: 20px; line-height: 1.05; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.mission-copy header p { margin: 0; color: #8299aa; font-size: 9px; }
+.mission-stats { display: grid; grid-template-columns: repeat(4, 1fr); margin: 12px 0 8px; border: 1px solid rgba(103,232,249,.14); }
+.mission-stats div { min-width: 0; padding: 6px 7px; border-right: 1px solid rgba(103,232,249,.14); }
+.mission-stats div:last-child { border: 0; }
+.mission-stats dt, .mission-enemies > span, .mission-mechanic span, .mission-stars > span { color: #688397; font-size: 6px; letter-spacing: .09em; text-transform: uppercase; }
+.mission-stats dd { overflow: hidden; margin: 2px 0 0; color: #dffaff; font: 700 10px "Chakra Petch"; text-overflow: ellipsis; white-space: nowrap; }
+.mission-stars { position: absolute; right: 18px; top: 16px; display: flex; align-items: center; gap: 3px; }
+.mission-stars > span { margin-right: 3px; }
+.mission-stars i { color: #344958; font-size: 9px; font-style: normal; }
+.mission-stars i.earned { color: #fbbf24; text-shadow: 0 0 5px #f59e0b; }
+.mission-enemies { min-width: 0; }
+.mission-enemies p { margin: 2px 0 7px; overflow: hidden; color: #a9bdca; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.mission-mechanic { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.mission-mechanic span { color: var(--campaign-primary); }
+.mission-mechanic b { overflow: hidden; color: #cbdbe5; font-size: 8px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.prepare-operation {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 13px;
+  border: 1px solid var(--campaign-primary);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--campaign-primary) 28%, #07131f), color-mix(in srgb, var(--campaign-accent) 14%, #07131f));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--campaign-primary) 16%, transparent);
+  cursor: pointer;
+  font: 700 9px "Chakra Petch";
+  letter-spacing: .12em;
+}
+.prepare-operation span { color: var(--campaign-primary); font-size: 16px; }
+
+.campaign-loading {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: linear-gradient(rgba(2,6,14,.76), rgba(2,6,14,.92)), var(--loading-image) center / cover;
+}
+.campaign-loading-orbit { width: 58px; height: 58px; margin-bottom: 10px; border: 1px solid var(--campaign-primary, #22d3ee); border-left-color: transparent; border-radius: 50%; animation: campaign-marker-orbit 1.2s linear infinite; }
+.campaign-loading b { font: 700 11px "Chakra Petch"; letter-spacing: .11em; text-transform: uppercase; }
+.campaign-loading small { color: #718da2; font-size: 8px; text-transform: uppercase; }
+
+.campaign-fallback { position: absolute; inset: 0; overflow: hidden; background: radial-gradient(circle, transparent, #020610 72%), var(--fallback-image) center / cover; }
+.campaign-fallback::before { content: ""; position: absolute; inset: 12% 18%; border: 1px solid rgba(103,232,249,.22); border-radius: 50%; box-shadow: inset 0 0 80px rgba(0,0,0,.72), 0 0 45px rgba(34,211,238,.12); }
+.fallback-planet { position: absolute; inset: 14% 20%; border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.15), transparent 28%), var(--fallback-image) center / cover; filter: saturate(.8); }
+.fallback-notice { position: absolute; z-index: 3; top: 125px; left: 48px; color: #8ca7b8; font: 700 7px "Chakra Petch"; letter-spacing: .12em; text-transform: uppercase; }
+.fallback-markers { position: absolute; z-index: 4; inset: 17% 23%; }
+.fallback-markers button { position: absolute; translate: -50% -50%; width: 33px; height: 33px; padding: 0; border: 1px solid var(--campaign-primary); border-radius: 50%; background: #07131f; cursor: pointer; color: #e7faff; font: 700 8px "Chakra Petch"; box-shadow: 0 0 10px color-mix(in srgb, var(--campaign-primary) 50%, transparent); }
+.fallback-markers button.is-selected { outline: 2px solid var(--campaign-primary); outline-offset: 4px; }
+.fallback-markers button.is-completed { background: #064e4e; }
+.fallback-markers button:disabled { border-color: #536474; box-shadow: none; }
+
+html[data-quality="low"] .campaign-map::after,
+html[data-quality="low"] .campaign-environment i:nth-child(n+4) { display: none; }
+
+.reduce-motion .campaign-environment i,
+.reduce-motion .campaign-loading-orbit,
+.reduce-motion .phase-marker.is-selected .marker-core::after { animation: none !important; }
+
+@media (max-width: 1120px) {
+  .campaign-map { --rail-width: 280px; }
+  .campaign-overview > div:nth-child(2) { display: none; }
+  .mission-panel { width: min(520px, calc(100% - 40px)); left: 20px; }
+  .chapter-rail-list button { min-height: 119px; padding-inline: 14px; }
+  .chapter-rail-copy b { font-size: 12px; }
+}
+
+@media (max-width: 780px) {
+  body:has(.campaign-map) { overflow-x: hidden; overflow-y: auto; }
+  body:has(.campaign-map) .site-header {
+    position: relative;
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 9px 14px;
+  }
+  body:has(.campaign-map) .site-header nav {
+    order: 3;
+    width: 100%;
+    height: 34px;
+    gap: 18px;
+    overflow-x: auto;
+  }
+  body:has(.campaign-map) .site-header .system-status { display: none; }
+  .campaign-map { height: auto; min-height: 0; overflow: visible; }
+  .campaign-map-body { display: flex; flex-direction: column; }
+  .campaign-header {
+    position: relative;
+    right: auto;
+    height: 90px;
+    padding: 14px 18px;
+    background: rgba(2, 7, 14, .95);
+  }
+  .campaign-heading h1 { font-size: 23px; }
+  .campaign-heading p { display: none; }
+  .campaign-overview > div { min-width: 80px; padding: 4px 9px; }
+  .campaign-overview > div:last-child { display: none; }
+  .campaign-world { display: grid; overflow: visible; background: #020610; }
+  .campaign-planet-stage, .campaign-fallback { position: relative; height: 54vh; min-height: 390px; grid-row: 1; }
+  .campaign-biome-label { top: 18px; left: 18px; }
+  .mission-panel {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    width: calc(100% - 24px);
+    margin: -25px 12px 12px;
+    grid-template-columns: 110px minmax(0, 1fr);
+    z-index: 16;
+  }
+  .chapter-rail { order: 2; padding-top: 0; border: 0; border-top: 1px solid rgba(103,232,249,.2); }
+  .chapter-rail > header { height: 52px; padding-inline: 16px; }
+  .chapter-rail-list { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; }
+  .chapter-rail-list button { flex: 0 0 78vw; min-height: 100px; scroll-snap-align: start; }
+  .chapter-active-indicator { inset: auto 0 0; width: auto; height: 3px; }
+  .phase-marker { width: 46px; height: 46px; }
+  .marker-core { width: 33px; height: 33px; }
+  .campaign-fallback::before { inset: 8% 10%; }
+  .fallback-planet { inset: 10% 12%; }
+  .fallback-markers { inset: 14% 17%; }
+  .fallback-notice { top: 15px; left: 18px; }
+}
+
+@media (max-width: 500px) {
+  .campaign-overview > div:nth-child(2) { display: none; }
+  .campaign-overview strong { font-size: 22px; }
+  .mission-panel { grid-template-columns: 1fr; }
+  .mission-preview { display: none; }
+  .mission-copy { padding: 14px; }
+  .mission-stats { grid-template-columns: repeat(2, 1fr); }
+  .mission-stats div:nth-child(2) { border-right: 0; }
+  .mission-stats div:nth-child(-n+2) { border-bottom: 1px solid rgba(103,232,249,.14); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .campaign-environment i,
+  .campaign-loading-orbit,
+  .phase-marker.is-selected .marker-core::after { animation: none !important; }
+}

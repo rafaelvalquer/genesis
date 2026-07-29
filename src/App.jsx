@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import GameCanvas from "./game/GameCanvas.jsx";
+import CampaignPage from "./campaign/CampaignPage.jsx";
 import { getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
 import { CHAPTERS, ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
 import { getEnemyInfo, getEnemyUnlockAt } from "./game/enemyInfo.js";
@@ -90,7 +91,7 @@ function HomePage({ campaign, onReset }) {
       <div className="hero-copy">
         <span className="eyebrow">PROTOCOLO DE DEFESA AUTÔNOMA</span>
         <h1>O perímetro é<br /><em>a última fronteira.</em></h1>
-        <p>Monte seu esquadrão, controle cinco rotas e atravesse três capítulos de uma campanha com vinte e quatro fases.</p>
+        <p>Monte seu esquadrão, controle cinco rotas e atravesse {CHAPTERS.length} capítulos de uma campanha com {PHASES.length} fases.</p>
         <div className="hero-actions">
           <Link className="primary-button" to={`/jogar/${current.id}`}>Continuar campanha <span>→</span></Link>
           <Link className="secondary-button" to={`/fases?capitulo=${currentChapter.number}`}>Selecionar fase</Link>
@@ -115,37 +116,7 @@ function HomePage({ campaign, onReset }) {
 }
 
 export function PhaseSelectPage({ campaign }) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const requestedNumber = Number(searchParams.get("capitulo"));
-  const currentPhaseChapter = getChapterForPhase(PHASES[campaign.unlockedPhaseIndex]);
-  const requestedChapter = CHAPTERS.find((entry) => entry.number === requestedNumber);
-  const isChapterUnlocked = (chapter) => getPhaseIndex(chapter.phaseIds[0]) <= campaign.unlockedPhaseIndex;
-  const activeChapter = requestedChapter && isChapterUnlocked(requestedChapter) ? requestedChapter : currentPhaseChapter;
-  const visiblePhases = activeChapter.phaseIds.map(getPhase).filter(Boolean);
-  return <main className={`page-content chapter-page chapter-${activeChapter.number}`} style={{ "--chapter-primary": activeChapter.palette.primary, "--chapter-accent": activeChapter.palette.accent, "--chapter-cover": `url(${getArenaUrl(activeChapter.coverArenaId)})` }}>
-    <header className="page-heading"><div><span className="eyebrow">MAPA DE OPERAÇÕES</span><h1>Campanha</h1><p>Complete uma operação para abrir o próximo setor.</p></div><div className="campaign-counter"><b>{campaign.unlockedPhaseIndex + 1}</b><span>setores<br />acessíveis</span></div></header>
-    <section className="chapter-tabs" aria-label="Capítulos da campanha">{CHAPTERS.map((chapter) => {
-      const locked = !isChapterUnlocked(chapter);
-      const completeCount = chapter.phaseIds.filter((phaseId) => Number(campaign.phaseStats[phaseId]?.victories || 0) > 0).length;
-      return <button key={chapter.id} type="button" disabled={locked} className={chapter.id === activeChapter.id ? "active" : ""} onClick={() => setSearchParams({ capitulo: String(chapter.number) })}>
-        <span className="chapter-tab-number">0{chapter.number}</span><span><small>{locked ? "BLOQUEADO" : `${completeCount}/${chapter.phaseIds.length} CONCLUÍDAS`}</small><b>{chapter.name}</b><em>{chapter.subtitle}</em></span>
-      </button>;
-    })}</section>
-    <section className="chapter-hero"><div><span className="eyebrow">CAPÍTULO {activeChapter.number}</span><h2>{activeChapter.name}</h2><p>{activeChapter.subtitle}</p>{activeChapter.mechanic && <div className="chapter-mechanic"><b>◇ {activeChapter.mechanic.label}</b><span>{activeChapter.mechanic.description}</span></div>}</div></section>
-    <section className="phase-grid">{visiblePhases.map((phase) => {
-      const index = getPhaseIndex(phase.id);
-      const locked = index > campaign.unlockedPhaseIndex;
-      const stats = campaign.phaseStats[phase.id] || {};
-      const enemyTypes = [...new Set(phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type)))];
-      const card = <article className={`phase-card environment-${phase.environment} ${locked ? "locked" : ""}`}>
-        <div className="phase-number">{String(index + 1).padStart(2, "0")}</div>
-        <div className="phase-art"><img src={getArenaUrl(phase.arenaId)} alt="" /><span className="arena-card-shade" /><span className="terrain-lines" /><span className="phase-icon">{phase.boss ? "◉" : locked ? "◇" : "⬡"}</span></div>
-        <div className="phase-body"><span className="eyebrow">{locked ? "SETOR BLOQUEADO" : phase.subtitle}</span><h2>{phase.name}</h2><div className="enemy-tags">{enemyTypes.map((type) => <span key={type}>{ENEMIES[type]?.label || type}</span>)}</div><div className="phase-record"><Stars value={stats.bestStars || 0} /><span>Melhor tempo <b>{formatTime(stats.bestTimeMs)}</b></span><span>Integridade <b>{stats.bestIntegrity || 0}%</b></span></div></div>
-        <div className="phase-footer"><span>⚡ {phase.energy}</span><span>◫ {phase.waves.length} ondas</span><span>{phase.chapterMechanic ? `${Math.round(phase.chapterMechanic.chance * 100)}% ECOS` : phase.environmentHazard?.id === "sandstorm" ? "TEMPESTADE" : phase.environmentHazard?.id === "wind_current" ? "VENTANIA" : phase.environment.toUpperCase()}</span></div>
-      </article>;
-      return locked ? <div key={phase.id}>{card}</div> : <Link key={phase.id} to={`/jogar/${phase.id}`} aria-label={`Jogar ${phase.name}`}>{card}</Link>;
-    })}</section>
-  </main>;
+  return <CampaignPage campaign={campaign} />;
 }
 
 const ENCYCLOPEDIA_CATEGORIES = {
