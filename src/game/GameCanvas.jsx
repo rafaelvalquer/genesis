@@ -690,13 +690,15 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const groups = death.kind === "troop" ? assets.troops[entity.type] : assets.enemies[entity.type];
     const dedicatedDeathState = death.kind === "enemy"
       ? (entity.type === "workerQueenEgg" ? "destroy" : groups?.death ? "death" : null)
-      : null;
+      : groups?.death ? "death" : null;
     const state = dedicatedDeathState
       || (groups?.attack ? "attack" : groups?.walking ? "walking" : groups?.idle ? "idle" : "defense");
     const frames = groups?.[state] || [];
     const frame = Math.min(frames.length - 1, Math.floor(progress * Math.max(1, frames.length)));
     const image = frames[frame] || frames[0];
-    const height = death.kind === "troop" ? config?.attackVisual?.height || 126 : 128 * (entity.scale || 1);
+    const height = death.kind === "troop"
+      ? (config?.attackVisual?.height || 126) * (config?.spriteScale || 1)
+      : 128 * (entity.scale || 1);
     const deathY = death.kind === "enemy" ? getEnemyDeathVisualY(entity, progress) : entity.y;
     const airborneDerivante = entity.type === "derivante"
       && ["jumpPrepare", "jumpTakeoff", "jumping", "windGlide", "landing"].includes(entity.chapterFourState);
@@ -831,6 +833,9 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
     type: selectedTroop,
     hp: config.hp,
     maxHp: config.hp,
+    state: "idle",
+    stateStartedAt: 0,
+    electricParalyzedUntil: 0,
     lastAttackAt: -Infinity,
   };
   const visualEntity = getTroopVisualEntity(entity, config);
@@ -967,7 +972,8 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   const image = resolveTroopFrame(troopAssets, animation.state, animation.frame);
   const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
   const visual = getTroopAttackVisual(logicalEntity, config);
-  const height = visual?.height || config.attackVisual?.height || (logicalEntity.type === "muralhaReforcada" ? 112 : 126);
+  const height = (visual?.height || config.attackVisual?.height || (logicalEntity.type === "muralhaReforcada" ? 112 : 126))
+    * (config.spriteScale || 1);
   if (drawHalo && image?.width && image?.height) {
     const rect = getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor);
     drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
@@ -1406,6 +1412,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       executorSlash2: buildFirst("executor_slash_2"),
       executorFinisher: buildFirst("executor_finisher"),
       executorComboReset: buildFirst("executor_combo_reset"),
+      icaroBurstShot: buildFirst("icaro_burst_shot"),
+      icaroInterceptionLock: buildFirst("icaro_interception_lock"),
+      icaroInterceptionFire: buildFirst("icaro_interception_fire"),
+      icaroDeath: buildFirst("icaro_death"),
       windWarning: build("wind_warning.ogg"),
       windActiveLoop: build("wind_active_loop.ogg", true),
       windPrimaryGust: build("wind_primary_gust.ogg"),
@@ -1524,7 +1534,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
         if (events.some((event) => event.type === "spawn")) play("alert", 0.08);
         if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
-        if (events.some((event) => event.type === "shoot")) play("shoot", 0.18);
+        if (events.some((event) => event.type === "shoot" && !["icaroBullet", "icaroInterceptionShot"].includes(event.weapon))) play("shoot", 0.18);
+        if (events.some((event) => event.type === "shoot" && event.weapon === "icaroBullet")) play("icaroBurstShot", 0.34);
+        if (events.some((event) => event.type === "icaroTargetLock")) play("icaroInterceptionLock", 0.5);
+        if (events.some((event) => event.type === "icaroInterceptionFire")) play("icaroInterceptionFire", 0.58);
+        if (events.some((event) => event.type === "troopDeath" && event.entity?.type === "interceptadorIcaro")) play("icaroDeath", 0.5);
         if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);
         if (events.some((event) => event.type === "ramImpact")) play("melee", 0.65);

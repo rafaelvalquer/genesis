@@ -1601,6 +1601,65 @@ describe("decisões táticas aleatórias", () => {
     expect(session.waveOutro.elapsedMs).toBe(4100);
   });
 
+  it("restaura implantações e habilidades ao entrar no planejamento", () => {
+    const phase = { ...decisionPhase, energy: 500, supplyLimit: 50 };
+    const session = createBattleSession(
+      phase,
+      ["reator", "medicaNanites", "interceptadorIcaro", "colossoImpacto"],
+      9904,
+    );
+    const reactor = placeTroop(session, "reator", 0, 1).troop;
+    const medic = placeTroop(session, "medicaNanites", 1, 1).troop;
+    const icaro = placeTroop(session, "interceptadorIcaro", 2, 1).troop;
+    const colossus = placeTroop(session, "colossoImpacto", 3, 1).troop;
+    expect(startWave(session)).toBe(true);
+
+    session.deployCooldowns = {
+      reator: session.elapsed + TROOPS.reator.deployCooldownMs,
+      medicaNanites: session.elapsed + TROOPS.medicaNanites.deployCooldownMs,
+    };
+    reactor.energyAccumulator = 100;
+    medic.state = "healing";
+    medic.healTargetId = reactor.id;
+    medic.healedThisCharge = 8;
+    medic.lastHealPulseAt = session.elapsed;
+    medic.cooldownStartedAt = session.elapsed;
+    medic.cooldownEndsAt = session.elapsed + TROOPS.medicaNanites.healCooldownMs;
+    icaro.state = "interceptionLock";
+    icaro.icaroLockedTargetIds = ["enemy_removed_at_wave_end"];
+    icaro.interceptionReadyAt = session.elapsed + TROOPS.interceptadorIcaro.interceptionCooldownMs;
+    colossus.specialReadyAt = session.elapsed + TROOPS.colossoImpacto.specialEveryMs;
+    colossus.specialRequested = true;
+
+    session.queue = [];
+    session.enemies = [];
+    stepBattle(session, 1);
+    expect(session.waveOutro.status).toBe("finalKill");
+    expect(advanceWaveOutro(session, 4100)).toContainEqual(
+      expect.objectContaining({ type: "waveDecisionReady" }),
+    );
+
+    expect(session.preparing).toBe(true);
+    expect(session.deployCooldowns).toEqual({});
+    expect(reactor.energyAccumulator).toBe(TROOPS.reator.attackEveryMs);
+    expect(medic).toMatchObject({
+      state: "idle",
+      healTargetId: null,
+      healedThisCharge: 0,
+      cooldownStartedAt: null,
+      cooldownEndsAt: null,
+    });
+    expect(icaro).toMatchObject({
+      state: "idle",
+      interceptionReadyAt: session.elapsed,
+      icaroLockedTargetIds: [],
+    });
+    expect(colossus).toMatchObject({
+      specialReadyAt: session.elapsed,
+      specialRequested: false,
+    });
+  });
+
   it("permite acelerar somente o banner sem pular o último impacto", () => {
     const session = createBattleSession(decisionPhase, [], 9902);
     startWave(session);

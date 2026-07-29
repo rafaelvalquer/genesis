@@ -146,7 +146,7 @@ export function calculateStars({ outcome, integrity, integrityMax = 100, duratio
 }
 
 const SPECIALIZATION_LOADOUTS = {
-  ballistic_specialization: ["marine", "sniper", "caçador"],
+  ballistic_specialization: ["marine", "sniper", "caçador", "interceptadorIcaro"],
   explosive_specialization: ["bombardeiro", "demolidora", "artilheiraMorteiro"],
   energy_specialization: ["ranger", "krio", "guarda"],
   concussive_impact: ["bombardeiro", "demolidora", "artilheiraMorteiro"],
@@ -157,7 +157,7 @@ const SPECIALIZATION_LOADOUTS = {
   territorial_control: ["demolidora", "krio", "lumiUrsa7", "colossoImpacto"],
 };
 
-const RANGED_LOADOUT = ["marine", "medicaNanites", "caçador", "sniper", "incinerador", "krio", "ranger", "bombardeiro", "artilheiraMorteiro", "guarda"];
+const RANGED_LOADOUT = ["marine", "interceptadorIcaro", "medicaNanites", "caçador", "sniper", "incinerador", "krio", "ranger", "bombardeiro", "artilheiraMorteiro", "guarda"];
 const CATEGORY_CAPS = { attack: 2, defense: 2, economy: 2, specialization: 1 };
 const GLOBAL_LIMITS = { damage: 20, attackSpeed: 15, range: 15, energyCost: 20, deployCooldown: 20, damageReduction: 25 };
 

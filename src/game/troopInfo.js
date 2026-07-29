@@ -13,6 +13,7 @@ const ATTACK_LABELS = {
   mine: "Armadilha magnética",
   tileMelee: "Impacto no tile",
   arcCombo: "Combo corpo a corpo",
+  icaroBurst: "Rajada antiaérea",
 };
 
 const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
@@ -23,7 +24,7 @@ export function getTroopInfo(troop) {
   const generatesEnergy = troop.attack === "energy";
   let damage = formatNumber(troop.damage);
   if (doesNotAttack || generatesEnergy) damage = "—";
-  else if (troop.burst) damage = `${formatNumber(troop.damage)} por disparo`;
+  else if (troop.burst || troop.burstCount) damage = `${formatNumber(troop.damage)} por disparo`;
   else if (troop.pellets) damage = `${formatNumber(troop.damage)} por pellet`;
   else if (troop.attack === "flame") damage = `${formatNumber(troop.damage)} por tick`;
   else if (troop.attack === "arcCombo") {
@@ -54,6 +55,15 @@ export function getTroopInfo(troop) {
 
   const specials = [];
   if (troop.burst) specials.push({ label: "Rajada", value: `${troop.burst} tiros · intervalo ${formatDuration(troop.burstIntervalMs)}` });
+  if (troop.burstCount) specials.push({ label: "Rajada Flak", value: `${troop.burstCount} tiros · intervalo ${formatDuration(troop.burstIntervalMs)}` });
+  if (troop.airborneDamageFactor) specials.push({
+    label: "Aquisição aérea",
+    value: `${Math.round(troop.airborneDamageFactor * 100)}% contra voadores · ${Math.round(troop.groundDamageFactor * 100)}% contra terrestres`,
+  });
+  if (troop.interceptionCooldownMs) specials.push({
+    label: "Salva de Interceptação",
+    value: `Até ${troop.interceptionMaxTargets} alvos aéreos · ${formatNumber(troop.interceptionDamage)} de dano · recarga ${formatDuration(troop.interceptionCooldownMs)}`,
+  });
   if (troop.pellets) specials.push({ label: "Dispersão", value: `${troop.pellets} pellets por ataque` });
   if (troop.shotgunMaxTargets && troop.shotgunDamageFactors) specials.push({
     label: "Cone da escopeta",

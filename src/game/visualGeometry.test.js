@@ -242,6 +242,51 @@ describe("geometria visual dos disparos", () => {
     }
   });
 
+  it("mantem o Interceptador alinhado em todos os estados em pe", () => {
+    const icaro = { type: "interceptadorIcaro", x: 280, y: 240 };
+    for (const state of ["idle", "attackBurst", "interceptionLock", "interceptionFire", "paralyzed"]) {
+      for (let frame = 0; frame < 8; frame += 1) {
+        const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, state, frame);
+        const rect = getAnchoredSpriteRect(icaro, 110, 1, anchor);
+        expect(anchor).toMatchObject({ y: 0.96875, scale: 1 });
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(icaro.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(icaro.y + CELL.height * 0.43, 5);
+      }
+    }
+  });
+
+  it("faz os quatro tiros e as tres interceptacoes nascerem do cano por quadro", () => {
+    const burst = { type: "interceptadorIcaro", state: "attackBurst", x: 400, y: 240 };
+    [3, 4, 5, 6].forEach((frame, shot) => {
+      const muzzle = getMuzzleWorldPosition(burst, TROOPS.interceptadorIcaro, shot, frame);
+      const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, "attackBurst", frame);
+      const rect = getAnchoredSpriteRect(
+        burst,
+        TROOPS.interceptadorIcaro.attackVisual.height,
+        1,
+        anchor,
+      );
+      const expected = TROOPS.interceptadorIcaro.attackVisual.frameMuzzles[frame];
+      expect(muzzle.x).toBeCloseTo(rect.x + rect.width * expected.x, 5);
+      expect(muzzle.y).toBeCloseTo(rect.y + rect.height * expected.y, 5);
+    });
+
+    const special = { ...burst, state: "interceptionFire" };
+    [3, 4, 5].forEach((frame, shot) => {
+      const muzzle = getMuzzleWorldPosition(special, TROOPS.interceptadorIcaro, shot, frame);
+      const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, "interceptionFire", frame);
+      const rect = getAnchoredSpriteRect(
+        special,
+        TROOPS.interceptadorIcaro.interceptionFireVisual.height,
+        1,
+        anchor,
+      );
+      const expected = TROOPS.interceptadorIcaro.interceptionFireVisual.frameMuzzles[frame];
+      expect(muzzle.x).toBeCloseTo(rect.x + rect.width * expected.x, 5);
+      expect(muzzle.y).toBeCloseTo(rect.y + rect.height * expected.y, 5);
+    });
+  });
+
   it("mantem os dezesseis frames do cacador presos ao mesmo ponto no chao", () => {
     const cacador = { x: 280, y: 240 };
     for (const state of ["idle", "attack"]) {
@@ -465,6 +510,14 @@ describe("geometria visual dos disparos", () => {
     const gunMuzzle = getMuzzleWorldPosition(demolisher, TROOPS.demolidora);
     expect(mineMuzzle.x).not.toBeCloseTo(gunMuzzle.x);
     expect(mineMuzzle.y).not.toBeCloseTo(gunMuzzle.y);
+  });
+
+  it("anima o idle do Interceptador mesmo sem stateStartedAt no preview", () => {
+    const preview = { type: "interceptadorIcaro", state: "idle", lastAttackAt: -Infinity };
+    expect(getTroopAnimation(preview, TROOPS.interceptadorIcaro, 0, { idle: 8 }))
+      .toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(preview, TROOPS.interceptadorIcaro, 390, { idle: 8 }))
+      .toEqual({ state: "idle", frame: 3 });
   });
 
   it.each([

@@ -17,18 +17,18 @@ export const CHAPTER_FOUR_PACKETS = Object.freeze({
   P5: { id: "conductive_spear", label: "Lança Condutora", threat: 68, weight: "heavy", units: [
     { type: "gorjal", count: 1, xOffsetTiles: -0.9, spawnDelayMs: 0 },
     { type: "voltriz", count: 2, xOffsetTiles: 0, spawnDelayMs: 180, spawnIntervalMs: 260 },
-    { type: "raizFulgor", count: 1, xOffsetTiles: 0.8, spawnDelayMs: 500 },
+    { type: "raizFulgor", count: 1, xOffsetTiles: 0.3, spawnDelayMs: 300 },
   ] },
   P6: { id: "overload_siege", label: "Cerco de Sobrecarga", threat: 85, weight: "heavy", units: [
     { type: "voltriz", count: 5, xOffsetTiles: 0, spawnDelayMs: 0, spawnIntervalMs: 260 },
     { type: "nimbarca", count: 1, xOffsetTiles: 0.45, spawnDelayMs: 250 },
-    { type: "raizFulgor", count: 1, xOffsetTiles: 0.9, spawnDelayMs: 550 },
+    { type: "raizFulgor", count: 1, xOffsetTiles: 0.35, spawnDelayMs: 300 },
   ] },
   P7: { id: "broken_route", label: "Rota Quebrada", threat: 90, weight: "heavy", units: [
     { type: "gorjal", count: 1, xOffsetTiles: -0.9, spawnDelayMs: 0 },
     { type: "voltriz", count: 2, xOffsetTiles: 0, spawnDelayMs: 150, spawnIntervalMs: 260 },
     { type: "derivante", count: 2, xOffsetTiles: 0.2, spawnDelayMs: 260 },
-    { type: "raizFulgor", count: 1, xOffsetTiles: 0.85, spawnDelayMs: 600 },
+    { type: "raizFulgor", count: 1, xOffsetTiles: 0.3, spawnDelayMs: 350 },
   ] },
   P8: { id: "containment_cloud", label: "Nuvem de Contenção", threat: 76, weight: "heavy", units: [
     { type: "voltriz", count: 4, xOffsetTiles: 0, spawnDelayMs: 0, spawnIntervalMs: 260 },
@@ -40,7 +40,7 @@ export const CHAPTER_FOUR_PACKETS = Object.freeze({
     { type: "voltriz", count: 4, xOffsetTiles: 0, spawnDelayMs: 130, spawnIntervalMs: 260 },
     { type: "derivante", count: 2, xOffsetTiles: 0.15, spawnDelayMs: 220 },
     { type: "nimbarca", count: 1, xOffsetTiles: 0.45, spawnDelayMs: 300 },
-    { type: "raizFulgor", count: 1, xOffsetTiles: 0.9, spawnDelayMs: 650 },
+    { type: "raizFulgor", count: 1, xOffsetTiles: 0.35, spawnDelayMs: 350 },
   ] },
 });
 

@@ -27,6 +27,11 @@ import {
   forceExecutorComboStep, isExecutorArco, updateExecutorArco,
 } from "./executorArco.js";
 import {
+  isIcaroAirTarget,
+  selectIcaroBurstRetarget,
+  updateInterceptadorIcaro,
+} from "./interceptadorIcaro.js";
+import {
   createWindCurrentState,
   endWindCurrent,
   resetWindCurrentForWave,
@@ -373,6 +378,10 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     supplyCost: Number.isFinite(options.supplyCost) ? Number(options.supplyCost) : config.supply,
     reactiveShield: 0, reactiveShieldUntil: 0, swarmHpApplied: false,
     attackReadyAt: session.elapsed, mineReadyAt: session.elapsed, gunReadyAt: session.elapsed,
+    interceptionReadyAt: troopId === "interceptadorIcaro"
+      ? session.elapsed + config.interceptionCooldownMs
+      : Infinity,
+    icaroLockedTargetIds: [],
     energyAccumulator: 0, lastAttackAt: -Infinity, attackStartedAt: -Infinity,
     channelingAttack: false, channelTickAccumulator: 0, lastAttackMode: null,
     pendingImpact: null, pendingComboImpact: null, pendingRepulsorShot: null,
@@ -836,6 +845,7 @@ function createEnemy(session, queued) {
           ? session.elapsed + (alpha ? 7000 : base.resonancePulseEveryMs)
           : Infinity,
     rooted: false,
+    raizTargetLostAt: queued.type === "raizFulgor" ? null : undefined,
     blockedSince: null,
     jumpSourceRow: null,
     jumpSourceY: null,
@@ -847,7 +857,9 @@ function createEnemy(session, queued) {
     gorjalAttackTargetId: null,
     gorjalChargeTargetId: null,
     gorjalLastChargedTroopId: null,
-    gorjalChargeEndX: queued.type === "gorjal" ? FIELD.baseX : null,
+    gorjalChargeEndX: queued.type === "gorjal"
+      ? Math.max(FIELD.baseX, FIELD.spawnX - base.initialChargeMaxTiles * CELL.width)
+      : null,
     gorjalChargeCooldownStartedAt: null,
     gorjalInitialCharge: queued.type === "gorjal" && base.initialChargeOnSpawn !== false,
     gorjalInitialChargeCompleted: false,
@@ -1281,7 +1293,7 @@ function attackDamageMultiplier(session, troop, { explosive = false, target = nu
   let multiplier = session.modifiers.troopDamage;
   if (session.activeTemporaryDecisions.includes("final_overload")) multiplier *= 1.2;
   if (isOffensiveConfig(TROOPS[troop.type])) multiplier *= session.modifiers.aggressiveDamage;
-  if (["marine", "sniper", "caçador"].includes(troop.type)) multiplier *= session.modifiers.ballisticDamage;
+  if (["marine", "sniper", "caçador", "interceptadorIcaro"].includes(troop.type)) multiplier *= session.modifiers.ballisticDamage;
   if (explosive) multiplier *= session.modifiers.explosiveDamage;
   if (troop.type === "ranger") multiplier *= session.modifiers.rangerDamage;
   if (troop.type === "guarda") multiplier *= session.modifiers.guardDamage;
@@ -1436,9 +1448,15 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     return Math.abs(candidate.x - enemy.x) <= ENEMIES.nimbarca.shieldRadiusTiles * CELL.width;
   });
   if (protector && context.direct !== false) {
-    chapterFourFactor *= protector.variant === "alpha" ? 0.75 : ENEMIES.nimbarca.alliedProjectileDamageFactor;
+    const shieldFactor = protector.variant === "alpha" ? 0.75 : ENEMIES.nimbarca.alliedProjectileDamageFactor;
+    chapterFourFactor *= context.nimbarcaShieldIgnoreFactor == null
+      ? shieldFactor
+      : 1 - (1 - shieldFactor) * (1 - context.nimbarcaShieldIgnoreFactor);
   } else if (enemy.type === "nimbarca" && context.direct !== false) {
-    chapterFourFactor *= enemy.variant === "alpha" ? 0.85 : ENEMIES.nimbarca.selfProjectileDamageFactor;
+    const shieldFactor = enemy.variant === "alpha" ? 0.85 : ENEMIES.nimbarca.selfProjectileDamageFactor;
+    chapterFourFactor *= context.nimbarcaShieldIgnoreFactor == null
+      ? shieldFactor
+      : 1 - (1 - shieldFactor) * (1 - context.nimbarcaShieldIgnoreFactor);
   }
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1)
     * damageTakenFactor * chapterFourFactor;
@@ -2360,6 +2378,15 @@ function updateTroops(session, events, dt) {
       });
       continue;
     }
+    if (config.id === "interceptadorIcaro") {
+      updateInterceptadorIcaro(session, troop, config, events, {
+        createId: id,
+        getMuzzleWorldPosition,
+        nextEffectSeed: () => nextEffectSeed(session),
+        recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+      });
+      continue;
+    }
     if (config.attack === "flame") {
       updateFlameChannel(session, troop, config, events, dt);
       continue;
@@ -2400,6 +2427,65 @@ function updateProjectiles(session, dt, events) {
       });
     }
     projectile.ageMs += dt;
+    if (projectile.kind === "icaroBullet" || projectile.kind === "icaroInterceptionShot") {
+      const config = TROOPS.interceptadorIcaro;
+      const source = session.troops.find((troop) =>
+        troop.id === projectile.sourceTroopId && !troop.dead);
+      let target = session.enemies.find((enemy) =>
+        enemy.id === projectile.targetId && !enemy.dead && enemy.hp > 0);
+      if (!target && !projectile.special) {
+        target = selectIcaroBurstRetarget(session, projectile, config);
+        projectile.targetId = target?.id || null;
+      }
+      if (!target || (projectile.special && !isIcaroAirTarget(target))) {
+        projectile.active = false;
+        continue;
+      }
+      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+      const angle = Math.atan2(targetPoint.y - projectile.y, targetPoint.x - projectile.x);
+      projectile.vx = Math.cos(angle) * projectile.speed;
+      projectile.vy = Math.sin(angle) * projectile.speed;
+      projectile.previousX = projectile.x;
+      projectile.previousY = projectile.y;
+      projectile.previousRenderX = projectile.x;
+      projectile.previousRenderY = projectile.y;
+      projectile.x += projectile.vx * dt / 1000;
+      projectile.y += projectile.vy * dt / 1000;
+      projectile.trail.push({ x: projectile.x, y: projectile.y });
+      if (projectile.trail.length > (projectile.special ? 8 : 4)) projectile.trail.shift();
+      const hit = Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y)
+        <= Math.max(32, projectile.speed * dt / 1000);
+      if (!hit) {
+        if (projectile.ageMs <= 3000) continue;
+        projectile.active = false;
+        continue;
+      }
+      const targetFactor = projectile.special
+        ? 1
+        : isIcaroAirTarget(target) ? config.airborneDamageFactor : config.groundDamageFactor;
+      const decisionFactor = source
+        ? attackDamageMultiplier(session, source, { target })
+        : session.modifiers.troopDamage;
+      damageEnemy(session, target, projectile.baseDamage * targetFactor * decisionFactor, events, {
+        direct: true,
+        sourceX: projectile.origin.x,
+        sourceTroopType: projectile.troopType,
+        sourceTroopId: projectile.sourceTroopId,
+        nimbarcaShieldIgnoreFactor: config.nimbarcaShieldIgnoreFactor,
+      });
+      events.push({
+        type: projectile.special ? "icaroInterceptionImpact" : "icaroBulletImpact",
+        weapon: projectile.visualKind,
+        sourceTroopId: projectile.sourceTroopId,
+        targetId: target.id,
+        x: targetPoint.x,
+        y: targetPoint.y,
+        color: projectile.color,
+        seed: projectile.seed,
+      });
+      projectile.active = false;
+      continue;
+    }
     if (projectile.kind === "executorArcSlash") {
       if (projectile.phase === "impact") {
         projectile.phaseAgeMs += dt;
@@ -4133,7 +4219,13 @@ function updateGorjalInitialCharge(session, enemy, config, dt, events) {
     return;
   }
   enemy.x = nextX;
-  if (enemy.x <= FIELD.baseX) resolveEnemyBreach(session, enemy, events);
+  if (enemy.x <= enemy.gorjalChargeEndX) {
+    enemy.gorjalInitialCharge = false;
+    enemy.gorjalInitialChargeCompleted = true;
+    enemy.nextSpecialAt = session.elapsed + config.chargeEveryMs;
+    enemy.gorjalChargeEndX = null;
+    setChapterFourState(session, enemy, "walking");
+  }
 }
 
 function updateGorjal(session, enemy, config, dt, events) {
@@ -4568,9 +4660,13 @@ function updateRaizFulgor(session, enemy, config, dt, events) {
   if (enemy.rooted) {
     enemy.moving = false;
     if (!target) {
-      setChapterFourState(session, enemy, "unrooting", config.unrootingMs);
+      enemy.raizTargetLostAt ??= session.elapsed;
+      if (session.elapsed - enemy.raizTargetLostAt >= config.targetLostGraceMs) {
+        setChapterFourState(session, enemy, "unrooting", config.unrootingMs);
+      }
       return;
     }
+    enemy.raizTargetLostAt = null;
     if (enemy.chapterFourState !== "rootedIdle") {
       setChapterFourState(session, enemy, "rootedIdle");
       return;
@@ -4583,7 +4679,21 @@ function updateRaizFulgor(session, enemy, config, dt, events) {
   }
 
   if (enemy.chapterFourState !== "walking") setChapterFourState(session, enemy, "walking");
+  const escort = session.enemies
+    .filter((candidate) => (
+      !candidate.dead
+      && candidate.packetId === enemy.packetId
+      && candidate.row === enemy.row
+      && ["gorjal", "nimbarca"].includes(candidate.type)
+      && candidate.x < enemy.x
+    ))
+    .sort((left, right) => left.x - right.x)[0] || null;
+  const originalSpeed = enemy.speed;
+  if (escort && enemy.x - escort.x > config.maximumPacketDistanceTiles * CELL.width) {
+    enemy.speed = config.catchUpSpeed;
+  }
   moveEnemy(session, enemy, dt, events);
+  enemy.speed = originalSpeed;
 }
 
 function updateChapterFourEnemy(session, enemy, config, dt, events) {
@@ -5128,6 +5238,60 @@ export function accelerateWaveOutro(session) {
   return true;
 }
 
+function restoreTroopsForPlanning(session) {
+  session.deployCooldowns = {};
+  session.troops.forEach((troop) => {
+    if (troop.dead) return;
+    const config = TROOPS[troop.type];
+
+    troop.attackReadyAt = session.elapsed;
+    troop.mineReadyAt = session.elapsed;
+    troop.gunReadyAt = session.elapsed;
+    troop.interceptionReadyAt = config?.interceptionCooldownMs ? session.elapsed : Infinity;
+    troop.specialReadyAt = config?.specialEveryMs ? session.elapsed : Infinity;
+    if (config?.attack === "energy") troop.energyAccumulator = config.attackEveryMs;
+
+    troop.state = "idle";
+    troop.stateStartedAt = session.elapsed;
+    troop.stateEndsAt = Infinity;
+    troop.attackStartedAt = -Infinity;
+    troop.lastAttackAt = -Infinity;
+    troop.attackTargetId = null;
+    troop.lastAttackMode = null;
+    troop.attackBusyUntil = session.elapsed;
+    troop.channelingAttack = false;
+    troop.channelTickAccumulator = 0;
+    troop.pendingImpact = null;
+    troop.pendingComboImpact = null;
+    troop.pendingRepulsorShot = null;
+    troop.specialRequested = false;
+    troop.comboStep = 0;
+    troop.comboTargetId = null;
+    troop.comboExpiresAt = null;
+
+    troop.defenseActive = false;
+    troop.defenseThreatId = null;
+    troop.defenseExitAt = null;
+    troop.icaroLockedTargetIds = [];
+
+    troop.healTargetId = null;
+    troop.healedThisCharge = 0;
+    troop.lastHealPulseAt = -Infinity;
+    troop.cooldownStartedAt = null;
+    troop.cooldownEndsAt = null;
+
+    troop.electricStacks = 0;
+    troop.electricStacksExpireAt = session.elapsed;
+    troop.electricParalyzedUntil = session.elapsed;
+    troop.electricImmunityUntil = session.elapsed;
+    troop.electricConductivityUntil = session.elapsed;
+    troop.electricVulnerabilityUntil = session.elapsed;
+    troop.electricReactorPausedUntil = session.elapsed;
+    troop.webSlowUntil = session.elapsed;
+    troop.webRangePenaltyUntil = session.elapsed;
+  });
+}
+
 export function advanceWaveOutro(session, realDt = 0) {
   if (!isWaveOutroActive(session)) return [];
   const outro = session.waveOutro;
@@ -5164,6 +5328,7 @@ export function advanceWaveOutro(session, realDt = 0) {
       if (outro.finalWave) {
         if (!adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) finish(session, "victory");
       } else {
+        restoreTroopsForPlanning(session);
         session.pendingDecisionLevel = outro.decisionLevel;
         session.pendingDecision = outro.decisionOptions;
         session.preparing = true;

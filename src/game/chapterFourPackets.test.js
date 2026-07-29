@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PHASES } from "./content.js";
 import { buildSpawnQueue } from "./domain.js";
 import { CHAPTER_FOUR_PACKETS } from "./chapterFourPackets.js";
-import { createChapterFourWaves } from "./chapterFourWaves.js";
+import { createChapterFourWaves, PHASE_PACKET_SEQUENCES } from "./chapterFourWaves.js";
 
 describe("pacotes e ondas do Capítulo 4", () => {
   it("mantém as nove composições e posições táticas", () => {
@@ -13,9 +13,35 @@ describe("pacotes e ondas do Capítulo 4", () => {
       type: "gorjal", count: 1, xOffsetTiles: -0.85,
     });
     expect(CHAPTER_FOUR_PACKETS.P6.units.at(-1)).toMatchObject({
-      type: "raizFulgor", count: 1, xOffsetTiles: 0.9, spawnDelayMs: 550,
+      type: "raizFulgor", count: 1, xOffsetTiles: 0.35, spawnDelayMs: 300,
     });
     expect(CHAPTER_FOUR_PACKETS.P1.units[0].spawnIntervalMs).toBe(260);
+  });
+
+  it("alivia somente a primeira onda da fase 31", () => {
+    const firstWave = createChapterFourWaves(6)[0];
+    const packets = firstWave.spawnBlocks.flatMap((block) => block.packets)
+      .sort((left, right) => left.spawnAtMs - right.spawnAtMs);
+
+    expect(packets.map((packet) => packet.key)).toEqual([
+      "P1", "P3", "P1", "P4", "P3", "P5", "P1", "P8",
+    ]);
+    expect(packets).toHaveLength(8);
+    expect(firstWave.spawnWindowMs).toBe(66000);
+    expect(packets[0].spawnAtMs).toBe(0);
+    expect(packets.at(-1).spawnAtMs).toBe(66000);
+    expect(packets.some((packet) => packet.key === "P6")).toBe(false);
+    expect(packets.filter((packet) => packet.key === "P8")).toHaveLength(1);
+  });
+
+  it("mantém a densificação na segunda onda da fase 31 e nas outras fases", () => {
+    const secondWave = createChapterFourWaves(6)[1];
+    const secondWavePackets = secondWave.spawnBlocks.flatMap((block) => block.packets);
+    expect(secondWavePackets.length).toBeGreaterThan(PHASE_PACKET_SEQUENCES[6][1].length);
+
+    const otherPhaseWave = createChapterFourWaves(7)[0];
+    const otherPhasePackets = otherPhaseWave.spawnBlocks.flatMap((block) => block.packets);
+    expect(otherPhasePackets.length).toBeGreaterThan(PHASE_PACKET_SEQUENCES[7][0].length);
   });
 
   it("escalona Voltrizes e preserva atrasos de um pacote misto", () => {

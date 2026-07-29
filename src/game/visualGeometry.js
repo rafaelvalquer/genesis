@@ -57,6 +57,13 @@ export function getTroopFrameAnchor(troopConfig = {}, state = "idle", frame = 0)
 }
 
 export function getTroopAttackVisual(troop, troopConfig = {}) {
+  if (troop?.type === "interceptadorIcaro") {
+    if (troop.state === "interceptionLock") return troopConfig.interceptionLockVisual;
+    if (troop.state === "interceptionFire") return troopConfig.interceptionFireVisual;
+    if (troop.state === "paralyzed") return troopConfig.paralyzedVisual;
+    if (troop.state === "idle") return troopConfig.idleVisual;
+    return troopConfig.attackVisual;
+  }
   if (troop?.type === "medicaNanites") {
     if (troop.state === "healing") return troopConfig.healVisual || troopConfig.attackVisual;
     if (troop.state === "cooldown") return troopConfig.cooldownVisual || troopConfig.attackVisual;
@@ -372,6 +379,27 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   }
 
   const visual = getTroopAttackVisual(troop, troopConfig);
+  if (troop.type === "interceptadorIcaro") {
+    const paralyzed = elapsed < Number(troop.electricParalyzedUntil || 0);
+    const state = paralyzed ? "paralyzed" : troop.state || "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const stateVisual = paralyzed
+      ? troopConfig.paralyzedVisual
+      : state === "interceptionLock"
+        ? troopConfig.interceptionLockVisual
+        : state === "interceptionFire"
+          ? troopConfig.interceptionFireVisual
+          : state === "attackBurst"
+            ? troopConfig.attackVisual
+            : troopConfig.idleVisual;
+    const duration = Math.max(1, stateVisual?.durationMs || 800);
+    const stateStartedAt = Number.isFinite(troop.stateStartedAt) ? troop.stateStartedAt : 0;
+    const age = Math.max(0, elapsed - (paralyzed ? 0 : stateStartedAt));
+    const frame = state === "idle" || paralyzed
+      ? Math.floor(age / (duration / count)) % count
+      : Math.min(count - 1, Math.floor(age / (duration / count)));
+    return { state, frame };
+  }
   if (troop.type === "medicaNanites" && ["healing", "cooldown"].includes(troop.state)) {
     const state = troop.state === "healing" ? "heal" : "cooldown";
     const count = Math.max(1, frameCounts[state] || 1);

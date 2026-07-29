@@ -30,7 +30,66 @@ describe("inimigos do Capítulo 4", () => {
       meleeContactDistancePx: 115,
     });
     expect(ENEMIES.derivante.assetStates).toContain("windGlide");
-    expect(ENEMIES.raizFulgor).toMatchObject({ range: 4.5, preferredRange: 4 });
+    expect(ENEMIES.raizFulgor).toMatchObject({
+      hp: 95,
+      speed: 22,
+      range: 4.5,
+      preferredRange: 3.25,
+      attackEveryMs: 2300,
+      chargeMs: 650,
+      rootingMs: 650,
+      unrootingMs: 400,
+      rootedDamageTakenFactor: 0.9,
+      targetLostGraceMs: 900,
+      catchUpSpeed: 28,
+      maximumPacketDistanceTiles: 1.75,
+    });
+  });
+
+  it("acelera para acompanhar Gorjal ou Nimbarca enquanto ainda caminha", () => {
+    const session = createBattleSession(PHASES[24], [], 3, { sandbox: true });
+    const raiz = spawnEnemy(session, { type: "raizFulgor", row: 1 }).enemies[0];
+    const gorjal = spawnEnemy(session, { type: "gorjal", row: 1 }).enemies[0];
+    raiz.packetId = "packet_raiz_escort";
+    gorjal.packetId = raiz.packetId;
+    raiz.x = 900;
+    gorjal.x = 700;
+    raiz.chapterFourState = "walking";
+    const before = raiz.x;
+
+    stepBattle(session, 100);
+
+    expect(before - raiz.x).toBeCloseTo(ENEMIES.raizFulgor.catchUpSpeed * 0.1);
+    expect(raiz.speed).toBe(ENEMIES.raizFulgor.speed);
+  });
+
+  it("aguarda a graça de alvo perdido antes de desenraizar", () => {
+    const session = createBattleSession(PHASES[24], [], 4, { sandbox: true });
+    const raiz = spawnEnemy(session, { type: "raizFulgor", row: 1 }).enemies[0];
+    raiz.rooted = true;
+    raiz.chapterFourState = "rootedIdle";
+    raiz.chapterFourStateEndsAt = Infinity;
+
+    stepBattle(session, 899);
+    expect(raiz.chapterFourState).toBe("rootedIdle");
+    expect(raiz.raizTargetLostAt).toBe(899);
+
+    stepBattle(session, 900);
+    expect(raiz.chapterFourState).toBe("unrooting");
+  });
+
+  it("cancela o desenraizamento se um alvo voltar durante a graça", () => {
+    const session = createBattleSession(PHASES[24], ["colono"], 5, { sandbox: true });
+    const raiz = spawnEnemy(session, { type: "raizFulgor", row: 1 }).enemies[0];
+    raiz.rooted = true;
+    raiz.chapterFourState = "rootedIdle";
+    raiz.x = 500;
+    stepBattle(session, 500);
+    expect(raiz.chapterFourState).toBe("rootedIdle");
+    placeTroop(session, "colono", 1, 2);
+    stepBattle(session, 1);
+    expect(raiz.chapterFourState).toBe("attackCharge");
+    expect(raiz.raizTargetLostAt).toBeNull();
   });
 
   it("empurra a rota atomicamente e respeita âncoras absolutas", () => {
@@ -265,7 +324,7 @@ describe("inimigos do Capítulo 4", () => {
 
   it("atinge a primeira tropa encontrada durante a corrida inicial", () => {
     const session = createBattleSession(PHASES[24], ["colono"], 49, { sandbox: true });
-    const troop = placeTroop(session, "colono", 2, 4).troop;
+    const troop = placeTroop(session, "colono", 2, 9).troop;
     const gorjal = spawnEnemy(session, { type: "gorjal", row: 2 }).enemies[0];
     const events = stepBattle(session, 5000);
     expect(events).toContainEqual(expect.objectContaining({

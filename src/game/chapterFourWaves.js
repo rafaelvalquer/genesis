@@ -27,6 +27,14 @@ const REINFORCEMENT_POOLS = [
 ];
 const BLOCKS = ["opening", "main", "main", "elite", "counter", "climax", "climax", "final"];
 
+const CHAPTER_FOUR_WAVE_OVERRIDES = Object.freeze({
+  "6:0": Object.freeze({
+    sequence: Object.freeze(["P1", "P3", "P1", "P4", "P3", "P5", "P1", "P8"]),
+    spawnWindowMs: 66000,
+    densify: false,
+  }),
+});
+
 function aggregateEnemies(packets) {
   const totals = new Map();
   for (const unit of packets.flatMap((packet) => packet.units)) {
@@ -74,8 +82,13 @@ export function createChapterFourWaves(phaseIndex) {
   const [windowStart, windowEnd] = PHASE_SPAWN_WINDOWS[phaseIndex] || [56, 72];
   return sequences.map((sequence, waveIndex) => {
     const waveProgress = sequences.length <= 1 ? 1 : waveIndex / (sequences.length - 1);
-    const spawnWindowMs = Math.round((windowStart + (windowEnd - windowStart) * waveProgress) * 1000);
-    const denseSequence = densifySequence(sequence, phaseIndex, waveIndex);
+    const override = CHAPTER_FOUR_WAVE_OVERRIDES[`${phaseIndex}:${waveIndex}`];
+    const sourceSequence = override?.sequence || sequence;
+    const defaultSpawnWindowMs = Math.round((windowStart + (windowEnd - windowStart) * waveProgress) * 1000);
+    const spawnWindowMs = override?.spawnWindowMs ?? defaultSpawnWindowMs;
+    const denseSequence = override?.densify === false
+      ? sourceSequence.map((key, sourcePacketIndex) => ({ key, sourcePacketIndex, reinforcement: false }))
+      : densifySequence(sourceSequence, phaseIndex, waveIndex);
     const packets = denseSequence.map((entry, packetIndex) => {
       const at = denseSequence.length <= 1 ? 0 : Math.round(packetIndex * spawnWindowMs / (denseSequence.length - 1));
       return instantiateChapterFourPacket(
@@ -101,4 +114,4 @@ export function createChapterFourWaves(phaseIndex) {
   });
 }
 
-export { PHASE_PACKET_SEQUENCES, PHASE_SPAWN_WINDOWS };
+export { CHAPTER_FOUR_WAVE_OVERRIDES, PHASE_PACKET_SEQUENCES, PHASE_SPAWN_WINDOWS };
