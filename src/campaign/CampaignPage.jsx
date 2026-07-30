@@ -36,29 +36,23 @@ export default function CampaignPage({ campaign }) {
   const chapterUnlocked = (chapter) => getPhaseIndex(chapter.phaseIds[0]) <= campaign.unlockedPhaseIndex;
   const activeChapter = requestedChapter && chapterUnlocked(requestedChapter) ? requestedChapter : currentChapter;
   const phases = useMemo(() => activeChapter.phaseIds.map(getPhase).filter(Boolean), [activeChapter]);
-  const previousChapterIdRef = useRef(activeChapter.id);
-  const [selectedPhaseId, setSelectedPhaseId] = useState(() =>
-    activeChapter.phaseIds.includes(campaign.currentPhaseId) ? campaign.currentPhaseId : phases.find((phase) => getPhaseIndex(phase.id) <= campaign.unlockedPhaseIndex)?.id,
-  );
-
-  const selectedPhase = phases.find((phase) => phase.id === selectedPhaseId)
+  const requestedPhase = getPhase(searchParams.get("fase"));
+  const requestedPhaseValid = requestedPhase
+    && activeChapter.phaseIds.includes(requestedPhase.id)
+    && getPhaseIndex(requestedPhase.id) <= campaign.unlockedPhaseIndex;
+  const selectedPhase = (requestedPhaseValid && requestedPhase)
     || [...phases].reverse().find((phase) => getPhaseIndex(phase.id) <= campaign.unlockedPhaseIndex)
     || phases[0];
 
   useEffect(() => {
-    if (!requestedChapter || !chapterUnlocked(requestedChapter)) {
-      setSearchParams({ capitulo: String(currentChapter.number) }, { replace: true });
-    }
-  }, [requestedNumber, requestedChapter, currentChapter.number]);
-
-  useEffect(() => {
-    if (previousChapterIdRef.current === activeChapter.id) return;
-    previousChapterIdRef.current = activeChapter.id;
-    const preferred = activeChapter.phaseIds.includes(campaign.currentPhaseId)
-      ? campaign.currentPhaseId
-      : [...phases].reverse().find((phase) => getPhaseIndex(phase.id) <= campaign.unlockedPhaseIndex)?.id;
-    setSelectedPhaseId(preferred || phases[0]?.id);
-  }, [activeChapter.id]);
+    if (!selectedPhase) return;
+    const canonicalChapter = String(activeChapter.number);
+    if (searchParams.get("capitulo") === canonicalChapter && searchParams.get("fase") === selectedPhase.id) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("capitulo", canonicalChapter);
+    next.set("fase", selectedPhase.id);
+    setSearchParams(next, { replace: true });
+  }, [activeChapter.number, selectedPhase?.id, searchParams, setSearchParams]);
 
   useEffect(() => {
     if (quality.reduceMotion || !scanlineRef.current) return undefined;
@@ -83,11 +77,20 @@ export default function CampaignPage({ campaign }) {
 
   const selectChapter = (chapter) => {
     if (!chapterUnlocked(chapter)) return;
-    setSearchParams({ capitulo: String(chapter.number) });
+    const chapterPhases = chapter.phaseIds.map(getPhase).filter(Boolean);
+    const latestAccessible = [...chapterPhases].reverse()
+      .find((phase) => getPhaseIndex(phase.id) <= campaign.unlockedPhaseIndex);
+    const next = new URLSearchParams(searchParams);
+    next.set("capitulo", String(chapter.number));
+    if (latestAccessible) next.set("fase", latestAccessible.id);
+    setSearchParams(next);
   };
   const selectPhase = (phase) => {
     if (getPhaseIndex(phase.id) > campaign.unlockedPhaseIndex) return;
-    setSelectedPhaseId(phase.id);
+    const next = new URLSearchParams(searchParams);
+    next.set("capitulo", String(activeChapter.number));
+    next.set("fase", phase.id);
+    setSearchParams(next, { replace: true });
   };
   const biome = getCampaignBiome(activeChapter.id);
 

@@ -3,6 +3,7 @@ import { getCampaignBiome } from "./campaignBiomes.js";
 import { CAMPAIGN_PHASE_LOCATIONS, latLonToCartesian } from "./campaignSceneData.js";
 import CampaignLoading from "./CampaignLoading.jsx";
 import PhaseMarker from "./PhaseMarker.jsx";
+import { consumeOrbitalTransition } from "../home/orbitalTransition.js";
 
 export function supportsWebGL2() {
   try {
@@ -214,6 +215,16 @@ export default function CampaignPlanet({
         };
         runtimeRef.current = runtime;
         updateChapterData(runtime, chapter);
+        const orbitalTransition = consumeOrbitalTransition(chapter.id, selectedPhase?.id);
+        if (orbitalTransition) {
+          planetGroup.rotation.set(
+            orbitalTransition.planetRotation.x,
+            orbitalTransition.planetRotation.y,
+            orbitalTransition.planetRotation.z,
+          );
+          camera.position.z = THREE.MathUtils.clamp(orbitalTransition.cameraDistance, 3.25, 6.1);
+          runtime.orbitalTransition = orbitalTransition;
+        }
 
         const resize = () => {
           const rect = mount.getBoundingClientRect();

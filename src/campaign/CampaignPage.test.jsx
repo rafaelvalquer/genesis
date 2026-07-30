@@ -73,20 +73,20 @@ describe("mapa de campanha", () => {
   it("atualiza o query parameter ao trocar de capítulo", async () => {
     renderPage("/fases?capitulo=1", makeCampaign(8));
     fireEvent.click(screen.getByRole("button", { name: /Mar de Vidro, 0 de 8 concluídas/i }));
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2&fase=fase_09"));
   });
 
   it("usa o capítulo da fase atual quando o parâmetro é inválido", async () => {
     renderPage("/fases?capitulo=99", makeCampaign(8));
     expect(await screen.findByRole("heading", { name: "Costa de Obsidiana" })).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2&fase=fase_09"));
   });
 
   it("seleciona uma fase sem iniciar a batalha", async () => {
     renderPage("/fases?capitulo=1", makeCampaign(3));
     fireEvent.click(await screen.findByRole("button", { name: "Cratera Norte" }));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Cratera Norte" })).toBeInTheDocument());
-    expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=1");
+    expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=1&fase=fase_03");
   });
 
   it("não permite selecionar nem navegar por uma fase bloqueada", async () => {
@@ -144,12 +144,41 @@ describe("mapa de campanha", () => {
     }], { initialEntries: ["/fases?capitulo=1"] });
     render(<RouterProvider router={router} />);
     fireEvent.click(screen.getByRole("button", { name: /Mar de Vidro, 0 de 8 concluídas/i }));
-    await waitFor(() => expect(router.state.location.search).toBe("?capitulo=2"));
+    await waitFor(() => expect(router.state.location.search).toBe("?capitulo=2&fase=fase_16"));
     fireEvent.click(screen.getByRole("button", { name: /Dunas de Quitina, 0 de 8 concluídas/i }));
-    await waitFor(() => expect(router.state.location.search).toBe("?capitulo=3"));
+    await waitFor(() => expect(router.state.location.search).toBe("?capitulo=3&fase=fase_17"));
     await router.navigate(-1);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Trono dos Reflexos" })).toBeInTheDocument());
     await router.navigate(1);
     await waitFor(() => expect(screen.getByRole("heading", { name: "Limiar das Dunas" })).toBeInTheDocument());
+  });
+
+  it("seleciona a fase válida recebida na URL", async () => {
+    renderPage("/fases?capitulo=1&fase=fase_03", makeCampaign(3));
+    expect(await screen.findByRole("heading", { name: "Cratera Norte" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cratera Norte" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("corrige uma fase inexistente para a mais avançada do capítulo", async () => {
+    renderPage("/fases?capitulo=1&fase=fase_99", makeCampaign(3));
+    expect(await screen.findByRole("heading", { name: "Ninho Krulax" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("capitulo=1&fase=fase_04"));
+  });
+
+  it("corrige uma fase bloqueada", async () => {
+    renderPage("/fases?capitulo=1&fase=fase_06", makeCampaign(2));
+    expect(await screen.findByRole("heading", { name: "Cratera Norte" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("fase=fase_03"));
+  });
+
+  it("corrige uma fase que não pertence ao capítulo", async () => {
+    renderPage("/fases?capitulo=1&fase=fase_09", makeCampaign(9));
+    expect(await screen.findByRole("heading", { name: "Coração da Colmeia" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("capitulo=1&fase=fase_08"));
+  });
+
+  it("preserva parâmetros válidos adicionais ao sincronizar a fase", async () => {
+    renderPage("/fases?capitulo=1&fase=fase_02&origem=comando", makeCampaign(2));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("origem=comando"));
   });
 });

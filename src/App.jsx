@@ -3,8 +3,9 @@ import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, use
 import GameCanvas from "./game/GameCanvas.jsx";
 import CampaignPage from "./campaign/CampaignPage.jsx";
 import LoadoutPicker from "./loadout/LoadoutPage.jsx";
+import CommandPage from "./home/CommandPage.jsx";
 import { getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
-import { CHAPTERS, ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
+import { ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
 import { getEnemyInfo, getEnemyUnlockAt } from "./game/enemyInfo.js";
 import { getTroopInfo } from "./game/troopInfo.js";
 import {
@@ -15,7 +16,7 @@ import {
   saveSettings,
 } from "./campaign/storage.js";
 
-export { LoadoutPicker };
+export { LoadoutPicker, CommandPage as HomePage };
 
 const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";
@@ -61,40 +62,6 @@ export function AppLayout({ children }) {
     </header>
     {children}
   </div>;
-}
-
-function HomePage({ campaign, onReset }) {
-  const current = PHASES[campaign.unlockedPhaseIndex];
-  const currentChapter = getChapterForPhase(current);
-  const victories = Object.values(campaign.phaseStats).reduce((sum, stats) => sum + Number(stats.victories || 0), 0);
-  const stars = Object.values(campaign.phaseStats).reduce((sum, stats) => sum + Number(stats.bestStars || 0), 0);
-  return <main className="home-page">
-    <section className="hero-panel">
-      <div className="hero-copy">
-        <span className="eyebrow">PROTOCOLO DE DEFESA AUTÔNOMA</span>
-        <h1>O perímetro é<br /><em>a última fronteira.</em></h1>
-        <p>Monte seu esquadrão, controle cinco rotas e atravesse {CHAPTERS.length} capítulos de uma campanha com {PHASES.length} fases.</p>
-        <div className="hero-actions">
-          <Link className="primary-button" to={`/jogar/${current.id}`}>Continuar campanha <span>→</span></Link>
-          <Link className="secondary-button" to={`/fases?capitulo=${currentChapter.number}`}>Selecionar fase</Link>
-        </div>
-        <div className="hero-meta"><span>SEM LOGIN</span><span>SAVE LOCAL</span><span>100% FRONT-END</span></div>
-      </div>
-      <div className="radar-card">
-        <div className="radar-grid"><span className="radar-sweep" /><span className="blip b1" /><span className="blip b2" /><span className="blip b3" /><span className="blip b4" /></div>
-        <div className="radar-footer"><span><small>CAPÍTULO {currentChapter.number} · SETOR ATUAL</small><b>{current.name}</b></span><span className="threat-pill">AMEAÇA {campaign.unlockedPhaseIndex + 1}/{PHASES.length}</span></div>
-      </div>
-    </section>
-
-    <section className="command-grid">
-      <article className="status-card accent-cyan"><span className="card-code">CMP-01</span><small>Progresso da campanha</small><strong>{campaign.unlockedPhaseIndex + 1}<i>/{PHASES.length}</i></strong><div className="mini-track"><span style={{ width: `${((campaign.unlockedPhaseIndex + 1) / PHASES.length) * 100}%` }} /></div></article>
-      <article className="status-card accent-green"><span className="card-code">VTR-02</span><small>Vitórias registradas</small><strong>{victories}</strong><p>Resultados salvos neste dispositivo</p></article>
-      <article className="status-card accent-amber"><span className="card-code">STR-03</span><small>Estrelas conquistadas</small><strong>{stars}<i>/{PHASES.length * 3}</i></strong><Stars value={Math.min(3, Math.ceil(stars / PHASES.length))} /></article>
-      <article className="next-operation"><div><span className="eyebrow amber">Capítulo {currentChapter.number} · Próxima operação</span><h2>{current.name}</h2><p>{current.subtitle} · {current.waves.length} ondas · energia inicial {current.energy}</p></div><Link to={`/jogar/${current.id}`}>INICIAR →</Link></article>
-    </section>
-
-    <button className="text-button danger-text" onClick={onReset}>Apagar progresso local</button>
-  </main>;
 }
 
 export function PhaseSelectPage({ campaign }) {
@@ -302,5 +269,5 @@ export default function App() {
   const handleReset = () => {
     if (window.confirm("Apagar todo o progresso local da campanha?")) setCampaign(resetCampaign());
   };
-  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<HomePage campaign={campaign} onReset={handleReset} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
+  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<CommandPage campaign={campaign} onReset={handleReset} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
 }
