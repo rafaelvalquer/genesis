@@ -6,11 +6,12 @@ from PIL import Image, ImageFilter
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "executorArco"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "executorArco"
-FRAME_SIZE = (256, 256)
+FRAME_SIZE = (512, 512)
 GRID = (4, 2)
-PADDING = 8
-ROOT_POINT = (128, 248)
+PADDING = 16
+ROOT_POINT = (256, 496)
 ALPHA_THRESHOLD = 24
+TARGET_VISIBLE_HEIGHT = 435
 PROJECTION_THRESHOLD = 5
 MIN_SPRITE_RUN = 64
 STATES = {
@@ -127,6 +128,14 @@ def normalize_cell(cell: Image.Image, scale: float) -> Image.Image:
     return frame
 
 
+def frame_scale(cell: Image.Image) -> float:
+    bbox = visible_bbox(cell)
+    return min(
+        (FRAME_SIZE[0] - PADDING * 2) / (bbox[2] - bbox[0]),
+        TARGET_VISIBLE_HEIGHT / (bbox[3] - bbox[1]),
+    )
+
+
 def split_fixed_grid(sheet: Image.Image, grid: tuple[int, int]) -> list[Image.Image]:
     cells = []
     for row in range(grid[1]):
@@ -173,10 +182,15 @@ def validate() -> None:
             frame = Image.open(path).convert("RGBA")
             if frame.size != FRAME_SIZE or not frame.getchannel("A").getbbox():
                 raise SystemExit(f"invalid frame: {path}")
-            if any(frame.getchannel("A").getpixel(point) for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
+            if any(frame.getchannel("A").getpixel(point) for point in (
+                (0, 0),
+                (FRAME_SIZE[0] - 1, 0),
+                (0, FRAME_SIZE[1] - 1),
+                (FRAME_SIZE[0] - 1, FRAME_SIZE[1] - 1),
+            )):
                 raise SystemExit(f"opaque corner: {path}")
             total_bytes += path.stat().st_size
-    if total_bytes > 900_000:
+    if total_bytes > 12_000_000:
         raise SystemExit(f"executorArco frame budget exceeded: {total_bytes} bytes")
 
     for state, (_, grid, frame_size) in EFFECT_STATES.items():
@@ -198,29 +212,13 @@ if __name__ == "__main__":
         )
         for state, path in STATES.items()
     }
-    all_boxes = [
-        visible_bbox(cell)
-        for state in BASE_STATES
-        for cell in cells_by_state[state]
-    ]
-    max_width = max(box[2] - box[0] for box in all_boxes)
-    max_height = max(box[3] - box[1] for box in all_boxes)
-    scale = min(
-        (FRAME_SIZE[0] - PADDING * 2) / max_width,
-        (FRAME_SIZE[1] - PADDING * 2) / max_height,
-    )
-
     for state, cells in cells_by_state.items():
         output = TARGET / state
         output.mkdir(parents=True, exist_ok=True)
         for index, cell in enumerate(cells):
+            scale = frame_scale(cell)
             frame = normalize_cell(cell, scale)
-            indexed = frame.quantize(
-                colors=192,
-                method=Image.Quantize.FASTOCTREE,
-                dither=Image.Dither.NONE,
-            )
-            indexed.save(output / f"frame{index}.png", optimize=True, compress_level=9)
+            frame.save(output / f"frame{index}.png", optimize=True, compress_level=9)
 
     for state, (path, grid, frame_size) in EFFECT_STATES.items():
         cells = split_fixed_grid(Image.open(path).convert("RGBA"), grid)
@@ -236,4 +234,4 @@ if __name__ == "__main__":
             indexed.save(output / f"frame{index}.png", optimize=True, compress_level=9)
 
     validate()
-    print(f"Vortice sprites written to {TARGET} with scale {scale:.6f}")
+    print(f"Vortice sprites written to {TARGET}")

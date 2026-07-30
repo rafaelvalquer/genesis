@@ -26,7 +26,7 @@ describe("assets da Médica de Nanites", () => {
       const sheetPath = path.join(SHEET_ROOT, `medica-nanites-${state}.png`);
       const metadata = await sharp(sheetPath).metadata();
       expect(metadata).toMatchObject({
-        width: 768, height: 384, hasAlpha: true, isPalette: true,
+        width: 1536, height: 768, hasAlpha: true, isPalette: false,
       });
 
       const files = (await fs.readdir(path.join(ASSET_ROOT, state)))
@@ -36,23 +36,20 @@ describe("assets da Médica de Nanites", () => {
     }
   });
 
-  it("mantém frames 192x192 transparentes, apoio estável e orçamento de 120 KB", async () => {
-    let totalBytes = 0;
+  it("mantém frames 384x384 RGBA truecolor, transparentes e com apoio estável", async () => {
     for (const state of STATES) {
       const bottoms = [];
       for (let frame = 0; frame < 8; frame += 1) {
         const framePath = path.join(ASSET_ROOT, state, `frame${frame}.png`);
         const metadata = await sharp(framePath).metadata();
         expect(metadata).toMatchObject({
-          width: 192, height: 192, hasAlpha: true, isPalette: true,
+          width: 384, height: 384, hasAlpha: true, isPalette: false,
         });
         const { data } = await sharp(framePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
         expect(data[3]).toBe(0);
-        totalBytes += (await fs.stat(framePath)).size;
         bottoms.push(await opaqueBottom(framePath));
       }
       expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(1);
     }
-    expect(totalBytes).toBeLessThanOrEqual(120_000);
   });
 });

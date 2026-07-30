@@ -7,13 +7,13 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "incinerador"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "incinerador"
-FRAME_SIZE = 256
-NORMALIZED_SIZE = 400
-ROOT_X = 165
-ROOT_Y = 370
-SUBJECT_MAX_WIDTH = 380
-SUBJECT_MAX_HEIGHT = 340
-REFERENCE_CHARACTER_HEIGHT = 222
+FRAME_SIZE = 384
+NORMALIZED_SIZE = 600
+ROOT_X = 248
+ROOT_Y = 555
+SUBJECT_MAX_WIDTH = 570
+SUBJECT_MAX_HEIGHT = 510
+REFERENCE_CHARACTER_HEIGHT = 333
 
 
 def remove_magenta_fringe(frame: Image.Image) -> Image.Image:
@@ -169,7 +169,12 @@ def validate_frames() -> None:
             if frame.size != (FRAME_SIZE, FRAME_SIZE):
                 raise SystemExit(f"unexpected dimensions in {frame_path}: {frame.size}")
             alpha = frame.getchannel("A")
-            if any(alpha.getpixel(point) != 0 for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
+            if any(alpha.getpixel(point) != 0 for point in (
+                (0, 0),
+                (FRAME_SIZE - 1, 0),
+                (0, FRAME_SIZE - 1),
+                (FRAME_SIZE - 1, FRAME_SIZE - 1),
+            )):
                 raise SystemExit(f"opaque corner in {frame_path}")
             if not alpha.getbbox():
                 raise SystemExit(f"empty frame: {frame_path}")

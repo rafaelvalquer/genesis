@@ -4,9 +4,9 @@ import sharp from "sharp";
 
 const sourceRoot = path.resolve("art/sprites/interceptadorIcaro");
 const outputRoot = path.resolve("src/game/assets/troop/interceptadorIcaro");
-const frameSize = 256;
-const safeMargin = 8;
-const standingHeight = 218;
+const frameSize = 384;
+const safeMargin = 12;
+const standingHeight = 327;
 const standingStates = new Set([
   "idle",
   "attackBurst",
@@ -169,7 +169,12 @@ for (const state of states) {
       ? await normalizeStanding(source)
       : await normalizeDeath(source, frame);
     const output = await image
-      .png({ compressionLevel: 9, adaptiveFiltering: true, effort: 10 })
+      .png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+        effort: 10,
+        palette: false,
+      })
       .toBuffer();
     await validateMargin(output, state, frame);
     await fs.writeFile(path.join(folder, `frame${frame}.png`), output);

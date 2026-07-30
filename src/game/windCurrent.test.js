@@ -108,7 +108,7 @@ describe("conteudo do Capitulo 4", () => {
     [29, 540, 8600, [0.35, 0.25, 0.4], [1, 2]],
     [30, 570, 9000, [0.35, 0.2, 0.45], [2, 2]],
     [31, 600, 9400, [0.3, 0.2, 0.5], [2, 2]],
-    [32, 640, 9800, [0.3, 0.15, 0.55], [2, 2]],
+    [32, 660, 9800, [0.3, 0.2, 0.5], [2, 2]],
   ])("configura fase %i com energia, duracao, pesos e rotas corretos", (
     phaseNumber, energy, durationMs, weights, routeRange,
   ) => {

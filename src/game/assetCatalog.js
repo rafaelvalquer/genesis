@@ -11,7 +11,6 @@ const arenaUrls = import.meta.glob("./assets/arenas/*.webp", { eager: true, quer
 const audioUrls = import.meta.glob("./assets/sfx/*.{ogg,wav}", { eager: true, query: "?url", import: "default" });
 const previewUrls = import.meta.glob([
   "./assets/troop/*/idle/frame0.png",
-  "./assets/troop/*/idle1/frame0.png",
   "!./assets/troop/muralhaReforcada/idle/frame0.png",
   "./assets/troop/*/defense/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
@@ -19,6 +18,8 @@ const enemyPreviewUrls = import.meta.glob([
   "./assets/enemy/*/*/frame0.png",
 ], { eager: true, query: "?url", import: "default" });
 const enemyConceptUrls = import.meta.glob("./assets/enemy/concepts/*.webp", { eager: true, query: "?url", import: "default" });
+const troopPreviewFrameCache = new Map();
+const decodedImageCache = new Map();
 
 const frameNumber = (key) => Number(/frame(\d+)\.png$/i.exec(key)?.[1] || 0);
 
@@ -28,20 +29,73 @@ function modulesFor(modules, folder, state) {
     .sort(([left], [right]) => frameNumber(left) - frameNumber(right));
 }
 
-function loadImage(url) {
+function abortError() {
+  return new DOMException("Asset loading aborted.", "AbortError");
+}
+
+function decodeImage(url) {
   if (import.meta.env.MODE === "test") return Promise.resolve({ src: url, width: 1, height: 1 });
   return new Promise((resolve) => {
     const image = new Image();
-    image.onload = () => resolve(image);
+    image.onload = async () => {
+      if (typeof createImageBitmap === "function") {
+        try {
+          resolve(await createImageBitmap(image));
+          return;
+        } catch {
+          // HTMLImageElement remains a safe decoding fallback.
+        }
+      }
+      resolve(image);
+    };
     image.onerror = () => resolve(null);
     image.src = url;
   });
 }
 
-async function loadFrameSet(modules, folder, state) {
+function loadImage(url, signal, retainedKeys) {
+  let entry = decodedImageCache.get(url);
+  if (!entry) {
+    entry = { promise: null, references: 0, width: 0, height: 0 };
+    entry.promise = decodeImage(url)
+      .then((image) => {
+        entry.width = image?.width || 0;
+        entry.height = image?.height || 0;
+        return image;
+      })
+      .catch((error) => {
+        decodedImageCache.delete(url);
+        throw error;
+      });
+    decodedImageCache.set(url, entry);
+  }
+  if (retainedKeys && !retainedKeys.has(url)) {
+    retainedKeys.add(url);
+    entry.references += 1;
+  }
+  if (!signal) return entry.promise;
+  if (signal.aborted) return Promise.reject(abortError());
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(abortError());
+    signal.addEventListener("abort", abort, { once: true });
+    entry.promise.then(
+      (image) => {
+        signal.removeEventListener("abort", abort);
+        resolve(image);
+      },
+      (error) => {
+        signal.removeEventListener("abort", abort);
+        reject(error);
+      },
+    );
+  });
+}
+
+async function loadFrameSet(modules, folder, state, options = {}) {
   const entries = modulesFor(modules, folder, state);
   const urls = await Promise.all(entries.map(([, load]) => load()));
-  const images = await Promise.all(urls.map(loadImage));
+  if (options.signal?.aborted) throw abortError();
+  const images = await Promise.all(urls.map((url) => loadImage(url, options.signal, options.retainedKeys)));
   const frames = [];
   entries.forEach(([key], index) => {
     frames[frameNumber(key)] = images[index];
@@ -63,9 +117,64 @@ export function getTroopPreviewUrl(troopId) {
   const spriteKey = TROOPS[troopId]?.spriteKey || troopId;
   const preferred = spriteKey === "muralhaReforcada"
     ? "defense"
-    : spriteKey === "droneSentinela" ? "idle1" : "idle";
+    : "idle";
   const match = Object.entries(previewUrls).find(([key]) => key.includes(`/${spriteKey}/${preferred}/frame0.png`));
   return match?.[1] || null;
+}
+
+export function loadTroopPreviewFrameUrls(troopId, state = "idle") {
+  const troop = TROOPS[troopId];
+  const spriteKey = troop?.spriteKey || troopId;
+  const preferredState = state === "idle"
+    ? spriteKey === "muralhaReforcada"
+      ? "defense"
+      : state
+    : state;
+  const cacheKey = `${spriteKey}:${preferredState}`;
+  if (!troopPreviewFrameCache.has(cacheKey)) {
+    const loaders = modulesFor(troopFrameModules, spriteKey, preferredState)
+      .map(([, load]) => load());
+    troopPreviewFrameCache.set(cacheKey, Promise.all(loaders).then((urls) => urls.filter(Boolean)));
+  }
+  return troopPreviewFrameCache.get(cacheKey);
+}
+
+export function clearTroopPreviewFrameCache() {
+  troopPreviewFrameCache.clear();
+}
+
+export function getAssetCacheMetrics() {
+  let decodedBytes = 0;
+  let retainedImages = 0;
+  for (const entry of decodedImageCache.values()) {
+    decodedBytes += entry.width * entry.height * 4;
+    if (entry.references > 0) retainedImages += 1;
+  }
+  return {
+    images: decodedImageCache.size,
+    retainedImages,
+    approximateDecodedBytes: decodedBytes,
+  };
+}
+
+export function releaseBattleAssets(assets) {
+  for (const url of assets?._assetCacheKeys || []) {
+    const entry = decodedImageCache.get(url);
+    if (!entry) continue;
+    entry.references = Math.max(0, entry.references - 1);
+    if (entry.references === 0) {
+      entry.promise.then((image) => image?.close?.()).catch(() => {});
+      decodedImageCache.delete(url);
+    }
+  }
+  assets?._assetCacheKeys?.clear();
+}
+
+export function clearDecodedImageCache() {
+  for (const entry of decodedImageCache.values()) {
+    entry.promise.then((image) => image?.close?.()).catch(() => {});
+  }
+  decodedImageCache.clear();
 }
 
 export function getArenaUrl(arenaId) {
@@ -95,17 +204,25 @@ export function getEnemyConceptUrl(enemyId) {
 }
 
 export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {
+  if (options.signal?.aborted) throw abortError();
   const troopIds = [...new Set(loadout)];
   const enemyIds = enemyAssetDependencies([
     ...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))),
   ]);
   const tasks = [];
-  const result = { troops: {}, enemies: {}, defenses: {}, effects: {}, audio: {} };
+  const priorityTasks = [];
+  const deferredTasks = [];
+  const retainedKeys = new Set();
+  const loadOptions = { signal: options.signal, retainedKeys };
+  const result = {
+    troops: {}, enemies: {}, defenses: {}, effects: {}, audio: {},
+    _assetCacheKeys: retainedKeys,
+  };
 
   result.effects.colonyCapsule = {};
   for (const state of ["falling", "idle", "opening"]) {
     tasks.push(async () => {
-      result.effects.colonyCapsule[state] = await loadFrameSet(effectFrameModules, "colonyCapsule", state);
+      result.effects.colonyCapsule[state] = await loadFrameSet(effectFrameModules, "colonyCapsule", state, loadOptions);
     });
   }
 
@@ -116,7 +233,7 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
         result.effects.executorArcSlash[state] = await loadFrameSet(
           effectFrameModules,
           "executorArcSlash",
-          state,
+          state, loadOptions,
         );
       });
     }
@@ -128,7 +245,7 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
       result.effects.sandBurial.buried = await loadFrameSet(
         effectFrameModules,
         "sandBurial",
-        "buried",
+        "buried", loadOptions,
       );
     });
   }
@@ -140,7 +257,7 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
         result.effects.windCurrent[state] = await loadFrameSet(
           effectFrameModules,
           "windCurrent",
-          state,
+          state, loadOptions,
         );
       });
     }
@@ -153,7 +270,7 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
         result.defenses.pulsoDesmaterializacao[state] = await loadFrameSet(
           defenseFrameModules,
           "pulsoDesmaterializacao",
-          state,
+          state, loadOptions,
         );
       });
     }
@@ -164,9 +281,16 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
     const states = troop.assetStates || (troopId === "muralhaReforcada" ? ["defense"] : ["idle", "attack"]);
     result.troops[troopId] = {};
     for (const state of states) {
-      tasks.push(async () => {
-        result.troops[troopId][state] = await loadFrameSet(troopFrameModules, troop.spriteKey, state);
-      });
+      const task = async () => {
+        result.troops[troopId][state] = await loadFrameSet(
+          troopFrameModules, troop.spriteKey, state, loadOptions,
+        );
+      };
+      const rareState = /death|dead|special|transition/i.test(state);
+      const bucket = options.deferRareStates && rareState
+        ? deferredTasks
+        : state === "idle" || state === "defense" ? priorityTasks : tasks;
+      bucket.push(task);
     }
   }
 
@@ -175,21 +299,46 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
     if (!enemy) continue;
     result.enemies[enemyId] = {};
     for (const state of enemy.assetStates || ["walking", "attack", "idle"]) {
-      tasks.push(async () => {
-        result.enemies[enemyId][state] = await loadFrameSet(enemyFrameModules, enemyId, state);
-      });
+      const task = async () => {
+        result.enemies[enemyId][state] = await loadFrameSet(enemyFrameModules, enemyId, state, loadOptions);
+      };
+      (options.deferRareStates && /death|dead|destroy|transition/i.test(state) ? deferredTasks : tasks).push(task);
     }
   }
 
   let done = 0;
-  for (const task of tasks) {
-    await task();
-    done += 1;
-    onProgress({ done, total: tasks.length, percent: Math.round((done / tasks.length) * 100) });
+  const orderedTasks = [...priorityTasks, ...tasks];
+  try {
+    for (const task of orderedTasks) {
+      if (options.signal?.aborted) throw abortError();
+      await task();
+      done += 1;
+      onProgress({ done, total: orderedTasks.length, percent: Math.round((done / orderedTasks.length) * 100) });
+    }
+  } catch (error) {
+    releaseBattleAssets(result);
+    throw error;
   }
 
   for (const [key, url] of Object.entries(audioUrls)) {
     result.audio[key.split("/").at(-1)] = url;
   }
+  result.loadDeferred = async () => {
+    let deferredDone = 0;
+    for (const task of deferredTasks) {
+      if (options.signal?.aborted) throw abortError();
+      await task();
+      deferredDone += 1;
+      onProgress({
+        done: deferredDone,
+        total: deferredTasks.length,
+        percent: Math.round((deferredDone / Math.max(1, deferredTasks.length)) * 100),
+        phase: "deferred",
+      });
+    }
+    return result;
+  };
+  result.deferredStates = deferredTasks.length;
+  result.metrics = getAssetCacheMetrics();
   return result;
 }

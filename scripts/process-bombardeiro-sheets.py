@@ -7,10 +7,12 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "bombardeiro"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "bombardeiro"
-FRAME_SIZE = 256
-NORMALIZED_SIZE = 400
-ROOT_X = 200
-ROOT_Y = 370
+FRAME_SIZE = 384
+NORMALIZED_SIZE = 600
+ROOT_X = 300
+ROOT_Y = 555
+TARGET_VISIBLE_HEIGHT = 510
+MAX_VISIBLE_WIDTH = 570
 
 
 def retain_largest_component(frame: Image.Image) -> Image.Image:
@@ -62,6 +64,18 @@ def support_point(frame: Image.Image) -> tuple[float, int]:
 
 def normalize_cell(cell: Image.Image) -> Image.Image:
     subject = retain_largest_component(cell)
+    bbox = subject.getchannel("A").getbbox()
+    if not bbox:
+        raise SystemExit("empty sprite cell after cleanup")
+    subject = subject.crop(bbox)
+    scale = min(
+        TARGET_VISIBLE_HEIGHT / subject.height,
+        MAX_VISIBLE_WIDTH / subject.width,
+    )
+    subject = subject.resize(
+        (round(subject.width * scale), round(subject.height * scale)),
+        Image.Resampling.LANCZOS,
+    )
     root_x, root_y = support_point(subject)
     normalized = Image.new("RGBA", (NORMALIZED_SIZE, NORMALIZED_SIZE), (0, 0, 0, 0))
     normalized.alpha_composite(subject, (round(ROOT_X - root_x), ROOT_Y - root_y))
@@ -107,7 +121,12 @@ def validate_frames() -> None:
             if frame.size != (FRAME_SIZE, FRAME_SIZE):
                 raise SystemExit(f"unexpected dimensions in {frame_path}: {frame.size}")
             alpha = frame.getchannel("A")
-            if any(alpha.getpixel(point) != 0 for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
+            if any(alpha.getpixel(point) != 0 for point in (
+                (0, 0),
+                (FRAME_SIZE - 1, 0),
+                (0, FRAME_SIZE - 1),
+                (FRAME_SIZE - 1, FRAME_SIZE - 1),
+            )):
                 raise SystemExit(f"opaque corner in {frame_path}")
             if not alpha.getbbox():
                 raise SystemExit(f"empty frame: {frame_path}")

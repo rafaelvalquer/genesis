@@ -1,8 +1,60 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  clearRenderLayer,
+  configureRenderLayers,
+  createRenderLayers,
   colorModeFilter, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
   getAdaptiveEffects, getHitReaction, getRenderScale, interpolateEntity, updateAdaptiveLevel, updateGraphicsRuntime,
 } from "./graphicsRuntime.js";
+
+function fakeCanvas() {
+  const context = {
+    setTransform: vi.fn(),
+    clearRect: vi.fn(),
+    imageSmoothingEnabled: false,
+    imageSmoothingQuality: "low",
+  };
+  return {
+    width: 0, height: 0, dataset: {}, style: {},
+    getContext: () => context,
+    context,
+  };
+}
+
+describe("camadas HiDPI", () => {
+  it.each([1, 1.5, 2])("dimensiona a entity layer para DPR %s sem alterar coordenadas lógicas", (dpr) => {
+    const layers = createRenderLayers(fakeCanvas);
+    const configured = configureRenderLayers(layers, { quality: "high" }, dpr);
+    expect(configured.renderScale).toBe(dpr);
+    expect(layers.entityLayer).toMatchObject({
+      width: Math.round(1100 * dpr),
+      height: Math.round(680 * dpr),
+    });
+    expect(layers.arenaLayer).toMatchObject({ width: 1100, height: 680 });
+    expect(configured.contexts.entityLayer.imageSmoothingQuality).toBe("high");
+  });
+
+  it("limpa em pixels físicos e restaura a transformação lógica", () => {
+    const canvas = fakeCanvas();
+    canvas.width = 2200;
+    canvas.height = 1360;
+    clearRenderLayer(canvas.context, canvas, 2);
+    expect(canvas.context.setTransform.mock.calls).toEqual([
+      [1, 0, 0, 1, 0, 0],
+      [2, 0, 0, 2, 0, 0],
+    ]);
+    expect(canvas.context.clearRect).toHaveBeenCalledWith(0, 0, 2200, 1360);
+  });
+
+  it("quadruplica a amostragem das entidades em DPR 2 sem ampliar arena e efeitos", () => {
+    const layers = createRenderLayers(fakeCanvas);
+    configureRenderLayers(layers, { quality: "high" }, 2);
+    const logicalPixels = 1100 * 680;
+    expect(layers.entityLayer.width * layers.entityLayer.height).toBe(logicalPixels * 4);
+    expect(layers.arenaLayer.width * layers.arenaLayer.height).toBe(logicalPixels);
+    expect(layers.effectLayer.width * layers.effectLayer.height).toBe(logicalPixels);
+  });
+});
 
 describe("runtime grafico", () => {
   it("limita a escala HiDPI pelo perfil", () => {

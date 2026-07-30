@@ -1,4 +1,5 @@
 const ATTACK_LABELS = {
+  janoDual: "Cobertura bidirecional",
   melee: "Corpo a corpo",
   energy: "Geração de energia",
   bullet: "Projétil",

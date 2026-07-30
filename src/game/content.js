@@ -166,44 +166,22 @@ export const TROOPS = {
     floatingVisual: true,
     unlockAt: 0,
     color: "#38bdf8",
-    assetStates: [
-      "idle1", "attack1", "death1",
-      "idle2", "attack2", "death2",
-      "idle3", "attack3", "death3",
-    ],
-    stackVisuals: {
-      1: {
-        idle: { state: "idle1", height: 150, aspectRatio: 4 / 3, durationMs: 960, loop: true },
-        attack: {
-          state: "attack1", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false,
-          shots: [{ atMs: 240, frame: 3, muzzle: { x: 0.68, y: 0.48 } }],
-        },
-        death: { state: "death1", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false },
-      },
-      2: {
-        idle: { state: "idle2", height: 150, aspectRatio: 4 / 3, durationMs: 960, loop: true },
-        attack: {
-          state: "attack2", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false,
-          shots: [
-            { atMs: 160, frame: 2, muzzle: { x: 0.53, y: 0.55 } },
-            { atMs: 400, frame: 5, muzzle: { x: 0.74, y: 0.39 } },
-          ],
-        },
-        death: { state: "death2", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false },
-      },
-      3: {
-        idle: { state: "idle3", height: 150, aspectRatio: 4 / 3, durationMs: 960, loop: true },
-        attack: {
-          state: "attack3", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false,
-          shots: [
-            { atMs: 80, frame: 1, muzzle: { x: 0.49, y: 0.58 } },
-            { atMs: 240, frame: 3, muzzle: { x: 0.76, y: 0.58 } },
-            { atMs: 400, frame: 5, muzzle: { x: 0.63, y: 0.34 } },
-          ],
-        },
-        death: { state: "death3", height: 150, aspectRatio: 4 / 3, durationMs: 640, loop: false },
-      },
+    assetStates: ["idle", "attack", "death"],
+    idleVisual: { state: "idle", height: 100, aspectRatio: 4 / 3, durationMs: 960, loop: true },
+    attackVisual: {
+      state: "attack", height: 100, aspectRatio: 4 / 3, durationMs: 640, loop: false,
+      shots: [
+        { atMs: 80, frame: 1, droneIndex: 0, muzzle: { x: 0.68, y: 0.48 } },
+        { atMs: 240, frame: 3, droneIndex: 1, muzzle: { x: 0.68, y: 0.48 } },
+        { atMs: 400, frame: 5, droneIndex: 2, muzzle: { x: 0.68, y: 0.48 } },
+      ],
     },
+    droneShotTimings: {
+      1: [240],
+      2: [160, 400],
+      3: [80, 240, 400],
+    },
+    deathVisual: { state: "death", height: 100, aspectRatio: 4 / 3, durationMs: 640, loop: false },
     description:
       "Drone flutuante barato que pode receber até dois drones adicionais na mesma célula. Cada unidade acrescenta vida e um disparo à formação.",
   },
@@ -1172,7 +1150,7 @@ export const TROOPS = {
     unlockAt: 8,
     assetStates: ["idle", "attack1", "attack2", "attack3", "attackRanged"],
     idleVisual: {
-      height: 146,
+      height: 112,
       durationMs: 1600,
       timeline: [
         { atMs: 0, frame: 0 },
@@ -1188,7 +1166,7 @@ export const TROOPS = {
     attackVisuals: {
       combo1: {
         state: "attack1",
-        height: 146,
+        height: 112,
         durationMs: 480,
         impactMs: 240,
         recoveryMs: 520,
@@ -1205,7 +1183,7 @@ export const TROOPS = {
       },
       combo2: {
         state: "attack2",
-        height: 146,
+        height: 112,
         durationMs: 520,
         impactMs: 260,
         recoveryMs: 520,
@@ -1222,7 +1200,7 @@ export const TROOPS = {
       },
       combo3: {
         state: "attack3",
-        height: 146,
+        height: 112,
         durationMs: 720,
         impactMs: 400,
         recoveryMs: 1050,
@@ -1240,7 +1218,7 @@ export const TROOPS = {
     },
     rangedAttackVisual: {
       state: "attackRanged",
-      height: 146,
+      height: 112,
       durationMs: 640,
       releaseMs: 320,
       effect: "executorArcSlash",
@@ -1393,6 +1371,82 @@ export const TROOPS = {
     description:
       "Dispara projéteis incendiários contra o primeiro inimigo da rota.",
   },
+  operadorJano: {
+    id: "operadorJano",
+    label: "Operador Jano",
+    title: "Olhos da Linha",
+    role: "Precisao / Cobertura bidirecional",
+    spriteKey: "operadorJano",
+    chapterId: "chapter_04",
+    price: 30,
+    supply: 7,
+    deployCooldownMs: 9000,
+    maxDeployed: 3,
+    hp: 24,
+    range: 6.5,
+    damage: 16,
+    droneDamage: 10,
+    attackEveryMs: 1800,
+    projectileSpeed: 680,
+    attack: "janoDual",
+    color: "#38bdf8",
+    unlockAt: 24,
+    assetStates: [
+      "idle", "attackFront", "syncShot", "death",
+      "droneIdle", "droneAttackRear", "droneDisabled", "droneRecover",
+    ],
+    idleVisual: {
+      state: "idle",
+      height: 120,
+      durationMs: 1600,
+      loop: true,
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 200, frame })),
+    },
+    attackVisual: {
+      state: "attackFront",
+      height: 126,
+      durationMs: 640,
+      effect: "janoRifleRound",
+      frameAnchors: {
+        idle: [
+          { x: 0.5010, y: 0.9512 }, { x: 0.4414, y: 0.9512 },
+          { x: 0.4248, y: 0.9512 }, { x: 0.4326, y: 0.9512 },
+          { x: 0.5010, y: 0.9512 }, { x: 0.4404, y: 0.9512 },
+          { x: 0.4238, y: 0.9512 }, { x: 0.4316, y: 0.9512 },
+        ],
+        attackFront: [
+          { x: 0.5169, y: 0.9512 }, { x: 0.4565, y: 0.9512 },
+          { x: 0.4394, y: 0.9512 }, { x: 0.3915, y: 0.9512 },
+          { x: 0.4896, y: 0.9512 }, { x: 0.4875, y: 0.9512 },
+          { x: 0.4643, y: 0.9512 }, { x: 0.4173, y: 0.9512 },
+        ],
+        syncShot: [
+          { x: 0.5000, y: 0.9512 }, { x: 0.4531, y: 0.9512 },
+          { x: 0.4453, y: 0.9512 }, { x: 0.4316, y: 0.9512 },
+          { x: 0.5322, y: 0.9512 }, { x: 0.4502, y: 0.9512 },
+          { x: 0.4580, y: 0.9512 }, { x: 0.4131, y: 0.9512 },
+        ],
+        death: [
+          { x: 0.5000, y: 0.9512 }, { x: 0.5137, y: 0.9512 },
+          { x: 0.4385, y: 0.9512 }, { x: 0.3848, y: 0.9512 },
+          { x: 0.3252, y: 0.9512 }, { x: 0.4170, y: 0.9512 },
+          { x: 0.4326, y: 0.9512 }, { x: 0.3779, y: 0.9512 },
+        ],
+      },
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 80, frame })),
+      shots: [{ atMs: 320, frame: 4, muzzle: { x: 0.93, y: 0.43 } }],
+    },
+    droneOffset: { x: 42, y: -76 },
+    droneVisuals: {
+      droneIdle: { state: "droneIdle", height: 72, durationMs: 1200, loop: true },
+      droneAttackRear: { state: "droneAttackRear", height: 72, durationMs: 480, loop: false },
+      droneDisabled: { state: "droneDisabled", height: 72, durationMs: 800, loop: true },
+      droneRecover: { state: "droneRecover", height: 72, durationMs: 640, loop: false },
+    },
+    deathVisual: { state: "death", height: 126, durationMs: 800, loop: false },
+    description:
+      "Atirador de precisao acompanhado pelo drone Iris. Cobre a frente da rota enquanto o drone protege a retaguarda.",
+  },
 };
 
 const TROOP_WIND_CLASSES = Object.freeze({
@@ -1415,6 +1469,7 @@ const TROOP_WIND_CLASSES = Object.freeze({
   executorArco: "medium",
   colossoImpacto: "heavy",
   guarda: "medium",
+  operadorJano: "light",
 });
 
 const TROOP_WIND_ANCHORS = Object.freeze({
@@ -2954,7 +3009,7 @@ const CHAPTER_FOUR_BLUEPRINT_DATA = [
   ["fase_29", "Vale das Correntes", "Os ventos convergem sobre o vale elevado", 540, [0.35, 0.25, 0.4], [1, 2]],
   ["fase_30", "Cume Partido", "A montanha termina em uma borda irregular", 570, [0.35, 0.2, 0.45], [2, 2]],
   ["fase_31", "Olho da Tormenta", "O silêncio antecede cada nova rajada", 600, [0.3, 0.2, 0.5], [2, 2]],
-  ["fase_32", "Trono da Tempestade", "O cume final sustenta o coração do temporal", 640, [0.3, 0.15, 0.55], [2, 2]],
+  ["fase_32", "Trono da Tempestade", "O cume final sustenta o coração do temporal", 660, [0.3, 0.2, 0.5], [2, 2]],
 ];
 
 export const CHAPTER_FOUR_PHASE_BLUEPRINTS = Object.freeze(

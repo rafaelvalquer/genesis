@@ -186,9 +186,20 @@ export function drawPostProcessing(ctx, phase, settings, session, now) {
   ctx.restore();
 }
 
-export function presentScene(ctx, scene, emissive, renderScale, camera, settings = {}, adaptive = {}) {
+export function presentScene(ctx, sceneOrLayers, emissive, renderScale, camera, settings = {}, adaptive = {}) {
+  const layered = sceneOrLayers?.arenaLayer;
+  const layers = layered
+    ? [
+      sceneOrLayers.arenaLayer,
+      sceneOrLayers.effectLayer,
+      sceneOrLayers.entityLayer,
+      sceneOrLayers.overlayEffectLayer,
+    ]
+    : [sceneOrLayers];
+  const emissiveLayer = layered ? sceneOrLayers.emissiveLayer : emissive;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, ctx.canvas?.width || Math.round(VIEWPORT.width * renderScale), ctx.canvas?.height || Math.round(VIEWPORT.height * renderScale));
   ctx.setTransform(renderScale, 0, 0, renderScale, 0, 0);
-  ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
   ctx.save();
   ctx.translate(camera.x, camera.y);
   const zoom = Number(camera.zoom) > 0 ? Number(camera.zoom) : 1;
@@ -201,7 +212,9 @@ export function presentScene(ctx, scene, emissive, renderScale, camera, settings
   }
   const modeFilter = colorModeFilter(settings.colorMode);
   ctx.filter = modeFilter;
-  ctx.drawImage(scene, 0, 0);
+  for (const layer of layers) {
+    if (layer) ctx.drawImage(layer, 0, 0, VIEWPORT.width, VIEWPORT.height);
+  }
   if (settings.quality === "high" && adaptive.bloom !== false) {
     ctx.save();
     ctx.globalAlpha = .42;
@@ -209,7 +222,7 @@ export function presentScene(ctx, scene, emissive, renderScale, camera, settings
     ctx.filter = modeFilter === "none"
       ? "blur(6px) saturate(1.2)"
       : `${modeFilter} blur(6px) saturate(1.2)`;
-    ctx.drawImage(emissive, 0, 0, VIEWPORT.width, VIEWPORT.height);
+    ctx.drawImage(emissiveLayer, 0, 0, VIEWPORT.width, VIEWPORT.height);
     ctx.restore();
   }
   ctx.restore();

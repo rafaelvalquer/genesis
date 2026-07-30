@@ -7,12 +7,13 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "krio"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "krio"
-FRAME_SIZE = 256
-NORMALIZED_SIZE = 400
-ROOT_X = 200
-ROOT_Y = 370
-STATE_SCALE = {"idle": 0.75, "attack": 0.98}
-STATE_ROOT_X = {"idle": ROOT_X, "attack": 165}
+FRAME_SIZE = 384
+NORMALIZED_SIZE = 600
+ROOT_X = 300
+ROOT_Y = 555
+STATE_ROOT_X = {"idle": ROOT_X, "attack": 248}
+TARGET_VISIBLE_HEIGHT = 510
+MAX_VISIBLE_WIDTH = 570
 
 
 def retain_subject_and_effects(frame: Image.Image) -> Image.Image:
@@ -64,7 +65,14 @@ def support_point(frame: Image.Image) -> tuple[float, int]:
 
 def normalize_cell(cell: Image.Image, state: str) -> Image.Image:
     subject = retain_subject_and_effects(cell)
-    source_scale = STATE_SCALE[state]
+    bbox = subject.getchannel("A").getbbox()
+    if not bbox:
+        raise SystemExit("empty sprite cell after cleanup")
+    subject = subject.crop(bbox)
+    source_scale = min(
+        TARGET_VISIBLE_HEIGHT / subject.height,
+        MAX_VISIBLE_WIDTH / subject.width,
+    )
     subject = subject.resize(
         (round(subject.width * source_scale), round(subject.height * source_scale)),
         Image.Resampling.LANCZOS,
@@ -112,7 +120,12 @@ def validate_frames() -> None:
             if frame.size != (FRAME_SIZE, FRAME_SIZE):
                 raise SystemExit(f"unexpected dimensions in {frame_path}: {frame.size}")
             alpha = frame.getchannel("A")
-            if any(alpha.getpixel(point) != 0 for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
+            if any(alpha.getpixel(point) != 0 for point in (
+                (0, 0),
+                (FRAME_SIZE - 1, 0),
+                (0, FRAME_SIZE - 1),
+                (FRAME_SIZE - 1, FRAME_SIZE - 1),
+            )):
                 raise SystemExit(f"opaque corner in {frame_path}")
             if not alpha.getbbox():
                 raise SystemExit(f"empty frame: {frame_path}")

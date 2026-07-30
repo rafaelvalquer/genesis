@@ -6,12 +6,11 @@ const ROOT = process.cwd();
 const SOURCE = path.join(ROOT, "art", "spritesheets", "medicaNanites");
 const TARGET = path.join(ROOT, "src", "game", "assets", "troop", "medicaNanites");
 const STATES = ["idle", "heal", "attack", "cooldown"];
-const FRAME_SIZE = 192;
-const ROOT_X = 70;
-const ROOT_Y = 184;
-const MAX_WIDTH = 164;
-const MAX_HEIGHT = 158;
-const MAX_TOTAL_BYTES = 120_000;
+const FRAME_SIZE = 384;
+const ROOT_X = 140;
+const ROOT_Y = 368;
+const MAX_WIDTH = 328;
+const MAX_HEIGHT = 316;
 
 function removeChroma(data) {
   for (let offset = 0; offset < data.length; offset += 4) {
@@ -27,6 +26,15 @@ function removeChroma(data) {
       data[offset] = Math.max(0, Math.min(255, Math.round((red - (1 - ratio) * 255) / ratio)));
       data[offset + 1] = Math.max(0, Math.min(255, Math.round(green / ratio)));
       data[offset + 2] = Math.max(0, Math.min(255, Math.round((blue - (1 - ratio) * 255) / ratio)));
+    }
+    if (magentaDominance > 0 && alpha > 0) {
+      data[offset] = Math.min(data[offset], data[offset + 1] + 8);
+      data[offset + 2] = Math.min(data[offset + 2], data[offset + 1] + 8);
+    }
+    if (alpha <= 20) {
+      data[offset] = 0;
+      data[offset + 1] = 0;
+      data[offset + 2] = 0;
     }
   }
 }
@@ -100,7 +108,7 @@ async function normalizeCell(cell) {
     .toBuffer();
 }
 
-async function writeFrames(colours) {
+async function writeFrames() {
   for (const state of STATES) {
     const sourcePath = path.join(SOURCE, `medica-nanites-${state}-chroma.png`);
     const sheet = sharp(sourcePath);
@@ -116,7 +124,7 @@ async function writeFrames(colours) {
     for (let index = 0; index < 8; index += 1) {
       const normalized = await normalizeCell(await extractCell(sheet, metadata, index));
       const encoded = await sharp(normalized)
-        .png({ palette: true, colours, quality: 86, compressionLevel: 9 })
+        .png({ palette: false, compressionLevel: 9 })
         .toBuffer();
       frames.push(encoded);
       await fs.writeFile(path.join(output, `frame${index}.png`), encoded);
@@ -136,7 +144,7 @@ async function writeFrames(colours) {
         left: (index % 4) * FRAME_SIZE,
         top: Math.floor(index / 4) * FRAME_SIZE,
       })))
-      .png({ palette: true, colours, quality: 86, compressionLevel: 9 })
+      .png({ palette: false, compressionLevel: 9 })
       .toFile(path.join(SOURCE, `medica-nanites-${state}.png`));
   }
 }
@@ -160,15 +168,6 @@ async function validate() {
   return totalBytes;
 }
 
-let totalBytes = Infinity;
-let palette = 64;
-for (const colours of [64, 48, 32, 24, 16]) {
-  await writeFrames(colours);
-  totalBytes = await validate();
-  palette = colours;
-  if (totalBytes <= MAX_TOTAL_BYTES) break;
-}
-if (totalBytes > MAX_TOTAL_BYTES) {
-  throw new Error(`medic frames exceed ${MAX_TOTAL_BYTES} bytes: ${totalBytes}`);
-}
-console.log(`Médica de Nanites: 32 frames, ${FRAME_SIZE}x${FRAME_SIZE}, ${palette} colors, ${totalBytes} bytes.`);
+await writeFrames();
+const totalBytes = await validate();
+console.log(`Médica de Nanites: 32 RGBA truecolor frames, ${FRAME_SIZE}x${FRAME_SIZE}, ${totalBytes} bytes.`);

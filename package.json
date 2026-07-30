@@ -27,7 +27,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sprites:audit": "node tools/auditSprites.mjs"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.2.7",

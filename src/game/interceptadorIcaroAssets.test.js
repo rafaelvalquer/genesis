@@ -64,16 +64,16 @@ describe("assets do Interceptador Ícaro", () => {
             right = Math.max(right, x);
             top = Math.min(top, y);
             bottom = Math.max(bottom, y);
-            if (y >= 218) {
+            if (y >= 327) {
               footLeft = Math.min(footLeft, x);
               footRight = Math.max(footRight, x);
             }
           }
         }
-        expect({ top, bottom }).toEqual({ top: 30, bottom: 247 });
-        expect(left).toBeGreaterThanOrEqual(8);
-        expect(right).toBeLessThanOrEqual(247);
-        expect(Math.abs((footLeft + footRight) / 2 - 128)).toBeLessThanOrEqual(2);
+        expect({ top, bottom }).toEqual({ top: 45, bottom: 371 });
+        expect(left).toBeGreaterThanOrEqual(12);
+        expect(right).toBeLessThanOrEqual(371);
+        expect(Math.abs((footLeft + footRight) / 2 - 192)).toBeLessThanOrEqual(3);
       }
     }
   });
@@ -95,7 +95,7 @@ describe("assets do Interceptador Ícaro", () => {
           width: metadata.width,
           height: metadata.height,
           channels: metadata.channels,
-        }).toEqual({ width: 256, height: 256, channels: 4 });
+        }).toEqual({ width: 384, height: 384, channels: 4 });
 
         const alpha = await image.extractChannel(3).stats();
         // Lanczos may retain a two-level alpha fringe around a sharp transparent edge.

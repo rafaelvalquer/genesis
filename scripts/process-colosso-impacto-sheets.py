@@ -7,10 +7,10 @@ from PIL import Image, ImageChops, ImageFilter
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "colossoImpacto"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "colossoImpacto"
-FRAME_SIZE = (256, 256)
-ROOT_POINT = (128, 248)
-PADDING = 8
-TARGET_VISIBLE_HEIGHT = 222
+FRAME_SIZE = (512, 512)
+ROOT_POINT = (256, 496)
+PADDING = 16
+TARGET_VISIBLE_HEIGHT = 445
 STATES = {
     "idle": SHEETS / "colosso-impacto-idle.png",
     "attack": SHEETS / "colosso-impacto-attack.png",
@@ -131,7 +131,12 @@ def validate() -> None:
             if frame.size != FRAME_SIZE or not frame.getchannel("A").getbbox():
                 raise SystemExit(f"invalid frame: {path}")
             alpha = frame.getchannel("A")
-            if any(alpha.getpixel(point) for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
+            if any(alpha.getpixel(point) for point in (
+                (0, 0),
+                (FRAME_SIZE[0] - 1, 0),
+                (0, FRAME_SIZE[1] - 1),
+                (FRAME_SIZE[0] - 1, FRAME_SIZE[1] - 1),
+            )):
                 raise SystemExit(f"opaque corner: {path}")
 
 
@@ -151,12 +156,7 @@ if __name__ == "__main__":
             frame = normalize_cell(cell, scale)
             anchors[state].append(root_anchor(frame))
             scales[state].append(round(scale, 6))
-            indexed = frame.quantize(
-                colors=192,
-                method=Image.Quantize.FASTOCTREE,
-                dither=Image.Dither.NONE,
-            )
-            indexed.save(output / f"frame{index}.png", optimize=True, compress_level=9)
+            frame.save(output / f"frame{index}.png", optimize=True, compress_level=9)
     validate()
     print(f"Colosso de Impacto sprites written to {TARGET}")
     for state, state_anchors in anchors.items():

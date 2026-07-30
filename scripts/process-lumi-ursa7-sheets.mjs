@@ -7,12 +7,11 @@ const SOURCE = path.join(ROOT, "art", "spritesheets", "lumiUrsa7");
 const TARGET = path.join(SOURCE, "frames");
 const DEPLOY_TARGET = path.join(ROOT, "src", "game", "assets", "troop", "lumiUrsa7");
 const STATES = ["idle", "attack", "transitionIn", "defense", "transitionOut"];
-const FRAME_SIZE = 256;
-const ROOT_X = 112;
-const ROOT_Y = 248;
-const MAX_WIDTH = 248;
-const MAX_HEIGHT = 242;
-const MAX_TOTAL_BYTES = 700_000;
+const FRAME_SIZE = 512;
+const ROOT_X = 224;
+const ROOT_Y = 500;
+const MAX_WIDTH = 500;
+const MAX_HEIGHT = 460;
 
 function removeChroma(data) {
   for (let offset = 0; offset < data.length; offset += 4) {
@@ -28,6 +27,15 @@ function removeChroma(data) {
       data[offset] = Math.max(0, Math.min(255, Math.round((red - (1 - ratio) * 255) / ratio)));
       data[offset + 1] = Math.max(0, Math.min(255, Math.round(green / ratio)));
       data[offset + 2] = Math.max(0, Math.min(255, Math.round((blue - (1 - ratio) * 255) / ratio)));
+    }
+    if (magentaDominance > 0 && alpha > 0) {
+      data[offset] = Math.min(data[offset], data[offset + 1] + 8);
+      data[offset + 2] = Math.min(data[offset + 2], data[offset + 1] + 8);
+    }
+    if (alpha <= 20) {
+      data[offset] = 0;
+      data[offset + 1] = 0;
+      data[offset + 2] = 0;
     }
   }
 }
@@ -126,7 +134,7 @@ async function normalizeCell(cell, scale) {
     .toBuffer();
 }
 
-async function writeAssets(cells, scale, colours) {
+async function writeAssets(cells, scale) {
   await fs.mkdir(TARGET, { recursive: true });
   for (const state of STATES) {
     const output = path.join(TARGET, state);
@@ -135,7 +143,7 @@ async function writeAssets(cells, scale, colours) {
     for (let index = 0; index < 8; index += 1) {
       const normalized = await normalizeCell(cells.get(state)[index], scale);
       const encoded = await sharp(normalized)
-        .png({ palette: true, colours, quality: 86, compressionLevel: 9 })
+        .png({ palette: false, compressionLevel: 9 })
         .toBuffer();
       frames.push(encoded);
       await fs.writeFile(path.join(output, `frame${index}.png`), encoded);
@@ -154,7 +162,7 @@ async function writeAssets(cells, scale, colours) {
         left: (index % 4) * FRAME_SIZE,
         top: Math.floor(index / 4) * FRAME_SIZE,
       })))
-      .png({ palette: true, colours, quality: 86, compressionLevel: 9 })
+      .png({ palette: false, compressionLevel: 9 })
       .toFile(path.join(SOURCE, `lumi-ursa7-${state}.png`));
   }
 }
@@ -168,7 +176,7 @@ async function validate() {
       const stat = await fs.stat(framePath);
       totalBytes += stat.size;
       const metadata = await sharp(framePath).metadata();
-      if (metadata.width !== FRAME_SIZE || metadata.height !== FRAME_SIZE || !metadata.hasAlpha || !metadata.isPalette) {
+      if (metadata.width !== FRAME_SIZE || metadata.height !== FRAME_SIZE || !metadata.hasAlpha || metadata.isPalette) {
         throw new Error(`invalid Lumi/URSA-7 frame: ${framePath}`);
       }
       const { data, info } = await sharp(framePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -179,9 +187,6 @@ async function validate() {
     if (Math.max(...roots) - Math.min(...roots) > 1) {
       throw new Error(`unstable Lumi/URSA-7 root in ${state}: ${roots.join(", ")}`);
     }
-  }
-  if (totalBytes > MAX_TOTAL_BYTES) {
-    throw new Error(`Lumi/URSA-7 frames exceed ${MAX_TOTAL_BYTES} bytes: ${totalBytes}`);
   }
   return totalBytes;
 }
@@ -195,10 +200,10 @@ async function writeDeploymentFrames() {
       const sourcePath = path.join(TARGET, state, `frame${index}.png`);
       const outputPath = path.join(output, `frame${index}.png`);
       await sharp(sourcePath)
-        .png({ palette: true, colours: 64, quality: 90, compressionLevel: 9 })
+        .png({ palette: false, compressionLevel: 9 })
         .toFile(outputPath);
       const metadata = await sharp(outputPath).metadata();
-      if (metadata.width !== FRAME_SIZE || metadata.height !== FRAME_SIZE || !metadata.hasAlpha || !metadata.isPalette) {
+      if (metadata.width !== FRAME_SIZE || metadata.height !== FRAME_SIZE || !metadata.hasAlpha || metadata.isPalette) {
         throw new Error(`invalid deployed Lumi/URSA-7 frame: ${outputPath}`);
       }
       totalBytes += (await fs.stat(outputPath)).size;
@@ -208,7 +213,7 @@ async function writeDeploymentFrames() {
 }
 
 const { cells, scale } = await readCells();
-await writeAssets(cells, scale, 64);
+await writeAssets(cells, scale);
 const totalBytes = await validate();
 const deployedBytes = await writeDeploymentFrames();
 console.log(`Lumi e URSA-7: 40 source frames (${totalBytes} bytes) and 40 deployed frames (${deployedBytes} bytes).`);

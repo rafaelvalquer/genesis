@@ -277,6 +277,20 @@ describe("geometria visual dos disparos", () => {
     }
   });
 
+  it("mantem os oito frames de ataque do Operador Jano no mesmo apoio", () => {
+    const jano = { x: 360, y: 220 };
+    const anchors = TROOPS.operadorJano.attackVisual.frameAnchors.attackFront;
+    expect(anchors).toHaveLength(8);
+    anchors.forEach((anchor) => {
+      const rect = getAnchoredSpriteRect(jano, TROOPS.operadorJano.attackVisual.height, 1, anchor);
+      expect(anchor.y).toBe(0.9512);
+      expect(rect.y + rect.height * anchor.y).toBeCloseTo(jano.y + CELL.height * 0.43, 5);
+    });
+    expect(anchors.map(({ x }) => x)).toEqual([
+      0.5169, 0.4565, 0.4394, 0.3915, 0.4896, 0.4875, 0.4643, 0.4173,
+    ]);
+  });
+
   it("faz os quatro tiros e as tres interceptacoes nascerem do cano por quadro", () => {
     const burst = { type: "interceptadorIcaro", state: "attackBurst", x: 400, y: 240 };
     [3, 4, 5, 6].forEach((frame, shot) => {

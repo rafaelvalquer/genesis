@@ -88,4 +88,29 @@ describe("pacotes e ondas do Capítulo 4", () => {
     expect(new Set(alphas)).toEqual(new Set(["voltriz", "nimbarca", "gorjal"]));
     expect(alphas).not.toContain("raizFulgor");
   });
+
+  it("reduz controle e espaça a segunda onda da fase 32", () => {
+    const secondWave = createChapterFourWaves(7)[1];
+    const packets = secondWave.spawnBlocks.flatMap((block) => block.packets)
+      .sort((left, right) => left.spawnAtMs - right.spawnAtMs);
+    const firstRootPacket = packets.find((packet) => (
+      packet.units.some((unit) => unit.type === "raizFulgor")
+    ));
+
+    expect(secondWave.spawnWindowMs).toBe(76000);
+    expect(packets.some((packet) => packet.key === "P7")).toBe(false);
+    expect(firstRootPacket.spawnAtMs).toBeGreaterThanOrEqual(30000);
+  });
+
+  it("suaviza o pico final da fase 32 sem remover seus Alfas finais", () => {
+    const finalWave = createChapterFourWaves(7).at(-1);
+    const packets = finalWave.spawnBlocks.flatMap((block) => block.packets);
+    const alphas = packets.flatMap((packet) => packet.units)
+      .filter((unit) => unit.variant === "alpha")
+      .map((unit) => unit.type);
+
+    expect(finalWave.spawnWindowMs).toBe(92000);
+    expect(packets.filter((packet) => packet.key === "P6")).toHaveLength(1);
+    expect(alphas).toEqual(expect.arrayContaining(["nimbarca", "gorjal"]));
+  });
 });

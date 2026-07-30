@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DECISION_STAGE_RULES, ENEMIES, TROOPS } from "./content.js";
 import {
-  getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, resolveTroopFrame,
+  getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, releaseBattleAssets,
+  resolveTroopFrame,
 } from "./assetCatalog.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
 import { waveSpawnCount } from "./domain.js";
@@ -24,11 +25,13 @@ import {
 import {
   getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect,
   getEnemyDeathVisualY,
-  getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
-  buildBattleRenderRows, createBattleRowBuffers, isEnemyFrozen, viewportPointToFieldPoint, writeEnemyVisualPosition,
+  getJanoDroneAnimation, getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
+  buildBattleRenderRows, createBattleRowBuffers, getDroneSentinelaLayout, isEnemyFrozen,
+  viewportPointToFieldPoint, writeEnemyVisualPosition,
 } from "./visualGeometry.js";
 import {
-  configureHiDPICanvas, consumeGraphicsEvents, createGraphicsRuntime, getCameraOffset,
+  clearRenderLayer, configureHiDPICanvas, configureRenderLayers, consumeGraphicsEvents,
+  createGraphicsRuntime, createRenderLayers, getCameraOffset,
   getAdaptiveEffects, getHealthVisual, getHitReaction, updateGraphicsRuntime,
 } from "./graphicsRuntime.js";
 import {
@@ -699,9 +702,7 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const entity = death.entity;
     const config = death.kind === "troop" ? TROOPS[entity.type] : ENEMIES[entity.type];
     const groups = death.kind === "troop" ? assets.troops[entity.type] : assets.enemies[entity.type];
-    const droneDeathState = death.kind === "troop" && entity.type === "droneSentinela"
-      ? `death${Math.max(1, Math.min(3, Number(entity.droneDeathLevel || entity.droneCount || 1)))}`
-      : null;
+    const droneDeathState = death.kind === "troop" && entity.type === "droneSentinela" ? "death" : null;
     const dedicatedDeathState = droneDeathState || (death.kind === "enemy"
       ? (entity.type === "workerQueenEgg" ? "destroy" : groups?.death ? "death" : null)
       : groups?.death ? "death" : null);
@@ -712,7 +713,7 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const image = frames[frame] || frames[0];
     const height = death.kind === "troop"
       ? (entity.type === "droneSentinela"
-        ? config.stackVisuals[Number(entity.droneDeathLevel || entity.droneCount || 1)].death.height
+        ? config.deathVisual.height
         : config?.attackVisual?.height || 126) * (config?.spriteScale || 1)
       : 128 * (entity.scale || 1);
     const deathY = death.kind === "enemy" ? getEnemyDeathVisualY(entity, progress) : entity.y;
@@ -726,7 +727,19 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
       ? `drop-shadow(0 0 7px ${phase.palette.accent})`
       : `grayscale(${progress * .6}) drop-shadow(0 0 5px ${phase.palette.accent})`;
     if (death.kind === "troop") {
-      drawSprite(ctx, image, getTroopVisualEntity(deathEntity, config), height, Math.max(0, 1 - progress * progress), filter, null, config?.flipX);
+      if (entity.type === "droneSentinela") {
+        const layout = getDroneSentinelaLayout(entity.droneDeathLevel || entity.droneCount);
+        for (const unit of layout) {
+          deathEntity.x = unit.x;
+          deathEntity.y = unit.y + progress * 9;
+          drawSprite(
+            ctx, image, deathEntity, height * unit.scale,
+            Math.max(0, 1 - progress * progress), filter, null, config?.flipX,
+          );
+        }
+      } else {
+        drawSprite(ctx, image, getTroopVisualEntity(deathEntity, config), height, Math.max(0, 1 - progress * progress), filter, null, config?.flipX);
+      }
     } else {
       const aspectRatio = image?.width && image?.height ? image.width / image.height : 1;
       const rect = getEnemySpriteRect(deathEntity, config, state, frame, aspectRatio);
@@ -854,6 +867,8 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
     electricParalyzedUntil: 0,
     lastAttackAt: -Infinity,
     droneCount: preview.droneCount || (selectedTroop === "droneSentinela" ? 1 : undefined),
+    droneState: "idle",
+    droneStateStartedAt: 0,
   };
   const visualEntity = getTroopVisualEntity(entity, config);
   const animation = getTroopAnimation(entity, config, elapsed, {
@@ -887,6 +902,16 @@ function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed,
     ctx.fillStyle = preview.color;
     ctx.fillRect(visualEntity.x - 24, visualEntity.y - 34, 48, 68);
     ctx.restore();
+  }
+  if (selectedTroop === "operadorJano") {
+    const droneAnimation = getJanoDroneAnimation(entity, config, elapsed, getTroopFrameCounts(troopAssets));
+    const droneImage = resolveTroopFrame(troopAssets, droneAnimation.state, droneAnimation.frame);
+    const dronePoint = {
+      x: visualEntity.x + (config.droneOffset?.x || 42),
+      y: visualEntity.y + (config.droneOffset?.y || -76) - 51.6,
+    };
+    const droneHeight = config.droneVisuals?.[droneAnimation.state]?.height || 72;
+    drawSprite(ctx, droneImage, dronePoint, droneHeight, opacity, filter, { x: 0.5, y: 0.5 }, false);
   }
   if (preview.placementLabel) {
     ctx.save();
@@ -1047,12 +1072,57 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   const visual = getTroopAttackVisual(logicalEntity, config);
   const height = (visual?.height || config.attackVisual?.height || (logicalEntity.type === "muralhaReforcada" ? 112 : 126))
     * (config.spriteScale || 1);
-  if (drawHalo && image?.width && image?.height) {
-    const rect = getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor);
-    drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
-  }
   const troopFilter = getTroopSpriteFilter(reaction.flash);
-  if (!drawSprite(ctx, image, scratch, height, 1, troopFilter, frameAnchor, config.flipX)) {
+  let spriteDrawn = false;
+  if (logicalEntity.type === "droneSentinela") {
+    const baseX = scratch.x;
+    const baseY = scratch.y;
+    const layout = getDroneSentinelaLayout(logicalEntity.droneCount);
+    const frames = troopAssets[animation.state] || [];
+    for (const unit of layout) {
+      const frameIndex = animation.state === "idle"
+        ? (animation.frame + unit.idlePhase) % Math.max(1, frames.length)
+        : animation.frame;
+      const unitImage = resolveTroopFrame(troopAssets, animation.state, frameIndex);
+      scratch.x = baseX + unit.x;
+      scratch.y = baseY + unit.y;
+      if (drawHalo && unitImage?.width && unitImage?.height) {
+        const rect = getAnchoredSpriteRect(
+          scratch, height * unit.scale, unitImage.width / unitImage.height, frameAnchor,
+        );
+        drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
+      }
+      spriteDrawn = drawSprite(
+        ctx, unitImage, scratch, height * unit.scale, 1, troopFilter, frameAnchor, config.flipX,
+      ) || spriteDrawn;
+    }
+    scratch.x = baseX;
+    scratch.y = baseY;
+  } else {
+    if (drawHalo && image?.width && image?.height) {
+      const rect = getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor);
+      drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
+    }
+    spriteDrawn = drawSprite(ctx, image, scratch, height, 1, troopFilter, frameAnchor, config.flipX);
+  }
+  if (logicalEntity.type === "operadorJano") {
+    const droneAnimation = getJanoDroneAnimation(
+      logicalEntity, config, session.elapsed, getTroopFrameCounts(troopAssets),
+    );
+    const droneImage = resolveTroopFrame(troopAssets, droneAnimation.state, droneAnimation.frame);
+    const offset = config.droneOffset || { x: 42, y: -76 };
+    const droneEntity = {
+      x: scratch.x + offset.x,
+      y: scratch.y + offset.y - 51.6,
+    };
+    const droneHeight = config.droneVisuals?.[droneAnimation.state]?.height || 72;
+    if (drawHalo && droneImage?.width && droneImage?.height) {
+      const rect = getAnchoredSpriteRect(droneEntity, droneHeight, droneImage.width / droneImage.height, { x: 0.5, y: 0.5 });
+      drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
+    }
+    drawSprite(ctx, droneImage, droneEntity, droneHeight, 1, troopFilter, { x: 0.5, y: 0.5 }, false);
+  }
+  if (!spriteDrawn) {
     ctx.fillStyle = config.color;
     ctx.fillRect(scratch.x - 24, scratch.y - 34, 48, 68);
   }
@@ -1256,30 +1326,41 @@ function drawEmissiveBattle(
   ctx.restore();
 }
 
-function drawBattle(ctx, emissiveCtx, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, interpolation, rowBuffers) {
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
-  emissiveCtx.setTransform(0.5, 0, 0, 0.5, 0, 0);
-  emissiveCtx.clearRect(0, 0, VIEWPORT.width, VIEWPORT.height);
-  drawContainmentUnderlay(ctx, session.phase, session, runtime, now, settings);
-  ctx.save();
-  ctx.translate(0, VIEWPORT.fieldOffsetY);
-  drawArenaBackground(ctx, session.phase, settings);
-  drawArenaUnderlay(ctx, session.phase, settings, session, now);
+function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, interpolation, rowBuffers) {
+  const { contexts, scales } = layerConfig;
+  const arenaCtx = contexts.arenaLayer;
+  const effectCtx = contexts.effectLayer;
+  const entityCtx = contexts.entityLayer;
+  const overlayCtx = contexts.overlayEffectLayer;
+  const emissiveCtx = contexts.emissiveLayer;
+  const timings = { arenaMs: 0, effectMs: 0, entityMs: 0, emissiveMs: 0 };
+  let started = performance.now();
+  clearRenderLayer(arenaCtx, layers.arenaLayer, scales.arenaLayer);
+  drawContainmentUnderlay(arenaCtx, session.phase, session, runtime, now, settings);
+  arenaCtx.save();
+  arenaCtx.translate(0, VIEWPORT.fieldOffsetY);
+  drawArenaBackground(arenaCtx, session.phase, settings);
+  drawArenaUnderlay(arenaCtx, session.phase, settings, session, now);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);
-  drawTacticalGrid(ctx, session, selectedTroop, removeMode, hoveredCell);
-  drawPlacementRange(ctx, placementPreview);
-  drawDecals(ctx, runtime, settings);
-  drawPulseScorches(ctx, runtime, now, settings);
+  drawTacticalGrid(arenaCtx, session, selectedTroop, removeMode, hoveredCell);
+  drawPlacementRange(arenaCtx, placementPreview);
 
-  const baseGradient = ctx.createLinearGradient(0, 0, 48, 0);
+  const baseGradient = arenaCtx.createLinearGradient(0, 0, 48, 0);
   baseGradient.addColorStop(0, `${session.phase.palette.primary}55`);
   baseGradient.addColorStop(1, "transparent");
-  ctx.fillStyle = baseGradient;
-  ctx.fillRect(0, 0, FIELD.baseX + 40, FIELD.height);
+  arenaCtx.fillStyle = baseGradient;
+  arenaCtx.fillRect(0, 0, FIELD.baseX + 40, FIELD.height);
+  arenaCtx.restore();
+  timings.arenaMs = performance.now() - started;
 
+  started = performance.now();
+  clearRenderLayer(effectCtx, layers.effectLayer, scales.effectLayer);
+  effectCtx.save();
+  effectCtx.translate(0, VIEWPORT.fieldOffsetY);
+  drawDecals(effectCtx, runtime, settings);
+  drawPulseScorches(effectCtx, runtime, now, settings);
   drawDematerializationPulses(
-    ctx,
+    effectCtx,
     session.dematerializationPulses,
     assets.defenses?.pulsoDesmaterializacao,
     session.elapsed,
@@ -1287,7 +1368,7 @@ function drawBattle(ctx, emissiveCtx, session, assets, particlesRef, runtime, se
   );
 
   const mineAssets = assets.troops.demolidora || {};
-  drawMines(ctx, session.mines, mineAssets.mine?.[0], session.elapsed);
+  drawMines(effectCtx, session.mines, mineAssets.mine?.[0], session.elapsed);
   if (!runtime.projectileAssets
     || runtime.projectileAssets.mineSource !== mineAssets
     || runtime.projectileAssets.executorSource !== assets.effects?.executorArcSlash) {
@@ -1299,29 +1380,44 @@ function drawBattle(ctx, emissiveCtx, session, assets, particlesRef, runtime, se
     };
   }
   drawProjectileCollection(
-    ctx, session.projectiles, interpolation, settings, runtime.projectileAssets,
+    effectCtx, session.projectiles, interpolation, settings, runtime.projectileAssets,
   );
   drawProjectileCollection(
-    ctx, session.enemyProjectiles, interpolation, settings, runtime.projectileAssets,
+    effectCtx, session.enemyProjectiles, interpolation, settings, runtime.projectileAssets,
   );
-  drawNaniteHealingBeams(ctx, session, settings);
+  drawNaniteHealingBeams(effectCtx, session, settings);
+  effectCtx.restore();
+  const backEffectMs = performance.now() - started;
 
-  drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
-  drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
-  drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
+  started = performance.now();
+  clearRenderLayer(entityCtx, layers.entityLayer, scales.entityLayer);
+  entityCtx.save();
+  entityCtx.translate(0, VIEWPORT.fieldOffsetY);
+  drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
+  drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
+  drawDeathVisuals(entityCtx, runtime, assets, now, session.phase);
+  entityCtx.restore();
+  timings.entityMs = performance.now() - started;
 
-  drawTroopPlacementPreview(ctx, assets, selectedTroop, placementPreview, now, settings);
-  drawDeathVisuals(ctx, runtime, assets, now, session.phase);
-  drawPulseDisintegrations(ctx, runtime, assets, now, settings);
-  drawDeploymentEffects(ctx, runtime, now, settings);
-  drawDynamicLights(ctx, runtime, now, settings, adaptive);
-  drawArenaForeground(ctx, session.phase, settings, session, now, adaptive);
-  drawPulseBeams(ctx, runtime, now, settings);
-  drawEnergyPickups(ctx, session.energyPickups, session.elapsed, settings);
-  particlesRef.current = drawParticles(ctx, particlesRef.current, now, settings);
-  drawPostProcessing(ctx, session.phase, settings, session, now);
-  ctx.restore();
-  drawContainmentForeground(ctx, session.phase, session, runtime, now, settings);
+  clearRenderLayer(overlayCtx, layers.overlayEffectLayer, scales.overlayEffectLayer);
+  overlayCtx.save();
+  overlayCtx.translate(0, VIEWPORT.fieldOffsetY);
+  drawWindEffects(overlayCtx, runtime, now, settings, assets.effects?.windCurrent);
+  drawAdaptiveAid(overlayCtx, session, assets, session.elapsed, settings);
+  drawPulseDisintegrations(overlayCtx, runtime, assets, now, settings);
+  drawDeploymentEffects(overlayCtx, runtime, now, settings);
+  drawDynamicLights(overlayCtx, runtime, now, settings, adaptive);
+  drawArenaForeground(overlayCtx, session.phase, settings, session, now, adaptive);
+  drawPulseBeams(overlayCtx, runtime, now, settings);
+  drawEnergyPickups(overlayCtx, session.energyPickups, session.elapsed, settings);
+  particlesRef.current = drawParticles(overlayCtx, particlesRef.current, now, settings);
+  drawPostProcessing(overlayCtx, session.phase, settings, session, now);
+  overlayCtx.restore();
+  drawContainmentForeground(overlayCtx, session.phase, session, runtime, now, settings);
+  timings.effectMs = backEffectMs + performance.now() - started;
+
+  started = performance.now();
+  clearRenderLayer(emissiveCtx, layers.emissiveLayer, scales.emissiveLayer);
   if (settings.quality === "high" && adaptive.bloom !== false) {
     drawEmissiveBattle(
       emissiveCtx,
@@ -1336,6 +1432,8 @@ function drawBattle(ctx, emissiveCtx, session, assets, particlesRef, runtime, se
       runtime.projectileAssets,
     );
   }
+  timings.emissiveMs = performance.now() - started;
+  return timings;
 }
 
 export function CapsuleInteractionButton({ capsule, onOpen }) {
@@ -1591,20 +1689,36 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    setLoading({ ready: false, percent: 0 });
     loadBattleAssets(
       phase,
       loadout,
       ({ percent }) => !cancelled && setLoading({ ready: false, percent }),
-      sandbox ? { enemyIds: Object.keys(ENEMIES) } : {},
+      sandbox
+        ? { enemyIds: Object.keys(ENEMIES), signal: controller.signal }
+        : { signal: controller.signal },
     )
       .then((assets) => {
-        if (cancelled) return;
+        if (cancelled) {
+          releaseBattleAssets(assets);
+          return;
+        }
+        releaseBattleAssets(assetsRef.current);
         assetsRef.current = assets;
         configureAudio(assets);
         setLoading({ ready: true, percent: 100 });
+      })
+      .catch((error) => {
+        if (error?.name !== "AbortError" && !cancelled) {
+          setLoading({ ready: false, percent: 0, error: error?.message || "Falha ao carregar recursos." });
+        }
       });
     return () => {
       cancelled = true;
+      controller.abort();
+      releaseBattleAssets(assetsRef.current);
+      assetsRef.current = null;
       audioRef.current.theme?.pause();
       audioRef.current.windActiveLoop?.pause();
     };
@@ -1627,20 +1741,15 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
     const renderScale = configureHiDPICanvas(canvas, settings, window.devicePixelRatio || 1);
-    const scene = document.createElement("canvas");
-    scene.width = VIEWPORT.width;
-    scene.height = VIEWPORT.height;
-    const sceneCtx = scene.getContext("2d");
-    const emissive = document.createElement("canvas");
-    emissive.width = Math.ceil(VIEWPORT.width / 2);
-    emissive.height = Math.ceil(VIEWPORT.height / 2);
-    const emissiveCtx = emissive.getContext("2d");
+    const renderLayers = createRenderLayers();
+    const layerConfig = configureRenderLayers(renderLayers, settings, window.devicePixelRatio || 1);
     let animationId;
     let previous = performance.now();
     let accumulator = 0;
     let lastUi = 0;
     let lastDrawMs = 0;
     let lastPresentMs = 0;
+    let lastLayerTimings = { arenaMs: 0, effectMs: 0, entityMs: 0, emissiveMs: 0 };
     const loop = (now) => {
       const frameDelta = Math.min(100, now - previous);
       previous = now;
@@ -1764,14 +1873,15 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         stepMs,
         drawMs: lastDrawMs,
         presentMs: lastPresentMs,
+        ...lastLayerTimings,
         activeEntities,
         particles: particlesRef.current.length,
       });
       const adaptive = getAdaptiveEffects(settings, graphicsRef.current.adaptive.level);
       Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
       const drawStarted = performance.now();
-      drawBattle(
-        sceneCtx, emissiveCtx, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
+      lastLayerTimings = drawBattle(
+        renderLayers, layerConfig, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
         selectedTroop, removeMode, hoveredCellRef.current, adaptiveSettingsRef.current, adaptive,
         sessionRef.current.elapsed, interpolation, battleRowsRef.current,
       );
@@ -1786,7 +1896,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         y: camera.y + outroCamera.impactY,
       } : camera;
       presentScene(
-        ctx, scene, emissive, renderScale,
+        ctx, renderLayers, null, renderScale,
         presentationCamera,
         adaptiveSettingsRef.current, adaptive,
       );
@@ -2272,6 +2382,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             <span>S {graphicsMetrics.stepMs.toFixed(1)} ms</span>
             <span>D {graphicsMetrics.drawMs.toFixed(1)} ms</span>
             <span>P {graphicsMetrics.presentMs.toFixed(1)} ms</span>
+            <span>A {graphicsMetrics.arenaMs.toFixed(1)} ms</span>
+            <span>FX {graphicsMetrics.effectMs.toFixed(1)} ms</span>
+            <span>Ent {graphicsMetrics.entityMs.toFixed(1)} ms</span>
+            <span>Em {graphicsMetrics.emissiveMs.toFixed(1)} ms</span>
             <span>E {graphicsMetrics.activeEntities}</span>
             <span>Part {graphicsMetrics.particles}</span>
             <span>Dec {graphicsMetrics.decals}</span>

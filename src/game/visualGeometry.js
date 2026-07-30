@@ -1,5 +1,23 @@
 import { ENEMY_FRAME_ANCHORS } from "./enemyAnchors.generated.js";
 
+const freezeLayout = (entries) => Object.freeze(entries.map((entry) => Object.freeze(entry)));
+export const DRONE_SENTINELA_LAYOUTS = Object.freeze({
+  1: freezeLayout([{ x: 0, y: 0, scale: 1, idlePhase: 0 }]),
+  2: freezeLayout([
+    { x: -20, y: 10, scale: 0.9, idlePhase: 0 },
+    { x: 20, y: -12, scale: 0.9, idlePhase: 2 },
+  ]),
+  3: freezeLayout([
+    { x: -26, y: 14, scale: 0.84, idlePhase: 0 },
+    { x: 26, y: 14, scale: 0.84, idlePhase: 2 },
+    { x: 0, y: -22, scale: 0.84, idlePhase: 4 },
+  ]),
+});
+
+export function getDroneSentinelaLayout(count = 1) {
+  return DRONE_SENTINELA_LAYOUTS[Math.max(1, Math.min(3, Number(count) || 1))];
+}
+
 export const FIELD = {
   width: 1100,
   height: 600,
@@ -57,6 +75,9 @@ export function getTroopFrameAnchor(troopConfig = {}, state = "idle", frame = 0)
 }
 
 export function getTroopAttackVisual(troop, troopConfig = {}) {
+  if (troop?.type === "operadorJano") {
+    return troop.state === "attack" ? troopConfig.attackVisual : troopConfig.idleVisual;
+  }
   if (troop?.type === "cacadorLeviatas") {
     if (troop.state === "charging") return troopConfig.chargingVisual;
     if (troop.state === "attack") return troopConfig.attackVisual;
@@ -64,13 +85,9 @@ export function getTroopAttackVisual(troop, troopConfig = {}) {
     return troopConfig.idleVisual;
   }
   if (troop?.type === "droneSentinela") {
-    const level = Math.max(1, Math.min(3, Number(
-      troop.state === "dead" ? troop.droneDeathLevel || troop.droneCount || 1 : troop.droneCount || 1,
-    )));
-    const visuals = troopConfig.stackVisuals?.[level];
-    if (troop.state === "attack") return visuals?.attack;
-    if (troop.state === "dead") return visuals?.death;
-    return visuals?.idle;
+    if (troop.state === "attack") return troopConfig.attackVisual;
+    if (troop.state === "dead") return troopConfig.deathVisual;
+    return troopConfig.idleVisual;
   }
   if (troop?.type === "interceptadorIcaro") {
     if (troop.state === "interceptionLock") return troopConfig.interceptionLockVisual;
@@ -117,14 +134,26 @@ export function getMuzzleWorldPosition(troop, troopConfig = {}, shotIndex = 0, a
     || { x: 0.72, y: 0.52 };
   const state = visual.state || "attack";
   const anchor = getTroopFrameAnchor(troopConfig, state, frame);
+  let muzzleEntity = troop;
+  let formationScale = 1;
+  if (troop.type === "droneSentinela") {
+    const layout = getDroneSentinelaLayout(troop.droneCount);
+    const unit = layout[Math.min(Math.max(0, shotIndex), layout.length - 1)];
+    muzzleEntity = { ...troop, x: troop.x + unit.x, y: troop.y + unit.y };
+    formationScale = unit.scale;
+  }
   const rect = anchor
     ? getAnchoredSpriteRect(
-      troop,
-      visual.height || troopConfig.attackVisual?.height || DEFAULT_TROOP_HEIGHT,
+      muzzleEntity,
+      (visual.height || troopConfig.attackVisual?.height || DEFAULT_TROOP_HEIGHT) * formationScale,
       visual.aspectRatio || troopConfig.attackVisual?.aspectRatio || 1,
       anchor,
     )
-    : getTroopSpriteRect(troop, troopConfig);
+    : getSpriteRect(
+      muzzleEntity,
+      (visual.height || troopConfig.attackVisual?.height || DEFAULT_TROOP_HEIGHT) * formationScale,
+      visual.aspectRatio || troopConfig.attackVisual?.aspectRatio || 1,
+    );
   return {
     x: rect.x + rect.width * muzzle.x,
     y: rect.y + rect.height * muzzle.y,
@@ -394,19 +423,15 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   }
 
   if (troop.type === "droneSentinela") {
-    const level = Math.max(1, Math.min(3, Number(
-      troop.state === "dead" ? troop.droneDeathLevel || troop.droneCount || 1 : troop.droneCount || 1,
-    )));
     const phase = troop.state === "attack" ? "attack" : troop.state === "dead" ? "death" : "idle";
-    const state = `${phase}${level}`;
-    const stateVisual = troopConfig.stackVisuals[level][phase];
-    const count = Math.max(1, frameCounts[state] || 8);
+    const stateVisual = troopConfig[`${phase}Visual`];
+    const count = Math.max(1, frameCounts[phase] || 8);
     const startedAt = Number.isFinite(troop.stateStartedAt) ? troop.stateStartedAt : 0;
     const age = Math.max(0, elapsed - startedAt);
     const frame = stateVisual.loop
       ? Math.floor(age / (stateVisual.durationMs / count)) % count
       : Math.min(count - 1, Math.floor(age / (stateVisual.durationMs / count)));
-    return { state, frame };
+    return { state: phase, frame };
   }
 
   if (troop.type === "cacadorLeviatas") {
@@ -544,6 +569,24 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
     return { state: "idle", frame: Math.min(count - 1, Math.max(0, frame)) };
   }
   return { state: "idle", frame: Math.floor(elapsed / 85) % count };
+}
+
+export function getJanoDroneAnimation(troop, troopConfig, elapsed, frameCounts = {}) {
+  const requested = troop.droneState === "attackRear" ? "droneAttackRear"
+    : troop.droneState === "attackFront" ? "droneIdle"
+      : troop.droneState === "disabled" ? "droneDisabled"
+      : troop.droneState === "recover" ? "droneRecover" : "droneIdle";
+  const visual = troopConfig.droneVisuals?.[requested] || troopConfig.droneVisuals?.droneIdle;
+  const state = visual?.state || requested;
+  const count = Math.max(1, frameCounts[state] || 1);
+  const duration = Math.max(1, visual?.durationMs || 800);
+  const startedAt = Number.isFinite(troop.droneStateStartedAt) ? troop.droneStateStartedAt : 0;
+  const age = Math.max(0, elapsed - startedAt);
+  const step = duration / count;
+  const frame = visual?.loop === false
+    ? Math.min(count - 1, Math.floor(age / step))
+    : Math.floor(age / step) % count;
+  return { state, frame };
 }
 
 export function getRepulsorKnockbackOffset(entity, elapsed, reduceMotion = false) {

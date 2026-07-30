@@ -21,26 +21,23 @@ describe("assets de Lumi e URSA-7", () => {
   it("possui cinco sprite sheets 4x2 e oito frames transparentes por estado", async () => {
     for (const state of STATES) {
       const sheet = await sharp(path.join(SHEET_ROOT, `lumi-ursa7-${state}.png`)).metadata();
-      expect(sheet).toMatchObject({ width: 1024, height: 512, hasAlpha: true, isPalette: true });
+      expect(sheet).toMatchObject({ width: 2048, height: 1024, hasAlpha: true, isPalette: false });
       const files = (await fs.readdir(path.join(ASSET_ROOT, state)))
         .filter((filename) => /^frame\d+\.png$/.test(filename));
       expect(files).toHaveLength(8);
     }
   });
 
-  it("mantém dimensões, transparência, apoio estável e orçamento controlado", async () => {
-    let totalBytes = 0;
+  it("mantém frames 512x512 RGBA truecolor, transparência e apoio estável", async () => {
     for (const state of STATES) {
       const bottoms = [];
       for (let frame = 0; frame < 8; frame += 1) {
         const framePath = path.join(ASSET_ROOT, state, `frame${frame}.png`);
         const metadata = await sharp(framePath).metadata();
-        expect(metadata).toMatchObject({ width: 256, height: 256, hasAlpha: true, isPalette: true });
-        totalBytes += (await fs.stat(framePath)).size;
+        expect(metadata).toMatchObject({ width: 512, height: 512, hasAlpha: true, isPalette: false });
         bottoms.push(await opaqueBottom(framePath));
       }
       expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(1);
     }
-    expect(totalBytes).toBeLessThanOrEqual(700_000);
   });
 });

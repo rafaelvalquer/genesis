@@ -282,7 +282,7 @@ describe("arenas cinematograficas", () => {
   });
 
   it("resolve o retrato e a prévia de empilhamento do Drone Sentinela", () => {
-    expect(getTroopPreviewUrl("droneSentinela")).toMatch(/idle1.*frame0.*\.png/i);
+    expect(getTroopPreviewUrl("droneSentinela")).toMatch(/idle.*frame0.*\.png/i);
     const session = createBattleSession(PHASES[0], ["droneSentinela"], 17);
     session.energy = 30;
     session.supply = 6;

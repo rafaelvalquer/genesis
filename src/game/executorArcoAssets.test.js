@@ -57,17 +57,17 @@ describe("assets do Vórtice", () => {
     }
   });
 
-  it("mantém 256x256, alpha, cantos livres, apoio estável e orçamento controlado", async () => {
+  it("mantém 512x512 RGBA, cantos livres, apoio estável e orçamento controlado", async () => {
     let totalBytes = 0;
     for (const state of STATES) {
       const bottoms = [];
       for (let frame = 0; frame < 8; frame += 1) {
         const framePath = path.join(ASSET_ROOT, state, `frame${frame}.png`);
         const metadata = await sharp(framePath).metadata();
-        expect(metadata).toMatchObject({ width: 256, height: 256, hasAlpha: true, isPalette: true });
+        expect(metadata).toMatchObject({ width: 512, height: 512, hasAlpha: true, isPalette: false });
         const bounds = await opaqueBounds(framePath);
         expect(bounds.left).toBeGreaterThanOrEqual(0);
-        expect(bounds.right).toBeLessThanOrEqual(255);
+        expect(bounds.right).toBeLessThanOrEqual(511);
         bottoms.push(bounds.bottom);
         const { data, info } = await sharp(framePath).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
         for (const [x, y] of [[0, 0], [info.width - 1, 0], [0, info.height - 1], [info.width - 1, info.height - 1]]) {
@@ -77,7 +77,7 @@ describe("assets do Vórtice", () => {
       }
       expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(40);
     }
-    expect(totalBytes).toBeLessThanOrEqual(900_000);
+    expect(totalBytes).toBeLessThanOrEqual(12_000_000);
   }, 10_000);
 
   it("mantém o idle ancorado nos pés sem deslocamento entre frames", async () => {
@@ -89,8 +89,8 @@ describe("assets do Vórtice", () => {
     );
     const xs = supports.map(({ x }) => x);
     const ys = supports.map(({ y }) => y);
-    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(2);
-    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(1);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThanOrEqual(4);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeLessThanOrEqual(2);
   });
 
   it("inclui oito frames de voo e seis de impacto compactos e transparentes", async () => {

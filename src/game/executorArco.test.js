@@ -81,9 +81,9 @@ describe("Vórtice — Executor de Arco", () => {
     });
     expect(TROOPS.executorArco.attackVisuals.combo3.recoveryMs)
       .toBeGreaterThan(TROOPS.executorArco.attackVisuals.combo2.recoveryMs);
-    expect(TROOPS.executorArco.idleVisual.height).toBe(146);
+    expect(TROOPS.executorArco.idleVisual.height).toBe(112);
     expect(Object.values(TROOPS.executorArco.attackVisuals)
-      .every((visual) => visual.height === 146)).toBe(true);
+      .every((visual) => visual.height === 112)).toBe(true);
     expect(getUnlockedTroops(7).some((troop) => troop.id === "executorArco")).toBe(false);
     expect(getUnlockedTroops(8).some((troop) => troop.id === "executorArco")).toBe(true);
     expect(getTroopInfo(TROOPS.executorArco)).toMatchObject({

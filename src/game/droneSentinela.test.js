@@ -13,7 +13,7 @@ import {
   placeTroop,
   removeTroop,
 } from "./battleModel.js";
-import { getTroopAnimation } from "./visualGeometry.js";
+import { getDroneSentinelaLayout, getMuzzleWorldPosition, getTroopAnimation } from "./visualGeometry.js";
 
 const config = TROOPS.droneSentinela;
 
@@ -44,13 +44,13 @@ function deployStack(battle, row = 2, col = 2, count = 1) {
 }
 
 describe("Drone Sentinela", () => {
-  it("expõe a configuração inicial e os nove estados visuais", () => {
+  it("expõe a configuração inicial e os três estados unitários", () => {
     expect(config).toMatchObject({
       price: 5, supply: 1, deployCooldownMs: 1800, hp: 15, damage: 2,
       range: 4.5, attackEveryMs: 1300, projectileSpeed: 360,
       maxDeployed: 5, maxDronesPerTile: 3, maxTotalDrones: 15, unlockAt: 0,
     });
-    expect(config.assetStates).toHaveLength(9);
+    expect(config.assetStates).toEqual(["idle", "attack", "death"]);
   });
 
   it("cria a primeira formação consumindo recursos e iniciando cooldown", () => {
@@ -166,15 +166,27 @@ describe("Drone Sentinela", () => {
       expect(getTroopAnimation(
         { type: config.id, droneCount: level, state: "idle", stateStartedAt: 0 },
         config, 0, {},
-      ).state).toBe(`idle${level}`);
+      ).state).toBe("idle");
       expect(getTroopAnimation(
         { type: config.id, droneCount: level, state: "attack", stateStartedAt: 0 },
         config, 0, {},
-      ).state).toBe(`attack${level}`);
+      ).state).toBe("attack");
       expect(getTroopAnimation(
         { type: config.id, droneCount: level, droneDeathLevel: level, state: "dead", stateStartedAt: 0 },
         config, 0, {},
-      ).state).toBe(`death${level}`);
+      ).state).toBe("death");
+    }
+  });
+
+  it("usa layouts congelados e um ponto de disparo distinto por drone", () => {
+    for (let count = 1; count <= 3; count += 1) {
+      const layout = getDroneSentinelaLayout(count);
+      expect(Object.isFrozen(layout)).toBe(true);
+      expect(layout).toHaveLength(count);
+      expect(layout.every(Object.isFrozen)).toBe(true);
+      const troop = { type: config.id, droneCount: count, state: "attack", x: 250, y: 300 };
+      const muzzles = layout.map((_, index) => getMuzzleWorldPosition(troop, config, index));
+      expect(new Set(muzzles.map(({ x, y }) => `${x}:${y}`)).size).toBe(count);
     }
   });
 
@@ -199,11 +211,13 @@ describe("Drone Sentinela", () => {
     expect(events[0].entity).toMatchObject({ droneCount: 3, droneDeathLevel: 3, dead: true });
   });
 
-  it("entrega nove sheets 2048×192 e oito frames transparentes por estado", async () => {
+  it("entrega três sheets 2048×768 e oito frames transparentes por estado", async () => {
     for (const state of config.assetStates) {
       const sheetPath = path.join(process.cwd(), "art", "spritesheets", "droneSentinela", `${state}.png`);
       const metadata = await sharp(sheetPath).metadata();
-      expect(metadata).toMatchObject({ width: 2048, height: 192, channels: 4 });
+      expect(metadata).toMatchObject({
+        width: 2048, height: 768, channels: 4, hasAlpha: true, isPalette: false,
+      });
       const frameDir = path.join(process.cwd(), "src", "game", "assets", "troop", "droneSentinela", state);
       expect(fs.readdirSync(frameDir).filter((file) => file.endsWith(".png"))).toHaveLength(8);
     }

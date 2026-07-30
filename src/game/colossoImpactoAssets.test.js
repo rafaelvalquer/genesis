@@ -25,7 +25,7 @@ async function opaqueBounds(framePath) {
 }
 
 describe("assets do Colosso de Impacto", () => {
-  it("mantem oito frames 256x256 transparentes e otimizados por estado", async () => {
+  it("mantem oito frames 512x512 RGBA transparentes e otimizados por estado", async () => {
     let totalBytes = 0;
     for (const state of STATES) {
       const files = (await fs.readdir(path.join(ASSET_ROOT, state)))
@@ -35,16 +35,16 @@ describe("assets do Colosso de Impacto", () => {
       for (let frame = 0; frame < 8; frame += 1) {
         const framePath = path.join(ASSET_ROOT, state, `frame${frame}.png`);
         const metadata = await sharp(framePath).metadata();
-        expect(metadata).toMatchObject({ width: 256, height: 256, hasAlpha: true, isPalette: true });
+        expect(metadata).toMatchObject({ width: 512, height: 512, hasAlpha: true, isPalette: false });
         const bounds = await opaqueBounds(framePath);
         bottoms.push(bounds.bottom);
-        expect(bounds.left).toBeGreaterThanOrEqual(7);
-        expect(bounds.right).toBeLessThanOrEqual(248);
+        expect(bounds.left).toBeGreaterThanOrEqual(14);
+        expect(bounds.right).toBeLessThanOrEqual(497);
         totalBytes += (await fs.stat(framePath)).size;
       }
       expect(Math.max(...bottoms) - Math.min(...bottoms)).toBeLessThanOrEqual(2);
     }
-    expect(totalBytes).toBeLessThanOrEqual(600_000);
+    expect(totalBytes).toBeLessThanOrEqual(12_000_000);
   });
 
   it("mantem a pose neutra de ataque e esmagamento na proporcao do idle", async () => {

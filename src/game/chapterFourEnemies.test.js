@@ -117,9 +117,11 @@ describe("inimigos do Capítulo 4", () => {
   it("alivia a primeira onda da fase 32", () => {
     const openingWave = createChapterFourWaves(7)[0];
     const enemyCount = openingWave.enemies.reduce((total, enemy) => total + enemy.count, 0);
+    const gorjalCount = openingWave.enemies.find((enemy) => enemy.type === "gorjal")?.count ?? 0;
 
     expect(enemyCount).toBe(31);
-    expect(openingWave.packetThreat).toBe(384);
+    expect(gorjalCount).toBe(4);
+    expect(openingWave.packetThreat).toBe(361);
     expect(openingWave.spawnBlocks.flatMap((block) => block.packets)).toHaveLength(8);
   });
 

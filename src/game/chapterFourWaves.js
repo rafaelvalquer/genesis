@@ -23,7 +23,9 @@ const REINFORCEMENT_POOLS = [
   ["P1","P3","P4"],
   ["P1","P3","P8"],
   ["P1","P3","P4","P8"],
-  ["P1","P3","P4","P8"],
+  // Na fase 32, os reforços priorizam P1 para reduzir aparições extras de Gorjal
+  // sem alterar a composição base das outras fases.
+  ["P1","P1","P4","P8"],
 ];
 const BLOCKS = ["opening", "main", "main", "elite", "counter", "climax", "climax", "final"];
 
@@ -36,6 +38,16 @@ const CHAPTER_FOUR_WAVE_OVERRIDES = Object.freeze({
   // Reduz a pressão inicial da fase final sem alterar as ondas seguintes.
   "7:0": Object.freeze({
     sequence: Object.freeze(["P1", "P3", "P2", "P4", "P5"]),
+  }),
+  // Evita controle pesado logo no começo e retira uma segunda combinação de quebra de linha.
+  "7:1": Object.freeze({
+    sequence: Object.freeze(["P3", "P4", "P2", "P5", "P1", "P6"]),
+    spawnWindowMs: 76000,
+  }),
+  // Suaviza o pico final: remove o Cerco de Sobrecarga duplicado e espaça a convergência.
+  "7:6": Object.freeze({
+    sequence: Object.freeze(["P2", "P4", "P5", "P6", "P7", "P8", "P9", "P3"]),
+    spawnWindowMs: 92000,
   }),
 });
 

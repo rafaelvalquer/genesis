@@ -7,9 +7,9 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "artilheiraMorteiro"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "artilheiraMorteiro"
-FRAME_SIZE = (384, 256)
-ROOT_POINT = (192, 248)
-PADDING = 8
+FRAME_SIZE = (576, 384)
+ROOT_POINT = (288, 372)
+PADDING = 12
 STATES = {
     "idle": SHEETS / "artilheira-morteiro-idle.png",
     "attack": SHEETS / "artilheira-morteiro-attack.png",
@@ -115,7 +115,12 @@ def validate_frames() -> None:
             alpha = frame.getchannel("A")
             if not alpha.getbbox():
                 raise SystemExit(f"empty frame: {frame_path}")
-            if any(alpha.getpixel(point) != 0 for point in ((0, 0), (383, 0), (0, 255), (383, 255))):
+            if any(alpha.getpixel(point) != 0 for point in (
+                (0, 0),
+                (FRAME_SIZE[0] - 1, 0),
+                (0, FRAME_SIZE[1] - 1),
+                (FRAME_SIZE[0] - 1, FRAME_SIZE[1] - 1),
+            )):
                 raise SystemExit(f"opaque corner in {frame_path}")
 
 

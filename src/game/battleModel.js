@@ -454,6 +454,8 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     energyCost: Number(options.energyCost) || 0,
     supplyCost: Number.isFinite(options.supplyCost) ? Number(options.supplyCost) : config.supply,
     droneCount: troopId === "droneSentinela" ? 1 : undefined,
+    droneState: troopId === "operadorJano" ? "idle" : undefined,
+    droneStateStartedAt: troopId === "operadorJano" ? session.elapsed : undefined,
     droneStackLevel: troopId === "droneSentinela" ? 1 : undefined,
     droneVolleyTargetId: null,
     droneVolleyStartedAt: -Infinity,
@@ -1929,7 +1931,10 @@ function fireTroop(session, troop, config, target, events) {
     explosive: config.attack === "missile" || config.attack === "mortar",
     target,
   });
-  const origin = getMuzzleWorldPosition(troop, config, 0);
+  const muzzleFrame = troop.type === "operadorJano"
+    ? config.attackVisual?.shots?.[0]?.frame ?? null
+    : null;
+  const origin = getMuzzleWorldPosition(troop, config, 0, muzzleFrame);
   const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
@@ -1997,9 +2002,47 @@ function fireTroop(session, troop, config, target, events) {
   }
 }
 
+function fireOperadorJano(session, troop, config, target, events) {
+  if (target) {
+    fireTroop(session, troop, config, target, events);
+    troop.state = "attack";
+    troop.stateStartedAt = session.elapsed;
+    troop.stateEndsAt = session.elapsed + (config.attackVisual?.durationMs || 640);
+  }
+  const droneCandidates = session.enemies
+    .filter((enemy) => !enemy.dead && enemy.row === troop.row
+      && (enemy.x < troop.x || enemy.x - troop.x <= config.range * CELL.width));
+  const droneTarget = droneCandidates
+    .filter((enemy) => enemy.x < troop.x)
+    .sort((left, right) => right.x - left.x)[0]
+    || droneCandidates.sort((left, right) => right.x - left.x)[0]
+    || target;
+  if (!droneTarget) return;
+  const origin = { x: troop.x + (config.droneOffset?.x || 42), y: troop.y + (config.droneOffset?.y || -76) };
+  const targetPoint = getEnemyHitPoint(droneTarget, ENEMIES[droneTarget.type]);
+  const dx = targetPoint.x - origin.x;
+  const dy = targetPoint.y - origin.y;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const damage = (config.droneDamage || config.damage * 0.6)
+    * attackDamageMultiplier(session, troop, { target: droneTarget });
+  session.projectiles.push({
+    id: id("projectile"), kind: "bullet", troopType: troop.type,
+    sourceTroopId: troop.id, shotIndex: 1, droneIndex: 0, row: troop.row,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    origin: { ...origin }, ageMs: 0, trail: createProjectileTrail(4, origin.x, origin.y),
+    vx: dx / distance * (config.projectileSpeed || 390),
+    vy: dy / distance * (config.projectileSpeed || 390),
+    damage, targetId: droneTarget.id, radius: 0, color: config.color,
+    visualKind: "sentinelBolt", visualCount: 1, active: true, launched: false,
+    seed: nextEffectSeed(session), launchAt: session.elapsed + 180,
+  });
+  troop.droneState = droneTarget && droneTarget.x >= troop.x ? "attackFront" : "attackRear";
+  troop.droneStateStartedAt = session.elapsed;
+}
+
 export function fireDroneSentinela(session, troop, config, target, events = []) {
   const level = clamp(Number(troop.droneCount || 1), 1, config.maxDronesPerTile);
-  const visual = config.stackVisuals[level].attack;
+  const visual = config.attackVisual;
   const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
   const damage = config.damage * attackDamageMultiplier(session, troop, { target });
   for (let shotIndex = 0; shotIndex < level; shotIndex += 1) {
@@ -2010,7 +2053,7 @@ export function fireDroneSentinela(session, troop, config, target, events = []) 
     const distance = Math.max(1, Math.hypot(dx, dy));
     session.projectiles.push({
       id: id("projectile"), kind: "bullet", troopType: troop.type,
-      sourceTroopId: troop.id, shotIndex, row: troop.row,
+      sourceTroopId: troop.id, shotIndex, droneIndex: shotIndex, row: troop.row,
       x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
       origin: { ...origin }, ageMs: 0, trail: createProjectileTrail(4, origin.x, origin.y),
       vx: dx / distance * config.projectileSpeed,
@@ -2018,7 +2061,7 @@ export function fireDroneSentinela(session, troop, config, target, events = []) 
       damage, targetId: target.id, radius: 0,
       color: config.color, visualKind: "sentinelBolt",
       active: true, launched: false,
-      launchAt: session.elapsed + Number(shotDefinition?.atMs || 0),
+      launchAt: session.elapsed + Number(config.droneShotTimings[level]?.[shotIndex] ?? shotDefinition?.atMs ?? 0),
       seed: nextEffectSeed(session) + shotIndex,
     });
   }
@@ -2709,6 +2752,18 @@ function updateTroops(session, events, dt) {
       troop.stateStartedAt = troop.stateEndsAt;
       troop.stateEndsAt = Infinity;
     }
+    if (troop.type === "operadorJano" && ["attackRear", "attackFront"].includes(troop.droneState)
+      && session.elapsed - Number(troop.droneStateStartedAt || 0) >= 480) {
+      troop.droneState = "idle";
+      troop.droneStateStartedAt = session.elapsed;
+    }
+    if (troop.type === "operadorJano" && troop.state === "attack"
+      && session.elapsed >= troop.stateEndsAt) {
+      troop.state = "idle";
+      troop.stateStartedAt = session.elapsed;
+      troop.stateEndsAt = Infinity;
+      troop.lastAttackAt = -Infinity;
+    }
     expireElectricState(troop, session.elapsed);
     if (isElectricParalyzed(troop, session.elapsed)) {
       troop.defenseActive = false;
@@ -2790,6 +2845,16 @@ function updateTroops(session, events, dt) {
       const target = closestEnemy(session, troop, config);
       if (!target) continue;
       fireDroneSentinela(session, troop, config, target, events);
+      continue;
+    }
+    if (config.attack === "janoDual") {
+      const target = closestEnemy(session, troop, config);
+      const hasDroneTarget = session.enemies.some((enemy) => !enemy.dead && enemy.row === troop.row
+        && (enemy.x < troop.x || enemy.x - troop.x <= config.range * CELL.width));
+      if (!target && !hasDroneTarget) continue;
+      fireOperadorJano(session, troop, config, target, events);
+      troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+      troop.lastAttackAt = session.elapsed;
       continue;
     }
     if (config.attack === "mortar") {

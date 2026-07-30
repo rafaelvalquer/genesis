@@ -6,12 +6,12 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SHEETS = ROOT / "art" / "spritesheets" / "demolidora"
 TARGET = ROOT / "src" / "game" / "assets" / "troop" / "demolidora"
-FRAME_SIZE = 256
-CANVAS_SIZE = 400
-ROOT_X = 155
-ROOT_Y = 372
-MAX_WIDTH = 340
-MAX_HEIGHT = 350
+FRAME_SIZE = 384
+CANVAS_SIZE = 600
+ROOT_X = 232
+ROOT_Y = 558
+MAX_WIDTH = 510
+MAX_HEIGHT = 525
 
 
 def support_point(frame: Image.Image) -> tuple[float, int]:
@@ -68,7 +68,7 @@ def process_mine() -> None:
     if not bbox:
         raise SystemExit("empty mine asset")
     mine = source.crop(bbox)
-    scale = min(232 / mine.width, 150 / mine.height)
+    scale = min(348 / mine.width, 225 / mine.height)
     mine = mine.resize((round(mine.width * scale), round(mine.height * scale)), Image.Resampling.LANCZOS)
     frame = Image.new("RGBA", (FRAME_SIZE, FRAME_SIZE), (0, 0, 0, 0))
     frame.alpha_composite(mine, ((FRAME_SIZE - mine.width) // 2, (FRAME_SIZE - mine.height) // 2))
@@ -86,7 +86,12 @@ def validate() -> None:
             frame = Image.open(path).convert("RGBA")
             if frame.size != (FRAME_SIZE, FRAME_SIZE) or not frame.getchannel("A").getbbox():
                 raise SystemExit(f"invalid frame: {path}")
-            if any(frame.getchannel("A").getpixel(point) != 0 for point in ((0, 0), (255, 0), (0, 255), (255, 255))):
+            if any(frame.getchannel("A").getpixel(point) != 0 for point in (
+                (0, 0),
+                (FRAME_SIZE - 1, 0),
+                (0, FRAME_SIZE - 1),
+                (FRAME_SIZE - 1, FRAME_SIZE - 1),
+            )):
                 raise SystemExit(f"opaque corner: {path}")
 
 

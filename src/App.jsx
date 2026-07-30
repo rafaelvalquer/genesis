@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import GameCanvas from "./game/GameCanvas.jsx";
 import CampaignPage from "./campaign/CampaignPage.jsx";
-import { getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
+import LoadoutPicker from "./loadout/LoadoutPage.jsx";
+import { getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
 import { CHAPTERS, ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
 import { getEnemyInfo, getEnemyUnlockAt } from "./game/enemyInfo.js";
 import { getTroopInfo } from "./game/troopInfo.js";
@@ -15,30 +15,12 @@ import {
   saveSettings,
 } from "./campaign/storage.js";
 
+export { LoadoutPicker };
+
 const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";
   const total = Math.floor(milliseconds / 1000);
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-};
-
-const getEnvironmentMechanicLabel = (phase) => {
-  if (phase.chapterMechanic) return "◇ Ecos de Vidro";
-  if (phase.environmentHazard?.id === "sandstorm") return "◇ Tempestade de Areia";
-  if (phase.environmentHazard?.id === "wind_current") return "◇ Correntes de Vento";
-  return `Ambiente · ${phase.environment}`;
-};
-
-const getEnvironmentMechanicDescription = (phase) => {
-  if (phase.chapterMechanic) {
-    return `${Math.round(phase.chapterMechanic.chance * 100)}% de chance: hostis comuns podem retornar com 45% de vida, mais velozes e com dano reduzido.`;
-  }
-  if (phase.environmentHazard?.id === "sandstorm") {
-    return "Após 18s, exércitos com 5+ tropas podem enfrentar soterramento, perda de alcance e cadência reduzida. Reduza a tropa durante a tempestade para impedir recorrências.";
-  }
-  if (phase.environmentHazard?.id === "wind_current") {
-    return "Após 18s, formações com 5+ tropas podem ser deslocadas por correntes contrárias, favoráveis ou laterais.";
-  }
-  return "Tratamento visual, sem penalidades ocultas.";
 };
 
 const TEST_PHASE = {
@@ -232,88 +214,6 @@ export function EncyclopediaPage({ campaign }) {
         </div>
       </article>}
     </section>
-  </main>;
-}
-
-function TroopInfoModal({ troop, onClose, returnFocusRef }) {
-  const closeButtonRef = useRef(null);
-  const { stats, specials } = getTroopInfo(troop);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-    closeButtonRef.current?.focus();
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-      returnFocusRef.current?.focus();
-    };
-  }, [onClose, returnFocusRef]);
-
-  return createPortal(<div className="modal-backdrop troop-info-backdrop" onMouseDown={(event) => {
-    if (event.target === event.currentTarget) onClose();
-  }}>
-    <section className="troop-info-modal" role="dialog" aria-modal="true" aria-labelledby={`troop-info-title-${troop.id}`}>
-      <button ref={closeButtonRef} type="button" className="troop-info-close" aria-label={`Fechar informações de ${troop.label}`} onClick={onClose}>×</button>
-      <div className="troop-info-portrait" style={{ "--troop-color": troop.color }}>
-        <img src={getTroopPreviewUrl(troop.id)} alt={troop.label} />
-        <span>{troop.role}</span>
-      </div>
-      <div className="troop-info-content">
-        <span className="eyebrow">Dossiê da unidade</span>
-        <h2 id={`troop-info-title-${troop.id}`}>{troop.label}</h2>
-        {troop.title && <small className="unit-title">{troop.title}</small>}
-        <p>{troop.description}</p>
-        <dl className="troop-info-stats">{stats.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
-        {specials.length > 0 && <div className="troop-info-specials">
-          <span className="eyebrow amber">Características especiais</span>
-          <dl>{specials.map((stat) => <div key={stat.label}><dt>{stat.label}</dt><dd>{stat.value}</dd></div>)}</dl>
-        </div>}
-      </div>
-    </section>
-  </div>, document.body);
-}
-
-export function LoadoutPicker({ phase, selected, onToggle, onStart, onBack }) {
-  const phaseIndex = getPhaseIndex(phase.id);
-  const chapter = getChapterForPhase(phase);
-  const loadoutLimit = phase.loadoutLimit ?? 5;
-  const loadoutLimitLabel = ({ 4: "quatro", 5: "cinco", 6: "seis" })[loadoutLimit] ?? String(loadoutLimit);
-  const available = getUnlockedTroops(phaseIndex);
-  const [infoTroop, setInfoTroop] = useState(null);
-  const infoTriggerRef = useRef(null);
-  const closeInfo = useCallback(() => setInfoTroop(null), []);
-  return <main className={`loadout-page chapter-${chapter.number}`} style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary, "--arena-accent": phase.palette.accent }}>
-    <div className="loadout-arena-backdrop" aria-hidden="true" />
-    <header className="loadout-header"><button className="back-link" onClick={onBack}>← Voltar</button><div><span className="eyebrow">CAPÍTULO {chapter.number} · BRIEFING · {phase.id.replace("_", " ")}</span><h1>{phase.name}</h1><p>{phase.subtitle}. Escolha de uma a {loadoutLimitLabel} unidades para a operação.</p></div><div className="selection-count"><strong>{selected.length}</strong><span>/ {loadoutLimit}<br />selecionadas</span></div></header>
-    <section className="loadout-layout">
-      <div className="unit-grid">{available.map((troop) => {
-        const active = selected.includes(troop.id);
-        return <article key={troop.id} className={`unit-card ${active ? "active" : ""}`}>
-          <button type="button" className="unit-select" aria-pressed={active} aria-label={`${active ? "Remover" : "Selecionar"} ${troop.label}`} onClick={() => onToggle(troop.id)}>
-            <span className="unit-check">{active ? "✓" : "+"}</span>
-            <span className={`unit-portrait ${troop.id === "artilheiraMorteiro" ? "wide-sprite" : ""} ${troop.flipX ? "flipped-sprite" : ""}`}><img src={getTroopPreviewUrl(troop.id)} alt="" /><span style={{ background: troop.color }} /></span>
-            <span className="unit-info"><span className="eyebrow">{troop.role}</span><h2>{troop.label}</h2>{troop.title && <small className="unit-title">{troop.title}</small>}<p>{troop.description}</p><span className="unit-summary"><span>⚡ {troop.price}</span><span>SUP {troop.supply}</span><span>HP {troop.hp}</span></span></span>
-          </button>
-          <button type="button" className="unit-info-button" aria-label={`Informações de ${troop.label}`} onClick={(event) => {
-            infoTriggerRef.current = event.currentTarget;
-            setInfoTroop(troop);
-          }}>i</button>
-        </article>;
-      })}</div>
-      <aside className="mission-brief">
-        <div className="brief-arena"><img src={getArenaUrl(phase.arenaId)} alt={`Campo de batalha ${phase.name}`} /><span>ARENA SINCRONIZADA</span></div>
-        <span className="eyebrow amber">Parâmetros da missão</span><h2>Dados táticos</h2>
-        <dl><div><dt>Ondas</dt><dd>{phase.waves.length}</dd></div><div><dt>Energia</dt><dd>{phase.energy}</dd></div><div><dt>Integridade</dt><dd>100%</dd></div><div><dt>Cadência</dt><dd>{(phase.cadenceMs / 1000).toFixed(2)}s</dd></div><div><dt>Tempo-alvo</dt><dd>{formatTime(phase.targetDurationMs)}</dd></div></dl>
-        <div className={`environment-note ${phase.chapterMechanic || phase.environmentHazard ? "mechanic-warning" : ""}`}><b>{getEnvironmentMechanicLabel(phase)}</b><span>{getEnvironmentMechanicDescription(phase)}</span></div>
-        <button className="primary-button full" disabled={selected.length < 1 || selected.length > loadoutLimit} onClick={onStart}>Confirmar loadout <span>→</span></button>
-      </aside>
-    </section>
-    {infoTroop && <TroopInfoModal troop={infoTroop} onClose={closeInfo} returnFocusRef={infoTriggerRef} />}
   </main>;
 }
 

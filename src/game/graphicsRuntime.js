@@ -5,6 +5,8 @@ import {
 } from "./windCurrentRenderer.js";
 
 const QUALITY_SCALE = { low: 1, medium: 1.5, high: 2 };
+const EFFECT_SCALE = { low: 0.75, medium: 1, high: 1 };
+const EMISSIVE_SCALE = { low: 0.25, medium: 0.375, high: 0.5 };
 const DECAL_LIMIT = { low: 28, medium: 64, high: 110 };
 const DEATH_LIFE = { enemy: 480, troop: 560 };
 const ENEMY_DEATH_LIFE = {
@@ -34,6 +36,61 @@ export function configureHiDPICanvas(canvas, settings = {}, devicePixelRatio = 1
   return scale;
 }
 
+function createRenderCanvas(canvasFactory) {
+  const canvas = canvasFactory();
+  canvas.style ||= {};
+  return canvas;
+}
+
+export function createRenderLayers(canvasFactory = () => document.createElement("canvas")) {
+  return {
+    arenaLayer: createRenderCanvas(canvasFactory),
+    effectLayer: createRenderCanvas(canvasFactory),
+    entityLayer: createRenderCanvas(canvasFactory),
+    overlayEffectLayer: createRenderCanvas(canvasFactory),
+    emissiveLayer: createRenderCanvas(canvasFactory),
+  };
+}
+
+function resizeLayer(canvas, scale, name) {
+  const width = Math.round(VIEWPORT.width * scale);
+  const height = Math.round(VIEWPORT.height * scale);
+  if (canvas.width !== width) canvas.width = width;
+  if (canvas.height !== height) canvas.height = height;
+  canvas.dataset ||= {};
+  canvas.dataset.renderScale = String(scale);
+  canvas.dataset.renderLayer = name;
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  return context;
+}
+
+export function configureRenderLayers(layers, settings = {}, devicePixelRatio = 1) {
+  const quality = settings.quality || "high";
+  const renderScale = getRenderScale(settings, devicePixelRatio);
+  const effectScale = EFFECT_SCALE[quality] || 1;
+  const emissiveScale = EMISSIVE_SCALE[quality] || EMISSIVE_SCALE.high;
+  const scales = {
+    arenaLayer: effectScale,
+    effectLayer: effectScale,
+    entityLayer: renderScale,
+    overlayEffectLayer: effectScale,
+    emissiveLayer: emissiveScale,
+  };
+  const contexts = {};
+  for (const [name, scale] of Object.entries(scales)) {
+    contexts[name] = resizeLayer(layers[name], scale, name);
+  }
+  return { renderScale, scales, contexts };
+}
+
+export function clearRenderLayer(context, canvas, scale) {
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.setTransform(scale, 0, 0, scale, 0, 0);
+}
+
 export function createGraphicsRuntime() {
   return {
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
@@ -44,6 +101,7 @@ export function createGraphicsRuntime() {
     adaptive: { level: "full", recoverySince: null },
     metrics: {
       fps: 60, frameMs: 16.7, stepMs: 0, drawMs: 0, presentMs: 0,
+      arenaMs: 0, effectMs: 0, entityMs: 0, emissiveMs: 0,
       activeEntities: 0, particles: 0, decals: 0, visualEntities: 0, adaptiveLevel: "full",
     },
   };
@@ -239,6 +297,11 @@ export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
   if (Number.isFinite(counts.stepMs)) runtime.metrics.stepMs += (counts.stepMs - runtime.metrics.stepMs) * 0.08;
   if (Number.isFinite(counts.drawMs)) runtime.metrics.drawMs += (counts.drawMs - runtime.metrics.drawMs) * 0.08;
   if (Number.isFinite(counts.presentMs)) runtime.metrics.presentMs += (counts.presentMs - runtime.metrics.presentMs) * 0.08;
+  for (const metric of ["arenaMs", "effectMs", "entityMs", "emissiveMs"]) {
+    if (Number.isFinite(counts[metric])) {
+      runtime.metrics[metric] += (counts[metric] - runtime.metrics[metric]) * 0.08;
+    }
+  }
   const activeEntities = Number.isFinite(counts.activeEntities) ? counts.activeEntities : runtime.metrics.activeEntities;
   const adaptiveLevel = updateAdaptiveLevel(runtime, counts.clockNow ?? now, runtime.metrics.frameMs, activeEntities);
   runtime.metrics.activeEntities = activeEntities;
