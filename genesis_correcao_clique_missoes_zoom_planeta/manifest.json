@@ -1,0 +1,58 @@
+{
+  "name": "genesis-command-marker-click-and-zoom-fix",
+  "version": "1.0.0",
+  "createdAt": "2026-07-30T20:47:58.747410+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 2674,
+      "sha256": "6174a23612c9dc931899a183647da180fa48d58212ef90a84b3fe2baf3fca486"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 4406,
+      "sha256": "3195b99b121c8ff8323b05f31bfea917c9d8eda514bfc54ce9f4df70e3964d99"
+    },
+    {
+      "path": "install.ps1",
+      "size": 879,
+      "sha256": "ddd10cb272d2072d8c1220029fd580ffcbf80faef6098278eb52710c4be6df74"
+    },
+    {
+      "path": "install.sh",
+      "size": 382,
+      "sha256": "d5b71b1245b4feb2fc94e50a41abe139f6e3c67f4b04b25d65dccfd6808d4b1a"
+    },
+    {
+      "path": "payload/src/home/CommandGlobe.jsx",
+      "size": 10437,
+      "sha256": "defa3c0d8ea24fa604f63642b5833e65a12846dd339e4da444ae3d3ff371b8fb"
+    },
+    {
+      "path": "payload/src/home/CommandPhaseMarker.jsx",
+      "size": 2200,
+      "sha256": "d0ff13dd269e44a64e4ffe112981269b275c0a1ed6b1bc4e7f5c55d9a748c6f4"
+    },
+    {
+      "path": "payload/src/home/CommandPhaseMarker.test.jsx",
+      "size": 2293,
+      "sha256": "0191b73b125132b2148721de90733ae1b194151c4cf022f3b16fed18e1d9c17c"
+    },
+    {
+      "path": "payload/src/home/command-globe-interactions.css",
+      "size": 2261,
+      "sha256": "9ed4dd4a70d81ca0d728f31ac35edda1fec3cc12472f0a905fd091d2605cc98f"
+    },
+    {
+      "path": "payload/src/home/commandGlobeZoom.js",
+      "size": 3354,
+      "sha256": "80f751bb4654920f5aaa6b2bacbe991f70b38ce3d31bc5c0d28d3bf507ef1b13"
+    },
+    {
+      "path": "payload/src/home/commandGlobeZoom.test.js",
+      "size": 2092,
+      "sha256": "f8c9b3d58ba956094d92c70de4b415a617a289b747b8fc6ab7f8c1074461de00"
+    }
+  ]
+}

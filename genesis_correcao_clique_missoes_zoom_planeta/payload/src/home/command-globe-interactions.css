@@ -1,0 +1,114 @@
+.command-globe-stage {
+  overscroll-behavior: contain;
+}
+
+.command-globe-stage:focus-visible {
+  outline: 1px solid var(--command-primary);
+  outline-offset: -3px;
+}
+
+.command-globe-stage:not(:has(button:hover)) .command-globe-mount {
+  cursor: grab;
+}
+
+.command-globe-stage:active:not(:has(button:active)) .command-globe-mount {
+  cursor: grabbing;
+}
+
+.command-phase-marker {
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.command-phase-marker:not(:disabled) {
+  isolation: isolate;
+}
+
+.command-phase-marker:not(:disabled)::after {
+  position: absolute;
+  inset: -9px;
+  content: "";
+  border-radius: 50%;
+}
+
+.command-phase-marker:not(:disabled):hover {
+  z-index: 3;
+  border-color: #fff;
+  filter: brightness(1.15);
+}
+
+.command-globe-zoom-controls {
+  position: absolute;
+  z-index: 15;
+  left: 18px;
+  bottom: 18px;
+  display: grid;
+  grid-template-columns: 34px minmax(54px, auto) 34px;
+  align-items: stretch;
+  overflow: hidden;
+  color: #dff8ff;
+  border: 1px solid var(--command-line);
+  background: rgba(2, 10, 17, .9);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .28);
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+.command-globe-zoom-controls button {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  color: var(--command-primary);
+  border: 0;
+  border-right: 1px solid var(--command-line);
+  background: transparent;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.command-globe-zoom-controls button:last-child {
+  border-right: 0;
+}
+
+.command-globe-zoom-controls button:hover {
+  color: #fff;
+  background: color-mix(
+    in srgb,
+    var(--command-primary) 14%,
+    transparent
+  );
+}
+
+.command-globe-zoom-controls button:active {
+  background: color-mix(
+    in srgb,
+    var(--command-primary) 24%,
+    transparent
+  );
+}
+
+.command-globe-zoom-controls .command-globe-zoom-reset {
+  min-width: 58px;
+  padding-inline: 7px;
+  color: #91acbd;
+  font-size: 9px;
+  letter-spacing: .06em;
+}
+
+@media (max-width: 560px) {
+  .command-globe-zoom-controls {
+    left: 12px;
+    bottom: 12px;
+    grid-template-columns: 38px minmax(58px, auto) 38px;
+  }
+
+  .command-globe-zoom-controls button {
+    min-height: 38px;
+  }
+
+  .command-globe-telemetry {
+    display: none;
+  }
+}
