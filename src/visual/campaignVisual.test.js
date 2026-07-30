@@ -52,6 +52,7 @@ describe("visual compartilhado da campanha", () => {
 
   it("descarta geometria, material e textura", () => {
     const texture = new THREE.Texture();
+    texture.userData.instanceOwned = true;
     texture.dispose = vi.fn();
     const material = new THREE.MeshBasicMaterial({ map: texture });
     material.dispose = vi.fn();

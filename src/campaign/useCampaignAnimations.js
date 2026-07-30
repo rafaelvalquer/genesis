@@ -3,6 +3,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { getCampaignBiome } from "./campaignBiomes.js";
 import { CAMPAIGN_PHASE_LOCATIONS } from "./campaignSceneData.js";
+import { getTargetRotationForPhase } from "../visual/campaignPlanetCoordinates.js";
 
 gsap.registerPlugin(useGSAP);
 
@@ -25,11 +26,7 @@ export function useCampaignAnimations({
     timelineRef.current?.kill();
     const duration = reduceMotion ? .12 : 1.05;
     const location = selectedPhase ? CAMPAIGN_PHASE_LOCATIONS[selectedPhase.id] : null;
-    const targetRotation = location ? {
-      x: location.latitude * Math.PI / 180,
-      y: -(location.longitude + 90) * Math.PI / 180,
-      z: biome.rotation.z,
-    } : biome.rotation;
+    const targetRotation = location ? getTargetRotationForPhase(selectedPhase.id) : biome.rotation;
     const cameraDistance = location?.cameraDistance || biome.cameraDistance;
     const timeline = gsap.timeline({ defaults: { ease: "power3.inOut" } });
     const routeMaterials = runtime.routeGroup.children.map((line) => line.material);

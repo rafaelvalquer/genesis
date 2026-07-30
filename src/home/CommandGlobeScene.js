@@ -3,13 +3,15 @@ import { createChapterPhaseVectors, getTargetRotationForPhase } from "../visual/
 import { createChapterRoutes } from "../visual/campaignPlanetRoutes.js";
 import { getCampaignPhaseState } from "../visual/campaignPhaseState.js";
 import { disposeThreeObject } from "../visual/disposeThreeObject.js";
-import { cloneGltfScene, loadGltfModel } from "../visual/loadGltfModel.js";
-import { centerAndScaleModel, normalizeModelToRadius } from "../visual/normalizeGltfModel.js";
-
-const PLANET_URL = "/models/command/genesis-planeta-multibiomas.glb";
-const ROCKET_URL = "/models/command/low-poly-rocket-ship.glb";
-const MODEL_ORIENTATION = { x: 0, y: 0, z: 0 };
-const ROCKET_MODEL_ROTATION = { x: -Math.PI / 2, y: 0, z: Math.PI / 2 };
+import { configureGenesisRenderer } from "../visual/configureGenesisRenderer.js";
+import { applyGenesisLightState, createGenesisPlanetLights } from "../visual/createGenesisPlanetLights.js";
+import { createRocketOrbit, updateRocketOrbit } from "../visual/createRocketOrbit.js";
+import {
+  applyGenesisPlanetChapterState,
+  createGenesisPlanetInstance,
+  setGenesisPlanetOpacity,
+} from "../visual/genesisPlanetAsset.js";
+import { applyGenesisPlanetOrientation } from "../visual/genesisPlanetOrientation.js";
 
 const vertexShader = `
   uniform float uTime;
@@ -60,50 +62,6 @@ function makePoints(THREE, count, minRadius, spread, color, size) {
   }));
 }
 
-function replaceMaterial(THREE, object, biome) {
-  const name = object.name || "";
-  if (!object.isMesh) return;
-  object.material?.dispose();
-  if (name.includes("Atmosphere")) {
-    object.material = new THREE.MeshBasicMaterial({
-      vertexColors: true, transparent: true, opacity: .12, side: THREE.BackSide,
-      blending: THREE.AdditiveBlending, depthWrite: false,
-    });
-  } else if (name.includes("Clouds")) {
-    object.material = new THREE.MeshBasicMaterial({
-      vertexColors: true, transparent: true, opacity: .38, depthWrite: false,
-    });
-  } else if (name.startsWith("Beacon_")) {
-    object.material = new THREE.MeshStandardMaterial({
-      vertexColors: true, roughness: .42, metalness: .12,
-      emissive: new THREE.Color(biome.accent), emissiveIntensity: .65,
-    });
-  } else {
-    object.material = new THREE.MeshStandardMaterial({
-      vertexColors: true, roughness: name.includes("Crystal") ? .45 : .82,
-      metalness: name.includes("Crystal") ? .18 : .06,
-      emissive: new THREE.Color(name.includes("Spikes") || name.includes("Pods") ? biome.accent : biome.surface[1]),
-      emissiveIntensity: name.includes("Spikes") || name.includes("Pods") ? .24 : .48,
-    });
-  }
-  object.material.userData.commandTargetOpacity = object.material.opacity;
-}
-
-function preparePlanetMaterials(model, opacity) {
-  const materials = [];
-  model.traverse((object) => {
-    if (!object.isMesh || !object.material) return;
-    const entries = Array.isArray(object.material) ? object.material : [object.material];
-    entries.forEach((material) => {
-      material.userData.commandTargetOpacity ??= material.opacity;
-      material.transparent = true;
-      material.opacity = material.userData.commandTargetOpacity * opacity;
-      materials.push(material);
-    });
-  });
-  return materials;
-}
-
 function createMarkerMesh(THREE, phase, state, chapter) {
   const color = state.boss && state.accessible ? "#fb7185"
     : state.current ? chapter.palette.accent
@@ -152,15 +110,17 @@ export async function createCommandGlobeScene({
   const renderer = new THREE.WebGLRenderer({
     alpha: true, antialias: quality.quality !== "low", powerPreference: "high-performance",
   });
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.35;
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality.pixelRatio));
+  configureGenesisRenderer(THREE, renderer, quality);
   renderer.setClearColor(0x02040a, 0);
   mount.appendChild(renderer.domElement);
 
-  const planetAnchor = new THREE.Group();
-  scene.add(planetAnchor);
+  const planetReferenceFrame = new THREE.Group();
+  const modelOrientationRoot = applyGenesisPlanetOrientation(new THREE.Group());
+  const planetModelRoot = new THREE.Group();
+  const mapOverlayRoot = new THREE.Group();
+  modelOrientationRoot.add(planetModelRoot, mapOverlayRoot);
+  planetReferenceFrame.add(modelOrientationRoot);
+  scene.add(planetReferenceFrame);
   const uniforms = {
     uTime: { value: 0 }, uMotion: { value: quality.reduceMotion ? 0 : 1 },
     uDark: { value: new THREE.Color(biome.surface[0]) },
@@ -174,7 +134,7 @@ export async function createCommandGlobeScene({
     new THREE.IcosahedronGeometry(1, quality.quality === "low" ? 3 : 5),
     proceduralMaterial,
   );
-  planetAnchor.add(proceduralPlanet);
+  planetModelRoot.add(proceduralPlanet);
   const proceduralAtmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.09, quality.atmosphereSegments, quality.atmosphereSegments / 2),
     new THREE.MeshBasicMaterial({
@@ -182,36 +142,33 @@ export async function createCommandGlobeScene({
       blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
-  planetAnchor.add(proceduralAtmosphere);
+  planetModelRoot.add(proceduralAtmosphere);
 
-  const keyLight = new THREE.DirectionalLight(biome.light, 2.5);
-  keyLight.position.set(3, 2, 4);
-  scene.add(keyLight);
-  const fillLight = new THREE.HemisphereLight(biome.atmosphere, biome.ambient, 1.55);
-  scene.add(fillLight);
+  const lights = createGenesisPlanetLights(THREE, scene, biome);
   const stars = makePoints(THREE, Math.max(80, quality.orbitalParticles * 3), 5, 18, "#bde7ff", .023);
   const particles = makePoints(THREE, quality.orbitalParticles, 1.3, 1.9, biome.particle, .017);
   scene.add(stars, particles);
 
   const runtime = {
-    THREE, scene, camera, renderer, planetAnchor, planetGroup: planetAnchor,
-    atmosphere: proceduralAtmosphere, keyLight, fillLight, uniforms,
+    THREE, scene, camera, renderer,
+    planetAnchor: planetReferenceFrame, planetGroup: planetReferenceFrame,
+    planetReferenceFrame, modelOrientationRoot, planetModelRoot, mapOverlayRoot,
+    atmosphere: proceduralAtmosphere, ...lights, uniforms,
     markerVectors: new Map(), markerElements, phaseMarkerGroup: null, routeGroup: null,
     selectedPhaseId: selectedPhase.id, currentChapter: chapter, currentPhases: phases,
     dragging: false, velocityX: 0, velocityY: 0, disposed: false, killAuto: null,
     targetRotation: getTargetRotationForPhase(selectedPhase.id),
-    glbPlanet: null, glbMaterials: [], glbFade: 0,
-    rocketOrbitGroup: null, rocketPivot: null, engineGlow: null,
+    glbPlanet: null, planetParts: null, glbFade: 0, rocket: null,
   };
-  planetAnchor.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
+  planetReferenceFrame.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
 
   runtime.setChapter = (nextChapter, nextPhases, nextCampaign, nextSelected) => {
     if (runtime.routeGroup) {
-      planetAnchor.remove(runtime.routeGroup);
+      mapOverlayRoot.remove(runtime.routeGroup);
       disposeThreeObject(runtime.routeGroup);
     }
     if (runtime.phaseMarkerGroup) {
-      planetAnchor.remove(runtime.phaseMarkerGroup);
+      mapOverlayRoot.remove(runtime.phaseMarkerGroup);
       disposeThreeObject(runtime.phaseMarkerGroup);
     }
     runtime.currentChapter = nextChapter;
@@ -219,7 +176,7 @@ export async function createCommandGlobeScene({
     runtime.selectedPhaseId = nextSelected.id;
     runtime.markerVectors = createChapterPhaseVectors(THREE, nextChapter);
     runtime.routeGroup = createChapterRoutes(THREE, nextChapter, nextPhases, nextCampaign, runtime.markerVectors);
-    planetAnchor.add(runtime.routeGroup);
+    mapOverlayRoot.add(runtime.routeGroup);
     runtime.phaseMarkerGroup = new THREE.Group();
     nextPhases.forEach((phase) => {
       const state = getCampaignPhaseState(phase, nextCampaign);
@@ -228,19 +185,18 @@ export async function createCommandGlobeScene({
       marker.lookAt(marker.position.clone().multiplyScalar(2));
       runtime.phaseMarkerGroup.add(marker);
     });
-    planetAnchor.add(runtime.phaseMarkerGroup);
+    mapOverlayRoot.add(runtime.phaseMarkerGroup);
     const nextBiome = getCampaignBiome(nextChapter.id);
     uniforms.uDark.value.set(nextBiome.surface[0]);
     uniforms.uMid.value.set(nextBiome.surface[1]);
     uniforms.uAccent.value.set(nextBiome.accent);
     proceduralAtmosphere.material.color.set(nextBiome.atmosphere);
     particles.material.color.set(nextBiome.particle);
-    keyLight.color.set(nextBiome.light);
-    fillLight.color.set(nextBiome.atmosphere);
-    if (runtime.glbPlanet) {
-      runtime.glbPlanet.traverse((object) => replaceMaterial(THREE, object, nextBiome));
-      runtime.glbMaterials = preparePlanetMaterials(runtime.glbPlanet, runtime.glbFade);
-    }
+    applyGenesisLightState(runtime, nextBiome);
+    applyGenesisPlanetChapterState({
+      THREE, parts: runtime.planetParts, chapter: nextChapter, biome: nextBiome,
+    });
+    if (runtime.rocket?.engineGlow) runtime.rocket.engineGlow.material.color.set(nextBiome.atmosphere);
     runtime.focusPhase(nextSelected.id, !runtime.initialized);
     runtime.initialized = true;
   };
@@ -249,49 +205,32 @@ export async function createCommandGlobeScene({
     runtime.selectedPhaseId = phaseId;
     runtime.targetRotation = getTargetRotationForPhase(phaseId);
     if (immediate || quality.reduceMotion) {
-      planetAnchor.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
+      planetReferenceFrame.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
     }
   };
   runtime.setChapter(chapter, phases, campaign, selectedPhase);
 
-  if (quality.quality !== "low") {
-    loadGltfModel(PLANET_URL).then((gltf) => {
-      const model = cloneGltfScene(gltf);
-      if (runtime.disposed) return disposeThreeObject(model);
-      normalizeModelToRadius(THREE, model, 1, "GenesisWorld_MainPlanet");
-      model.rotation.set(MODEL_ORIENTATION.x, MODEL_ORIENTATION.y, MODEL_ORIENTATION.z);
-      model.traverse((object) => replaceMaterial(THREE, object, getCampaignBiome(runtime.currentChapter.id)));
-      runtime.glbPlanet = model;
-      runtime.glbFade = 0;
-      runtime.glbMaterials = preparePlanetMaterials(model, 0);
-      planetAnchor.add(model);
-    }).catch((error) => console.warn("Planeta GLB indisponível; mantendo fallback procedural.", error));
-  }
-
-  loadGltfModel(ROCKET_URL).then((gltf) => {
-    const model = cloneGltfScene(gltf);
+  createGenesisPlanetInstance({
+    THREE, quality, chapter: runtime.currentChapter,
+    biome: getCampaignBiome(runtime.currentChapter.id), opacity: 0,
+  }).then(({ model, parts }) => {
     if (runtime.disposed) return disposeThreeObject(model);
-    centerAndScaleModel(THREE, model, .24);
-    model.rotation.set(ROCKET_MODEL_ROTATION.x, ROCKET_MODEL_ROTATION.y, ROCKET_MODEL_ROTATION.z);
-    const orbitGroup = new THREE.Group();
-    const pivot = new THREE.Group();
-    pivot.add(model);
-    const glow = new THREE.Mesh(
-      new THREE.ConeGeometry(.025, .12, 8),
-      new THREE.MeshBasicMaterial({
-        color: getCampaignBiome(runtime.currentChapter.id).atmosphere,
-        transparent: true, opacity: quality.quality === "low" ? .38 : .68,
-        blending: THREE.AdditiveBlending, depthWrite: false,
-      }),
-    );
-    glow.rotation.x = Math.PI / 2;
-    glow.position.z = .16;
-    pivot.add(glow);
-    orbitGroup.add(pivot);
-    scene.add(orbitGroup);
-    runtime.rocketOrbitGroup = orbitGroup;
-    runtime.rocketPivot = pivot;
-    runtime.engineGlow = glow;
+    runtime.glbPlanet = model;
+    runtime.planetParts = parts;
+    runtime.glbFade = 0;
+    planetModelRoot.add(model);
+    mount.dataset.planetAsset = "ready";
+  }).catch((error) => {
+    mount.dataset.planetAsset = "failed";
+    console.warn("Planeta GLB indisponível; mantendo fallback procedural.", error);
+  });
+
+  createRocketOrbit({
+    THREE, parent: modelOrientationRoot, quality,
+    biome: getCampaignBiome(runtime.currentChapter.id),
+  }).then((rocket) => {
+    if (runtime.disposed) return disposeThreeObject(rocket.orbitRoot);
+    runtime.rocket = rocket;
   }).catch((error) => console.warn("Foguete GLB indisponível; elemento orbital omitido.", error));
 
   let frameId = 0;
@@ -311,7 +250,6 @@ export async function createCommandGlobeScene({
   resize();
   const temp = new THREE.Vector3();
   const projected = new THREE.Vector3();
-  const nextRocketPosition = new THREE.Vector3();
   let elapsed = 0;
 
   const frame = (timestamp) => {
@@ -324,34 +262,24 @@ export async function createCommandGlobeScene({
     uniforms.uTime.value += delta;
     if (runtime.glbPlanet && runtime.glbFade < 1) {
       runtime.glbFade = Math.min(1, runtime.glbFade + delta * 1.8);
+      mount.dataset.planetFade = runtime.glbFade.toFixed(2);
       proceduralMaterial.opacity = 1 - runtime.glbFade;
       proceduralAtmosphere.material.opacity = .15 * (1 - runtime.glbFade);
-      runtime.glbMaterials.forEach((material) => {
-        material.opacity = material.userData.commandTargetOpacity * runtime.glbFade;
-      });
+      setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
     }
     if (!runtime.dragging && !quality.reduceMotion) {
-      planetAnchor.rotation.x = THREE.MathUtils.clamp(planetAnchor.rotation.x + runtime.velocityX, -.8, .8);
-      planetAnchor.rotation.y += runtime.velocityY + .00018;
+      planetReferenceFrame.rotation.x = THREE.MathUtils.clamp(planetReferenceFrame.rotation.x + runtime.velocityX, -.8, .8);
+      planetReferenceFrame.rotation.y += runtime.velocityY + .00018;
       runtime.velocityX *= .9;
       runtime.velocityY *= .9;
       particles.rotation.y += delta * .018;
     }
-    if (runtime.rocketPivot) {
-      const angle = quality.reduceMotion ? .65 : elapsed * Math.PI * 2 / 24;
-      runtime.rocketPivot.position.set(Math.cos(angle) * 1.55, Math.sin(angle * .65) * .25, Math.sin(angle) * 1.25);
-      const nextAngle = angle + .025;
-      nextRocketPosition.set(Math.cos(nextAngle) * 1.55, Math.sin(nextAngle * .65) * .25, Math.sin(nextAngle) * 1.25);
-      runtime.rocketPivot.lookAt(nextRocketPosition);
-      if (runtime.engineGlow && !quality.reduceMotion && quality.quality !== "low") {
-        runtime.engineGlow.scale.y = .85 + Math.sin(elapsed * 8) * .14;
-      }
-    }
+    updateRocketOrbit(THREE, runtime.rocket, elapsed, quality.reduceMotion);
     runtime.markerVectors.forEach((vector, phaseId) => {
       const element = markerElements.get(phaseId);
       if (!element) return;
       temp.copy(vector);
-      planetAnchor.localToWorld(temp);
+      mapOverlayRoot.localToWorld(temp);
       projected.copy(temp).project(camera);
       const rect = mount.getBoundingClientRect();
       element.style.transform = `translate3d(${(projected.x * .5 + .5) * rect.width}px, ${(-projected.y * .5 + .5) * rect.height}px, 0) translate(-50%, -50%)`;

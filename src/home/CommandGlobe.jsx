@@ -4,6 +4,7 @@ import CommandLoading from "./CommandLoading.jsx";
 import CommandPhaseMarker from "./CommandPhaseMarker.jsx";
 import CommandWebGLFallback from "./CommandWebGLFallback.jsx";
 import { createCommandGlobeScene } from "./CommandGlobeScene.js";
+import { saveOrbitalTransition } from "./orbitalTransition.js";
 
 export default function CommandGlobe({
   phase, chapter, phases, campaign, quality, previewing,
@@ -89,7 +90,12 @@ export default function CommandGlobe({
         onSelect={selectPhase}
       />)}
     </div>
-    <CommandGlobeToolbar chapter={chapter} phase={phase} previewing={previewing} />
+    <CommandGlobeToolbar
+      chapter={chapter}
+      phase={phase}
+      previewing={previewing}
+      onExplore={() => saveOrbitalTransition(runtimeRef.current, chapter.id, phase.id)}
+    />
   </div>;
   return <div
     className="command-globe-stage"
@@ -113,7 +119,12 @@ export default function CommandGlobe({
         onSelect={selectPhase}
       />)}
     </div>
-    <CommandGlobeToolbar chapter={chapter} phase={phase} previewing={previewing} />
+    <CommandGlobeToolbar
+      chapter={chapter}
+      phase={phase}
+      previewing={previewing}
+      onExplore={() => saveOrbitalTransition(runtimeRef.current, chapter.id, phase.id)}
+    />
     <div className="command-globe-telemetry" aria-hidden="true"><span>ORB-SCAN 98.4</span><span>LINK ESTÁVEL</span></div>
   </div>;
 }

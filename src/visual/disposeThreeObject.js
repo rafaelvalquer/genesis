@@ -4,7 +4,7 @@ export function disposeThreeObject(root) {
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     materials.filter(Boolean).forEach((material) => {
       Object.values(material).forEach((value) => {
-        if (value?.isTexture) value.dispose();
+        if (value?.isTexture && value.userData?.instanceOwned === true) value.dispose();
       });
       material.dispose();
     });

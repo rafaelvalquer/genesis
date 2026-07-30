@@ -9,7 +9,7 @@ export function useProjectedMarkers() {
   }, []);
 
   const projectMarkers = useCallback((runtime) => {
-    const { THREE, camera, planetGroup, markerVectors, width, height, tempVector, cameraNormal } = runtime;
+    const { THREE, camera, planetGroup, markerReferenceRoot, markerVectors, width, height, tempVector, cameraNormal } = runtime;
     cameraNormal.copy(camera.position).normalize();
     for (const [phaseId, node] of markerRefs.current) {
       const local = markerVectors.get(phaseId);
@@ -18,7 +18,7 @@ export function useProjectedMarkers() {
         continue;
       }
       tempVector.copy(local);
-      planetGroup.localToWorld(tempVector);
+      (markerReferenceRoot || planetGroup).localToWorld(tempVector);
       const visible = tempVector.dot(cameraNormal) / Math.max(.0001, tempVector.length()) > 0.08;
       tempVector.project(camera);
       const onScreen = visible && Math.abs(tempVector.x) < 1.12 && Math.abs(tempVector.y) < 1.12;
