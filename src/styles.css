@@ -153,6 +153,29 @@ a .phase-card:hover { transform: translateY(-5px); border-color: var(--cyan); }.
 .result-card { width: min(720px, 90vw); text-align: center; border: 1px solid var(--line-bright); background: #08111e; padding: 38px; box-shadow: 0 40px 120px rgba(0,0,0,.7); }.result-card.victory { border-color: rgba(52,211,153,.55); }.result-card.defeat { border-color: rgba(251,113,133,.55); }.result-emblem { width: 72px; height: 72px; display: grid; place-items: center; margin: 0 auto 18px; border: 1px solid currentColor; color: var(--green); font-size: 36px; transform: rotate(45deg); }.result-emblem::first-letter { transform: rotate(-45deg); }.result-card.defeat .result-emblem { color: var(--danger); }.result-card h1 { font-size: 38px; margin: 8px 0; text-transform: uppercase; }.result-card > p { color: var(--muted); }.result-card > .stars { font-size: 34px; margin: 10px 0 22px; }.result-stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); }.result-stats > div { padding: 15px; border-right: 1px solid var(--line); }.result-stats > div:last-child { border-right: 0; }.result-stats span { display: block; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }.result-stats b { display: block; margin-top: 5px; font: 700 20px "Chakra Petch"; }.result-actions { display: flex; justify-content: center; gap: 10px; margin-top: 28px; }
 
 .settings-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }.settings-grid article { border: 1px solid var(--line); background: var(--panel); padding: 26px; }.settings-grid h2 { margin: 7px 0 24px; }.setting-range, .select-setting, .toggle-setting { display: block; padding: 16px 0; border-bottom: 1px solid var(--line); }.setting-range > span, .select-setting, .toggle-setting { display: flex; align-items: center; justify-content: space-between; gap: 16px; }.setting-range i { color: var(--cyan); font-style: normal; }.setting-range input { width: 100%; accent-color: var(--cyan); margin-top: 13px; }.select-setting > span, .toggle-setting > span { display: flex; flex-direction: column; gap: 4px; }.select-setting small, .toggle-setting small { color: var(--muted); }.select-setting select { border: 1px solid var(--line-bright); background: #091725; color: var(--text); padding: 8px; }.toggle-setting input { width: 42px; height: 22px; accent-color: var(--cyan); }
+.maintenance-panel {
+  position: relative;
+  margin-top: 22px;
+  padding: 24px 26px;
+  border: 1px solid rgba(251, 113, 133, .42);
+  background: linear-gradient(120deg, rgba(49, 12, 24, .45), rgba(8, 13, 22, .94));
+}
+.maintenance-panel::before { position: absolute; inset: 0 auto 0 0; width: 3px; content: ""; background: var(--danger); }
+.maintenance-panel .eyebrow { color: var(--danger); }
+.maintenance-panel h2 { margin: 6px 0; }
+.maintenance-panel p { max-width: 760px; margin: 0 0 18px; color: var(--muted); line-height: 1.55; }
+.maintenance-panel button {
+  min-height: 44px;
+  padding: 10px 16px;
+  color: #ffe4e6;
+  border: 1px solid var(--danger);
+  background: rgba(251, 113, 133, .08);
+  font: 700 11px "Chakra Petch", sans-serif;
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+.maintenance-panel button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.maintenance-feedback { display: inline-block; min-height: 1em; margin-left: 14px; color: #5ee6b1; font-size: 11px; font-weight: 700; }
 
 /* Tactical encyclopedia */
 .encyclopedia-page { position: relative; }

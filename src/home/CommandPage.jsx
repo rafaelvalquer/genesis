@@ -1,16 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
-import { useNavigate } from "react-router-dom";
 import { getCampaignBiome } from "../campaign/campaignBiomes.js";
 import { loadSettings } from "../campaign/storage.js";
+import { CHAPTERS, getPhase, getPhaseIndex } from "../game/content.js";
 import CommandHeader from "./CommandHeader.jsx";
 import CommandLoading from "./CommandLoading.jsx";
 import CurrentOperation from "./CurrentOperation.jsx";
 import ChapterProgress from "./ChapterProgress.jsx";
 import LastOperation from "./LastOperation.jsx";
-import TacticalStatus from "./TacticalStatus.jsx";
-import CommandQuickActions from "./CommandQuickActions.jsx";
-import CommandTransitionOverlay from "./CommandTransitionOverlay.jsx";
 import { deriveOperationEnemies } from "./commandMetrics.js";
 import { useCommandAnimations } from "./useCommandAnimations.js";
 import { useCommandMetrics } from "./useCommandMetrics.js";
@@ -19,22 +16,34 @@ import "./command.css";
 
 const CommandGlobe = lazy(() => import("./CommandGlobe.jsx"));
 
-export default function CommandPage({ campaign, onReset }) {
+export default function CommandPage({ campaign }) {
   const rootRef = useRef(null);
   const scanlineRef = useRef(null);
-  const [runtime, setRuntime] = useState(null);
-  const [transitioning, setTransitioning] = useState(false);
-  const navigate = useNavigate();
   const settings = useMemo(() => loadSettings(), []);
   const quality = useCommandQuality(settings);
   const metrics = useCommandMetrics(campaign);
   const { currentPhase, currentChapter } = metrics;
-  const biome = getCampaignBiome(currentChapter.id);
+  const [previewChapterId, setPreviewChapterId] = useState(currentChapter.id);
+  const [hoverChapterId, setHoverChapterId] = useState(null);
+  const [previewPhaseId, setPreviewPhaseId] = useState(currentPhase.id);
+  const displayedChapter = CHAPTERS.find((chapter) => chapter.id === (hoverChapterId || previewChapterId))
+    || currentChapter;
+  const displayedPhases = useMemo(() => displayedChapter.phaseIds.map(getPhase).filter(Boolean), [displayedChapter]);
+  const defaultDisplayedPhase = displayedChapter.phaseIds.includes(currentPhase.id)
+    ? currentPhase
+    : [...displayedPhases].reverse().find((entry) => getPhaseIndex(entry.id) <= campaign.unlockedPhaseIndex)
+      || displayedPhases[0];
+  const displayedPhase = displayedPhases.find((entry) => entry.id === previewPhaseId)
+    && displayedChapter.phaseIds.includes(previewPhaseId)
+    ? getPhase(previewPhaseId) : defaultDisplayedPhase;
+  const biome = getCampaignBiome(displayedChapter.id);
   const enemies = useMemo(() => deriveOperationEnemies(currentPhase), [currentPhase]);
-  const animations = useCommandAnimations({
-    scope: rootRef, runtime, chapter: currentChapter, phase: currentPhase,
-    reduceMotion: quality.reduceMotion, setTransitioning,
-  });
+  const animations = useCommandAnimations({ scope: rootRef, reduceMotion: quality.reduceMotion });
+
+  useEffect(() => {
+    setPreviewChapterId(currentChapter.id);
+    setPreviewPhaseId(currentPhase.id);
+  }, [currentChapter.id, currentPhase.id]);
 
   useEffect(() => {
     if (quality.reduceMotion) return undefined;
@@ -46,19 +55,19 @@ export default function CommandPage({ campaign, onReset }) {
     return () => loop.cancel();
   }, [quality.reduceMotion]);
 
-  const openChapter = (data) => {
+  const selectChapter = (data) => {
     if (!data.unlocked) return;
-    const params = new URLSearchParams({ capitulo: String(data.chapter.number) });
-    if (data.latestAccessible) params.set("fase", data.latestAccessible.id);
-    navigate(`/fases?${params}`);
+    setPreviewChapterId(data.chapter.id);
+    setPreviewPhaseId(data.latestAccessible?.id || data.phases[0]?.id);
   };
+  const previewChapter = (chapter) => setHoverChapterId(chapter?.id || null);
 
   return <main
     ref={rootRef}
     className={`command-page command-biome-${biome.key}`}
     style={{
-      "--command-primary": currentChapter.palette.primary,
-      "--command-accent": currentChapter.palette.accent,
+      "--command-primary": displayedChapter.palette.primary,
+      "--command-accent": displayedChapter.palette.accent,
       "--command-atmosphere": biome.atmosphere,
       "--command-fog": biome.fog,
     }}
@@ -70,11 +79,14 @@ export default function CommandPage({ campaign, onReset }) {
         <div className="command-window-heading"><span>VISUALIZAÇÃO ORBITAL</span><b>SETOR {currentPhase.id.slice(-2)} // COORDENADAS SINCRONIZADAS</b></div>
         <Suspense fallback={<CommandLoading />}>
           <CommandGlobe
-            phase={currentPhase}
-            chapter={currentChapter}
+            phase={displayedPhase}
+            chapter={displayedChapter}
+            phases={displayedPhases}
+            campaign={campaign}
             quality={quality}
-            onRuntimeReady={setRuntime}
-            onOpenMap={animations.openCampaign}
+            previewing={displayedChapter.id !== currentChapter.id}
+            onSelectPhase={(phase) => setPreviewPhaseId(phase.id)}
+            focusRuntime={animations.focusRuntime}
             scheduleReturn={animations.scheduleReturn}
           />
         </Suspense>
@@ -82,18 +94,20 @@ export default function CommandPage({ campaign, onReset }) {
       <CurrentOperation
         phase={currentPhase}
         chapter={currentChapter}
-        stats={campaign.phaseStats?.[currentPhase.id] || {}}
         enemies={enemies}
-        onOpenMap={animations.openCampaign}
         reduceMotion={quality.reduceMotion}
       />
     </section>
     <section className="command-lower-grid">
-      <ChapterProgress chapters={metrics.chapters} onOpen={openChapter} onPreview={animations.previewChapter} reduceMotion={quality.reduceMotion} />
+      <ChapterProgress
+        chapters={metrics.chapters}
+        metrics={metrics}
+        displayedChapter={displayedChapter}
+        onSelect={selectChapter}
+        onPreview={previewChapter}
+        reduceMotion={quality.reduceMotion}
+      />
       <LastOperation operation={metrics.lastOperation} reduceMotion={quality.reduceMotion} />
-      <TacticalStatus metrics={metrics} reduceMotion={quality.reduceMotion} />
-      <CommandQuickActions onReset={onReset} reduceMotion={quality.reduceMotion} />
     </section>
-    <CommandTransitionOverlay active={transitioning} />
   </main>;
 }

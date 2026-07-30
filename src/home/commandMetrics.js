@@ -91,6 +91,8 @@ export function getCommandMetrics(campaign) {
     catalogedEnemies,
     enemiesTotal: catalogEnemies.length,
     overallPercent: Math.round(completedPhases / PHASES.length * 100),
+    phasesTotal: PHASES.length,
+    starsTotal: PHASES.length * 3,
     nextBossDistance: nextBossIndex < 0 ? null : Math.max(0, nextBossIndex - campaign.unlockedPhaseIndex),
     chapters: CHAPTERS.map((chapter) => getChapterProgress(campaign, chapter, currentChapter.id)),
     lastOperation: getLastOperation(campaign),

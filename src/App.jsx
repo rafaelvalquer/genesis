@@ -4,6 +4,7 @@ import GameCanvas from "./game/GameCanvas.jsx";
 import CampaignPage from "./campaign/CampaignPage.jsx";
 import LoadoutPicker from "./loadout/LoadoutPage.jsx";
 import CommandPage from "./home/CommandPage.jsx";
+import MaintenancePanel from "./settings/MaintenancePanel.jsx";
 import { getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
 import { ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
 import { getEnemyInfo, getEnemyUnlockAt } from "./game/enemyInfo.js";
@@ -249,7 +250,7 @@ function TestLabPage() {
   </main>;
 }
 
-function SettingsPage() {
+export function SettingsPage({ onReset }) {
   const [settings, setSettingsState] = useState(loadSettings);
   useEffect(() => {
     saveSettings(settings);
@@ -261,13 +262,16 @@ function SettingsPage() {
   const range = (key, label) => <label className="setting-range"><span><b>{label}</b><i>{Math.round(settings[key] * 100)}%</i></span><input type="range" min="0" max="1" step="0.05" value={settings[key]} onChange={(event) => update(key, Number(event.target.value))} /></label>;
   return <main className="page-content settings-page"><header className="page-heading"><div><span className="eyebrow">SISTEMAS LOCAIS</span><h1>Configurações</h1><p>Preferências salvas somente neste dispositivo.</p></div></header>
     <section className="settings-grid"><article><span className="eyebrow">Áudio</span><h2>Mixer tático</h2>{range("masterVolume", "Volume geral")}{range("musicVolume", "Música")}{range("effectsVolume", "Efeitos")}</article><article><span className="eyebrow">Vídeo</span><h2>Renderização</h2><label className="select-setting"><span><b>Qualidade</b><small>Perfil de efeitos e partículas</small></span><select value={settings.quality} onChange={(event) => update("quality", event.target.value)}><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option></select></label><label className="toggle-setting"><span><b>Dano flutuante</b><small>Exibe indicadores de dano nos alvos</small></span><input type="checkbox" checked={settings.floatingDamage ?? true} onChange={(event) => update("floatingDamage", event.target.checked)} /></label><label className="toggle-setting"><span><b>Tremor de câmera</b><small>Impacto de ataques e rupturas</small></span><input type="checkbox" checked={settings.cameraShake} onChange={(event) => update("cameraShake", event.target.checked)} /></label></article><article><span className="eyebrow">Acessibilidade</span><h2>Conforto visual</h2><label className="toggle-setting"><span><b>Reduzir movimento</b><small>Minimiza transições da interface</small></span><input type="checkbox" checked={settings.reduceMotion} onChange={(event) => update("reduceMotion", event.target.checked)} /></label><label className="select-setting"><span><b>Modo de cores</b><small>Reforço de contraste visual</small></span><select value={settings.colorMode} onChange={(event) => update("colorMode", event.target.value)}><option value="normal">Normal</option><option value="protanopia">Protanopia</option><option value="deuteranopia">Deuteranopia</option><option value="contrast">Alto contraste</option></select></label></article></section>
+    <MaintenancePanel onReset={onReset} />
   </main>;
 }
 
 export default function App() {
   const [campaign, setCampaign] = useState(loadCampaign);
   const handleReset = () => {
-    if (window.confirm("Apagar todo o progresso local da campanha?")) setCampaign(resetCampaign());
+    if (!window.confirm("Apagar todo o progresso local da campanha?")) return false;
+    setCampaign(resetCampaign());
+    return true;
   };
-  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<CommandPage campaign={campaign} onReset={handleReset} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
+  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
 }

@@ -1,7 +1,6 @@
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
 import { getArenaUrl, getEnemyPreviewUrl } from "../game/assetCatalog.js";
-import { formatCommandTime } from "./commandMetrics.js";
 
 function mechanicFor(phase, chapter) {
   if (phase.chapterMechanic) return chapter.mechanic?.label || "Ecos de Vidro";
@@ -10,8 +9,7 @@ function mechanicFor(phase, chapter) {
   return chapter.mechanic?.label || `Ambiente ${phase.environment}`;
 }
 
-export default function CurrentOperation({ phase, chapter, stats, enemies, onOpenMap, reduceMotion }) {
-  const stars = Number(stats.bestStars || 0);
+export default function CurrentOperation({ phase, chapter, enemies, reduceMotion }) {
   return <motion.article layout className="current-operation command-module" aria-live="polite">
     <div className="operation-cover">
       <img src={getArenaUrl(phase.arenaId)} alt="" />
@@ -26,7 +24,7 @@ export default function CurrentOperation({ phase, chapter, stats, enemies, onOpe
       <div><dt>ONDAS</dt><dd>{phase.waves.length}</dd></div>
       <div><dt>ENERGIA</dt><dd>{phase.energy}</dd></div>
       <div><dt>INTEGRIDADE</dt><dd>{phase.baseIntegrity}%</dd></div>
-      <div><dt>MELHOR TEMPO</dt><dd>{formatCommandTime(stats.bestTimeMs)}</dd></div>
+      <div><dt>SETOR</dt><dd>{phase.id.slice(-2)}</dd></div>
     </dl>
     <div className="operation-mechanic"><span>MECÂNICA AMBIENTAL</span><b>{mechanicFor(phase, chapter)}</b></div>
     <div className="operation-hostiles">
@@ -38,16 +36,12 @@ export default function CurrentOperation({ phase, chapter, stats, enemies, onOpe
         </div>)}
       </div>
     </div>
-    <div className="operation-record">
-      <span>AVALIAÇÃO {[0, 1, 2].map((index) => <i key={index} className={index < stars ? "earned" : ""}>★</i>)}</span>
-      <span>{Number(stats.attempts || 0)} TENTATIVAS</span>
-      <span>{Number(stats.bestIntegrity || 0)}% MELHOR INTEGRIDADE</span>
-    </div>
     <div className="operation-actions">
-      <motion.button type="button" className="command-primary-action" onClick={onOpenMap} whileTap={reduceMotion ? undefined : { scale: .97 }}>
-        ABRIR MAPA ORBITAL <span>→</span>
-      </motion.button>
-      <Link className="command-secondary-action" to={`/jogar/${phase.id}`}>PREPARAR OPERAÇÃO</Link>
+      <motion.div whileTap={reduceMotion ? undefined : { scale: .98 }}>
+        <Link className="command-primary-action" to={`/jogar/${phase.id}`} aria-label={`Preparar esquadrão para ${phase.name}`}>
+          PREPARAR ESQUADRÃO <span>→</span>
+        </Link>
+      </motion.div>
     </div>
   </motion.article>;
 }

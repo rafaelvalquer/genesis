@@ -1,24 +1,33 @@
 import { useEffect, useRef, useState } from "react";
+import CommandGlobeToolbar from "./CommandGlobeToolbar.jsx";
 import CommandLoading from "./CommandLoading.jsx";
+import CommandPhaseMarker from "./CommandPhaseMarker.jsx";
 import CommandWebGLFallback from "./CommandWebGLFallback.jsx";
 import { createCommandGlobeScene } from "./CommandGlobeScene.js";
 
-export default function CommandGlobe({ phase, chapter, quality, onOpenMap, onRuntimeReady, scheduleReturn }) {
+export default function CommandGlobe({
+  phase, chapter, phases, campaign, quality, previewing,
+  onSelectPhase, focusRuntime, scheduleReturn,
+}) {
   const mountRef = useRef(null);
-  const markerRef = useRef(null);
   const runtimeRef = useRef(null);
+  const markerElementsRef = useRef(new Map());
   const pointerRef = useRef({ x: 0, y: 0 });
   const [state, setState] = useState("loading");
+  const registerMarker = (phaseId, element) => {
+    if (element) markerElementsRef.current.set(phaseId, element);
+    else markerElementsRef.current.delete(phaseId);
+  };
 
   useEffect(() => {
     let cancelled = false;
     createCommandGlobeScene({
-      mount: mountRef.current, phase, chapter, quality, markerElement: markerRef.current,
+      mount: mountRef.current, phase, chapter, phases, campaign, quality,
+      selectedPhase: phase, markerElements: markerElementsRef.current,
     }).then((runtime) => {
       if (cancelled) return runtime.dispose();
       runtimeRef.current = runtime;
       setState("ready");
-      onRuntimeReady(runtime);
     }).catch(() => setState("failed"));
     return () => {
       cancelled = true;
@@ -27,6 +36,20 @@ export default function CommandGlobe({ phase, chapter, quality, onOpenMap, onRun
     };
   }, []);
 
+  useEffect(() => {
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    runtime.setChapter(chapter, phases, campaign, phase);
+    focusRuntime(runtime);
+  }, [chapter, phases, campaign, phase, focusRuntime]);
+
+  const selectPhase = (selected) => {
+    if (selected.id === phase.id) return;
+    const runtime = runtimeRef.current;
+    runtime?.focusPhase(selected.id);
+    focusRuntime(runtime);
+    onSelectPhase(selected);
+  };
   const pointerDown = (event) => {
     const runtime = runtimeRef.current;
     if (!runtime || quality.reduceMotion) return;
@@ -44,8 +67,8 @@ export default function CommandGlobe({ phase, chapter, quality, onOpenMap, onRun
     const dy = event.clientY - pointerRef.current.y;
     runtime.velocityY = dx * .0038;
     runtime.velocityX = dy * .003;
-    runtime.planetGroup.rotation.y += runtime.velocityY;
-    runtime.planetGroup.rotation.x = runtime.THREE.MathUtils.clamp(runtime.planetGroup.rotation.x + runtime.velocityX, -.72, .72);
+    runtime.planetAnchor.rotation.y += runtime.velocityY;
+    runtime.planetAnchor.rotation.x = runtime.THREE.MathUtils.clamp(runtime.planetAnchor.rotation.x + runtime.velocityX, -.8, .8);
     pointerRef.current = { x: event.clientX, y: event.clientY };
   };
   const pointerUp = () => {
@@ -54,11 +77,24 @@ export default function CommandGlobe({ phase, chapter, quality, onOpenMap, onRun
     scheduleReturn(runtimeRef.current);
   };
 
-  if (state === "failed") return <CommandWebGLFallback chapter={chapter} phase={phase} onOpenMap={onOpenMap} />;
+  if (state === "failed") return <div className="command-globe-stage command-globe-failed">
+    <CommandWebGLFallback chapter={chapter} phase={phase} />
+    <div className="command-fallback-phases" aria-label="OperaÃ§Ãµes do capÃ­tulo">
+      {phases.map((entry) => <CommandPhaseMarker
+        key={entry.id}
+        phase={entry}
+        campaign={campaign}
+        selected={entry.id === phase.id}
+        register={() => {}}
+        onSelect={selectPhase}
+      />)}
+    </div>
+    <CommandGlobeToolbar chapter={chapter} phase={phase} previewing={previewing} />
+  </div>;
   return <div
     className="command-globe-stage"
     role="application"
-    aria-label="Visualização orbital. Arraste para girar o planeta; o marcador abre o mapa da operação atual."
+    aria-label="Mapa tático orbital. Selecione uma operação ou arraste para girar o planeta."
     tabIndex={0}
     onPointerDown={pointerDown}
     onPointerMove={pointerMove}
@@ -66,20 +102,18 @@ export default function CommandGlobe({ phase, chapter, quality, onOpenMap, onRun
     onPointerCancel={pointerUp}
   >
     <div ref={mountRef} className="command-globe-mount" aria-hidden="true" />
-    {state === "loading" && <><CommandWebGLFallback chapter={chapter} phase={phase} onOpenMap={onOpenMap} /><CommandLoading /></>}
-    <button
-      ref={markerRef}
-      type="button"
-      className="command-orbital-marker"
-      title={`Abrir ${phase.name} no mapa orbital`}
-      aria-label={`Operação ${phase.id.slice(-2)}, ${phase.name}. Abrir mapa orbital.`}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={onOpenMap}
-    >
-      <span>{phase.boss ? "ALVO PRIORITÁRIO" : "SETOR ATIVO"}</span>
-      <b>OPERAÇÃO {phase.id.slice(-2)}</b>
-      <small>{phase.name}</small>
-    </button>
+    {state === "loading" && <><CommandWebGLFallback chapter={chapter} phase={phase} /><CommandLoading /></>}
+    <div className="command-phase-marker-layer">
+      {phases.map((entry) => <CommandPhaseMarker
+        key={entry.id}
+        phase={entry}
+        campaign={campaign}
+        selected={entry.id === phase.id}
+        register={registerMarker}
+        onSelect={selectPhase}
+      />)}
+    </div>
+    <CommandGlobeToolbar chapter={chapter} phase={phase} previewing={previewing} />
     <div className="command-globe-telemetry" aria-hidden="true"><span>ORB-SCAN 98.4</span><span>LINK ESTÁVEL</span></div>
   </div>;
 }

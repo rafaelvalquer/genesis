@@ -1,29 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import CommandPage from "./CommandPage.jsx";
 
 vi.mock("./CommandGlobe.jsx", () => ({
-  default: ({ phase, onOpenMap }) => <button
-    type="button"
-    aria-label={`Operação ${phase.id.slice(-2)}, ${phase.name}. Abrir mapa orbital.`}
-    onClick={onOpenMap}
-  >MARCADOR ORBITAL</button>,
+  default: ({ phase, chapter, phases, onSelectPhase }) => <div aria-label="Mapa tático orbital">
+    {phases.map((entry) => <button
+      key={entry.id}
+      type="button"
+      aria-pressed={entry.id === phase.id}
+      onClick={() => onSelectPhase(entry)}
+    >{entry.name}</button>)}
+    <a href={`/fases?capitulo=${chapter.number}&fase=${phase.id}`}>EXPLORAR NO MAPA</a>
+  </div>,
 }));
 
-vi.mock("./useCommandAnimations.js", async () => {
-  const { useNavigate } = await import("react-router-dom");
-  return {
-    useCommandAnimations: ({ chapter, phase }) => {
-      const navigate = useNavigate();
-      return {
-        openCampaign: () => navigate(`/fases?capitulo=${chapter.number}&fase=${phase.id}`),
-        previewChapter: vi.fn(),
-        scheduleReturn: vi.fn(),
-      };
-    },
-  };
-});
+vi.mock("./useCommandAnimations.js", () => ({
+  useCommandAnimations: () => ({
+    focusRuntime: vi.fn(),
+    scheduleReturn: vi.fn(),
+  }),
+}));
 
 const makeCampaign = (overrides = {}) => ({
   unlockedPhaseIndex: 0,
@@ -32,20 +29,8 @@ const makeCampaign = (overrides = {}) => ({
   ...overrides,
 });
 
-function LocationProbe() {
-  const location = useLocation();
-  return <output data-testid="location">{location.pathname}{location.search}</output>;
-}
-
-function renderPage(campaign = makeCampaign(), onReset = vi.fn()) {
-  return {
-    onReset,
-    ...render(<MemoryRouter initialEntries={["/"]}>
-      <Routes>
-        <Route path="*" element={<><CommandPage campaign={campaign} onReset={onReset} /><LocationProbe /></>} />
-      </Routes>
-    </MemoryRouter>),
-  };
+function renderPage(campaign = makeCampaign()) {
+  return render(<MemoryRouter><CommandPage campaign={campaign} /></MemoryRouter>);
 }
 
 afterEach(() => {
@@ -66,54 +51,48 @@ describe("página Comando Orbital", () => {
     expect(screen.getByRole("heading", { name: "Costa de Obsidiana" })).toBeInTheDocument();
   });
 
-  it("exibe os módulos operacionais essenciais", () => {
+  it("mantém somente os dois módulos inferiores definitivos", () => {
     renderPage();
-    expect(screen.getByRole("heading", { name: "PROGRESSO DOS CAPÍTULOS" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "ÚLTIMO RELATÓRIO" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "INTELIGÊNCIA TÁTICA" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "ACESSO RÁPIDO" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "PROGRESSO DA CAMPANHA" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ÚLTIMA OPERAÇÃO" })).toBeInTheDocument();
+    expect(screen.queryByText("INTELIGÊNCIA TÁTICA")).not.toBeInTheDocument();
+    expect(screen.queryByText("ACESSO RÁPIDO")).not.toBeInTheDocument();
   });
 
-  it("mostra o estado vazio sem operação anterior", () => {
+  it("mostra o estado vazio sem criar outro CTA", () => {
     renderPage();
     expect(screen.getByText("NENHUM RELATÓRIO DE CAMPO REGISTRADO")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "REPETIR OPERAÇÃO" })).not.toBeInTheDocument();
   });
 
-  it("gera URL completa no botão Abrir mapa orbital", async () => {
-    renderPage(makeCampaign({ unlockedPhaseIndex: 8, currentPhaseId: "fase_09" }));
-    fireEvent.click(screen.getByRole("button", { name: /^ABRIR MAPA ORBITAL/ }));
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2&fase=fase_09"));
-  });
-
-  it("gera a rota de loadout no botão Preparar operação", () => {
+  it("mantém um único CTA primário para preparar o esquadrão", () => {
     renderPage(makeCampaign({ unlockedPhaseIndex: 2, currentPhaseId: "fase_03" }));
-    expect(screen.getByRole("link", { name: "PREPARAR OPERAÇÃO" })).toHaveAttribute("href", "/jogar/fase_03");
+    expect(screen.getByRole("link", { name: /Preparar esquadrão para Cratera Norte/i })).toHaveAttribute("href", "/jogar/fase_03");
+    expect(document.querySelectorAll(".command-primary-action")).toHaveLength(1);
   });
 
-  it("mantém o marcador acessível e abre a campanha pelo clique", async () => {
-    renderPage();
-    const marker = screen.getByRole("button", { name: /Operação 01, Perímetro Leste/ });
-    marker.focus();
-    fireEvent.keyDown(marker, { key: "Enter" });
-    fireEvent.click(marker);
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=1&fase=fase_01"));
+  it("seleciona fase no preview sem navegar e atualiza explorar no mapa", () => {
+    renderPage(makeCampaign({ unlockedPhaseIndex: 7 }));
+    fireEvent.click(screen.getByRole("button", { name: "Floresta Exterior" }));
+    expect(screen.getByRole("link", { name: "EXPLORAR NO MAPA" })).toHaveAttribute(
+      "href",
+      "/fases?capitulo=1&fase=fase_02",
+    );
   });
 
-  it("preserva onReset dentro da manutenção", () => {
-    const { onReset } = renderPage();
-    fireEvent.click(screen.getByText("MANUTENÇÃO DO SISTEMA"));
-    fireEvent.click(screen.getByRole("button", { name: "APAGAR PROGRESSO LOCAL" }));
-    expect(onReset).toHaveBeenCalledOnce();
-  });
-
-  it("abre capítulo acessível na fase mais avançada", async () => {
+  it("seleciona capítulo acessível como tab local sem navegar", () => {
     renderPage(makeCampaign({ unlockedPhaseIndex: 9, currentPhaseId: "fase_10" }));
-    fireEvent.click(screen.getByRole("button", { name: /Capítulo 2, Mar de Vidro/ }));
-    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2&fase=fase_10"));
+    const chapter = screen.getByRole("tab", { name: /Capítulo 1, Cerco da Colmeia/i });
+    fireEvent.click(chapter);
+    expect(chapter).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("link", { name: "EXPLORAR NO MAPA" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("capitulo=1"),
+    );
   });
 
   it("identifica capítulos bloqueados para tecnologias assistivas", () => {
     renderPage();
-    expect(screen.getByRole("button", { name: /Capítulo 2, Mar de Vidro. BLOQUEADO/ })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: /Capítulo 2, Mar de Vidro. BLOQUEADO/ })).toBeDisabled();
   });
 });
