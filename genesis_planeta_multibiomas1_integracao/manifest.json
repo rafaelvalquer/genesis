@@ -1,0 +1,25 @@
+{
+  "package": "genesis-planeta-multibiomas1-integracao",
+  "repository": "rafaelvalquer/genesis",
+  "asset": {
+    "source_upload": "genesis-planeta-multibiomas1.glb",
+    "target": "public/models/command/genesis-planeta-multibiomas1.glb",
+    "size_bytes": 17031624,
+    "recognized_planet_material": "Planet",
+    "recognized_cloud_material": "Clouds",
+    "cloud_shell_scale": 1.015,
+    "authored_atmosphere": false
+  },
+  "new_files": [
+    "src/visual/adaptGenesisPlanetAsset.js",
+    "public/models/command/genesis-planeta-multibiomas1.glb"
+  ],
+  "replacement_files": [
+    "src/visual/genesisPlanetAsset.js"
+  ],
+  "patched_files": [
+    "src/visual/genesisPlanetMaterials.js",
+    "src/home/CommandGlobeScene.js",
+    "src/campaign/CampaignPlanet.jsx"
+  ]
+}

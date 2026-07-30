@@ -305,17 +305,14 @@ export default function CampaignPlanet({
           if (runtime.glbPlanet && runtime.glbFade < 1) {
             runtime.glbFade = Math.min(1, runtime.glbFade + delta * 1.8);
             mount.dataset.planetFade = runtime.glbFade.toFixed(2);
-            const hasAuthoredAtmosphere = Boolean(runtime.planetParts?.atmosphere);
             planet.material.opacity = 1 - runtime.glbFade;
-            atmosphere.material.opacity = hasAuthoredAtmosphere
-              ? .14 * (1 - runtime.glbFade)
-              : .14;
+            atmosphere.material.opacity = .14 * (1 - runtime.glbFade);
             detailMesh.material.opacity = 1 - runtime.glbFade;
             detailMesh.visible = runtime.glbFade < 1;
             setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
             if (runtime.glbFade === 1) {
               planet.visible = false;
-              atmosphere.visible = !hasAuthoredAtmosphere;
+              atmosphere.visible = false;
               detailMesh.visible = false;
             }
           }

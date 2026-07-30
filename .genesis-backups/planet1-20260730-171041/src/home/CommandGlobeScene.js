@@ -288,15 +288,12 @@ export async function createCommandGlobeScene({
     if (runtime.glbPlanet && runtime.glbFade < 1) {
       runtime.glbFade = Math.min(1, runtime.glbFade + delta * 1.8);
       mount.dataset.planetFade = runtime.glbFade.toFixed(2);
-      const hasAuthoredAtmosphere = Boolean(runtime.planetParts?.atmosphere);
       proceduralMaterial.opacity = 1 - runtime.glbFade;
-      proceduralAtmosphere.material.opacity = hasAuthoredAtmosphere
-        ? .15 * (1 - runtime.glbFade)
-        : .15;
+      proceduralAtmosphere.material.opacity = .15 * (1 - runtime.glbFade);
       setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
       if (runtime.glbFade === 1) {
         proceduralPlanet.visible = false;
-        proceduralAtmosphere.visible = !hasAuthoredAtmosphere;
+        proceduralAtmosphere.visible = false;
       }
     }
     if (!runtime.dragging && !quality.reduceMotion) {

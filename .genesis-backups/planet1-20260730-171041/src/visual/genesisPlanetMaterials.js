@@ -21,68 +21,15 @@ function preserveTextureSlots(source, target) {
   });
 }
 
-function hasAuthoredPbrMaterial(material) {
-  if (!material) return false;
-  return Boolean(
-    material.map
-    || material.normalMap
-    || material.roughnessMap
-    || material.metalnessMap
-    || material.emissiveMap
-    || material.aoMap
-  );
-}
-
-function prepareAuthoredMaterial(THREE, object, material) {
-  const name = object.name || "";
-  const vertexColors = Boolean(object.geometry.getAttribute("color"));
-
-  material.vertexColors = vertexColors;
-  material.flatShading = false;
-  material.dithering = true;
-  material.toneMapped = true;
-
-  if (name.includes("Clouds")) {
-    material.transparent = true;
-    material.depthWrite = false;
-    material.depthTest = true;
-    material.side = THREE.DoubleSide;
-    material.userData.genesisAuthoredClouds = true;
-  }
-
-  if (name.includes("MainPlanet")) {
-    material.userData.genesisAuthoredPlanet = true;
-  }
-
-  material.userData.genesisBaseOpacity = Number.isFinite(material.opacity)
-    ? material.opacity
-    : 1;
-  material.needsUpdate = true;
-
-  return material;
-}
-
 function materialForPart(THREE, object) {
   const name = object.name || "";
   const original = Array.isArray(object.material) ? object.material[0] : object.material;
   const vertexColors = Boolean(object.geometry.getAttribute("color"));
-
-  if (
-    hasAuthoredPbrMaterial(original)
-    && (
-      name.includes("MainPlanet")
-      || name.includes("Clouds")
-      || name.includes("Atmosphere")
-    )
-  ) {
-    return prepareAuthoredMaterial(THREE, object, original);
-  }
-
   let material;
   if (name.includes("MainPlanet")) {
     material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      vertexColors,
+      vertexColors: true,
       roughness: .82,
       metalness: .02,
       emissive: 0x000000,
@@ -97,8 +44,7 @@ function materialForPart(THREE, object) {
     });
   } else if (name.includes("Clouds")) {
     material = new THREE.MeshBasicMaterial({
-      color: 0xffffff, vertexColors, transparent: true, opacity: .25,
-      depthWrite: false, side: THREE.DoubleSide,
+      color: 0xffffff, vertexColors, transparent: true, opacity: .25, depthWrite: false,
     });
   } else {
     const properties = name.includes("IceSpikes")
@@ -117,7 +63,6 @@ function materialForPart(THREE, object) {
       flatShading: false,
     });
   }
-
   preserveTextureSlots(original, material);
   original?.dispose();
   material.userData.genesisBaseOpacity = material.opacity;
@@ -252,13 +197,8 @@ export function applyGenesisPlanetQuality(
     });
   }
   if (parts.clouds) {
-    const authoredClouds = Boolean(parts.clouds.material.userData.genesisAuthoredClouds);
-    const cloudsOpacity = authoredClouds
-      ? Math.min(1, presentation.cloudsOpacity * 2.8)
-      : presentation.cloudsOpacity;
-
-    parts.clouds.visible = cloudsOpacity > 0;
-    parts.clouds.material.userData.genesisBaseOpacity = cloudsOpacity;
+    parts.clouds.visible = presentation.cloudsOpacity > 0;
+    parts.clouds.material.userData.genesisBaseOpacity = presentation.cloudsOpacity;
   }
   if (parts.atmosphere) {
     parts.atmosphere.visible = true;
