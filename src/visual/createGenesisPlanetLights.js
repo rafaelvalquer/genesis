@@ -1,16 +1,17 @@
 export function createGenesisPlanetLights(THREE, scene, biome) {
-  const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
-  keyLight.position.set(3, 2, 4);
-  const fillLight = new THREE.HemisphereLight(0xffffff, biome.ambient, 2.15);
-  const rimLight = new THREE.DirectionalLight(biome.atmosphere, .85);
-  rimLight.position.set(-3, .5, -2);
-  scene.add(keyLight, fillLight, rimLight);
-  return { keyLight, fillLight, rimLight };
+  const keyLight = new THREE.DirectionalLight(biome.light, 2);
+  keyLight.position.set(3.5, 2.4, 4.5);
+  const fillLight = new THREE.HemisphereLight(biome.atmosphere, biome.ambient, .82);
+  const rimLight = new THREE.DirectionalLight(biome.atmosphere, .65);
+  rimLight.position.set(-3, .8, -3.5);
+  const ambientLight = new THREE.AmbientLight(0xffffff, .08);
+  scene.add(keyLight, fillLight, rimLight, ambientLight);
+  return { keyLight, fillLight, rimLight, ambientLight };
 }
 
 export function applyGenesisLightState(lights, biome) {
-  lights.keyLight.color.set(0xffffff);
-  lights.fillLight.color.set(0xffffff);
+  lights.keyLight.color.set(biome.light);
+  lights.fillLight.color.set(biome.atmosphere);
   lights.fillLight.groundColor.set(biome.ambient);
   lights.rimLight.color.set(biome.atmosphere);
 }

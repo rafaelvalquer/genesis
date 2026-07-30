@@ -217,9 +217,9 @@
   left: 0;
   display: grid;
   place-items: center;
-  min-width: 34px;
-  min-height: 34px;
-  padding: 4px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
   transform: translate(-50%, -50%);
   color: #dff8ff;
   border: 1px solid #b7ddea;
@@ -230,14 +230,14 @@
   cursor: pointer;
   visibility: hidden;
 }
-.command-phase-marker > span { font-size: 10px; font-weight: 700; }
+.command-phase-marker > span { font-size: 12px; font-weight: 700; line-height: 1; }
 .command-phase-marker > b { position: absolute; top: 100%; width: max-content; max-width: 130px; margin-top: 5px; padding: 3px 6px; color: #dff8ff; font-size: 9px; border: 1px solid var(--command-line); background: rgba(2, 10, 17, .92); }
 .command-phase-marker > small { position: absolute; bottom: 100%; color: #fbbf24; font-size: 9px; white-space: nowrap; }
-.command-phase-marker.is-current { min-width: 46px; min-height: 46px; border: 2px solid var(--command-accent); box-shadow: 0 0 22px var(--command-glow); }
+.command-phase-marker.is-current, .command-phase-marker.is-selected { width: 34px; height: 34px; border: 2px solid var(--command-accent); box-shadow: 0 0 18px var(--command-glow); }
 .command-phase-marker.is-completed { color: #031016; border-color: var(--command-primary); background: var(--command-primary); }
 .command-phase-marker.is-boss:not(:disabled) { border-color: var(--command-danger); }
-.command-phase-marker.is-selected { outline: 1px solid #fff; outline-offset: 3px; }
-.command-phase-marker:disabled { opacity: .34; }
+.command-phase-marker.is-selected { outline: 1px solid #fff; outline-offset: 2px; }
+.command-phase-marker:disabled { width: 10px; height: 10px; opacity: .28; }
 .command-globe-failed .command-fallback-phases {
   position: absolute;
   z-index: 13;

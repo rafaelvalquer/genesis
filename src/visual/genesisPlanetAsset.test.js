@@ -30,7 +30,9 @@ function planetFixture() {
     "GenesisWorld_MainPlanet",
     "GenesisWorld_Atmosphere",
     "GenesisWorld_Clouds",
+    "GenesisWorld_IceSpikes",
     "GenesisWorld_CrystalSpires",
+    "GenesisWorld_SwampPods",
     "Beacon_Colony",
     "Beacon_Glass",
     "Beacon_Chitin",
@@ -51,7 +53,14 @@ describe("asset compartilhado do planeta Genesis", () => {
     expect(parts.mainPlanet.geometry.getAttribute("normal")).toBeTruthy();
     expect(parts.mainPlanet.material.vertexColors).toBe(true);
     expect(parts.mainPlanet.material.color.getHex()).toBe(0xffffff);
-    expect(parts.mainPlanet.material.emissive).toBeUndefined();
+    expect(parts.mainPlanet.material).toBeInstanceOf(THREE.MeshStandardMaterial);
+    expect(parts.mainPlanet.material.emissive.getHex()).toBe(0x000000);
+    expect(parts.mainPlanet.material.flatShading).toBe(false);
+    expect(parts.structures.find((mesh) => mesh.name.includes("IceSpikes")).material.roughness).toBe(.65);
+    expect(parts.structures.find((mesh) => mesh.name.includes("CrystalSpires")).material.roughness).toBe(.34);
+    expect(parts.structures.find((mesh) => mesh.name.includes("SwampPods")).material.roughness).toBe(.88);
+    expect(parts.atmosphere.material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(parts.clouds.material).toBeInstanceOf(THREE.MeshBasicMaterial);
     disposeThreeObject(model);
   });
 
@@ -65,8 +74,8 @@ describe("asset compartilhado do planeta Genesis", () => {
     });
     expect(parts.mainPlanet.material).toBe(mainMaterial);
     expect(Object.values(parts.beacons).map((mesh) => mesh.material)).toEqual(beaconMaterials);
-    expect(parts.beacons.chapter_02.material.emissiveIntensity).toBe(1.1);
-    expect(parts.beacons.chapter_01.material.emissiveIntensity).toBe(.12);
+    expect(parts.beacons.chapter_02.material.emissiveIntensity).toBe(.85);
+    expect(parts.beacons.chapter_01.material.emissiveIntensity).toBe(.08);
     disposeThreeObject(model);
   });
 
@@ -74,8 +83,8 @@ describe("asset compartilhado do planeta Genesis", () => {
     const model = planetFixture();
     const parts = prepareGenesisPlanetModel(THREE, model);
     setGenesisPlanetOpacity(parts, .5);
-    expect(parts.atmosphere.material.opacity).toBeCloseTo(.08);
-    expect(parts.clouds.material.opacity).toBeCloseTo(.21);
+    expect(parts.atmosphere.material.opacity).toBeCloseTo(.06);
+    expect(parts.clouds.material.opacity).toBeCloseTo(.125);
     disposeThreeObject(model);
   });
 
@@ -103,14 +112,15 @@ describe("renderer, iluminação e órbita compartilhados", () => {
     configureGenesisRenderer(THREE, renderer, { pixelRatio: 1 });
     expect(renderer.outputColorSpace).toBe(THREE.SRGBColorSpace);
     expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping);
-    expect(renderer.toneMappingExposure).toBe(1.3);
+    expect(renderer.toneMappingExposure).toBe(1.05);
     expect(renderer.setPixelRatio).toHaveBeenCalled();
   });
 
-  it("cria as três luzes compartilhadas", () => {
+  it("cria as luzes cartoon compartilhadas", () => {
     const scene = new THREE.Scene();
     const lights = createGenesisPlanetLights(THREE, scene, getCampaignBiome("chapter_01"));
     expect(scene.children).toEqual(expect.arrayContaining([lights.keyLight, lights.fillLight, lights.rimLight]));
+    expect(lights.ambientLight.intensity).toBe(.08);
     disposeThreeObject(scene);
   });
 

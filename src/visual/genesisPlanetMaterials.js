@@ -1,3 +1,8 @@
+import { compressGenesisRelief } from "./compressGenesisRelief.js";
+import { configureGenesisMoons } from "./configureGenesisMoons.js";
+import { getGenesisPresentation } from "./genesisPlanetPresentation.js";
+import { smoothGenesisGeometry } from "./smoothGenesisGeometry.js";
+
 export const CHAPTER_BEACON_NAMES = Object.freeze({
   chapter_01: "Beacon_Colony",
   chapter_02: "Beacon_Glass",
@@ -22,29 +27,40 @@ function materialForPart(THREE, object) {
   const vertexColors = Boolean(object.geometry.getAttribute("color"));
   let material;
   if (name.includes("MainPlanet")) {
-    // The source has COLOR_0 but no authored normals or PBR material. Keeping the
-    // surface unlit preserves the exact multibiome palette on every GPU.
-    material = new THREE.MeshBasicMaterial({
-      color: 0xffffff, vertexColors, toneMapped: false,
+    material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: .82,
+      metalness: .02,
+      emissive: 0x000000,
+      emissiveIntensity: 0,
+      flatShading: false,
+      dithering: true,
     });
   } else if (name.includes("Atmosphere")) {
     material = new THREE.MeshBasicMaterial({
-      color: 0xffffff, vertexColors, transparent: true, opacity: .16,
+      color: 0xffffff, vertexColors, transparent: true, opacity: .12,
       side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
     });
   } else if (name.includes("Clouds")) {
     material = new THREE.MeshBasicMaterial({
-      color: 0xffffff, vertexColors, transparent: true, opacity: .42, depthWrite: false,
+      color: 0xffffff, vertexColors, transparent: true, opacity: .25, depthWrite: false,
     });
   } else {
-    const crystal = name.includes("Crystal");
+    const properties = name.includes("IceSpikes")
+      ? { roughness: .65, metalness: .04 }
+      : name.includes("CrystalSpires")
+        ? { roughness: .34, metalness: .14 }
+        : name.includes("SwampPods")
+          ? { roughness: .88, metalness: 0 }
+          : { roughness: .72, metalness: .04 };
     material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
       vertexColors,
-      roughness: crystal ? .38 : .7,
-      metalness: crystal ? .18 : .04,
+      ...properties,
       emissive: 0x000000,
       emissiveIntensity: 0,
+      flatShading: false,
     });
   }
   preserveTextureSlots(original, material);
@@ -53,14 +69,21 @@ function materialForPart(THREE, object) {
   return material;
 }
 
-export function getGenesisPlanetParts(model) {
+export function getGenesisPlanetParts(model, layout = {}) {
+  const surfaceRoot = layout.surfaceRoot || model.getObjectByName("GenesisPlanetSurfaceRoot");
+  const moonRoot = layout.moonRoot || model.getObjectByName("GenesisMoonsRoot");
+  const beaconRoot = layout.beaconRoot || model.getObjectByName("GenesisBeaconsRoot");
+  const ringedMoonRoot = layout.ringedMoonRoot || model.getObjectByName("GenesisMoon_RingedRoot");
   const parts = {
     mainPlanet: null,
+    surfaceRoot,
     atmosphere: null,
     clouds: null,
     structures: [],
     moons: [],
+    moonRoot,
     beacons: {},
+    beaconRoot,
     materials: [],
   };
   const beaconByName = Object.fromEntries(
@@ -71,7 +94,6 @@ export function getGenesisPlanetParts(model) {
     if (object.name === "GenesisWorld_MainPlanet") parts.mainPlanet = object;
     else if (object.name === "GenesisWorld_Atmosphere") parts.atmosphere = object;
     else if (object.name === "GenesisWorld_Clouds") parts.clouds = object;
-    else if (object.name.startsWith("GenesisMoon_")) parts.moons.push(object);
     else if (object.name.includes("IceSpikes") || object.name.includes("CrystalSpires") || object.name.includes("SwampPods")) {
       parts.structures.push(object);
     }
@@ -80,27 +102,70 @@ export function getGenesisPlanetParts(model) {
     const materials = Array.isArray(object.material) ? object.material : [object.material];
     parts.materials.push(...materials.filter(Boolean));
   });
+  if (moonRoot) {
+    parts.moons = moonRoot.children.filter((object) => (
+      object !== ringedMoonRoot
+      ? object.name.startsWith("GenesisMoon_")
+      : true
+    ));
+  } else {
+    const flatMoons = [
+      "GenesisMoon_Rocky", "GenesisMoon_Lava", "GenesisMoon_Blue", "GenesisMoon_Red",
+    ].map((name) => model.getObjectByName(name)).filter(Boolean);
+    if (ringedMoonRoot) flatMoons.push(ringedMoonRoot);
+    else {
+      const ringed = model.getObjectByName("GenesisMoon_Ringed");
+      if (ringed) flatMoons.push(ringed);
+    }
+    parts.moons = flatMoons;
+  }
+  parts.materials = [...new Set(parts.materials)];
   return parts;
 }
 
-export function prepareGenesisPlanetModel(THREE, model) {
+function setObjectRenderOrder(object, renderOrder) {
+  object?.traverse((child) => {
+    if (child.isMesh) child.renderOrder = renderOrder;
+  });
+}
+
+export function prepareGenesisPlanetModel(THREE, model, layout) {
+  const smoothPartNames = new Set([
+    "GenesisWorld_MainPlanet",
+    "GenesisWorld_IceSpikes",
+    "GenesisWorld_CrystalSpires",
+    "GenesisWorld_SwampPods",
+    "GenesisMoon_Rocky",
+    "GenesisMoon_Lava",
+    "GenesisMoon_Blue",
+    "GenesisMoon_Red",
+    "GenesisMoon_Ringed",
+  ]);
   model.traverse((object) => {
     if (!object.isMesh) return;
-    if (!object.geometry.getAttribute("normal")) object.geometry.computeVertexNormals();
+    if (smoothPartNames.has(object.name)) smoothGenesisGeometry(object.geometry);
+    else if (!object.geometry.getAttribute("normal")) object.geometry.computeVertexNormals();
     object.material = materialForPart(THREE, object);
   });
-  return getGenesisPlanetParts(model);
+  const parts = getGenesisPlanetParts(model, layout);
+  setObjectRenderOrder(parts.mainPlanet, 0);
+  parts.structures.forEach((structure) => setObjectRenderOrder(structure, 1));
+  parts.moons.forEach((moon) => setObjectRenderOrder(moon, 1));
+  setObjectRenderOrder(parts.clouds, 2);
+  setObjectRenderOrder(parts.atmosphere, 3);
+  Object.values(parts.beacons).forEach((beacon) => setObjectRenderOrder(beacon, 1));
+  return parts;
 }
 
 export function applyGenesisPlanetChapterState({ THREE, parts, chapter, biome }) {
   if (!parts) return;
   if (parts.atmosphere) {
-    parts.atmosphere.material.color.set(0xffffff).lerp(new THREE.Color(biome.atmosphere), .15);
+    parts.atmosphere.material.color.set(0xffffff).lerp(new THREE.Color(biome.atmosphere), .1);
   }
   Object.entries(parts.beacons).forEach(([chapterId, beacon]) => {
     const active = chapterId === chapter.id;
     beacon.material.emissive.set(active ? chapter.palette.primary : 0x000000);
-    beacon.material.emissiveIntensity = active ? 1.1 : .12;
+    beacon.material.emissiveIntensity = active ? .85 : .08;
   });
 }
 
@@ -111,14 +176,34 @@ export function setGenesisPlanetOpacity(parts, opacity) {
   });
 }
 
-export function applyGenesisPlanetQuality(parts, quality) {
+export function applyGenesisPlanetQuality(
+  parts,
+  quality,
+  { THREE, model, layout, presentationMode = "campaign" } = {},
+) {
   if (!parts) return;
   const low = quality.quality === "low";
-  const medium = quality.quality === "medium";
-  parts.moons.forEach((moon, index) => { moon.visible = !low && (!medium || index < 3); });
-  if (parts.clouds) {
-    parts.clouds.visible = !low;
-    parts.clouds.material.userData.genesisBaseOpacity = medium ? .28 : .42;
+  const presentation = getGenesisPresentation(quality, presentationMode);
+  configureGenesisMoons(parts, quality, presentationMode);
+  if (THREE && model && layout) {
+    parts.structures.forEach((structure) => {
+      compressGenesisRelief({
+        THREE,
+        mesh: structure,
+        planetRoot: model,
+        baseRadius: layout.sourceRadius,
+        factor: presentation.relief[structure.name],
+      });
+    });
   }
+  if (parts.clouds) {
+    parts.clouds.visible = presentation.cloudsOpacity > 0;
+    parts.clouds.material.userData.genesisBaseOpacity = presentation.cloudsOpacity;
+  }
+  if (parts.atmosphere) {
+    parts.atmosphere.visible = true;
+    parts.atmosphere.material.userData.genesisBaseOpacity = presentation.atmosphereOpacity;
+  }
+  if (parts.beaconRoot) parts.beaconRoot.visible = !low;
   parts.structures.forEach((structure, index) => { structure.visible = !low || index === 0; });
 }

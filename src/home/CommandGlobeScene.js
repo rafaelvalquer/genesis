@@ -3,9 +3,15 @@ import { createChapterPhaseVectors, getTargetRotationForPhase } from "../visual/
 import { createChapterRoutes } from "../visual/campaignPlanetRoutes.js";
 import { getCampaignPhaseState } from "../visual/campaignPhaseState.js";
 import { disposeThreeObject } from "../visual/disposeThreeObject.js";
+import { declutterProjectedMarkers } from "../visual/declutterProjectedMarkers.js";
 import { configureGenesisRenderer } from "../visual/configureGenesisRenderer.js";
 import { applyGenesisLightState, createGenesisPlanetLights } from "../visual/createGenesisPlanetLights.js";
 import { createRocketOrbit, updateRocketOrbit } from "../visual/createRocketOrbit.js";
+import {
+  createGenesisPlanetDebug,
+  isGenesisPlanetDebugEnabled,
+} from "../visual/createGenesisPlanetDebug.js";
+import { fitGenesisPlanetCamera } from "../visual/fitGenesisPlanetCamera.js";
 import {
   applyGenesisPlanetChapterState,
   createGenesisPlanetInstance,
@@ -76,12 +82,14 @@ function createMarkerMesh(THREE, phase, state, chapter) {
     }),
   );
   group.add(ring);
+  ring.renderOrder = 5;
   if (state.current) {
     const outer = new THREE.Mesh(
       new THREE.RingGeometry(.09, .098, 24),
       new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: .55, depthWrite: false }),
     );
     group.add(outer);
+    outer.renderOrder = 5;
   }
   group.userData.phaseId = phase.id;
   group.userData.state = state.key;
@@ -106,7 +114,10 @@ export async function createCommandGlobeScene({
   const scene = new THREE.Scene();
   scene.fog = new THREE.FogExp2("#030712", .042);
   const camera = new THREE.PerspectiveCamera(38, 1, .1, 80);
-  camera.position.set(0, .04, quality.reduceMotion ? 4.25 : 5.45);
+  camera.position.set(0, .04, 1);
+  fitGenesisPlanetCamera({
+    camera, radius: 1, padding: quality.reduceMotion ? 1.45 : 1.7,
+  });
   const renderer = new THREE.WebGLRenderer({
     alpha: true, antialias: quality.quality !== "low", powerPreference: "high-performance",
   });
@@ -158,7 +169,7 @@ export async function createCommandGlobeScene({
     selectedPhaseId: selectedPhase.id, currentChapter: chapter, currentPhases: phases,
     dragging: false, velocityX: 0, velocityY: 0, disposed: false, killAuto: null,
     targetRotation: getTargetRotationForPhase(selectedPhase.id),
-    glbPlanet: null, planetParts: null, glbFade: 0, rocket: null,
+    glbPlanet: null, planetParts: null, planetLayout: null, glbFade: 0, rocket: null,
   };
   planetReferenceFrame.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
 
@@ -213,12 +224,22 @@ export async function createCommandGlobeScene({
   createGenesisPlanetInstance({
     THREE, quality, chapter: runtime.currentChapter,
     biome: getCampaignBiome(runtime.currentChapter.id), opacity: 0,
-  }).then(({ model, parts }) => {
+    presentationMode: "command",
+  }).then(({ model, parts, layout }) => {
     if (runtime.disposed) return disposeThreeObject(model);
     runtime.glbPlanet = model;
     runtime.planetParts = parts;
+    runtime.planetLayout = layout;
     runtime.glbFade = 0;
     planetModelRoot.add(model);
+    mount.dataset.planetLayoutCorrected = String(layout.corrected);
+    mount.dataset.planetSourceRadius = layout.sourceRadius.toFixed(4);
+    mount.dataset.planetScale = layout.scale.toFixed(4);
+    if (isGenesisPlanetDebugEnabled()) {
+      runtime.planetDebug = createGenesisPlanetDebug({
+        THREE, parent: planetModelRoot, model, parts, layout,
+      });
+    }
     mount.dataset.planetAsset = "ready";
   }).catch((error) => {
     mount.dataset.planetAsset = "failed";
@@ -250,6 +271,10 @@ export async function createCommandGlobeScene({
   resize();
   const temp = new THREE.Vector3();
   const projected = new THREE.Vector3();
+  const planetCenter = new THREE.Vector3();
+  const cameraPosition = new THREE.Vector3();
+  const surfaceNormal = new THREE.Vector3();
+  const cameraDirection = new THREE.Vector3();
   let elapsed = 0;
 
   const frame = (timestamp) => {
@@ -266,6 +291,10 @@ export async function createCommandGlobeScene({
       proceduralMaterial.opacity = 1 - runtime.glbFade;
       proceduralAtmosphere.material.opacity = .15 * (1 - runtime.glbFade);
       setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
+      if (runtime.glbFade === 1) {
+        proceduralPlanet.visible = false;
+        proceduralAtmosphere.visible = false;
+      }
     }
     if (!runtime.dragging && !quality.reduceMotion) {
       planetReferenceFrame.rotation.x = THREE.MathUtils.clamp(planetReferenceFrame.rotation.x + runtime.velocityX, -.8, .8);
@@ -274,20 +303,46 @@ export async function createCommandGlobeScene({
       runtime.velocityY *= .9;
       particles.rotation.y += delta * .018;
     }
+    if (!quality.reduceMotion && runtime.planetParts?.clouds?.visible) {
+      runtime.planetParts.clouds.rotation.y += delta * Math.PI * 2 / 120;
+    }
     updateRocketOrbit(THREE, runtime.rocket, elapsed, quality.reduceMotion);
+    const projectedMarkers = [];
+    const rect = mount.getBoundingClientRect();
     runtime.markerVectors.forEach((vector, phaseId) => {
       const element = markerElements.get(phaseId);
       if (!element) return;
       temp.copy(vector);
       mapOverlayRoot.localToWorld(temp);
       projected.copy(temp).project(camera);
-      const rect = mount.getBoundingClientRect();
-      element.style.transform = `translate3d(${(projected.x * .5 + .5) * rect.width}px, ${(-projected.y * .5 + .5) * rect.height}px, 0) translate(-50%, -50%)`;
+      const x = (projected.x * .5 + .5) * rect.width;
+      const y = (-projected.y * .5 + .5) * rect.height;
+      element.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
       const inFrustum = projected.z > -1 && projected.z < 1;
-      const frontFacing = temp.z > -.08;
-      element.style.visibility = inFrustum ? "visible" : "hidden";
-      element.style.opacity = frontFacing ? "" : ".25";
-      element.style.pointerEvents = frontFacing ? "" : "none";
+      planetReferenceFrame.getWorldPosition(planetCenter);
+      camera.getWorldPosition(cameraPosition);
+      surfaceNormal.copy(temp).sub(planetCenter).normalize();
+      cameraDirection.copy(cameraPosition).sub(temp).normalize();
+      const frontFacing = surfaceNormal.dot(cameraDirection) > .05;
+      const markerVisible = inFrustum && frontFacing;
+      element.dataset.projectable = markerVisible ? "true" : "false";
+      if (markerVisible) {
+        projectedMarkers.push({
+          id: phaseId,
+          x,
+          y,
+          priority: Number(element.dataset.markerPriority || 10),
+          current: element.dataset.markerCurrent === "true",
+          selected: element.dataset.markerSelected === "true",
+        });
+      }
+    });
+    const visibleMarkerIds = declutterProjectedMarkers(projectedMarkers, { minimumDistance: 32 });
+    markerElements.forEach((element, phaseId) => {
+      const markerVisible = element.dataset.projectable === "true" && visibleMarkerIds.has(phaseId);
+      element.style.visibility = markerVisible ? "visible" : "hidden";
+      element.style.opacity = "";
+      element.style.pointerEvents = markerVisible ? "" : "none";
     });
     renderer.render(scene, camera);
   };

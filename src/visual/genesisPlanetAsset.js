@@ -1,5 +1,5 @@
 import { loadGltfModel, cloneGltfScene } from "./loadGltfModel.js";
-import { normalizeModelToRadius } from "./normalizeGltfModel.js";
+import { normalizeGenesisPlanet } from "./normalizeGenesisPlanet.js";
 import {
   applyGenesisPlanetChapterState,
   applyGenesisPlanetQuality,
@@ -17,15 +17,19 @@ export const cloneGenesisPlanet = (gltf) => cloneGltfScene(gltf, {
   cloneTextures: true,
 });
 
-export async function createGenesisPlanetInstance({ THREE, quality, chapter, biome, opacity = 1 }) {
+export async function createGenesisPlanetInstance({
+  THREE, quality, chapter, biome, opacity = 1, presentationMode = "campaign",
+}) {
   const gltf = await loadGenesisPlanet();
   const model = cloneGenesisPlanet(gltf);
-  normalizeModelToRadius(THREE, model, 1, "GenesisWorld_MainPlanet");
-  const parts = prepareGenesisPlanetModel(THREE, model);
-  applyGenesisPlanetQuality(parts, quality);
+  const layout = normalizeGenesisPlanet({ THREE, model, targetRadius: 1 });
+  const parts = prepareGenesisPlanetModel(THREE, model, layout);
+  applyGenesisPlanetQuality(parts, quality, {
+    THREE, model, layout, presentationMode,
+  });
   applyGenesisPlanetChapterState({ THREE, parts, chapter, biome });
   setGenesisPlanetOpacity(parts, opacity);
-  return { model, parts, url: GENESIS_PLANET_URL };
+  return { model, parts, layout, url: GENESIS_PLANET_URL };
 }
 
 export { applyGenesisPlanetChapterState, setGenesisPlanetOpacity };

@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { declutterProjectedMarkers } from "../visual/declutterProjectedMarkers.js";
 
 export function useProjectedMarkers() {
   const markerRefs = useRef(new Map());
@@ -9,8 +10,14 @@ export function useProjectedMarkers() {
   }, []);
 
   const projectMarkers = useCallback((runtime) => {
-    const { THREE, camera, planetGroup, markerReferenceRoot, markerVectors, width, height, tempVector, cameraNormal } = runtime;
-    cameraNormal.copy(camera.position).normalize();
+    const {
+      THREE, camera, planetGroup, planetReferenceFrame, markerReferenceRoot,
+      markerVectors, width, height, tempVector,
+      planetCenter, cameraPosition, surfaceNormal, cameraDirection,
+    } = runtime;
+    (planetReferenceFrame || planetGroup).getWorldPosition(planetCenter);
+    camera.getWorldPosition(cameraPosition);
+    const projectedMarkers = [];
     for (const [phaseId, node] of markerRefs.current) {
       const local = markerVectors.get(phaseId);
       if (!local) {
@@ -19,13 +26,32 @@ export function useProjectedMarkers() {
       }
       tempVector.copy(local);
       (markerReferenceRoot || planetGroup).localToWorld(tempVector);
-      const visible = tempVector.dot(cameraNormal) / Math.max(.0001, tempVector.length()) > 0.08;
+      surfaceNormal.copy(tempVector).sub(planetCenter).normalize();
+      cameraDirection.copy(cameraPosition).sub(tempVector).normalize();
+      const visible = surfaceNormal.dot(cameraDirection) > .05;
       tempVector.project(camera);
       const onScreen = visible && Math.abs(tempVector.x) < 1.12 && Math.abs(tempVector.y) < 1.12;
-      node.hidden = !onScreen;
       if (onScreen) {
-        node.style.transform = `translate3d(${(tempVector.x * .5 + .5) * width}px, ${(-tempVector.y * .5 + .5) * height}px, 0) translate(-50%, -50%)`;
+        const x = (tempVector.x * .5 + .5) * width;
+        const y = (-tempVector.y * .5 + .5) * height;
+        node.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+        projectedMarkers.push({
+          id: phaseId,
+          x,
+          y,
+          priority: Number(node.dataset.markerPriority || 10),
+          current: node.dataset.markerCurrent === "true",
+          selected: node.dataset.markerSelected === "true",
+        });
       }
+      node.dataset.projectable = onScreen ? "true" : "false";
+    }
+    const visibleMarkerIds = declutterProjectedMarkers(projectedMarkers);
+    for (const [phaseId, node] of markerRefs.current) {
+      const onScreen = node.dataset.projectable === "true" && visibleMarkerIds.has(phaseId);
+      node.hidden = !onScreen;
+      node.style.visibility = onScreen ? "visible" : "hidden";
+      node.style.pointerEvents = onScreen ? "" : "none";
     }
   }, []);
 

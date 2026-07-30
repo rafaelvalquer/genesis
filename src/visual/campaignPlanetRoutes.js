@@ -23,6 +23,7 @@ export function createChapterRoutes(THREE, chapter, phases, campaign, vectors) {
       }),
     );
     line.computeLineDistances();
+    line.renderOrder = 4;
     line.userData.phaseId = destination.id;
     line.userData.state = state.key;
     group.add(line);
