@@ -2,8 +2,7 @@ import { cloneGltfScene, loadGltfModel } from "./loadGltfModel.js";
 import { centerAndScaleModel } from "./normalizeGltfModel.js";
 
 export const GENESIS_ROCKET_URL = "/models/command/low-poly-rocket-ship.glb";
-export const ROCKET_FORWARD_VECTOR = Object.freeze({ x: 0, y: 0, z: -1 });
-export const ROCKET_UP_VECTOR = Object.freeze({ x: -1, y: 0, z: 0 });
+export const ROCKET_FORWARD_VECTOR = Object.freeze({ x: 0, y: 0, z: 1 });
 export const ROCKET_MODEL_ROTATION = Object.freeze({ x: -Math.PI / 2, y: 0, z: Math.PI / 2 });
 
 export function createRocketOrbitNodes({ THREE, parent, quality, biome, model }) {
@@ -18,11 +17,8 @@ export function createRocketOrbitNodes({ THREE, parent, quality, biome, model })
   const engineGlow = new THREE.Mesh(
     new THREE.ConeGeometry(.025, .12, 8),
     new THREE.MeshBasicMaterial({
-      color: biome.atmosphere,
-      transparent: true,
-      opacity: quality.quality === "low" ? .38 : .68,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+      color: biome.atmosphere, transparent: true, opacity: quality.quality === "low" ? .38 : .68,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
   engineGlow.rotation.x = Math.PI / 2;
@@ -32,39 +28,20 @@ export function createRocketOrbitNodes({ THREE, parent, quality, biome, model })
   orbitRoot.add(motionNode);
   parent.add(orbitRoot);
   return {
-    orbitRoot,
-    motionNode,
-    orientationNode,
-    model,
-    engineGlow,
+    orbitRoot, motionNode, orientationNode, model, engineGlow,
     forward: new THREE.Vector3(ROCKET_FORWARD_VECTOR.x, ROCKET_FORWARD_VECTOR.y, ROCKET_FORWARD_VECTOR.z),
-    up: new THREE.Vector3(ROCKET_UP_VECTOR.x, ROCKET_UP_VECTOR.y, ROCKET_UP_VECTOR.z),
   };
 }
 
 export async function createRocketOrbit({ THREE, parent, quality, biome }) {
   const gltf = await loadGltfModel(GENESIS_ROCKET_URL);
-  const model = cloneGltfScene(gltf, { cloneGeometries: true, cloneMaterials: true, cloneTextures: true });
+  const model = cloneGltfScene(gltf, {
+    cloneGeometries: true,
+    cloneMaterials: true,
+    cloneTextures: true,
+  });
   centerAndScaleModel(THREE, model, .24);
   return createRocketOrbitNodes({ THREE, parent, quality, biome, model });
-}
-
-export function orientRocketToOrbit(THREE, rocket, tangent, radialUp) {
-  const forwardQuaternion = new THREE.Quaternion().setFromUnitVectors(rocket.forward, tangent);
-  const alignedUp = rocket.up.clone()
-    .applyQuaternion(forwardQuaternion);
-  alignedUp.addScaledVector(
-    tangent,
-    -alignedUp.dot(tangent),
-  ).normalize();
-  const desiredUp = radialUp.clone()
-    .addScaledVector(tangent, -radialUp.dot(tangent))
-    .normalize();
-  let rollAngle = alignedUp.angleTo(desiredUp);
-  const cross = alignedUp.clone().cross(desiredUp);
-  if (cross.dot(tangent) < 0) rollAngle *= -1;
-  const rollQuaternion = new THREE.Quaternion().setFromAxisAngle(tangent, rollAngle);
-  rocket.motionNode.quaternion.copy(rollQuaternion.multiply(forwardQuaternion));
 }
 
 export function updateRocketOrbit(THREE, rocket, elapsed, reduceMotion) {
@@ -82,10 +59,7 @@ export function updateRocketOrbit(THREE, rocket, elapsed, reduceMotion) {
     Math.sin(nextAngle) * 1.25,
   );
   const tangent = next.sub(current).normalize();
-  const radialUp = current.clone().normalize();
   rocket.motionNode.position.copy(current);
-  orientRocketToOrbit(THREE, rocket, tangent, radialUp);
-  if (!reduceMotion && rocket.engineGlow) {
-    rocket.engineGlow.scale.y = .85 + Math.sin(elapsed * 8) * .14;
-  }
+  rocket.motionNode.quaternion.setFromUnitVectors(rocket.forward, tangent);
+  if (!reduceMotion && rocket.engineGlow) rocket.engineGlow.scale.y = .85 + Math.sin(elapsed * 8) * .14;
 }

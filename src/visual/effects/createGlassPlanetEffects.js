@@ -1,105 +1,63 @@
+import { createThemeMaterial, setMaterialEffectPulse } from "./genesisEffectUtils.js";
 import {
-  createShellPoints,
-  createSurfaceInstances,
-  createThemeMaterial,
-  setMaterialEffectPulse,
-} from "./genesisEffectUtils.js";
+  createRouteInstances,
+  createRoutePoints,
+} from "./genesisRouteEffectUtils.js";
 
-export function createGlassPlanetEffects({
-  THREE,
-  profile,
-}) {
+export function createGlassPlanetEffects({ THREE, profile }) {
   const root = new THREE.Group();
   root.name = "Chapter02_GlassEffects";
 
-  const center = new THREE.Vector3(-.48, .42, .77).normalize();
+  const geometry = new THREE.ConeGeometry(.027, .14, 4);
+  geometry.translate(0, .07, 0);
   const crystalMaterial = createThemeMaterial(THREE, {
     color: "#a78bfa",
     emissive: "#7fffd4",
-    emissiveIntensity: .18,
+    emissiveIntensity: .2,
     roughness: .28,
-    metalness: .09,
+    metalness: .1,
   });
-  const crystals = createSurfaceInstances({
+  const crystals = createRouteInstances({
     THREE,
-    geometry: new THREE.ConeGeometry(.026, .13, 4),
+    chapterId: "chapter_02",
+    geometry,
     material: crystalMaterial,
-    count: profile.structures,
+    count: Math.max(10, profile.structures),
     seed: 2201,
-    radius: 1.022,
-    center,
-    spread: .72,
-    minimumScale: .55,
-    scaleRange: 1.25,
-    verticalScale: 1.7,
+    radius: 1.018,
+    minimumSideOffset: .038,
+    maximumSideOffset: .11,
+    scaleAt: (random) => {
+      const width = .55 + random() * .9;
+      return [width, .75 + random() * 1.65, width];
+    },
+    rotationJitter: Math.PI * .45,
   });
-  crystals.name = "GlassCrystalSpires";
+  crystals.name = "GlassRouteCrystals";
   root.add(crystals);
 
-  const auroraMaterials = [];
-  for (let index = 0; index < Math.max(1, profile.rings); index += 1) {
-    const material = new THREE.MeshBasicMaterial({
-      color: index % 2 ? "#7fffd4" : "#a78bfa",
-      transparent: true,
-      opacity: .15 - index * .025,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      blending: THREE.AdditiveBlending,
-    });
-    auroraMaterials.push(material);
-
-    const aurora = new THREE.Mesh(
-      new THREE.TorusGeometry(
-        1.16 + index * .045,
-        .012,
-        8,
-        96,
-      ),
-      material,
-    );
-    aurora.name = `GlassAurora_${index + 1}`;
-    aurora.rotation.set(
-      Math.PI * (.3 + index * .17),
-      index * .54,
-      Math.PI * .16,
-    );
-    root.add(aurora);
-  }
-
-  const shards = createShellPoints({
+  const glints = createRoutePoints({
     THREE,
-    count: Math.max(16, Math.floor(profile.particles * .78)),
+    chapterId: "chapter_02",
+    count: Math.max(18, Math.floor(profile.particles * .6)),
     seed: 2202,
-    minimumRadius: 1.08,
-    radiusRange: .5,
+    radius: 1.055,
+    heightRange: .07,
     color: "#c4b5fd",
-    size: .021,
-    opacity: .5,
-    additive: true,
+    size: .017,
+    opacity: .48,
   });
-  shards.name = "GlassOrbitalShards";
-  root.add(shards);
+  glints.name = "GlassRouteGlints";
+  root.add(glints);
 
-  root.userData.update = (
-    delta,
-    elapsed,
-    reduceMotion,
-  ) => {
-    const motion = reduceMotion ? .08 : 1;
-    shards.rotation.y -= delta * .055 * motion;
-    shards.rotation.z += delta * .018 * motion;
-
-    auroraMaterials.forEach((material, index) => {
-      setMaterialEffectPulse(
-        material,
-        .76 + Math.sin(elapsed * .72 + index * 1.8) * .18,
-      );
-    });
-
+  root.userData.update = (delta, elapsed, reduceMotion) => {
+    setMaterialEffectPulse(
+      glints.material,
+      .72 + Math.sin(elapsed * 1.12) * .2,
+    );
     crystalMaterial.emissiveIntensity = reduceMotion
-      ? .16
-      : .14 + (Math.sin(elapsed * .82) * .5 + .5) * .18;
+      ? .17
+      : .15 + (Math.sin(elapsed * .88) * .5 + .5) * .18;
   };
-
   return root;
 }

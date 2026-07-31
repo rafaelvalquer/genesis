@@ -34,14 +34,14 @@ describe("identidade visual dos mundos", () => {
       .not.toBe(desert.atmosphere);
   });
 
-  it("define o Eclipse em magenta e ciano", () => {
-    const ocean = getCampaignBiome("chapter_05");
+  it("define o Abismo de Nereida em ciano e violeta", () => {
+    const abyss = getCampaignBiome("chapter_05");
 
-    expect(ocean.key).toBe("ocean");
-    expect(ocean.ui.primary).toBe("#38bdf8");
-    expect(ocean.ui.accent).toBe("#a78bfa");
-    expect(ocean.lighting.fillColor).toBe("#67e8f9");
-    expect(ocean.planetEffects.kit).toBe("ocean");
+    expect(abyss.key).toBe("abyss");
+    expect(abyss.ui.primary).toBe("#22d3ee");
+    expect(abyss.ui.accent).toBe("#c084fc");
+    expect(abyss.lighting.fillColor).toBe("#67e8f9");
+    expect(abyss.planetEffects.kit).toBe("eclipse");
   });
 
   it("usa o capítulo 1 como fallback", () => {

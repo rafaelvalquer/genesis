@@ -1,134 +1,81 @@
+import { createThemeMaterial, setMaterialEffectPulse } from "./genesisEffectUtils.js";
 import {
-  alignObjectToSurface,
-  createShellPoints,
-  createSurfaceInstances,
-  createThemeMaterial,
-  setMaterialEffectPulse,
-} from "./genesisEffectUtils.js";
+  createRouteInstances,
+  createRoutePoints,
+  createRouteWindSegments,
+} from "./genesisRouteEffectUtils.js";
 
-function createRibCage(THREE) {
-  const root = new THREE.Group();
-  root.name = "ChitinColossalRibCage";
-
-  const material = createThemeMaterial(THREE, {
-    color: "#d6a15f",
-    roughness: .86,
-    metalness: 0,
-    emissive: "#7c2d12",
-    emissiveIntensity: .05,
-  });
-
-  for (let index = 0; index < 6; index += 1) {
-    const rib = new THREE.Mesh(
-      new THREE.TorusGeometry(
-        .16 + index * .018,
-        .0085,
-        6,
-        28,
-        Math.PI * 1.14,
-      ),
-      material,
-    );
-    rib.position.set(
-      (index - 2.5) * .034,
-      .012 + Math.abs(index - 2.5) * .004,
-      0,
-    );
-    rib.rotation.set(
-      Math.PI / 2,
-      .15,
-      -.56 + index * .035,
-    );
-    root.add(rib);
-  }
-
-  const normal = new THREE.Vector3(-.56, -.18, .8).normalize();
-  root.position.copy(normal).multiplyScalar(1.036);
-  alignObjectToSurface(THREE, root, normal);
-  root.scale.setScalar(1.08);
-
-  return root;
-}
-
-export function createChitinPlanetEffects({
-  THREE,
-  profile,
-}) {
+export function createChitinPlanetEffects({ THREE, profile }) {
   const root = new THREE.Group();
   root.name = "Chapter03_ChitinEffects";
 
-  const center = new THREE.Vector3(-.56, -.18, .8).normalize();
-  const hornMaterial = createThemeMaterial(THREE, {
-    color: "#9a5a24",
-    roughness: .84,
+  const duneGeometry = new THREE.SphereGeometry(
+    .078, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2,
+  );
+  const duneMaterial = createThemeMaterial(THREE, {
+    color: "#b66b25",
+    emissive: "#4a1d08",
+    emissiveIntensity: .025,
+    roughness: .98,
     metalness: 0,
-    emissive: "#431407",
-    emissiveIntensity: .04,
   });
-  const horns = createSurfaceInstances({
+  const dunes = createRouteInstances({
     THREE,
-    geometry: new THREE.ConeGeometry(.026, .14, 5),
-    material: hornMaterial,
-    count: Math.max(8, Math.floor(profile.structures * .72)),
+    chapterId: "chapter_03",
+    geometry: duneGeometry,
+    material: duneMaterial,
+    count: Math.max(10, Math.floor(profile.structures * .64)),
     seed: 3301,
-    radius: 1.02,
-    center,
-    spread: .78,
-    minimumScale: .58,
-    scaleRange: 1.1,
-    verticalScale: 1.55,
+    radius: 1.014,
+    minimumSideOffset: .045,
+    maximumSideOffset: .13,
+    scaleAt: (random) => [
+      .8 + random() * 1.35,
+      .22 + random() * .28,
+      .9 + random() * 1.55,
+    ],
+    rotationJitter: Math.PI * .3,
   });
-  horns.name = "ChitinHorns";
-  root.add(horns);
+  dunes.name = "ChitinRouteDunes";
+  root.add(dunes);
 
-  const ribCage = createRibCage(THREE);
-  root.add(ribCage);
-
-  const dust = createShellPoints({
+  const dust = createRoutePoints({
     THREE,
-    count: profile.particles,
+    chapterId: "chapter_03",
+    count: Math.max(18, Math.floor(profile.particles * .64)),
     seed: 3302,
-    minimumRadius: 1.08,
-    radiusRange: .42,
+    radius: 1.045,
+    heightRange: .045,
     color: "#d9912b",
-    size: .015,
-    opacity: .42,
+    size: .012,
+    opacity: .34,
     additive: false,
-    equatorial: true,
   });
-  dust.name = "ChitinDustBand";
+  dust.name = "ChitinRouteDust";
   root.add(dust);
 
-  const stormMaterial = new THREE.MeshBasicMaterial({
-    color: "#f59e0b",
-    transparent: true,
-    opacity: .14,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
+  const sandStreaks = createRouteWindSegments({
+    THREE,
+    chapterId: "chapter_03",
+    count: Math.max(6, profile.lines * 3),
+    seed: 3303,
+    radius: 1.052,
+    length: .075,
+    color: "#f6ad55",
+    opacity: .22,
   });
-  const stormRing = new THREE.Mesh(
-    new THREE.TorusGeometry(1.18, .014, 8, 96),
-    stormMaterial,
-  );
-  stormRing.name = "ChitinSandCurrent";
-  stormRing.rotation.set(Math.PI * .54, .22, Math.PI * .12);
-  root.add(stormRing);
+  sandStreaks.name = "ChitinSandStreaks";
+  root.add(sandStreaks);
 
-  root.userData.update = (
-    delta,
-    elapsed,
-    reduceMotion,
-  ) => {
-    const motion = reduceMotion ? .08 : 1;
-    dust.rotation.y += delta * .16 * motion;
-    stormRing.rotation.z -= delta * .075 * motion;
-    ribCage.rotation.y = Math.sin(elapsed * .14) * .018 * motion;
-
+  root.userData.update = (delta, elapsed, reduceMotion) => {
     setMaterialEffectPulse(
-      stormMaterial,
-      .68 + Math.sin(elapsed * .9) * .16,
+      dust.material,
+      .76 + Math.sin(elapsed * .72) * .14,
+    );
+    setMaterialEffectPulse(
+      sandStreaks.userData.windMaterial,
+      .72 + Math.sin(elapsed * 1.05) * .16,
     );
   };
-
   return root;
 }
