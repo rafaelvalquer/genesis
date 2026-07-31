@@ -14,7 +14,6 @@ import { useProjectedMarkers } from "./useProjectedMarkers.js";
 import { useCampaignAnimations } from "./useCampaignAnimations.js";
 import { getCampaignBiome } from "./campaignBiomes.js";
 import "./campaign-map.css";
-import "../visual/genesis-world-themes.css";
 
 const CampaignPlanet = lazy(() => import("./CampaignPlanet.jsx"));
 
@@ -98,19 +97,10 @@ export default function CampaignPage({ campaign }) {
   return <main
     ref={rootRef}
     className={`campaign-map campaign-biome-${biome.key}`}
-    data-world-theme={biome.key}
-    data-world-signature={biome.planetEffects.signature}
     style={{
-      "--campaign-primary": biome.ui.primary,
-      "--campaign-secondary": biome.ui.secondary,
-      "--campaign-accent": biome.ui.accent,
+      "--campaign-primary": activeChapter.palette.primary,
+      "--campaign-accent": activeChapter.palette.accent,
       "--campaign-fog": biome.fog,
-      "--campaign-atmosphere": biome.atmosphere,
-      "--campaign-panel": biome.ui.panel,
-      "--campaign-panel-alt": biome.ui.panelAlt,
-      "--campaign-theme-line": biome.ui.line,
-      "--campaign-grid": biome.ui.grid,
-      "--world-pattern-opacity": biome.ui.patternOpacity,
       "--campaign-cover": `url(${getArenaUrl(activeChapter.coverArenaId)})`,
     }}
   >
@@ -138,10 +128,7 @@ export default function CampaignPage({ campaign }) {
             onWebGLFailure={() => { setWebglFailed(true); setSceneReady(true); }}
           />
         </Suspense>}
-        <div className="campaign-biome-label">
-          <span>{biome.label.toUpperCase()}</span>
-          <b>{biome.planetEffects.signature}</b>
-        </div>
+        <div className="campaign-biome-label"><span>BIOMA ATIVO</span><b>{biome.detail}</b></div>
         {selectedPhase && <MissionPanel
           phase={selectedPhase}
           chapter={activeChapter}

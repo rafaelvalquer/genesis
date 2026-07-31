@@ -1,0 +1,32 @@
+{
+  "installedAt": "2026-07-31T13:46:09.068342",
+  "repoRoot": "C:\\Projetos\\Genesis",
+  "backupRoot": "C:\\Projetos\\Genesis\\.genesis-backups\\world-themes-20260731-134608",
+  "copied": [
+    "src/campaign/campaignBiomes.js",
+    "src/campaign/CampaignPage.jsx",
+    "src/campaign/CampaignPlanet.jsx",
+    "src/campaign/campaignBiomes.test.js",
+    "src/home/CommandPage.jsx",
+    "src/home/CommandGlobeScene.js",
+    "src/visual/createGenesisPlanetLights.js",
+    "src/visual/createGenesisChapterEffects.js",
+    "src/visual/applyGenesisWorldTheme.js",
+    "src/visual/genesis-world-themes.css",
+    "src/visual/createGenesisPlanetLights.test.js",
+    "src/visual/createGenesisChapterEffects.test.js",
+    "src/visual/effects/genesisEffectUtils.js",
+    "src/visual/effects/createHivePlanetEffects.js",
+    "src/visual/effects/createGlassPlanetEffects.js",
+    "src/visual/effects/createChitinPlanetEffects.js",
+    "src/visual/effects/createStormPlanetEffects.js"
+  ],
+  "backedUp": [
+    "src/campaign/campaignBiomes.js",
+    "src/campaign/CampaignPage.jsx",
+    "src/campaign/CampaignPlanet.jsx",
+    "src/home/CommandPage.jsx",
+    "src/home/CommandGlobeScene.js",
+    "src/visual/createGenesisPlanetLights.js"
+  ]
+}

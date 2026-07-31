@@ -1,0 +1,113 @@
+{
+  "name": "genesis-world-themes-and-3d-kits",
+  "version": "1.0.1",
+  "createdAt": "2026-07-31T16:11:53.317546+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 4598,
+      "sha256": "790fc712ed890e9ba27742fa50c4596ef94fac628583f7ebb7a0a5188c756bb5"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 5427,
+      "sha256": "6a14325c5ba0a19ab77a321e5417690eaa6f38e37e710e49bb458e988dece019"
+    },
+    {
+      "path": "install.ps1",
+      "size": 887,
+      "sha256": "852aad27c0987671c09be55a077d601a4ead60092b9a88b10f45f1de9b48cfba"
+    },
+    {
+      "path": "install.sh",
+      "size": 390,
+      "sha256": "b19d7d3dc7c5343c3ff36514e6e9c95c05d321b4d3c11f0c1169b94352fddce8"
+    },
+    {
+      "path": "payload/src/campaign/CampaignPage.jsx",
+      "size": 6981,
+      "sha256": "3050d9f6acd3579c0cfa186d93ff1c4be1f73e71b4268e5dba4d76ae8128fc18"
+    },
+    {
+      "path": "payload/src/campaign/CampaignPlanet.jsx",
+      "size": 21015,
+      "sha256": "a845c7dc3b4329c15cda138913d246197871a0750be4a7ea667e586b7b2c720c"
+    },
+    {
+      "path": "payload/src/campaign/campaignBiomes.js",
+      "size": 7063,
+      "sha256": "241cfcd2da397eecb1399856de58765f35af89bcb3973f111f674c2cc0f174f1"
+    },
+    {
+      "path": "payload/src/campaign/campaignBiomes.test.js",
+      "size": 1250,
+      "sha256": "6085f952fefea1cfe9ce659aad691680b022e500f0012fe139a4c6f9301b79fb"
+    },
+    {
+      "path": "payload/src/home/CommandGlobeScene.js",
+      "size": 16518,
+      "sha256": "a3f76151d6021b1ed40ae645fab57bbb3e41626d23c0ee86d09f2e34688abc4d"
+    },
+    {
+      "path": "payload/src/home/CommandPage.jsx",
+      "size": 6923,
+      "sha256": "a3226e2a2feb3d943d740c1497b248275df405d0f2e8d7f105e6220a0cad4588"
+    },
+    {
+      "path": "payload/src/visual/applyGenesisWorldTheme.js",
+      "size": 2703,
+      "sha256": "6b4293fa329603f0b64bb9a9b7cad946cb6cdcb3f6450b63aabf6c5b9ffa79e1"
+    },
+    {
+      "path": "payload/src/visual/createGenesisChapterEffects.js",
+      "size": 4713,
+      "sha256": "f1f018e364325768bf44b0afefd5e72594e191e54cdd1e71c5fefd1cd0ba4bc8"
+    },
+    {
+      "path": "payload/src/visual/createGenesisChapterEffects.test.js",
+      "size": 1879,
+      "sha256": "0d606b12f97c136c5d9733d0881fd3929b6834a782e036522e6ff63ec5e31284"
+    },
+    {
+      "path": "payload/src/visual/createGenesisPlanetLights.js",
+      "size": 6144,
+      "sha256": "e701ed986ff18da72df1805a08d74837c5aaa45f202b5472278a18034ce652ea"
+    },
+    {
+      "path": "payload/src/visual/createGenesisPlanetLights.test.js",
+      "size": 1734,
+      "sha256": "57487dc97884b33d9202c4daa309d9be74bff02ceb15c807b086e568bfa34a09"
+    },
+    {
+      "path": "payload/src/visual/effects/createChitinPlanetEffects.js",
+      "size": 3040,
+      "sha256": "08ff7ca45ad6f59d2acd8341c6c1e0df5fafe52d1a3a51e00efd8eaa6e96bea0"
+    },
+    {
+      "path": "payload/src/visual/effects/createGlassPlanetEffects.js",
+      "size": 2491,
+      "sha256": "4a36cf88439e803e76a58e5df4749214f7f85dee3689383da71bc5555aadc9a9"
+    },
+    {
+      "path": "payload/src/visual/effects/createHivePlanetEffects.js",
+      "size": 2653,
+      "sha256": "f8fae57b3deb3fd2de8de7446a51e0417b55d0e7bdeaa63199d24eab33dfe548"
+    },
+    {
+      "path": "payload/src/visual/effects/createStormPlanetEffects.js",
+      "size": 3767,
+      "sha256": "c7d17ef3bac82840f5957492bc3c01ef499f0d71853abe05a0c2e2df2e40b092"
+    },
+    {
+      "path": "payload/src/visual/effects/genesisEffectUtils.js",
+      "size": 3847,
+      "sha256": "c83439d8dab8e1c33d9c201b80f801c8dd63b9429b48a2441be99ab8fad8e3bb"
+    },
+    {
+      "path": "payload/src/visual/genesis-world-themes.css",
+      "size": 7460,
+      "sha256": "b7434389f372257cbbb7f1adbef3438474eae5e5c9d354c5d862dd90958576cc"
+    }
+  ]
+}

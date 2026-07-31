@@ -15,7 +15,6 @@ import { useCommandMetrics } from "./useCommandMetrics.js";
 import { useCommandQuality } from "./useCommandQuality.js";
 import "./command.css";
 import "./command-selection-enhancements.css";
-import "../visual/genesis-world-themes.css";
 
 const CommandGlobe = lazy(() => import("./CommandGlobe.jsx"));
 
@@ -42,6 +41,10 @@ export default function CommandPage({ campaign }) {
   const metrics = useCommandMetrics(campaign);
   const { currentPhase, currentChapter } = metrics;
 
+  /*
+   * selectedChapterId e selectedPhaseId formam uma única fonte de verdade
+   * para planeta, luzes, marcadores, toolbar e card da missão.
+   */
   const [selectedChapterId, setSelectedChapterId] = useState(currentChapter.id);
   const [selectedPhaseId, setSelectedPhaseId] = useState(currentPhase.id);
 
@@ -88,6 +91,10 @@ export default function CommandPage({ campaign }) {
     reduceMotion: quality.reduceMotion,
   });
 
+  /*
+   * Uma atualização real da campanha reposiciona a tela na operação atual.
+   * A navegação local entre capítulos continua sem alterar o save.
+   */
   useEffect(() => {
     setSelectedChapterId(currentChapter.id);
     setSelectedPhaseId(currentPhase.id);
@@ -130,22 +137,11 @@ export default function CommandPage({ campaign }) {
     className={`command-page command-biome-${biome.key}`}
     data-selected-chapter={displayedChapter.id}
     data-selected-phase={displayedPhase.id}
-    data-world-theme={biome.key}
-    data-world-signature={biome.planetEffects.signature}
     style={{
-      "--command-primary": biome.ui.primary,
-      "--command-secondary": biome.ui.secondary,
-      "--command-accent": biome.ui.accent,
-      "--command-danger": biome.ui.warning,
+      "--command-primary": displayedChapter.palette.primary,
+      "--command-accent": displayedChapter.palette.accent,
       "--command-atmosphere": biome.atmosphere,
       "--command-fog": biome.fog,
-      "--command-panel": biome.ui.panel,
-      "--command-panel-alt": biome.ui.panelAlt,
-      "--command-theme-line": biome.ui.line,
-      "--command-line": biome.ui.line,
-      "--command-theme-glow": biome.ui.glow,
-      "--command-grid": biome.ui.grid,
-      "--world-pattern-opacity": biome.ui.patternOpacity,
     }}
   >
     <div ref={scanlineRef} className="command-scanline" aria-hidden="true" />

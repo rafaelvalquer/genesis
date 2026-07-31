@@ -5,15 +5,7 @@ import CampaignLoading from "./CampaignLoading.jsx";
 import PhaseMarker from "./PhaseMarker.jsx";
 import { consumeOrbitalTransition } from "../home/orbitalTransition.js";
 import { configureGenesisRenderer } from "../visual/configureGenesisRenderer.js";
-import {
-  createGenesisPlanetLights,
-  updateGenesisLightTransition,
-} from "../visual/createGenesisPlanetLights.js";
-import {
-  createGenesisChapterEffects,
-  updateGenesisChapterEffects,
-} from "../visual/createGenesisChapterEffects.js";
-import { applyGenesisWorldTheme } from "../visual/applyGenesisWorldTheme.js";
+import { applyGenesisLightState, createGenesisPlanetLights } from "../visual/createGenesisPlanetLights.js";
 import { disposeThreeObject } from "../visual/disposeThreeObject.js";
 import {
   createGenesisPlanetDebug,
@@ -21,6 +13,7 @@ import {
 } from "../visual/createGenesisPlanetDebug.js";
 import { fitGenesisPlanetCamera } from "../visual/fitGenesisPlanetCamera.js";
 import {
+  applyGenesisPlanetChapterState,
   createGenesisPlanetInstance,
   setGenesisPlanetOpacity,
 } from "../visual/genesisPlanetAsset.js";
@@ -137,16 +130,10 @@ export default function CampaignPlanet({
     }
     detailMesh.count = detailCount;
     detailMesh.instanceMatrix.needsUpdate = true;
-
-    applyGenesisWorldTheme({
-      THREE,
-      runtime,
-      chapter: nextChapter,
-      biome,
-      mode: "campaign",
-      immediate: !runtime.initializedTheme,
+    applyGenesisLightState(runtime, biome);
+    applyGenesisPlanetChapterState({
+      THREE, parts: runtime.planetParts, chapter: nextChapter, biome,
     });
-    runtime.initializedTheme = true;
     planetGroup.rotation.set(biome.rotation.x, biome.rotation.y, biome.rotation.z);
   }, [campaign.unlockedPhaseIndex, quality.detailCount]);
 
@@ -166,12 +153,8 @@ export default function CampaignPlanet({
         const THREE = await import("three");
         if (cancelled || !mountRef.current) return;
         const mount = mountRef.current;
-        const biome = getCampaignBiome(chapter.id);
         const scene = new THREE.Scene();
-        scene.fog = new THREE.FogExp2(
-          biome.world.fogColor,
-          biome.world.fogDensityCampaign,
-        );
+        scene.fog = new THREE.FogExp2("#050817", .055);
         const camera = new THREE.PerspectiveCamera(38, 1, .1, 100);
         camera.position.set(0, .05, 1);
         fitGenesisPlanetCamera({
@@ -189,6 +172,7 @@ export default function CampaignPlanet({
         modelOrientationRoot.add(planetModelRoot, mapOverlayRoot);
         planetGroup.add(modelOrientationRoot);
         scene.add(planetGroup);
+        const biome = getCampaignBiome(chapter.id);
         const uniforms = {
           uTime: { value: 0 },
           uMotion: { value: quality.reduceMotion ? 0 : 1 },
@@ -203,7 +187,7 @@ export default function CampaignPlanet({
         planetModelRoot.add(planet);
 
         const atmosphereMaterial = new THREE.MeshBasicMaterial({
-          color: biome.atmosphere, transparent: true, opacity: biome.world.atmosphereOpacityCampaign,
+          color: biome.atmosphere, transparent: true, opacity: .14,
           side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
         });
         const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.09, 48, 32), atmosphereMaterial);
@@ -218,7 +202,7 @@ export default function CampaignPlanet({
         const detailMesh = new THREE.InstancedMesh(detailGeometry, detailMaterial, quality.detailCount);
         planetModelRoot.add(detailMesh);
 
-        const lights = createGenesisPlanetLights(THREE, scene, biome, renderer);
+        const lights = createGenesisPlanetLights(THREE, scene, biome);
 
         const makePoints = (count, radiusMin, radiusRange, color, size) => {
           const positions = new Float32Array(count * 3);
@@ -237,24 +221,14 @@ export default function CampaignPlanet({
         };
         const stars = makePoints(quality.stars, 5, 20, "#bde7ff", .025);
         scene.add(stars);
-        const particles = makePoints(quality.particles, 1.35, 1.65, biome.particle, biome.world.particleSize);
-        particles.material.opacity = biome.world.particleOpacity;
+        const particles = makePoints(quality.particles, 1.35, 1.65, biome.particle, .018);
         scene.add(particles);
 
-        const chapterEffects = createGenesisChapterEffects({
-          THREE,
-          parent: planetModelRoot,
-          quality,
-          chapterId: chapter.id,
-        });
-
         const runtime = {
-          THREE, scene, camera, renderer, mount,
-          planetGroup, planetReferenceFrame: planetGroup,
+          THREE, scene, camera, renderer, planetGroup, planetReferenceFrame: planetGroup,
           modelOrientationRoot, planetModelRoot, mapOverlayRoot, markerReferenceRoot: mapOverlayRoot,
           planet, atmosphere, routeGroup, detailMesh,
-          ...lights, stars, particles, chapterEffects, uniforms, markerVectors: new Map(),
-          atmosphereBaseOpacity: biome.world.atmosphereOpacityCampaign,
+          ...lights, stars, particles, uniforms, markerVectors: new Map(),
           tempVector: new THREE.Vector3(), planetCenter: new THREE.Vector3(),
           cameraPosition: new THREE.Vector3(), surfaceNormal: new THREE.Vector3(),
           cameraDirection: new THREE.Vector3(), dummy: new THREE.Object3D(),
@@ -284,16 +258,11 @@ export default function CampaignPlanet({
           runtime.planetParts = parts;
           runtime.planetLayout = layout;
           runtime.glbFade = 0;
-          planetModelRoot.add(model);
           const activeChapter = runtime.currentChapter || chapter;
-          applyGenesisWorldTheme({
-            THREE,
-            runtime,
-            chapter: activeChapter,
-            biome: getCampaignBiome(activeChapter.id),
-            mode: "campaign",
-            immediate: true,
+          applyGenesisPlanetChapterState({
+            THREE, parts, chapter: activeChapter, biome: getCampaignBiome(activeChapter.id),
           });
+          planetModelRoot.add(model);
           mount.dataset.planetLayoutCorrected = String(layout.corrected);
           mount.dataset.planetSourceRadius = layout.sourceRadius.toFixed(4);
           mount.dataset.planetScale = layout.scale.toFixed(4);
@@ -326,26 +295,21 @@ export default function CampaignPlanet({
         document.addEventListener("visibilitychange", onVisibility);
         const timer = new THREE.Timer();
         timer.connect(document);
-        let elapsed = 0;
         const frame = (timestamp) => {
           if (runtime.disposed) return;
           frameId = requestAnimationFrame(frame);
           if (!visible) return;
           timer.update(timestamp);
           const delta = Math.min(.04, timer.getDelta());
-          elapsed += delta;
           uniforms.uTime.value += delta;
-          updateGenesisLightTransition(runtime, delta, renderer);
-          updateGenesisChapterEffects(chapterEffects, delta, elapsed, quality.reduceMotion);
-
           if (runtime.glbPlanet && runtime.glbFade < 1) {
             runtime.glbFade = Math.min(1, runtime.glbFade + delta * 1.8);
             mount.dataset.planetFade = runtime.glbFade.toFixed(2);
             const hasAuthoredAtmosphere = Boolean(runtime.planetParts?.atmosphere);
             planet.material.opacity = 1 - runtime.glbFade;
             atmosphere.material.opacity = hasAuthoredAtmosphere
-              ? runtime.atmosphereBaseOpacity * (1 - runtime.glbFade)
-              : runtime.atmosphereBaseOpacity;
+              ? .14 * (1 - runtime.glbFade)
+              : .14;
             detailMesh.material.opacity = 1 - runtime.glbFade;
             detailMesh.visible = runtime.glbFade < 1;
             setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
@@ -374,7 +338,6 @@ export default function CampaignPlanet({
         onRuntimeReady(runtime);
         cleanup = () => {
           runtime.disposed = true;
-          runtime.chapterEffects?.dispose?.();
           cancelAnimationFrame(frameId);
           timer.dispose();
           document.removeEventListener("visibilitychange", onVisibility);

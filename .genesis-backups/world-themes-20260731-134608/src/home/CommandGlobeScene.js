@@ -5,15 +5,7 @@ import { getCampaignPhaseState } from "../visual/campaignPhaseState.js";
 import { disposeThreeObject } from "../visual/disposeThreeObject.js";
 import { declutterProjectedMarkers } from "../visual/declutterProjectedMarkers.js";
 import { configureGenesisRenderer } from "../visual/configureGenesisRenderer.js";
-import {
-  createGenesisPlanetLights,
-  updateGenesisLightTransition,
-} from "../visual/createGenesisPlanetLights.js";
-import {
-  createGenesisChapterEffects,
-  updateGenesisChapterEffects,
-} from "../visual/createGenesisChapterEffects.js";
-import { applyGenesisWorldTheme } from "../visual/applyGenesisWorldTheme.js";
+import { applyGenesisLightState, createGenesisPlanetLights } from "../visual/createGenesisPlanetLights.js";
 import { createRocketOrbit, updateRocketOrbit } from "../visual/createRocketOrbit.js";
 import {
   createGenesisPlanetDebug,
@@ -21,6 +13,7 @@ import {
 } from "../visual/createGenesisPlanetDebug.js";
 import { fitGenesisPlanetCamera } from "../visual/fitGenesisPlanetCamera.js";
 import {
+  applyGenesisPlanetChapterState,
   createGenesisPlanetInstance,
   setGenesisPlanetOpacity,
 } from "../visual/genesisPlanetAsset.js";
@@ -119,7 +112,7 @@ export async function createCommandGlobeScene({
   const THREE = await import("three");
   const biome = getCampaignBiome(chapter.id);
   const scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(biome.world.fogColor, biome.world.fogDensityCommand);
+  scene.fog = new THREE.FogExp2("#030712", .042);
   const camera = new THREE.PerspectiveCamera(38, 1, .1, 80);
   camera.position.set(0, .04, 1);
   fitGenesisPlanetCamera({
@@ -156,32 +149,22 @@ export async function createCommandGlobeScene({
   const proceduralAtmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.09, quality.atmosphereSegments, quality.atmosphereSegments / 2),
     new THREE.MeshBasicMaterial({
-      color: biome.atmosphere, transparent: true, opacity: biome.world.atmosphereOpacityCommand,
-      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
+      color: biome.atmosphere, transparent: true, opacity: .15, side: THREE.BackSide,
+      blending: THREE.AdditiveBlending, depthWrite: false,
     }),
   );
   planetModelRoot.add(proceduralAtmosphere);
 
-  const lights = createGenesisPlanetLights(THREE, scene, biome, renderer);
+  const lights = createGenesisPlanetLights(THREE, scene, biome);
   const stars = makePoints(THREE, Math.max(80, quality.orbitalParticles * 3), 5, 18, "#bde7ff", .023);
-  const particles = makePoints(THREE, quality.orbitalParticles, 1.3, 1.9, biome.particle, biome.world.particleSize);
-  particles.material.opacity = biome.world.particleOpacity;
+  const particles = makePoints(THREE, quality.orbitalParticles, 1.3, 1.9, biome.particle, .017);
   scene.add(stars, particles);
 
-  const chapterEffects = createGenesisChapterEffects({
-    THREE,
-    parent: planetModelRoot,
-    quality,
-    chapterId: chapter.id,
-  });
-
   const runtime = {
-    THREE, scene, camera, renderer, mount,
+    THREE, scene, camera, renderer,
     planetAnchor: planetReferenceFrame, planetGroup: planetReferenceFrame,
     planetReferenceFrame, modelOrientationRoot, planetModelRoot, mapOverlayRoot,
     atmosphere: proceduralAtmosphere, ...lights, uniforms,
-    particles, chapterEffects,
-    atmosphereBaseOpacity: biome.world.atmosphereOpacityCommand,
     markerVectors: new Map(), markerElements, phaseMarkerGroup: null, routeGroup: null,
     selectedPhaseId: selectedPhase.id, currentChapter: chapter, currentPhases: phases,
     dragging: false, velocityX: 0, velocityY: 0, disposed: false, killAuto: null,
@@ -214,17 +197,17 @@ export async function createCommandGlobeScene({
       runtime.phaseMarkerGroup.add(marker);
     });
     mapOverlayRoot.add(runtime.phaseMarkerGroup);
-
     const nextBiome = getCampaignBiome(nextChapter.id);
-    applyGenesisWorldTheme({
-      THREE,
-      runtime,
-      chapter: nextChapter,
-      biome: nextBiome,
-      mode: "command",
-      immediate: !runtime.initialized,
+    uniforms.uDark.value.set(nextBiome.surface[0]);
+    uniforms.uMid.value.set(nextBiome.surface[1]);
+    uniforms.uAccent.value.set(nextBiome.accent);
+    proceduralAtmosphere.material.color.set(nextBiome.atmosphere);
+    particles.material.color.set(nextBiome.particle);
+    applyGenesisLightState(runtime, nextBiome);
+    applyGenesisPlanetChapterState({
+      THREE, parts: runtime.planetParts, chapter: nextChapter, biome: nextBiome,
     });
-
+    if (runtime.rocket?.engineGlow) runtime.rocket.engineGlow.material.color.set(nextBiome.atmosphere);
     runtime.focusPhase(nextSelected.id, !runtime.initialized);
     runtime.initialized = true;
   };
@@ -249,14 +232,6 @@ export async function createCommandGlobeScene({
     runtime.planetLayout = layout;
     runtime.glbFade = 0;
     planetModelRoot.add(model);
-    applyGenesisWorldTheme({
-      THREE,
-      runtime,
-      chapter: runtime.currentChapter,
-      biome: getCampaignBiome(runtime.currentChapter.id),
-      mode: "command",
-      immediate: true,
-    });
     mount.dataset.planetLayoutCorrected = String(layout.corrected);
     mount.dataset.planetSourceRadius = layout.sourceRadius.toFixed(4);
     mount.dataset.planetScale = layout.scale.toFixed(4);
@@ -277,7 +252,6 @@ export async function createCommandGlobeScene({
   }).then((rocket) => {
     if (runtime.disposed) return disposeThreeObject(rocket.orbitRoot);
     runtime.rocket = rocket;
-    rocket.engineGlow?.material?.color?.set(runtime.currentBiome.atmosphere);
   }).catch((error) => console.warn("Foguete GLB indisponível; elemento orbital omitido.", error));
 
   let frameId = 0;
@@ -311,17 +285,14 @@ export async function createCommandGlobeScene({
     const delta = Math.min(.04, timer.getDelta());
     elapsed += delta;
     uniforms.uTime.value += delta;
-    updateGenesisLightTransition(runtime, delta, renderer);
-    updateGenesisChapterEffects(chapterEffects, delta, elapsed, quality.reduceMotion);
-
     if (runtime.glbPlanet && runtime.glbFade < 1) {
       runtime.glbFade = Math.min(1, runtime.glbFade + delta * 1.8);
       mount.dataset.planetFade = runtime.glbFade.toFixed(2);
       const hasAuthoredAtmosphere = Boolean(runtime.planetParts?.atmosphere);
       proceduralMaterial.opacity = 1 - runtime.glbFade;
       proceduralAtmosphere.material.opacity = hasAuthoredAtmosphere
-        ? runtime.atmosphereBaseOpacity * (1 - runtime.glbFade)
-        : runtime.atmosphereBaseOpacity;
+        ? .15 * (1 - runtime.glbFade)
+        : .15;
       setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
       if (runtime.glbFade === 1) {
         proceduralPlanet.visible = false;
@@ -382,7 +353,6 @@ export async function createCommandGlobeScene({
 
   runtime.dispose = () => {
     runtime.disposed = true;
-    runtime.chapterEffects?.dispose?.();
     cancelAnimationFrame(frameId);
     timer.dispose();
     resizeObserver.disconnect();
