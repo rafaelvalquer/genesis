@@ -1,0 +1,603 @@
+import { describe, expect, it } from "vitest";
+import { ENEMIES, TROOPS } from "./content.js";
+import {
+  CELL,
+  VIEWPORT,
+  buildBattleRenderRows,
+  createBattleRowBuffers,
+  getEnemyHitPoint,
+  getEnemyAnimation,
+  getEnemyFrameAnchor,
+  getEnemyMuzzleWorldPosition,
+  getEnemySpriteRect,
+  getAnchoredSpriteRect,
+  getMuzzleWorldPosition,
+  getTroopAnimation,
+  getTroopFrameAnchor,
+  getTroopSpriteRect,
+  getWallDamageFrame,
+  isEnemyFrozen,
+  viewportPointToFieldPoint,
+  writeEnemyVisualPosition,
+} from "./visualGeometry.js";
+
+describe("geometria visual dos disparos", () => {
+  const troop = { id: "marine_1", type: "marine", x: 150, y: 60, lastAttackAt: 32 };
+
+  it("converte os tres canos do marine para a mesma geometria usada pelo sprite", () => {
+    const rect = getTroopSpriteRect(troop, TROOPS.marine);
+    expect(rect.x).toBeCloseTo(87);
+    expect(rect.y).toBeCloseTo(-14.4);
+    expect(rect.width).toBe(126);
+    expect(rect.height).toBe(126);
+    const expected = [[191.58, 70.02], [192.84, 71.28], [204.18, 72.54]];
+    expected.forEach(([x, y], shot) => {
+      const muzzle = getMuzzleWorldPosition(troop, TROOPS.marine, shot);
+      expect(muzzle.x).toBeCloseTo(x);
+      expect(muzzle.y).toBeCloseTo(y);
+    });
+  });
+
+  it("mantem o frame do cano durante o passo fixo que libera cada tiro", () => {
+    const counts = { idle: 20, attack: 47 };
+    expect(getTroopAnimation(troop, TROOPS.marine, 32, counts)).toEqual({ state: "attack", frame: 8 });
+    expect(getTroopAnimation(troop, TROOPS.marine, 160, counts)).toEqual({ state: "attack", frame: 23 });
+    expect(getTroopAnimation(troop, TROOPS.marine, 288, counts)).toEqual({ state: "attack", frame: 38 });
+  });
+
+  it("sincroniza os oito frames do ranger e ancora o laser no cano novo", () => {
+    const ranger = { type: "ranger", x: 500, y: 300, lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 8 };
+    for (let frame = 0; frame < 8; frame += 1) {
+      expect(getTroopAnimation(ranger, TROOPS.ranger, 100 + frame * 100, counts))
+        .toEqual({ state: "attack", frame });
+    }
+    expect(getTroopAnimation(ranger, TROOPS.ranger, 900, counts))
+      .toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(ranger, TROOPS.ranger, 1149, counts))
+      .toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(ranger, TROOPS.ranger, 1150, counts))
+      .toEqual({ state: "idle", frame: 1 });
+    const muzzle = getMuzzleWorldPosition(ranger, TROOPS.ranger);
+    expect(muzzle.x).toBeCloseTo(540.95, 1);
+    expect(muzzle.y).toBeCloseTo(285.29, 1);
+  });
+
+  it("mantém os pés do Caçador de Leviatãs estáveis e dispara pela abertura medida do frame 4", () => {
+    const hunter = { type: "cacadorLeviatas", state: "attack", x: 500, y: 300 };
+    const config = TROOPS.cacadorLeviatas;
+    const anchors = config.attackVisual.frameAnchors;
+    Object.values(anchors).forEach((stateAnchors) => {
+      expect(stateAnchors).toHaveLength(8);
+      stateAnchors.forEach((anchor) => expect(anchor.y).toBe(0.9512));
+    });
+
+    const anchor = anchors.attack[4];
+    expect(anchor).toEqual({ x: 0.3311, y: 0.9512 });
+    const rect = getAnchoredSpriteRect(hunter, config.attackVisual.height, 1, anchor);
+    const muzzle = getMuzzleWorldPosition(hunter, config, 0, 4);
+    expect(config.attackVisual.shots[0]).toMatchObject({
+      atMs: 360,
+      frame: 4,
+      muzzle: { x: 0.6436, y: 0.3581 },
+    });
+    expect(muzzle.x).toBeCloseTo(rect.x + rect.width * 0.6436, 5);
+    expect(muzzle.y).toBeCloseTo(rect.y + rect.height * 0.3581, 5);
+  });
+
+  it("sincroniza o ciclo criogenico do krio e dispara no primeiro frame", () => {
+    const krio = { type: "krio", x: 460, y: 260, lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 8 };
+    for (let frame = 0; frame < 8; frame += 1) {
+      expect(getTroopAnimation(krio, TROOPS.krio, 100 + frame * 80, counts))
+        .toEqual({ state: "attack", frame });
+    }
+    expect(getTroopAnimation(krio, TROOPS.krio, 740, counts))
+      .toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(krio, TROOPS.krio, 990, counts))
+      .toEqual({ state: "idle", frame: 1 });
+
+    const muzzle = getMuzzleWorldPosition(krio, TROOPS.krio);
+    const anchor = TROOPS.krio.attackVisual.frameAnchors.attack[0];
+    const rect = getAnchoredSpriteRect(krio, 126, 1, anchor);
+    expect(TROOPS.krio.attackVisual.shots[0]).toMatchObject({ atMs: 0, frame: 0 });
+    expect(muzzle.x).toBeCloseTo(rect.x + rect.width * 0.78, 5);
+    expect(muzzle.y).toBeCloseTo(rect.y + rect.height * 0.51, 5);
+  });
+
+  it("sincroniza os oito frames e ancora o cano do novo bombardeiro", () => {
+    const bombardeiro = { type: "bombardeiro", x: 420, y: 260, lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 8 };
+    for (let frame = 0; frame < 8; frame += 1) {
+      expect(getTroopAnimation(bombardeiro, TROOPS.bombardeiro, 100 + frame * 90, counts))
+        .toEqual({ state: "attack", frame });
+    }
+    expect(getTroopAnimation(bombardeiro, TROOPS.bombardeiro, 820, counts))
+      .toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(bombardeiro, TROOPS.bombardeiro, 1020, counts))
+      .toEqual({ state: "idle", frame: 1 });
+
+    const muzzle = getMuzzleWorldPosition(bombardeiro, TROOPS.bombardeiro);
+    const anchor = TROOPS.bombardeiro.attackVisual.frameAnchors.attack[0];
+    const rect = getAnchoredSpriteRect(bombardeiro, 126, 1, anchor);
+    expect(muzzle.x).toBeCloseTo(rect.x + rect.width * 0.8, 5);
+    expect(muzzle.y).toBeCloseTo(rect.y + rect.height * 0.595, 5);
+  });
+
+  it("mantem o ataque do incinerador em loop durante a canalizacao", () => {
+    const incinerador = {
+      type: "incinerador", x: 420, y: 260, lastAttackAt: 100,
+      channelingAttack: true, attackStartedAt: 100,
+    };
+    const counts = { idle: 8, attack: 8 };
+    for (let frame = 0; frame < 8; frame += 1) {
+      expect(getTroopAnimation(incinerador, TROOPS.incinerador, 100 + frame * 80, counts))
+        .toEqual({ state: "attack", frame });
+    }
+    expect(getTroopAnimation(incinerador, TROOPS.incinerador, 740, counts))
+      .toEqual({ state: "attack", frame: 0 });
+    expect(getTroopAnimation({ ...incinerador, channelingAttack: false }, TROOPS.incinerador, 740, counts))
+      .toEqual({ state: "idle", frame: 0 });
+
+    TROOPS.incinerador.attackVisual.frameMuzzles.forEach((frameMuzzle, frame) => {
+      const muzzle = getMuzzleWorldPosition(incinerador, TROOPS.incinerador, 0, frame);
+      const anchor = TROOPS.incinerador.attackVisual.frameAnchors.attack[frame];
+      const rect = getAnchoredSpriteRect(incinerador, 126, 1, anchor);
+      expect(muzzle.x).toBeCloseTo(rect.x + rect.width * frameMuzzle.x, 5);
+      expect(muzzle.y).toBeCloseTo(rect.y + rect.height * frameMuzzle.y, 5);
+    });
+
+    const marineMuzzle = getMuzzleWorldPosition(incinerador, TROOPS.marine);
+    const marineRect = getTroopSpriteRect(incinerador, TROOPS.marine);
+    expect(marineMuzzle.x).toBeCloseTo(marineRect.x + marineRect.width * TROOPS.marine.attackVisual.shots[0].muzzle.x, 5);
+  });
+
+  it("sincroniza o recuo do cacador e ancora a escopeta no cano novo", () => {
+    const cacador = { type: "caçador", x: 400, y: 240, lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 8 };
+    [0, 56, 112, 168, 224, 280, 336, 392].forEach((age, frame) => {
+      expect(getTroopAnimation(cacador, TROOPS["caçador"], 100 + age, counts))
+        .toEqual({ state: "attack", frame });
+    });
+    expect(getTroopAnimation(cacador, TROOPS["caçador"], 520, counts))
+      .toEqual({ state: "idle", frame: 0 });
+    const muzzle = getMuzzleWorldPosition(cacador, TROOPS["caçador"]);
+    expect(muzzle.x).toBeCloseTo(444.05, 1);
+    expect(muzzle.y).toBeCloseTo(223.65, 1);
+  });
+
+  it("reproduz a timeline melee do colono sem tratar quadros como disparos", () => {
+    const colono = { type: "colono", lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 4 };
+    expect(getTroopAnimation(colono, TROOPS.colono, 100, counts)).toEqual({ state: "attack", frame: 0 });
+    expect(getTroopAnimation(colono, TROOPS.colono, 196, counts)).toEqual({ state: "attack", frame: 1 });
+    expect(getTroopAnimation(colono, TROOPS.colono, 292, counts)).toEqual({ state: "attack", frame: 2 });
+    expect(getTroopAnimation(colono, TROOPS.colono, 388, counts)).toEqual({ state: "attack", frame: 3 });
+    expect(TROOPS.colono.attackVisual.shots).toBeUndefined();
+  });
+
+  it("percorre oito frames de ataque e usa idle ao parar os monstros do Mar de Vidro", () => {
+    const counts = { idle: 8, walking: 8, attack: 8 };
+    const estilha = { type: "estilha", lastAttackAt: 1000, moving: true };
+
+    expect(getEnemyAnimation(estilha, ENEMIES.estilha, 1000, counts))
+      .toEqual({ state: "attack", frame: 0 });
+    expect(getEnemyAnimation(estilha, ENEMIES.estilha, 1455, counts))
+      .toEqual({ state: "attack", frame: 7 });
+    expect(getEnemyAnimation({ ...estilha, moving: false }, ENEMIES.estilha, 1520, counts).state)
+      .toBe("idle");
+    expect(getEnemyAnimation({ ...estilha, lastAttackAt: -Infinity }, ENEMIES.estilha, 1600, counts).state)
+      .toBe("walking");
+  });
+
+  it("exibe os oito frames do pulso do Crisálio antes de retomar o movimento", () => {
+    const counts = { idle: 8, walking: 8, attack: 8, pulse: 8 };
+    const crisalio = {
+      type: "crisalio", lastAttackAt: -Infinity, lastShieldPulseAt: 1000, moving: true,
+    };
+    expect(getEnemyAnimation(crisalio, ENEMIES.crisalio, 1000, counts))
+      .toEqual({ state: "pulse", frame: 0 });
+    expect(getEnemyAnimation(crisalio, ENEMIES.crisalio, 1959, counts))
+      .toEqual({ state: "pulse", frame: 7 });
+    expect(getEnemyAnimation(crisalio, ENEMIES.crisalio, 1960, counts).state)
+      .toBe("walking");
+  });
+
+  it.each([
+    [0, 0],
+    [174, 0],
+    [175, 1],
+    [349, 1],
+    [350, 2],
+    [524, 2],
+    [525, 3],
+    [699, 3],
+    [700, 4],
+    [874, 4],
+    [875, 5],
+    [1049, 5],
+    [1050, 6],
+    [1224, 6],
+    [1225, 7],
+    [1399, 7],
+    [1400, 0],
+  ])("usa no instante %sms o frame %s da respiracao natural", (elapsed, frame) => {
+    const colono = { type: "colono", lastAttackAt: -Infinity };
+    expect(getTroopAnimation(colono, TROOPS.colono, elapsed, { idle: 8, attack: 4 }))
+      .toEqual({ state: "idle", frame });
+  });
+
+  it("reinicia o idle do colono no frame zero ao terminar a estocada", () => {
+    const colono = { type: "colono", lastAttackAt: 100 };
+    const counts = { idle: 8, attack: 4 };
+    expect(getTroopAnimation(colono, TROOPS.colono, 519, counts)).toEqual({ state: "attack", frame: 3 });
+    expect(getTroopAnimation(colono, TROOPS.colono, 520, counts)).toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(colono, TROOPS.colono, 880, counts)).toEqual({ state: "idle", frame: 2 });
+  });
+
+  it("preserva a cadencia de 85ms para tropas sem idleVisual", () => {
+    const marine = { type: "marine", lastAttackAt: -Infinity };
+    expect(getTroopAnimation(marine, TROOPS.marine, 84, { idle: 20 })).toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(marine, TROOPS.marine, 85, { idle: 20 })).toEqual({ state: "idle", frame: 1 });
+  });
+
+  it("completa o ciclo idle do reator a cada dois segundos", () => {
+    const reator = { type: "reator", lastAttackAt: -Infinity };
+    for (let frame = 0; frame < 8; frame += 1) {
+      expect(getTroopAnimation(reator, TROOPS.reator, frame * 250, { idle: 8, attack: 8 }))
+        .toEqual({ state: "idle", frame });
+    }
+    expect(getTroopAnimation(reator, TROOPS.reator, 2000, { idle: 8, attack: 8 }))
+      .toEqual({ state: "idle", frame: 0 });
+  });
+
+  it("mantem todos os frames do colono presos ao mesmo ponto no chao", () => {
+    const colono = { x: 280, y: 240 };
+    for (const state of ["idle", "attack"]) {
+      TROOPS.colono.attackVisual.frameAnchors[state].forEach((expectedAnchor, frame) => {
+        const anchor = getTroopFrameAnchor(TROOPS.colono, state, frame);
+        const rect = getAnchoredSpriteRect(colono, 126, 1, anchor);
+        expect(anchor).toEqual(expectedAnchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(colono.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(colono.y + CELL.height * 0.43, 5);
+      });
+    }
+  });
+
+  it("mantem o Interceptador alinhado em todos os estados em pe", () => {
+    const icaro = { type: "interceptadorIcaro", x: 280, y: 240 };
+    for (const state of ["idle", "attackBurst", "interceptionLock", "interceptionFire", "paralyzed"]) {
+      for (let frame = 0; frame < 8; frame += 1) {
+        const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, state, frame);
+        const rect = getAnchoredSpriteRect(icaro, 110, 1, anchor);
+        expect(anchor).toMatchObject({ y: 0.96875, scale: 1 });
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(icaro.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(icaro.y + CELL.height * 0.43, 5);
+      }
+    }
+  });
+
+  it("mantem os oito frames de ataque do Operador Jano no mesmo apoio", () => {
+    const jano = { x: 360, y: 220 };
+    const anchors = TROOPS.operadorJano.attackVisual.frameAnchors.attackFront;
+    expect(anchors).toHaveLength(8);
+    anchors.forEach((anchor) => {
+      const rect = getAnchoredSpriteRect(jano, TROOPS.operadorJano.attackVisual.height, 1, anchor);
+      expect(anchor.y).toBe(0.9512);
+      expect(rect.y + rect.height * anchor.y).toBeCloseTo(jano.y + CELL.height * 0.43, 5);
+    });
+    expect(anchors.map(({ x }) => x)).toEqual([
+      0.5169, 0.4565, 0.4394, 0.3915, 0.4896, 0.4875, 0.4643, 0.4173,
+    ]);
+  });
+
+  it("faz os quatro tiros e as tres interceptacoes nascerem do cano por quadro", () => {
+    const burst = { type: "interceptadorIcaro", state: "attackBurst", x: 400, y: 240 };
+    [3, 4, 5, 6].forEach((frame, shot) => {
+      const muzzle = getMuzzleWorldPosition(burst, TROOPS.interceptadorIcaro, shot, frame);
+      const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, "attackBurst", frame);
+      const rect = getAnchoredSpriteRect(
+        burst,
+        TROOPS.interceptadorIcaro.attackVisual.height,
+        1,
+        anchor,
+      );
+      const expected = TROOPS.interceptadorIcaro.attackVisual.frameMuzzles[frame];
+      expect(muzzle.x).toBeCloseTo(rect.x + rect.width * expected.x, 5);
+      expect(muzzle.y).toBeCloseTo(rect.y + rect.height * expected.y, 5);
+    });
+
+    const special = { ...burst, state: "interceptionFire" };
+    [3, 4, 5].forEach((frame, shot) => {
+      const muzzle = getMuzzleWorldPosition(special, TROOPS.interceptadorIcaro, shot, frame);
+      const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, "interceptionFire", frame);
+      const rect = getAnchoredSpriteRect(
+        special,
+        TROOPS.interceptadorIcaro.interceptionFireVisual.height,
+        1,
+        anchor,
+      );
+      const expected = TROOPS.interceptadorIcaro.interceptionFireVisual.frameMuzzles[frame];
+      expect(muzzle.x).toBeCloseTo(rect.x + rect.width * expected.x, 5);
+      expect(muzzle.y).toBeCloseTo(rect.y + rect.height * expected.y, 5);
+    });
+  });
+
+  it("mantem os dezesseis frames do cacador presos ao mesmo ponto no chao", () => {
+    const cacador = { x: 280, y: 240 };
+    for (const state of ["idle", "attack"]) {
+      TROOPS["caçador"].attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(cacador, 126, 1, anchor);
+        expect(getTroopFrameAnchor(TROOPS["caçador"], state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(cacador.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(cacador.y + CELL.height * 0.43, 5);
+      });
+    }
+  });
+
+  it("mantem os dezesseis frames do bombardeiro presos ao mesmo ponto no chao", () => {
+    const bombardeiro = { x: 360, y: 220 };
+    const attackPixelHeights = [148, 152, 176, 169, 183, 189, 189, 189];
+    const idleVisibleHeight = 126 * 193 / 256;
+    const attackVisibleHeights = [];
+    for (const state of ["idle", "attack"]) {
+      TROOPS.bombardeiro.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(bombardeiro, 126, 1, anchor);
+        expect(getTroopFrameAnchor(TROOPS.bombardeiro, state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(bombardeiro.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(bombardeiro.y + CELL.height * 0.43, 5);
+        if (state === "attack") {
+          expect(anchor.scale).toBe(1.0212);
+          attackVisibleHeights.push(rect.height * attackPixelHeights[frame] / 256);
+        }
+      });
+    }
+    expect(attackVisibleHeights[0]).toBeLessThan(idleVisibleHeight * 0.8);
+    attackVisibleHeights.slice(5).forEach((height) => expect(height).toBeCloseTo(idleVisibleHeight, 1));
+  });
+
+  it("mantem personagem e tripé do morteiro presos ao mesmo ponto no chão", () => {
+    const artilheira = { x: 360, y: 220 };
+    const config = TROOPS.artilheiraMorteiro;
+    for (const state of ["idle", "attack"]) {
+      config.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(
+          artilheira,
+          config.attackVisual.height,
+          config.attackVisual.aspectRatio,
+          anchor,
+        );
+        expect(getTroopFrameAnchor(config, state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(artilheira.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(artilheira.y + CELL.height * 0.43, 5);
+      });
+    }
+    expect(getTroopAnimation(
+      { type: config.id, lastAttackAt: 100 },
+      config,
+      580,
+      { idle: 8, attack: 8 },
+    )).toEqual({ state: "attack", frame: 4 });
+  });
+
+  it("mantem os dezesseis frames do krio presos ao mesmo ponto no chao", () => {
+    const krio = { x: 360, y: 220 };
+    for (const state of ["idle", "attack"]) {
+      TROOPS.krio.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(krio, 126, 1, anchor);
+        expect(getTroopFrameAnchor(TROOPS.krio, state, frame)).toEqual(anchor);
+        expect(anchor.scale).toBe(1);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(krio.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(krio.y + CELL.height * 0.43, 5);
+      });
+    }
+  });
+
+  it("mantem os dezesseis frames do incinerador presos ao mesmo ponto no chao", () => {
+    const incinerador = { x: 360, y: 220 };
+    const attackPixelHeights = [212, 191, 193, 205, 205, 193, 210, 198];
+    for (const state of ["idle", "attack"]) {
+      TROOPS.incinerador.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(incinerador, 126, 1, anchor);
+        expect(getTroopFrameAnchor(TROOPS.incinerador, state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(incinerador.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(incinerador.y + CELL.height * 0.43, 5);
+        if (state === "attack") {
+          expect(attackPixelHeights[frame] * anchor.scale).toBeCloseTo(222, 1);
+        }
+      });
+    }
+  });
+
+  it("mantem os vinte e quatro frames do Colosso de Impacto no mesmo apoio", () => {
+    const colosso = { x: 360, y: 220 };
+    const config = TROOPS.colossoImpacto;
+    expect(config.attackVisual.height).toBe(158);
+    expect(config.spriteOffsetY).toBe(8);
+    for (const state of ["idle", "attack", "special"]) {
+      config.attackVisual.frameAnchors[state].forEach((anchor, frame) => {
+        const rect = getAnchoredSpriteRect(colosso, config.attackVisual.height, 1, anchor);
+        expect(getTroopFrameAnchor(config, state, frame)).toEqual(anchor);
+        expect(rect.x + rect.width * anchor.x).toBeCloseTo(colosso.x, 5);
+        expect(rect.y + rect.height * anchor.y).toBeCloseTo(colosso.y + CELL.height * 0.43, 5);
+      });
+    }
+    expect(getTroopAnimation({ type: config.id, lastAttackAt: 100, lastAttackMode: "normal" }, config, 500, { attack: 8 })).toEqual({ state: "attack", frame: 4 });
+    expect(getTroopAnimation({ type: config.id, lastAttackAt: 100, lastAttackMode: "special" }, config, 740, { special: 8 })).toEqual({ state: "special", frame: 4 });
+  });
+
+  it("ancora o destino visual no torso do inimigo", () => {
+    const point = getEnemyHitPoint({ x: 500, y: 60, scale: 1 });
+    expect(point.x).toBe(500);
+    expect(point.y).toBeCloseTo(54);
+  });
+
+  it("separa a faixa de contencao das cinco rotas logicas", () => {
+    expect(VIEWPORT).toEqual({ width: 1100, height: 680, fieldOffsetY: 80 });
+    expect(viewportPointToFieldPoint(500, 79)).toBeNull();
+    expect(viewportPointToFieldPoint(500, 80)).toEqual({ x: 500, y: 0 });
+    expect(viewportPointToFieldPoint(500, 679)).toEqual({ x: 500, y: 599 });
+  });
+
+  it("aplica o deslocamento vertical aos inimigos terrestres redesenhados", () => {
+    const enemy = { type: "crix", x: 500, y: 180, scale: ENEMIES.crix.scale };
+    const anchor = getEnemyFrameAnchor(ENEMIES.crix, "idle", 0);
+    const rect = getEnemySpriteRect(enemy, ENEMIES.crix, "idle", 0);
+    expect(rect.y + rect.height * anchor.y)
+      .toBeCloseTo(enemy.y + CELL.height * 0.43 - 10 * ENEMIES.crix.scale, 5);
+  });
+
+  it("reduz e baixa Medu, Neurax e Oculis em todos os estados", () => {
+    for (const type of ["medu", "neurax", "oculis"]) {
+      const config = ENEMIES[type];
+      const enemy = { type, x: 500, y: 180, scale: config.scale };
+      expect(config.scale).toBeCloseTo(1.12 * 0.9, 2);
+      for (const state of ["idle", "walking", "attack"]) {
+        const anchor = getEnemyFrameAnchor(config, state, 0);
+        const rect = getEnemySpriteRect(enemy, config, state, 0);
+        const anchorY = rect.y + rect.height * anchor.y;
+        const previousAnchorY = enemy.y + CELL.height * 0.43 - 26 * 1.12;
+        expect(anchorY - previousAnchorY).toBeCloseTo(9, 0);
+      }
+    }
+  });
+
+  it("mantem Vexar e Silex alinhados entre estados", () => {
+    for (const type of ["vexar", "silex"]) {
+      const config = ENEMIES[type];
+      const enemy = { type, x: 500, y: 180, scale: config.scale };
+      const idleAnchor = getEnemyFrameAnchor(config, "idle", 0);
+      const attackAnchor = getEnemyFrameAnchor(config, "attack", 0);
+      const idleRect = getEnemySpriteRect(enemy, config, "idle", 0);
+      const attackRect = getEnemySpriteRect(enemy, config, "attack", 0);
+      const idleY = idleRect.y + idleRect.height * idleAnchor.y;
+      const attackY = attackRect.y + attackRect.height * attackAnchor.y;
+      expect(attackY).toBeCloseTo(idleY, 5);
+    }
+  });
+
+  it("mantem os pes do Obsidonte na rota sem empurrar o sprite grande", () => {
+    const enemy = { type: "obsidonte", x: 500, y: 60, scale: 1.65 };
+    ["idle", "walking", "attack"].forEach((state) => {
+      const anchor = getEnemyFrameAnchor(ENEMIES.obsidonte, state, 0);
+      const rect = getEnemySpriteRect(enemy, ENEMIES.obsidonte, state, 0);
+      expect(rect.y + rect.height * anchor.y).toBeCloseTo(enemy.y + CELL.height * 0.43, 5);
+    });
+    const idleRect = getEnemySpriteRect(enemy, ENEMIES.obsidonte, "idle", 0);
+    expect(idleRect.y).toBeLessThan(8);
+    expect(idleRect.y + VIEWPORT.fieldOffsetY).toBeGreaterThanOrEqual(0);
+  });
+
+  it("sincroniza carga, lançamento, recarga e caminhada do Mago Abissal", () => {
+    const mage = {
+      type: "magoAbissal", x: 800, y: 180, scale: 1.18, casting: true,
+      castStartedAt: 100, lastAttackAt: -Infinity, moving: false,
+    };
+    const counts = { idle: 8, walking: 8, attack: 12 };
+    expect(getEnemyAnimation(mage, ENEMIES.magoAbissal, 100, counts)).toEqual({ state: "attack", frame: 0 });
+    expect(getEnemyAnimation(mage, ENEMIES.magoAbissal, 999, counts)).toEqual({ state: "attack", frame: 7 });
+
+    const released = { ...mage, casting: false, lastAttackAt: 1000 };
+    expect(getEnemyAnimation(released, ENEMIES.magoAbissal, 1000, counts)).toEqual({ state: "attack", frame: 8 });
+    expect(getEnemyAnimation(released, ENEMIES.magoAbissal, 1399, counts)).toEqual({ state: "attack", frame: 11 });
+    expect(getEnemyAnimation(released, ENEMIES.magoAbissal, 1400, counts).state).toBe("idle");
+    expect(getEnemyAnimation({ ...released, moving: true, lastAttackAt: -Infinity }, ENEMIES.magoAbissal, 1500, counts).state).toBe("walking");
+
+    const muzzle = getEnemyMuzzleWorldPosition(mage, ENEMIES.magoAbissal);
+    expect(muzzle.x).toBeLessThan(mage.x);
+    expect(muzzle.y).toBeLessThan(mage.y);
+  });
+
+  it("usa jump durante a parábola e idle/attack quando o parasita está anexado", () => {
+    const counts = { idle: 12, walking: 12, attack: 12, jump: 12 };
+    const jumping = { type: "parasitaSaltador", jumping: true, jumpProgress: 0.5, lastAttackAt: -Infinity };
+    expect(getEnemyAnimation(jumping, ENEMIES.parasitaSaltador, 400, counts))
+      .toEqual({ state: "jump", frame: 6 });
+
+    const attached = { ...jumping, jumping: false, attachedToTroopId: "troop_1", lastAttackAt: -Infinity };
+    expect(getEnemyAnimation(attached, ENEMIES.parasitaSaltador, 400, counts).state).toBe("idle");
+    expect(getEnemyAnimation({ ...attached, lastAttackAt: 350 }, ENEMIES.parasitaSaltador, 400, counts).state)
+      .toBe("attack");
+  });
+
+  it("mantem o estado visual congelado apenas durante a lentidao", () => {
+    const enemy = { dead: false, slowUntil: 1800 };
+    expect(isEnemyFrozen(enemy, 1799)).toBe(true);
+    expect(isEnemyFrozen(enemy, 1800)).toBe(false);
+    expect(isEnemyFrozen({ ...enemy, dead: true }, 1000)).toBe(false);
+  });
+
+  it("configura individualmente todas as tropas de ataque a distancia", () => {
+    const ranged = ["marine", "caçador", "sniper", "krio", "ranger", "bombardeiro", "guarda", "incinerador"];
+    for (const troopId of ranged) {
+      expect(TROOPS[troopId].attackVisual?.shots[0]?.muzzle).toBeTruthy();
+    }
+    expect(TROOPS.bombardeiro.attackVisual.visualCount).toBe(3);
+  });
+
+  it("seleciona os dois estados de ataque e seus canos para a Demolidora", () => {
+    const demolisher = { type: "demolidora", x: 150, y: 180, lastAttackAt: 1000, lastAttackMode: "mine" };
+    expect(getTroopAnimation(demolisher, TROOPS.demolidora, 1320, { attackMine: 8, attackGun: 8 }))
+      .toEqual({ state: "attackMine", frame: 4 });
+    const mineMuzzle = getMuzzleWorldPosition(demolisher, TROOPS.demolidora);
+    demolisher.lastAttackMode = "gun";
+    expect(getTroopAnimation(demolisher, TROOPS.demolidora, 1180, { attackMine: 8, attackGun: 8 }))
+      .toEqual({ state: "attackGun", frame: 3 });
+    const gunMuzzle = getMuzzleWorldPosition(demolisher, TROOPS.demolidora);
+    expect(mineMuzzle.x).not.toBeCloseTo(gunMuzzle.x);
+    expect(mineMuzzle.y).not.toBeCloseTo(gunMuzzle.y);
+  });
+
+  it("anima o idle do Interceptador mesmo sem stateStartedAt no preview", () => {
+    const preview = { type: "interceptadorIcaro", state: "idle", lastAttackAt: -Infinity };
+    expect(getTroopAnimation(preview, TROOPS.interceptadorIcaro, 0, { idle: 8 }))
+      .toEqual({ state: "idle", frame: 0 });
+    expect(getTroopAnimation(preview, TROOPS.interceptadorIcaro, 390, { idle: 8 }))
+      .toEqual({ state: "idle", frame: 3 });
+  });
+
+  it.each([
+    [100, 0],
+    [80, 0],
+    [79, 1],
+    [30, 1],
+    [29, 2],
+    [1, 2],
+    [0, 2],
+  ])("seleciona o frame da muralha para %s%% de HP", (hp, frame) => {
+    const wall = { type: "muralhaReforcada", hp, maxHp: 100, lastAttackAt: -Infinity };
+    expect(getWallDamageFrame(wall)).toBe(frame);
+    expect(getTroopAnimation(wall, TROOPS.muralhaReforcada, 9999, { defense: 3 })).toEqual({ state: "defense", frame });
+  });
+});
+
+describe("ordem visual por rota", () => {
+  it("reproduz o sort estavel por row e x sem alocar novos buffers", () => {
+    const troops = [
+      { id: "t2", row: 2, x: 300, y: 300 },
+      { id: "tie-troop", row: 1, x: 200, y: 180 },
+      { id: "t1", row: 1, x: 100, y: 180 },
+    ];
+    const enemies = [
+      { id: "alpha", row: 2, x: 250, y: 300, previousRenderX: 230, previousRenderY: 300, variant: "alpha" },
+      { id: "tie-enemy", row: 1, x: 200, y: 180, previousRenderX: 200, previousRenderY: 180, isEcho: true },
+      { id: "knockback", row: 1, x: 130, y: 180, previousRenderX: 110, previousRenderY: 180,
+        knockbackVisualOffset: 40, knockbackVisualStartedAt: 0, knockbackVisualEndsAt: 1000 },
+    ];
+    const buffers = createBattleRowBuffers();
+    const firstRows = buildBattleRenderRows(troops, enemies, 0.5, 500, false, buffers);
+    expect(firstRows.rows[1].map((entry) => entry.entity.id)).toEqual(["t1", "knockback", "tie-troop", "tie-enemy"]);
+    expect(firstRows.rows[2].map((entry) => entry.entity.id)).toEqual(["alpha", "t2"]);
+    expect(buildBattleRenderRows(troops, enemies, 0.5, 500, false, buffers)).toBe(firstRows);
+  });
+
+  it("calcula salto e anexo sem alterar o inimigo logico", () => {
+    const jumping = { x: 300, y: 180, previousRenderX: 280, previousRenderY: 180, jumping: true, jumpProgress: 0.5 };
+    const out = {};
+    writeEnemyVisualPosition(jumping, { jumpArcHeight: 72 }, 500, 0.5, false, out);
+    expect(out).toEqual({ x: 290, y: 108 });
+    expect(jumping).toMatchObject({ x: 300, y: 180 });
+    writeEnemyVisualPosition({ ...jumping, jumping: false, attachedToTroopId: "troop" }, { attachmentOffsetY: -18 }, 500, 1, false, out);
+    expect(out.y).toBe(162);
+  });
+});

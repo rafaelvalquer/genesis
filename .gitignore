@@ -4,3 +4,6 @@ dist/
 .vite/
 .env*
 !.env.example
+
+# Backups locais dos instaladores Genesis
+.genesis-backups/

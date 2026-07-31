@@ -1,6 +1,43 @@
 import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "./domain.js";
 import {
+  adaptiveAidBlocksIntermission,
+  adaptiveAidCinematicFactor,
+  adaptiveAidPausesSimulation,
+  calculateHardshipScore,
+  capsuleReservesCell,
+  clearExpiredTroopLosses,
+  createAdaptiveAidState,
+  evaluateAdaptiveAid,
+  getEligibleAdaptiveAidOptions,
+  isCapsuleClickable,
+  openAdaptiveAidCapsule as openAdaptiveAidCapsuleDomain,
+  pointHitsCapsule,
+  recordTroopLoss,
+  selectAdaptiveAidOption as selectAdaptiveAidOptionDomain,
+  simulateAdaptiveAid as simulateAdaptiveAidDomain,
+  updateAdaptiveAid,
+  updateAdaptiveAidLifecycle,
+} from "./adaptiveAid.js";
+import {
+  CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
+  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
+} from "./visualGeometry.js";
+import {
+  forceExecutorComboStep, isExecutorArco, updateExecutorArco,
+} from "./executorArco.js";
+import {
+  isIcaroAirTarget,
+  selectIcaroBurstRetarget,
+  updateInterceptadorIcaro,
+} from "./interceptadorIcaro.js";
+import {
+  createWindCurrentState,
+  endWindCurrent,
+  resetWindCurrentForWave,
+  updateWindCurrent,
+} from "./windCurrent.js";
+import {
   createTideCycleState,
   endTideCycle,
   getTideAdjustedEnemySlowFactor,
