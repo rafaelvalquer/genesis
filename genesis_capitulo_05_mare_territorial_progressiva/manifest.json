@@ -1,0 +1,11 @@
+{
+  "name": "Genesis Chapter 5 Progressive Territorial Tide",
+  "version": "2.0.0",
+  "targetRepository": "rafaelvalquer/genesis",
+  "targetBranch": "main",
+  "mechanic": "territorial_progressive_tide",
+  "supplyRulesChanged": false,
+  "missions": ["fase_33", "fase_34", "fase_35", "fase_36", "fase_37", "fase_38", "fase_39", "fase_40"],
+  "cellStates": ["firmGround", "intertidal", "deepWater"],
+  "validation": ["node --check", "vitest", "vite build"]
+}

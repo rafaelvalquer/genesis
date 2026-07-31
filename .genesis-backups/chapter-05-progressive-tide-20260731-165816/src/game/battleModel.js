@@ -1,15 +1,47 @@
 import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "./domain.js";
 import {
+  adaptiveAidBlocksIntermission,
+  adaptiveAidCinematicFactor,
+  adaptiveAidPausesSimulation,
+  calculateHardshipScore,
+  capsuleReservesCell,
+  clearExpiredTroopLosses,
+  createAdaptiveAidState,
+  evaluateAdaptiveAid,
+  getEligibleAdaptiveAidOptions,
+  isCapsuleClickable,
+  openAdaptiveAidCapsule as openAdaptiveAidCapsuleDomain,
+  pointHitsCapsule,
+  recordTroopLoss,
+  selectAdaptiveAidOption as selectAdaptiveAidOptionDomain,
+  simulateAdaptiveAid as simulateAdaptiveAidDomain,
+  updateAdaptiveAid,
+  updateAdaptiveAidLifecycle,
+} from "./adaptiveAid.js";
+import {
+  CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
+  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
+} from "./visualGeometry.js";
+import {
+  forceExecutorComboStep, isExecutorArco, updateExecutorArco,
+} from "./executorArco.js";
+import {
+  isIcaroAirTarget,
+  selectIcaroBurstRetarget,
+  updateInterceptadorIcaro,
+} from "./interceptadorIcaro.js";
+import {
+  createWindCurrentState,
+  endWindCurrent,
+  resetWindCurrentForWave,
+  updateWindCurrent,
+} from "./windCurrent.js";
+import {
   createTideCycleState,
   endTideCycle,
-  getTideAdjustedEnemySlowFactor,
   getTideEnemySpeedFactor,
-  getTidePlacementBlockReason,
   getTideSnapshot,
-  getTideTroopAttackSpeedFactor,
-  isTideMineDisabled,
-  isTideReactorPaused,
   recordTideTroopElimination,
   resetTideCycleForWave,
   updateTideCycle,
@@ -360,8 +392,6 @@ export function canPlaceTroop(session, troopId, row, col) {
   if (!troop || !session.loadout.includes(troopId)) return "Tropa fora do loadout.";
   if (col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) return "Posição reservada para a defesa da base.";
   if (row < 0 || row >= FIELD.rows || col < 0 || col >= FIELD.cols - 1) return "Posição fora da zona de combate.";
-  const tidePlacementReason = getTidePlacementBlockReason(session, row, col);
-  if (tidePlacementReason) return tidePlacementReason;
   const occupant = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col);
   const droneStack = troopId === "droneSentinela" && occupant?.type === "droneSentinela" ? occupant : null;
   if (occupant && !droneStack) {
@@ -460,9 +490,6 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     attackSpeedFactor: 1, attachedParasiteId: null,
     webSlowUntil: 0, webSlowFactor: 1, webRangePenaltyUntil: 0, webRangePenaltyTiles: 0,
     sandBuriedStartedAt: 0, sandBuriedUntil: 0, sandAttackSpeedFactor: 1,
-    submerged: false, submergedStartedAt: -Infinity,
-    tidePressureDamageApplied: 0, tidePressureInundationId: null,
-    tidePressureLastEventAt: -Infinity,
     windRecovery: false,
     electricStacks: 0, electricStacksExpireAt: 0,
     electricParalyzedUntil: 0, electricImmunityUntil: 0,
@@ -1223,12 +1250,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
         + (1 - (troop.sandAttackSpeedFactor || hazard?.cadenceFactor || 1)) * progress;
     }
   }
-  const tideFactor = getTideTroopAttackSpeedFactor(session, troop);
-  setTroopAttackSpeedFactor(
-    troop,
-    Math.min(parasiteFactor, webFactor, sandFactor, tideFactor),
-    session.elapsed,
-  );
+  setTroopAttackSpeedFactor(troop, Math.min(parasiteFactor, webFactor, sandFactor), session.elapsed);
 }
 
 function randomSelection(session, entries, count) {
@@ -2089,7 +2111,6 @@ function fireMortar(session, troop, config, group) {
 }
 
 function mineCellIsFree(session, row, col) {
-  if (getTidePlacementBlockReason(session, row, col)) return false;
   const troopOccupied = session.troops.some((troop) => !troop.dead && troop.row === row && troop.col === col);
   const enemyOccupied = session.enemies.some((enemy) => !enemy.dead
     && enemy.row === row
@@ -2772,7 +2793,6 @@ function updateTroops(session, events, dt) {
       continue;
     }
     if (config.attack === "energy") {
-      if (isTideReactorPaused(session, troop)) continue;
       if (session.elapsed < Number(troop.electricReactorPausedUntil || 0)) continue;
       const reactorInactive = session.waveIndex === session.overchargedReactorInactiveWave
         && session.elapsed - session.waveStartedAt < 5000;
@@ -3403,8 +3423,7 @@ function resolveEnemyBreach(session, enemy, events) {
 
 function moveEnemy(session, enemy, dt, events) {
   enemy.moving = true;
-  const baseSlow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
-  const slow = getTideAdjustedEnemySlowFactor(session, enemy, baseSlow);
+  const slow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
   const swarmSpeed = getSilicaDiggerSwarmSpeedFactor(session, enemy);
   const tideSpeed = getTideEnemySpeedFactor(session, enemy);
   enemy.x -= enemy.speed * swarmSpeed * tideSpeed * session.modifiers.enemySpeed
@@ -5362,7 +5381,6 @@ function updateEnemies(session, dt, events) {
 function updateMines(session, events) {
   for (const mine of session.mines) {
     if (!mine.active) continue;
-    if (isTideMineDisabled(session, mine)) continue;
     const cellLeft = mine.col * CELL.width;
     const cellRight = cellLeft + CELL.width;
     const trigger = session.enemies.find((enemy) => {
@@ -5451,7 +5469,7 @@ export function stepBattle(session, dt = 32) {
     return events;
   }
   updateEnergyPickups(session, dt, events);
-  updateTideCycle(session, events, { eliminateTroop });
+  updateTideCycle(session, events);
   updateWindCurrent(session, events, {
     troops: TROOPS,
     enemies: ENEMIES,

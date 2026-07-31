@@ -12,7 +12,7 @@ function mechanicFor(phase, chapter) {
   if (phase.chapterMechanic) return chapter.mechanic?.label || "Ecos de Vidro";
   if (phase.environmentHazard?.id === "sandstorm") return "Tempestade de Areia";
   if (phase.environmentHazard?.id === "wind_current") return "Correntes de Vento";
-  if (phase.environmentHazard?.id === "tide_cycle") return "Maré Territorial Progressiva";
+  if (phase.environmentHazard?.id === "tide_cycle") return "Ciclo de Maré";
   return chapter.mechanic?.label || `Ambiente ${phase.environment}`;
 }
 

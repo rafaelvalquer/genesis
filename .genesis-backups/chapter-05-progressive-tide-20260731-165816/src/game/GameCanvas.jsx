@@ -1404,7 +1404,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   clearRenderLayer(overlayCtx, layers.overlayEffectLayer, scales.overlayEffectLayer);
   overlayCtx.save();
   overlayCtx.translate(0, VIEWPORT.fieldOffsetY);
-  drawTideOverlay(overlayCtx, session, now, settings, adaptive, hoveredCell);
+  drawTideOverlay(overlayCtx, session, now, settings, adaptive);
   drawWindEffects(overlayCtx, runtime, now, settings, assets.effects?.windCurrent);
   drawAdaptiveAid(overlayCtx, session, assets, session.elapsed, settings);
   drawPulseDisintegrations(overlayCtx, runtime, assets, now, settings);
@@ -2245,24 +2245,18 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   }
 
   const tide = snapshot.tideCycle;
-  const tidePressureLabel = tide?.pressureScore >= .7
-    ? "PRESSÃO ALTA"
-    : tide?.pressureScore >= .35
-      ? "PRESSÃO MODERADA"
-      : "PRESSÃO BAIXA";
-  const tideBanner = tide?.state === "warningAdvance"
-    ? `A MARÉ ESTÁ AVANÇANDO · NÍVEL ${tide.currentLevel}→${tide.targetLevel} · ${(tide.remainingMs / 1000).toFixed(1)}s`
+  const tideColumns = tide?.floodedFromCol != null
+    ? `${tide.floodedFromCol + 1}–${FIELD.enemyEntryCol + 1}`
+    : "—";
+  const tideBanner = tide?.state === "warning"
+    ? `MARÉ SUBINDO · COLUNAS ${tideColumns} · ${(tide.remainingMs / 1000).toFixed(1)}s`
     : tide?.state === "rising"
-      ? `ÁGUA AVANÇANDO · ${tide.warningCells.length} CÉLULAS EM RISCO · ${(tide.remainingMs / 1000).toFixed(1)}s`
-      : tide?.state === "warningRetreat"
-        ? `A MARÉ ESTÁ PERDENDO FORÇA · ${(tide.remainingMs / 1000).toFixed(1)}s`
+      ? `ÁGUA AVANÇANDO · COLUNAS ${tideColumns} · ${(tide.remainingMs / 1000).toFixed(1)}s`
+      : tide?.state === "high"
+        ? `MARÉ ALTA · HOSTIS NA ÁGUA ACELERADOS · ${(tide.remainingMs / 1000).toFixed(1)}s`
         : tide?.state === "receding"
-          ? `A MARÉ ESTÁ RECUANDO · NOVAS POSIÇÕES SERÃO LIBERADAS · ${(tide.remainingMs / 1000).toFixed(1)}s`
-          : tide?.state === "drying"
-            ? `ZONA INTERMARÉ SECANDO · ${(tide.remainingMs / 1000).toFixed(1)}s`
-            : tide?.enabled
-              ? `MARÉ NÍVEL ${tide.currentLevel}/${tide.maximumLevel} · ${tidePressureLabel} · ${tide.safeCells} CÉLULAS SEGURAS`
-              : null;
+          ? `MARÉ RECUANDO · ${(tide.remainingMs / 1000).toFixed(1)}s`
+          : null;
   const sandstormBanner = snapshot.sandstorm?.state === "warning"
     ? `TEMPESTADE DE AREIA SE APROXIMANDO · ${(snapshot.sandstorm.startsInMs / 1000).toFixed(1)}s`
     : snapshot.sandstorm?.state === "active"

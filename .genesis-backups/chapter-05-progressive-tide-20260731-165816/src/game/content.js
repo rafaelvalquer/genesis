@@ -4204,9 +4204,9 @@ export const CHAPTERS = [
     },
     mechanic: {
       id: "tide_cycle",
-      label: "Maré Territorial Progressiva",
+      label: "Ciclo de Maré",
       description:
-        "Água profunda ocupa parte do campo permanentemente. Faixas intermaré avançam quando a defesa cresce e podem recuar após perdas reais, alterando posições disponíveis e acelerando hostis dentro da água.",
+        "A maré pode subir a cada verificação e fortalece inimigos ainda dentro da área inundada. Se nenhuma tropa for eliminada durante a maré alta, o fenômeno pode voltar na mesma onda.",
     },
   },
 ];
