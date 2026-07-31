@@ -1,0 +1,21 @@
+{
+  "installedAt": "2026-07-30T17:27:08.640733",
+  "repoRoot": "C:\\Projetos\\Genesis",
+  "backupRoot": "C:\\Projetos\\Genesis\\.genesis-backups\\command-sync-20260730-172708",
+  "copied": [
+    "src/home/CommandPage.jsx",
+    "src/home/CurrentOperation.jsx",
+    "src/home/ChapterProgress.jsx",
+    "src/home/ChapterProgressItem.jsx",
+    "src/home/command-selection-enhancements.css",
+    "src/home/CommandPage.test.jsx"
+  ],
+  "backedUp": [
+    "src/home/CommandPage.jsx",
+    "src/home/CurrentOperation.jsx",
+    "src/home/ChapterProgress.jsx",
+    "src/home/ChapterProgressItem.jsx",
+    "src/home/command-selection-enhancements.css",
+    "src/home/CommandPage.test.jsx"
+  ]
+}

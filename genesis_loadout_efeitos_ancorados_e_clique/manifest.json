@@ -1,0 +1,83 @@
+{
+  "name": "genesis-loadout-anchored-effects-click",
+  "version": "1.0.0",
+  "createdAt": "2026-07-31T00:37:02.172334+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 2873,
+      "sha256": "433a077895c3fa28fc9db3e5640ed64fef09c2ee9ab352531eb3745fad35d74c"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 5274,
+      "sha256": "ce8144f87a1ae9c48d8f02bbcc3d39476faabfb72b9efae4c04d48e0737c9e45"
+    },
+    {
+      "path": "install.ps1",
+      "size": 887,
+      "sha256": "852aad27c0987671c09be55a077d601a4ead60092b9a88b10f45f1de9b48cfba"
+    },
+    {
+      "path": "install.sh",
+      "size": 390,
+      "sha256": "b19d7d3dc7c5343c3ff36514e6e9c95c05d321b4d3c11f0c1169b94352fddce8"
+    },
+    {
+      "path": "payload/src/loadout/AnimatedTroopPreview.jsx",
+      "size": 5702,
+      "sha256": "8c176ef86b4568d5f92038857d0424ff829441b612522d2c4b8151c97ca427fe"
+    },
+    {
+      "path": "payload/src/loadout/TroopStage.jsx",
+      "size": 5635,
+      "sha256": "0864d9de550d6b97270e45d794cdbec6388aab8edf7dd5d5a0f50cd31189ef4e"
+    },
+    {
+      "path": "payload/src/loadout/TroopStageScene.js",
+      "size": 12811,
+      "sha256": "7e6661f3eb5d00f7aa81515b2bc96ec0ee4be65437965d10166b1aabdf06423d"
+    },
+    {
+      "path": "payload/src/loadout/loadout-full-body-preview.css",
+      "size": 2774,
+      "sha256": "f7ab7b5854d30bcede9c853e886b361d4d172ad2447b06dcf1eaea7a342a5f3f"
+    },
+    {
+      "path": "payload/src/loadout/loadout-stage-interactions.css",
+      "size": 3830,
+      "sha256": "ba600ba5cb34222a0709fea2c685147f1b6e6843d76ac04c97db37f1e0822216"
+    },
+    {
+      "path": "payload/src/loadout/loadoutVisualCatalog.js",
+      "size": 2630,
+      "sha256": "9e3b794780889ae107a88dd96c426dbeb452c74ce383012290d9ae736847c427"
+    },
+    {
+      "path": "payload/src/loadout/troopPreviewFit.js",
+      "size": 5747,
+      "sha256": "05c215fa517f4c63cb445680340f6ff5f8b4dd4e5c97de9b5f2e6a34e5df8f9b"
+    },
+    {
+      "path": "payload/src/loadout/troopStageEffects.js",
+      "size": 2886,
+      "sha256": "d72be5309a68c4144b4607388c09a107036ff4cb6001068a3265e3c327c8478a"
+    },
+    {
+      "path": "payload/src/loadout/troopStageEffects.test.js",
+      "size": 1771,
+      "sha256": "eaf4f5656b310a9e8ca5eccccbb8899d7deaa50f63e42b9d60b6140c9021f50a"
+    },
+    {
+      "path": "payload/src/loadout/troopStageInteraction.test.js",
+      "size": 756,
+      "sha256": "300a73b9f54616672e7877982119915d4b4d475f4b0e250fe738d1aff07599ad"
+    },
+    {
+      "path": "payload/src/loadout/useTroopPreviewFrames.js",
+      "size": 2776,
+      "sha256": "703a2beab0e1fa2bb4745aa0b2a5c016c1afb01651086a6f2255922425c3a9cd"
+    }
+  ]
+}

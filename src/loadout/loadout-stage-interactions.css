@@ -1,0 +1,187 @@
+/*
+ * Efeitos ancorados na cabeça e nos pés medidos do personagem.
+ */
+
+.stage-character-overhead-glow,
+.stage-character-floor-glow,
+.stage-character-click-pulse {
+  position: absolute;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.stage-character-overhead-glow {
+  left: var(--character-center-x);
+  top: var(--character-light-top);
+  width: var(--character-light-width);
+  height: var(--character-light-height);
+  transform: translateX(-50%);
+  opacity: .38;
+  clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--troop-color) 34%, transparent),
+      color-mix(in srgb, var(--troop-color) 9%, transparent) 58%,
+      transparent
+    );
+  filter: blur(3px);
+  mix-blend-mode: screen;
+}
+
+.stage-character-overhead-glow::before {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  width: 72%;
+  height: 18px;
+  content: "";
+  transform: translateX(-50%);
+  border-radius: 50%;
+  opacity: .75;
+  background:
+    radial-gradient(
+      ellipse,
+      color-mix(in srgb, var(--troop-color) 65%, #fff),
+      transparent 70%
+    );
+  filter: blur(5px);
+}
+
+.stage-character-floor-glow {
+  left: var(--character-center-x);
+  top: var(--character-foot-y);
+  width: var(--character-floor-width);
+  height: var(--character-floor-height);
+  transform: translate(-50%, -45%);
+  border: 1px solid color-mix(
+    in srgb,
+    var(--troop-color) 68%,
+    transparent
+  );
+  border-radius: 50%;
+  opacity: .62;
+  background:
+    radial-gradient(
+      ellipse,
+      color-mix(in srgb, var(--troop-color) 23%, transparent),
+      transparent 62%
+    );
+  box-shadow:
+    0 0 18px var(--stage-glow),
+    inset 0 0 24px color-mix(
+      in srgb,
+      var(--troop-color) 18%,
+      transparent
+    );
+}
+
+.stage-character-floor-glow::before,
+.stage-character-floor-glow::after {
+  position: absolute;
+  inset: 16%;
+  content: "";
+  border: 1px solid color-mix(
+    in srgb,
+    var(--troop-color) 46%,
+    transparent
+  );
+  border-radius: 50%;
+}
+
+.stage-character-floor-glow::after {
+  inset: 31%;
+  opacity: .55;
+}
+
+.stage-character-click-pulse {
+  left: var(--character-center-x);
+  top: var(--character-center-y);
+  width: var(--character-click-size);
+  height: var(--character-click-size);
+  transform: translate(-50%, -50%);
+}
+
+.stage-character-click-pulse > i {
+  position: absolute;
+  inset: 26%;
+  border: 1px solid var(--troop-color);
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow:
+    0 0 20px var(--stage-glow),
+    inset 0 0 16px var(--stage-glow);
+  animation:
+    loadout-character-click-wave .68s ease-out forwards;
+}
+
+.stage-character-click-pulse > i:nth-child(2) {
+  animation-delay: .08s;
+}
+
+.stage-character-click-pulse > i:nth-child(3) {
+  animation-delay: .16s;
+}
+
+.troop-stage.is-character-reacting
+.stage-character-overhead-glow {
+  animation:
+    loadout-character-light-response .7s ease-out;
+}
+
+.troop-stage.is-character-reacting
+.stage-character-floor-glow {
+  animation:
+    loadout-character-floor-response .7s ease-out;
+}
+
+@keyframes loadout-character-click-wave {
+  0% {
+    inset: 40%;
+    opacity: .92;
+  }
+
+  100% {
+    inset: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes loadout-character-light-response {
+  0%,
+  100% {
+    opacity: .38;
+    filter: blur(3px);
+  }
+
+  24% {
+    opacity: .88;
+    filter: blur(1px) brightness(1.45);
+  }
+}
+
+@keyframes loadout-character-floor-response {
+  0%,
+  100% {
+    opacity: .62;
+    transform: translate(-50%, -45%) scale(1);
+  }
+
+  28% {
+    opacity: 1;
+    transform: translate(-50%, -45%) scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-character-click-pulse > i {
+    animation-duration: .2s;
+  }
+
+  .troop-stage.is-character-reacting
+  .stage-character-overhead-glow,
+  .troop-stage.is-character-reacting
+  .stage-character-floor-glow {
+    animation-duration: .2s;
+  }
+}

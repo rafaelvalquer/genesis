@@ -1,0 +1,20 @@
+{
+  "installedAt": "2026-07-30T21:27:51.272562",
+  "repoRoot": "C:\\Projetos\\Genesis",
+  "backupRoot": "C:\\Projetos\\Genesis\\.genesis-backups\\loadout-full-body-20260730-212751",
+  "copied": [
+    "src/loadout/loadoutVisualCatalog.js",
+    "src/loadout/troopPreviewFit.js",
+    "src/loadout/AnimatedTroopPreview.jsx",
+    "src/loadout/useTroopPreviewFrames.js",
+    "src/loadout/TroopStage.jsx",
+    "src/loadout/loadout-full-body-preview.css",
+    "src/loadout/troopPreviewFit.test.js"
+  ],
+  "backedUp": [
+    "src/loadout/loadoutVisualCatalog.js",
+    "src/loadout/AnimatedTroopPreview.jsx",
+    "src/loadout/useTroopPreviewFrames.js",
+    "src/loadout/TroopStage.jsx"
+  ]
+}

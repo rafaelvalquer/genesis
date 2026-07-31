@@ -1,0 +1,63 @@
+{
+  "name": "genesis-loadout-full-body-preview",
+  "version": "1.0.0",
+  "createdAt": "2026-07-30T23:06:57.007585+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 3217,
+      "sha256": "a877da877c54f9078c72a217bb72ed960e3cbeee8fe21d7a96551ada23b124cc"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 4562,
+      "sha256": "f0de173322a9fa3e177052ced30582670a7bcab742868e067e1531999cbfefa3"
+    },
+    {
+      "path": "install.ps1",
+      "size": 887,
+      "sha256": "852aad27c0987671c09be55a077d601a4ead60092b9a88b10f45f1de9b48cfba"
+    },
+    {
+      "path": "install.sh",
+      "size": 390,
+      "sha256": "b19d7d3dc7c5343c3ff36514e6e9c95c05d321b4d3c11f0c1169b94352fddce8"
+    },
+    {
+      "path": "payload/src/loadout/AnimatedTroopPreview.jsx",
+      "size": 3614,
+      "sha256": "3f84a88d1ceee8c803ac99a243f807fc5d6a8760b03f459b63516624e0dc207a"
+    },
+    {
+      "path": "payload/src/loadout/TroopStage.jsx",
+      "size": 3084,
+      "sha256": "7fe5adc555885ffb6bf79658fb39ae726b1a5b342f6e53e79d2946e466f8b0a2"
+    },
+    {
+      "path": "payload/src/loadout/loadout-full-body-preview.css",
+      "size": 1761,
+      "sha256": "d3391ce8778e1e82c4584abcf756d36b2186d0ad9d5b7a25a073a0b8b92ee649"
+    },
+    {
+      "path": "payload/src/loadout/loadoutVisualCatalog.js",
+      "size": 2630,
+      "sha256": "9e3b794780889ae107a88dd96c426dbeb452c74ce383012290d9ae736847c427"
+    },
+    {
+      "path": "payload/src/loadout/troopPreviewFit.js",
+      "size": 5747,
+      "sha256": "05c215fa517f4c63cb445680340f6ff5f8b4dd4e5c97de9b5f2e6a34e5df8f9b"
+    },
+    {
+      "path": "payload/src/loadout/troopPreviewFit.test.js",
+      "size": 2191,
+      "sha256": "223f4b4c6fd4631fbc5b9e1df39bc9903f4bf681382c1a57c54f320602b593ec"
+    },
+    {
+      "path": "payload/src/loadout/useTroopPreviewFrames.js",
+      "size": 2776,
+      "sha256": "703a2beab0e1fa2bb4745aa0b2a5c016c1afb01651086a6f2255922425c3a9cd"
+    }
+  ]
+}

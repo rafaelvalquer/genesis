@@ -1,0 +1,59 @@
+{
+  "name": "genesis-command-chapter-mission-sync",
+  "version": "1.0.0",
+  "createdAt": "2026-07-30T20:23:07.567685+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "targetBaseCommit": "b65b71ed6057ded00c76960ada8c53b73d53f870",
+  "files": [
+    {
+      "path": "README.md",
+      "size": 3204,
+      "sha256": "497ecfc493699745ab64900e8b5e49ccddb1c060c4aac6acbc41962d965cde1d"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 3886,
+      "sha256": "716ef78f6574d3f3d4580e091c3b2758103acdcb4194c437fc9940ba39625adb"
+    },
+    {
+      "path": "install.ps1",
+      "size": 972,
+      "sha256": "001f2d3337b646e925c34b4437623e40673cc26f81deca3258aebe60fbd13086"
+    },
+    {
+      "path": "install.sh",
+      "size": 382,
+      "sha256": "d5b71b1245b4feb2fc94e50a41abe139f6e3c67f4b04b25d65dccfd6808d4b1a"
+    },
+    {
+      "path": "payload/src/home/ChapterProgress.jsx",
+      "size": 1638,
+      "sha256": "0cb8edbef706a19db5eed0eda68d2926a9ecda6a200d2c5cbceff3a2b11cab03"
+    },
+    {
+      "path": "payload/src/home/ChapterProgressItem.jsx",
+      "size": 1394,
+      "sha256": "b06f5b377966ab60cd618a4af811edae9fab57693137d38b3284684c25fd84f4"
+    },
+    {
+      "path": "payload/src/home/CommandPage.jsx",
+      "size": 6726,
+      "sha256": "aedb55641aa23a6be7915e2d6997613825446819f5a95d2c56c47bd5e7e94d1f"
+    },
+    {
+      "path": "payload/src/home/CommandPage.test.jsx",
+      "size": 5708,
+      "sha256": "2388d150eab527786bd2f3faef63b239cfc22cc4d0ca55e30478dbe8fa944d5c"
+    },
+    {
+      "path": "payload/src/home/CurrentOperation.jsx",
+      "size": 4586,
+      "sha256": "35e9d617145190452a658ddd2950c5d28aa2cfac356b832286165096085c680a"
+    },
+    {
+      "path": "payload/src/home/command-selection-enhancements.css",
+      "size": 4343,
+      "sha256": "2f8d3be3fdd4023414b3889197dc6c935573be69dd6b0c7d188f47c796a52cd2"
+    }
+  ]
+}
