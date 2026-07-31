@@ -1,0 +1,124 @@
+{
+  "name": "genesis-chapter-05-eclipse",
+  "version": "1.0.0",
+  "createdAt": "2026-07-31T17:22:27.428562+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "targetChapter": "chapter_05",
+  "targetPhases": [
+    "fase_33",
+    "fase_34",
+    "fase_35",
+    "fase_36",
+    "fase_37",
+    "fase_38",
+    "fase_39",
+    "fase_40"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "size": 4979,
+      "sha256": "56b840946ea9a314b3eb664a51e751414e1cafbe65f37b765fba4f2402ac79e3"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 11620,
+      "sha256": "0ef482df8585cab5a2cdfbd970a87ec5a33bcb5e6e6c5eb634deb644e7b70676"
+    },
+    {
+      "path": "install.ps1",
+      "size": 887,
+      "sha256": "852aad27c0987671c09be55a077d601a4ead60092b9a88b10f45f1de9b48cfba"
+    },
+    {
+      "path": "install.sh",
+      "size": 390,
+      "sha256": "b19d7d3dc7c5343c3ff36514e6e9c95c05d321b4d3c11f0c1169b94352fddce8"
+    },
+    {
+      "path": "payload/src/campaign/campaignBiomes.js",
+      "size": 8568,
+      "sha256": "f2098dd8864663982f7b91f4710e5902106c74c182afe3a4047288bf969c6540"
+    },
+    {
+      "path": "payload/src/campaign/campaignBiomes.test.js",
+      "size": 1576,
+      "sha256": "47ebc7751c274d4bc9f98dfa68717fcebb6cebb6c93c1a724c57c7049f41c993"
+    },
+    {
+      "path": "payload/src/campaign/campaignSceneData.js",
+      "size": 1979,
+      "sha256": "b41fe1706d02898f6bc6acefe5192c5caa9d784628074015d1b9d4113520619e"
+    },
+    {
+      "path": "payload/src/campaign/campaignSceneData.test.js",
+      "size": 1342,
+      "sha256": "97b12cad342410b9a57e7b770bf125b7a98a37a4e4c48207e19314e5d8d7854a"
+    },
+    {
+      "path": "payload/src/campaign/storage.js",
+      "size": 4267,
+      "sha256": "6a1b5a9a0b9f32fd99f78bbe92ac1f75bccb2ba464c79a2a60d5f0b9b714d376"
+    },
+    {
+      "path": "payload/src/campaign/storage.test.js",
+      "size": 2852,
+      "sha256": "afa92a5eff61e1786b03c4d43d846c8ca5df9f77a58e1dc28cffe2372489c562"
+    },
+    {
+      "path": "payload/src/game/chapterFiveContent.test.js",
+      "size": 1830,
+      "sha256": "31bb8c648370c8e04ad12a9df5a9adf228bcf48c326bdc4f0e834ff5c72a3868"
+    },
+    {
+      "path": "payload/src/game/chapterFivePhases.js",
+      "size": 18496,
+      "sha256": "2ea9ef57cfb1c8d7efda7db25a47d1e79492a4f7e41f4a076c25309055a23dde"
+    },
+    {
+      "path": "payload/src/visual/createGenesisChapterEffects.js",
+      "size": 4863,
+      "sha256": "9c7900282288ec7cfafe28088a6c7b209bdc598079929ccd758e70addcaf0a72"
+    },
+    {
+      "path": "payload/src/visual/createGenesisChapterEffects.test.js",
+      "size": 1914,
+      "sha256": "f3138b84dae155a7ee7c968a8c1aa242e01b163670064f6ebe0828d279a40445"
+    },
+    {
+      "path": "payload/src/visual/effects/createChitinPlanetEffects.js",
+      "size": 3040,
+      "sha256": "08ff7ca45ad6f59d2acd8341c6c1e0df5fafe52d1a3a51e00efd8eaa6e96bea0"
+    },
+    {
+      "path": "payload/src/visual/effects/createEclipsePlanetEffects.js",
+      "size": 6070,
+      "sha256": "0bf129f2fef417da403b955acf0d59d6fd59e4c0b5bed4390b8f7ccf15dceda3"
+    },
+    {
+      "path": "payload/src/visual/effects/createGlassPlanetEffects.js",
+      "size": 2491,
+      "sha256": "4a36cf88439e803e76a58e5df4749214f7f85dee3689383da71bc5555aadc9a9"
+    },
+    {
+      "path": "payload/src/visual/effects/createHivePlanetEffects.js",
+      "size": 2653,
+      "sha256": "f8fae57b3deb3fd2de8de7446a51e0417b55d0e7bdeaa63199d24eab33dfe548"
+    },
+    {
+      "path": "payload/src/visual/effects/createStormPlanetEffects.js",
+      "size": 3767,
+      "sha256": "c7d17ef3bac82840f5957492bc3c01ef499f0d71853abe05a0c2e2df2e40b092"
+    },
+    {
+      "path": "payload/src/visual/effects/genesisEffectUtils.js",
+      "size": 3847,
+      "sha256": "c83439d8dab8e1c33d9c201b80f801c8dd63b9429b48a2441be99ab8fad8e3bb"
+    },
+    {
+      "path": "payload/src/visual/genesis-world-themes.css",
+      "size": 11300,
+      "sha256": "893f1affe9e382ff971822c025a9bb1136c662dc852d7037bf8dcb2d52625ca1"
+    }
+  ]
+}

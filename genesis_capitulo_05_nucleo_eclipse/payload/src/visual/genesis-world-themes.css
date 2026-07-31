@@ -1,0 +1,521 @@
+/*
+ * Identidade visual compartilhada entre Comando Orbital e Campanha.
+ * O tema não recolore a textura do planeta; ele atua na interface,
+ * atmosfera, partículas, formas e linguagem visual.
+ */
+
+.command-page,
+.campaign-map {
+  transition:
+    background-color .48s ease,
+    border-color .48s ease,
+    color .48s ease;
+}
+
+.command-page .command-module,
+.campaign-map .chapter-rail,
+.campaign-map .mission-panel {
+  transition:
+    background .48s ease,
+    border-color .48s ease,
+    box-shadow .48s ease;
+}
+
+/* Base compartilhada */
+
+.command-page {
+  --command-line: var(--command-theme-line, #153249);
+  --command-glow: var(
+    --command-theme-glow,
+    color-mix(in srgb, var(--command-primary) 27%, transparent)
+  );
+}
+
+.command-page .command-module {
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(
+        in srgb,
+        var(--command-panel-alt) 24%,
+        transparent
+      ),
+      var(--command-panel)
+    );
+}
+
+.command-globe-stage::before,
+.campaign-world::before {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  content: "";
+  opacity: var(--world-pattern-opacity, .2);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.campaign-map {
+  background:
+    radial-gradient(
+      circle at 45% 55%,
+      color-mix(
+        in srgb,
+        var(--campaign-primary) 13%,
+        transparent
+      ),
+      transparent 37%
+    ),
+    linear-gradient(
+      115deg,
+      #01030a 0%,
+      var(--campaign-fog) 62%,
+      #02040a 100%
+    );
+}
+
+.campaign-map .chapter-rail,
+.campaign-map .mission-panel {
+  border-color: var(--campaign-theme-line);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(
+        in srgb,
+        var(--campaign-panel-alt) 28%,
+        transparent
+      ),
+      var(--campaign-panel)
+    );
+}
+
+/* Capítulo 1 — Colmeia */
+
+.command-page[data-world-theme="hive"]::before,
+.campaign-map[data-world-theme="hive"]::after {
+  background-image:
+    radial-gradient(
+      circle at 18px 10px,
+      rgba(45, 212, 191, .12) 0 1px,
+      transparent 2px
+    ),
+    linear-gradient(
+      30deg,
+      transparent 47%,
+      rgba(34, 211, 238, .07) 48% 52%,
+      transparent 53%
+    ),
+    linear-gradient(
+      -30deg,
+      transparent 47%,
+      rgba(34, 211, 238, .06) 48% 52%,
+      transparent 53%
+    );
+  background-size: 36px 22px, 36px 22px, 36px 22px;
+}
+
+.command-page[data-world-theme="hive"]
+.command-globe-stage::before,
+.campaign-map[data-world-theme="hive"]
+.campaign-world::before {
+  background:
+    radial-gradient(
+      ellipse at 31% 64%,
+      rgba(45, 212, 191, .13),
+      transparent 18%
+    ),
+    radial-gradient(
+      ellipse at 67% 31%,
+      rgba(251, 113, 133, .08),
+      transparent 14%
+    );
+}
+
+.command-page[data-world-theme="hive"]
+.command-module {
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.025),
+    inset 0 0 42px rgba(13, 148, 136, .035),
+    0 18px 60px rgba(0,0,0,.22);
+}
+
+/* Capítulo 2 — Vidro */
+
+.command-page[data-world-theme="glass"]::before,
+.campaign-map[data-world-theme="glass"]::after {
+  background-image:
+    linear-gradient(
+      60deg,
+      transparent 48%,
+      rgba(167, 139, 250, .08) 49% 50%,
+      transparent 51%
+    ),
+    linear-gradient(
+      -60deg,
+      transparent 48%,
+      rgba(127, 255, 212, .055) 49% 50%,
+      transparent 51%
+    );
+  background-size: 48px 42px;
+}
+
+.command-page[data-world-theme="glass"]
+.command-globe-stage::before,
+.campaign-map[data-world-theme="glass"]
+.campaign-world::before {
+  background:
+    conic-gradient(
+      from 18deg at 72% 22%,
+      transparent,
+      rgba(167, 139, 250, .1),
+      transparent 20%,
+      rgba(127, 255, 212, .06),
+      transparent 42%
+    );
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% 77%,
+    82% 100%,
+    0 100%
+  );
+}
+
+.command-page[data-world-theme="glass"]
+.command-module,
+.campaign-map[data-world-theme="glass"]
+.chapter-rail,
+.campaign-map[data-world-theme="glass"]
+.mission-panel {
+  border-color: color-mix(
+    in srgb,
+    var(--command-primary, var(--campaign-primary)) 58%,
+    #7fffd4
+  );
+}
+
+/* Capítulo 3 — Quitina */
+
+.command-page[data-world-theme="chitin"]::before,
+.campaign-map[data-world-theme="chitin"]::after {
+  background-image:
+    repeating-linear-gradient(
+      118deg,
+      transparent 0 28px,
+      rgba(245, 158, 11, .065) 29px 30px,
+      transparent 31px 58px
+    ),
+    radial-gradient(
+      circle at 18% 76%,
+      rgba(34, 211, 238, .045),
+      transparent 20%
+    );
+  background-size: auto, 100% 100%;
+}
+
+.command-page[data-world-theme="chitin"]
+.command-globe-stage::before,
+.campaign-map[data-world-theme="chitin"]
+.campaign-world::before {
+  background:
+    linear-gradient(
+      171deg,
+      transparent 0 61%,
+      rgba(217, 119, 6, .085) 62% 64%,
+      transparent 65%
+    ),
+    repeating-linear-gradient(
+      -8deg,
+      transparent 0 37px,
+      rgba(245, 158, 11, .055) 38px 39px,
+      transparent 40px 78px
+    );
+}
+
+.command-page[data-world-theme="chitin"]
+.command-module,
+.campaign-map[data-world-theme="chitin"]
+.chapter-rail,
+.campaign-map[data-world-theme="chitin"]
+.mission-panel {
+  border-color: var(
+    --command-theme-line,
+    var(--campaign-theme-line)
+  );
+  background:
+    repeating-linear-gradient(
+      132deg,
+      rgba(255,255,255,.012) 0 12px,
+      transparent 13px 30px
+    ),
+    linear-gradient(
+      145deg,
+      var(
+        --command-panel-alt,
+        var(--campaign-panel-alt)
+      ),
+      var(
+        --command-panel,
+        var(--campaign-panel)
+      )
+    );
+}
+
+.command-page[data-world-theme="chitin"]
+.command-kicker,
+.command-page[data-world-theme="chitin"]
+.command-window-heading span {
+  color: var(--command-primary);
+}
+
+.command-page[data-world-theme="chitin"]
+.operation-parameters dd,
+.campaign-map[data-world-theme="chitin"]
+.campaign-biome-label b {
+  color: var(
+    --command-accent,
+    var(--campaign-accent)
+  );
+}
+
+/* Capítulo 4 — Tempestade */
+
+.command-page[data-world-theme="storm"]::before,
+.campaign-map[data-world-theme="storm"]::after {
+  background-image:
+    repeating-linear-gradient(
+      -12deg,
+      transparent 0 42px,
+      rgba(56, 189, 248, .065) 43px 44px,
+      transparent 45px 84px
+    ),
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(129, 140, 248, .035),
+      transparent
+    );
+}
+
+.command-page[data-world-theme="storm"]
+.command-globe-stage::before,
+.campaign-map[data-world-theme="storm"]
+.campaign-world::before {
+  background:
+    repeating-linear-gradient(
+      -14deg,
+      transparent 0 58px,
+      rgba(103, 232, 249, .08) 59px 60px,
+      transparent 61px 116px
+    );
+  animation: genesis-world-wind-lines 7s linear infinite;
+}
+
+.command-page[data-world-theme="storm"]
+.command-module,
+.campaign-map[data-world-theme="storm"]
+.chapter-rail,
+.campaign-map[data-world-theme="storm"]
+.mission-panel {
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.03),
+    inset 0 0 34px rgba(79, 70, 229, .04),
+    0 18px 60px rgba(0,0,0,.25);
+}
+
+@keyframes genesis-world-wind-lines {
+  from { transform: translate3d(-2%, 0, 0); }
+  to { transform: translate3d(8%, 2%, 0); }
+}
+
+
+/* Capítulo 5 — Núcleo do Eclipse */
+
+.command-page[data-world-theme="eclipse"]::before,
+.campaign-map[data-world-theme="eclipse"]::after {
+  background-image:
+    repeating-linear-gradient(
+      137deg,
+      transparent 0 36px,
+      rgba(217, 70, 239, .075) 37px 38px,
+      transparent 39px 76px
+    ),
+    repeating-linear-gradient(
+      43deg,
+      transparent 0 58px,
+      rgba(34, 211, 238, .04) 59px 60px,
+      transparent 61px 118px
+    ),
+    radial-gradient(
+      circle at 74% 22%,
+      rgba(217, 70, 239, .08),
+      transparent 24%
+    );
+}
+
+.command-page[data-world-theme="eclipse"]
+.command-globe-stage::before,
+.campaign-map[data-world-theme="eclipse"]
+.campaign-world::before {
+  background:
+    radial-gradient(
+      circle at 38% 36%,
+      transparent 0 11%,
+      rgba(217, 70, 239, .1) 12% 13%,
+      transparent 14% 21%,
+      rgba(34, 211, 238, .055) 22% 23%,
+      transparent 24%
+    ),
+    conic-gradient(
+      from 32deg at 38% 36%,
+      transparent,
+      rgba(217, 70, 239, .09),
+      transparent 16%,
+      rgba(34, 211, 238, .05),
+      transparent 31%
+    );
+  animation: genesis-eclipse-field 14s linear infinite;
+}
+
+.command-page[data-world-theme="eclipse"]
+.command-module,
+.campaign-map[data-world-theme="eclipse"]
+.chapter-rail,
+.campaign-map[data-world-theme="eclipse"]
+.mission-panel {
+  border-color: color-mix(
+    in srgb,
+    var(--command-primary, var(--campaign-primary)) 62%,
+    #22d3ee
+  );
+  background:
+    repeating-linear-gradient(
+      137deg,
+      rgba(255,255,255,.012) 0 12px,
+      transparent 13px 34px
+    ),
+    linear-gradient(
+      145deg,
+      var(
+        --command-panel-alt,
+        var(--campaign-panel-alt)
+      ),
+      var(
+        --command-panel,
+        var(--campaign-panel)
+      )
+    );
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.03),
+    inset 0 0 42px rgba(126, 34, 206, .06),
+    0 18px 60px rgba(0,0,0,.3);
+}
+
+.command-page[data-world-theme="eclipse"]
+.command-window-heading span,
+.command-page[data-world-theme="eclipse"]
+.command-kicker,
+.campaign-map[data-world-theme="eclipse"]
+.campaign-biome-label span {
+  text-shadow: 0 0 12px rgba(217, 70, 239, .65);
+}
+
+.environment-eclipse i {
+  width: 11px;
+  height: 11px;
+  border: 1px solid #d946ef;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(217,70,239,.3),
+      rgba(34,211,238,.08)
+    );
+  box-shadow: 0 0 12px rgba(217,70,239,.6);
+  clip-path: polygon(
+    50% 0,
+    100% 38%,
+    70% 100%,
+    8% 68%
+  );
+  animation: eclipse-fragment-drift 8s linear infinite;
+}
+
+.environment-eclipse i:nth-child(even) {
+  width: 5px;
+  height: 26px;
+  border-color: #22d3ee;
+  background: rgba(34,211,238,.16);
+}
+
+@keyframes genesis-eclipse-field {
+  from { transform: rotate(0deg) scale(1.02); }
+  to { transform: rotate(360deg) scale(1.02); }
+}
+
+@keyframes eclipse-fragment-drift {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+    opacity: .72;
+  }
+  to {
+    transform: translate3d(110px, -84px, 0) rotate(220deg);
+    opacity: 0;
+  }
+}
+
+/* Cinco capítulos sem ocultar o último card. */
+@media (min-width: 701px) {
+  .command-chapter-list {
+    grid-template-columns:
+      repeat(auto-fit, minmax(148px, 1fr));
+  }
+}
+
+.chapter-rail {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chapter-rail-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color:
+    var(--campaign-primary)
+    rgba(10, 24, 38, .5);
+}
+
+.chapter-rail-list button {
+  flex: 0 0 auto;
+}
+
+@media (max-height: 820px) and (min-width: 781px) {
+  .chapter-rail-list button {
+    min-height: 104px;
+    padding-block: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .command-page,
+  .campaign-map,
+  .command-page .command-module,
+  .campaign-map .chapter-rail,
+  .campaign-map .mission-panel {
+    transition: none;
+  }
+
+  .command-page[data-world-theme="storm"]
+  .command-globe-stage::before,
+  .campaign-map[data-world-theme="storm"]
+  .campaign-world::before,
+  .command-page[data-world-theme="eclipse"]
+  .command-globe-stage::before,
+  .campaign-map[data-world-theme="eclipse"]
+  .campaign-world::before,
+  .environment-eclipse i {
+    animation: none;
+  }
+}
