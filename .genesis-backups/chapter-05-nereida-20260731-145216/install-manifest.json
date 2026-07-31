@@ -1,0 +1,37 @@
+{
+  "installedAt": "2026-07-31T14:52:16.273027",
+  "repoRoot": "C:\\Projetos\\Genesis",
+  "backupRoot": "C:\\Projetos\\Genesis\\.genesis-backups\\chapter-05-nereida-20260731-145216",
+  "copied": [
+    "src/game/tideCycle.js",
+    "src/game/tideRenderer.js",
+    "src/game/tideCycle.test.js",
+    "src/game/chapterFivePhases.js",
+    "src/game/chapterFiveContent.test.js",
+    "src/game/assets/arenas/chapter_05.webp",
+    "src/game/assets/arenas/fase_33.webp",
+    "src/game/assets/arenas/fase_34.webp",
+    "src/game/assets/arenas/fase_35.webp",
+    "src/game/assets/arenas/fase_36.webp",
+    "src/game/assets/arenas/fase_37.webp",
+    "src/game/assets/arenas/fase_38.webp",
+    "src/game/assets/arenas/fase_39.webp",
+    "src/game/assets/arenas/fase_40.webp",
+    "src/game/content.js",
+    "src/game/battleModel.js",
+    "src/game/GameCanvas.jsx",
+    "src/campaign/MissionPanel.jsx",
+    "src/campaign/campaignBiomes.js",
+    "src/campaign/campaignBiomes.test.js"
+  ],
+  "backedUp": [
+    "src/game/content.js",
+    "src/game/battleModel.js",
+    "src/game/GameCanvas.jsx",
+    "src/campaign/MissionPanel.jsx",
+    "src/campaign/campaignBiomes.js",
+    "src/campaign/campaignBiomes.test.js",
+    "src/game/chapterFivePhases.js",
+    "src/game/chapterFiveContent.test.js"
+  ]
+}

@@ -1,0 +1,138 @@
+{
+  "name": "genesis-route-effects-and-rocket-orientation",
+  "version": "1.0.3",
+  "createdAt": "2026-07-31T18:31:02.068477+00:00",
+  "targetRepository": "rafaelvalquer/genesis",
+  "features": [
+    "route-aligned-biome-effects",
+    "ocean-chapter-05",
+    "rocket-forward-up-alignment"
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "size": 1764,
+      "sha256": "65222de604defcc72a950fec6456a242f24f13c0bd323b040539aff07e6f2d40"
+    },
+    {
+      "path": "apply_changes.py",
+      "size": 11994,
+      "sha256": "0f06c9bd953475670c9bf7bbf83716f55388647d9228d5d63587ad7f1409bd3d"
+    },
+    {
+      "path": "install.ps1",
+      "size": 887,
+      "sha256": "852aad27c0987671c09be55a077d601a4ead60092b9a88b10f45f1de9b48cfba"
+    },
+    {
+      "path": "install.sh",
+      "size": 390,
+      "sha256": "b19d7d3dc7c5343c3ff36514e6e9c95c05d321b4d3c11f0c1169b94352fddce8"
+    },
+    {
+      "path": "payload/src/campaign/campaignBiomes.js",
+      "size": 8451,
+      "sha256": "6d3da70eae30bd9820289fea6e950658d88ee438aa20c36d44bbf8683d7c2851"
+    },
+    {
+      "path": "payload/src/campaign/campaignBiomes.test.js",
+      "size": 1560,
+      "sha256": "0dedd425e98b0c42ec2af908b241ed0f2e4b0016a3c467b5d4c6674dda77b7ae"
+    },
+    {
+      "path": "payload/src/campaign/campaignSceneData.js",
+      "size": 1979,
+      "sha256": "b41fe1706d02898f6bc6acefe5192c5caa9d784628074015d1b9d4113520619e"
+    },
+    {
+      "path": "payload/src/campaign/campaignSceneData.test.js",
+      "size": 1342,
+      "sha256": "97b12cad342410b9a57e7b770bf125b7a98a37a4e4c48207e19314e5d8d7854a"
+    },
+    {
+      "path": "payload/src/campaign/storage.js",
+      "size": 4267,
+      "sha256": "6a1b5a9a0b9f32fd99f78bbe92ac1f75bccb2ba464c79a2a60d5f0b9b714d376"
+    },
+    {
+      "path": "payload/src/campaign/storage.test.js",
+      "size": 2852,
+      "sha256": "afa92a5eff61e1786b03c4d43d846c8ca5df9f77a58e1dc28cffe2372489c562"
+    },
+    {
+      "path": "payload/src/game/chapterFiveContent.test.js",
+      "size": 1830,
+      "sha256": "31bb8c648370c8e04ad12a9df5a9adf228bcf48c326bdc4f0e834ff5c72a3868"
+    },
+    {
+      "path": "payload/src/game/chapterFivePhases.js",
+      "size": 18496,
+      "sha256": "2ea9ef57cfb1c8d7efda7db25a47d1e79492a4f7e41f4a076c25309055a23dde"
+    },
+    {
+      "path": "payload/src/visual/createGenesisChapterEffects.js",
+      "size": 4286,
+      "sha256": "30ff3d6fdc62a8a57b7f9f1d21a9d7cd82c7162fada4b66f4830a35e87eaf8e2"
+    },
+    {
+      "path": "payload/src/visual/createGenesisChapterEffects.test.js",
+      "size": 2008,
+      "sha256": "3f8484ef419560ebb9f611f8b0813cd6ede61ebafb937b90d50663b4d2b50294"
+    },
+    {
+      "path": "payload/src/visual/createRocketOrbit.js",
+      "size": 3614,
+      "sha256": "9893d50a9f29e49d3ea4b388877cc4928b059ff60072f4a64c2d786fb0f5dd25"
+    },
+    {
+      "path": "payload/src/visual/createRocketOrbit.test.js",
+      "size": 1314,
+      "sha256": "6c4f528f0fba9ad22f71a3399fa4da89b0d55022454e323f492fdc8292c4d609"
+    },
+    {
+      "path": "payload/src/visual/effects/createChitinPlanetEffects.js",
+      "size": 2056,
+      "sha256": "d5946938347a539eb09c88f1a2007c171e3edc7b758cb1559fa9825be9fa2375"
+    },
+    {
+      "path": "payload/src/visual/effects/createGlassPlanetEffects.js",
+      "size": 1698,
+      "sha256": "bb74e1f2c0a180ca58ab5a3582cf0b2e43e00d1b39bd89471aeb0105237266c1"
+    },
+    {
+      "path": "payload/src/visual/effects/createHivePlanetEffects.js",
+      "size": 1599,
+      "sha256": "efb76e0b90a002374051a278430467e4c0089265bbd14f349c237dcfaeb0aedc"
+    },
+    {
+      "path": "payload/src/visual/effects/createOceanPlanetEffects.js",
+      "size": 3322,
+      "sha256": "b022ce99579c04dfaf4a3a20edd2a7815b928e83f04d9352781e79b394562b68"
+    },
+    {
+      "path": "payload/src/visual/effects/createStormPlanetEffects.js",
+      "size": 2200,
+      "sha256": "bfa9c3bbc4aad75f3b7cd18c089794be8529c9dc6fc7db6c31ea622cf59f8701"
+    },
+    {
+      "path": "payload/src/visual/effects/genesisEffectUtils.js",
+      "size": 3847,
+      "sha256": "c83439d8dab8e1c33d9c201b80f801c8dd63b9429b48a2441be99ab8fad8e3bb"
+    },
+    {
+      "path": "payload/src/visual/effects/genesisRouteEffectUtils.js",
+      "size": 8717,
+      "sha256": "fac921be696eb9a6c641166ea3d0414a5ec50aec67b41ddf6b4eeffbd469b12e"
+    },
+    {
+      "path": "payload/src/visual/effects/genesisRouteEffectUtils.test.js",
+      "size": 1070,
+      "sha256": "50a4e716b4add38a86b6226caa2f3b6cef30c2632edbd04c38af7d4ebda85d9a"
+    },
+    {
+      "path": "payload/src/visual/genesis-world-themes.css",
+      "size": 13239,
+      "sha256": "5ed088470b5fec0d45f48e8340c531f3e195327a1c44396151a5c70b4de258ec"
+    }
+  ]
+}

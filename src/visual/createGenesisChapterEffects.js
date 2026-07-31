@@ -2,6 +2,7 @@ import { createHivePlanetEffects } from "./effects/createHivePlanetEffects.js";
 import { createGlassPlanetEffects } from "./effects/createGlassPlanetEffects.js";
 import { createChitinPlanetEffects } from "./effects/createChitinPlanetEffects.js";
 import { createStormPlanetEffects } from "./effects/createStormPlanetEffects.js";
+import { createEclipsePlanetEffects } from "./effects/createEclipsePlanetEffects.js";
 
 const QUALITY_PROFILES = Object.freeze({
   low: Object.freeze({
@@ -93,6 +94,7 @@ export function createGenesisChapterEffects({
     chapter_02: createGlassPlanetEffects({ THREE, profile }),
     chapter_03: createChitinPlanetEffects({ THREE, profile }),
     chapter_04: createStormPlanetEffects({ THREE, profile }),
+    chapter_05: createEclipsePlanetEffects({ THREE, profile }),
   };
 
   Object.entries(groups).forEach(([id, group]) => {

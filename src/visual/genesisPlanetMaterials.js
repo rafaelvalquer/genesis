@@ -8,6 +8,7 @@ export const CHAPTER_BEACON_NAMES = Object.freeze({
   chapter_02: "Beacon_Glass",
   chapter_03: "Beacon_Chitin",
   chapter_04: "Beacon_Storm",
+  chapter_05: "Beacon_Eclipse",
 });
 
 const TEXTURE_KEYS = [

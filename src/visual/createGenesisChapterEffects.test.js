@@ -7,7 +7,7 @@ import {
 } from "./createGenesisChapterEffects.js";
 
 describe("kits 3D dos capítulos", () => {
-  it("cria os quatro kits uma única vez", () => {
+  it("cria os cinco kits uma única vez", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({
       THREE,
@@ -19,12 +19,12 @@ describe("kits 3D dos capítulos", () => {
     expect(parent.getObjectByName(
       "GenesisChapterEffectsRoot",
     )).toBeTruthy();
-    expect(Object.keys(runtime.groups)).toHaveLength(4);
+    expect(Object.keys(runtime.groups)).toHaveLength(5);
     expect(runtime.groups.chapter_01.visible).toBe(true);
-    expect(runtime.groups.chapter_02.visible).toBe(false);
+    expect(runtime.groups.chapter_05.visible).toBe(false);
   });
 
-  it("troca capítulo por crossfade e mantém apenas o ativo ao final", () => {
+  it("ativa o Eclipse por crossfade", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({
       THREE,
@@ -33,9 +33,9 @@ describe("kits 3D dos capítulos", () => {
       chapterId: "chapter_01",
     });
 
-    runtime.setChapter("chapter_03");
+    runtime.setChapter("chapter_05");
 
-    for (let index = 0; index < 160; index += 1) {
+    for (let index = 0; index < 180; index += 1) {
       updateGenesisChapterEffects(
         runtime,
         1 / 60,
@@ -44,15 +44,18 @@ describe("kits 3D dos capítulos", () => {
       );
     }
 
-    expect(runtime.activeChapterId).toBe("chapter_03");
-    expect(runtime.groups.chapter_03.visible).toBe(true);
+    expect(runtime.activeChapterId).toBe("chapter_05");
+    expect(runtime.groups.chapter_05.visible).toBe(true);
     expect(runtime.groups.chapter_01.visible).toBe(false);
     expect(
-      runtime.groups.chapter_03.userData.opacity,
+      runtime.groups.chapter_05.userData.opacity,
     ).toBeCloseTo(1, 2);
+    expect(
+      parent.getObjectByName("EclipseCoreBeacon"),
+    ).toBeTruthy();
   });
 
-  it("reduz estruturas e partículas no perfil low", () => {
+  it("reduz o perfil na qualidade low", () => {
     const low = getGenesisChapterEffectProfile({
       quality: "low",
     });
