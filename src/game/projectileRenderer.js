@@ -1247,6 +1247,30 @@ function drawExecutorArcSlash(ctx, projectile, quality, assets = {}) {
   ctx.stroke();
 }
 
+function drawRasgamarOrb(ctx, projectile, quality) {
+  const trailLength = Math.min(projectileTrailLength(projectile.trail), Math.max(2, Math.round(5 * quality.trail)));
+  if (trailLength > 1) {
+    const start = projectileTrailPoint(projectile.trail, 0, trailLength);
+    ctx.strokeStyle = "rgba(34,211,238,.42)";
+    ctx.lineWidth = 4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    forEachProjectileTrailPoint(projectile.trail, trailLength, (point, index) => { if (index) ctx.lineTo(point.x, point.y); });
+    ctx.stroke();
+  }
+  ctx.translate(projectile.x, projectile.y);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.shadowBlur = 16;
+  ctx.shadowColor = "#22d3ee";
+  ctx.fillStyle = "rgba(14,116,144,.9)";
+  ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#67e8f9";
+  ctx.beginPath(); ctx.arc(-2, -2, 5.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#ecfeff";
+  ctx.beginPath(); ctx.arc(-4, -4, 2.2, 0, Math.PI * 2); ctx.fill();
+}
+
 const projectileScratchState = { entity: null, x: 0, y: 0 };
 const projectileScratch = new Proxy(projectileScratchState, {
   get(state, property) {
@@ -1277,6 +1301,7 @@ export function drawProjectileCollection(
     projectileScratchState.y = previousY + (projectile.y - previousY) * interpolation;
     ctx.save();
     if (projectile.visualKind === "leviathanRound") drawLeviathanRound(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "rasgamarOrb") drawRasgamarOrb(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "executorArcSlash") drawExecutorArcSlash(ctx, projectileScratch, quality, assets);
     else if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectileScratch.x, projectileScratch.y, projectile.rotation, assets.mine?.[0], 46);
     else if (projectile.visualKind === "repulsorFist") drawRepulsorFist(ctx, projectileScratch);

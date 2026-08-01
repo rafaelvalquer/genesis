@@ -45,6 +45,8 @@ import {
   getTidePlacementBlockReason,
   getTideSnapshot,
   getTideTroopAttackSpeedFactor,
+  getTideCellState,
+  isTideCellFlooded,
   isTideMineDisabled,
   isTideReactorPaused,
   recordTideTroopElimination,
@@ -176,12 +178,35 @@ export const DEMATERIALIZATION_PULSE = {
 
 const DEFAULT_SANDBOX_SETTINGS = {
   rulesMode: "free",
+  mechanicMode: "none",
   invulnerableBase: true,
   enemyHpMultiplier: 1,
   enemySpeedMultiplier: 1,
   enemyDamageMultiplier: 1,
   troopDamageMultiplier: 1,
 };
+
+function applySandboxMechanic(phase, settings = {}) {
+  if (!settings.mechanicMode || !phase?.sandboxMechanics) return phase;
+  const profile = phase.sandboxMechanics[settings.mechanicMode] || phase.sandboxMechanics.none;
+  return {
+    ...phase,
+    environmentHazard: profile?.environmentHazard || null,
+    chapterMechanic: profile?.chapterMechanic || null,
+  };
+}
+
+function initializeSandboxHazard(session) {
+  if (!session.sandbox) return;
+  const hazard = session.phase.environmentHazard;
+  session.waveStartedAt = 0;
+  session.sandstorm.nextCheckAt = hazard?.id === "sandstorm"
+    ? session.elapsed + Math.min(1200, hazard.firstCheckDelayMs)
+    : Infinity;
+  session.sandstorm.repeatLossToleranceRatio = hazard?.repeatLossToleranceRatio || 0;
+  resetWindCurrentForWave(session, hazard);
+  resetTideCycleForWave(session, hazard);
+}
 
 const DEFAULT_MODIFIERS = {
   enemySpeed: 1, troopDamage: 1, slowDuration: 1, attackSpeed: 1,
@@ -276,18 +301,20 @@ function effectiveCombatConfig(session, troop, config) {
 
 export function createBattleSession(phase, loadout, seed = Date.now(), options = {}) {
   const sandbox = Boolean(options.sandbox);
-  const supplyLimit = phase.supplyLimit ?? 20;
+  const sandboxSettings = sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null;
+  const sessionPhase = sandbox ? applySandboxMechanic(phase, sandboxSettings) : phase;
+  const supplyLimit = sessionPhase.supplyLimit ?? 20;
   return {
-    phase,
+    phase: sessionPhase,
     loadout: [...loadout],
     seed,
     rng: createRng(seed),
     elapsed: 0,
-    energy: phase.energy,
-    energyMax: phase.energy,
+    energy: sessionPhase.energy,
+    energyMax: sessionPhase.energy,
     lastEnergyGainAt: -Infinity,
-    integrity: phase.baseIntegrity,
-    integrityMax: phase.baseIntegrity,
+    integrity: sessionPhase.baseIntegrity,
+    integrityMax: sessionPhase.baseIntegrity,
     supply: supplyLimit,
     supplyMax: supplyLimit,
     supplyAccumulator: 0,
@@ -385,8 +412,10 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     pendingOutcome: null,
     result: null,
     sandbox,
-    sandboxSettings: sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null,
+    sandboxSettings,
   };
+  initializeSandboxHazard(session);
+  return session;
 }
 
 export function canPlaceTroop(session, troopId, row, col) {
@@ -945,6 +974,15 @@ function createEnemy(session, queued) {
     structuralRuptureDamageTakenFactor: 1,
     meleeAttackPending: false, meleeAttackStartedAt: -Infinity,
     meleeImpactAt: Infinity, meleeTargetId: null,
+    nereidaState: queued.type === "carapacaNereida" ? "spawnEmerge" : null,
+    nereidaStateStartedAt: queued.type === "carapacaNereida" ? session.elapsed : -Infinity,
+    nereidaStateEndsAt: queued.type === "carapacaNereida" ? session.elapsed + base.spawnDurationMs : Infinity,
+    nereidaAttackApplied: false, nereidaAttackTargetId: null, lastHitAt: -Infinity,
+    mordelumeState: queued.type === "mordelume" ? "spawnEmerge" : null,
+    mordelumeStateStartedAt: queued.type === "mordelume" ? session.elapsed : -Infinity,
+    mordelumeStateEndsAt: queued.type === "mordelume" ? session.elapsed + base.spawnDurationMs : Infinity,
+    mordelumeAttackTargetId: null, mordelumeDamageFramesApplied: [],
+    sprintUntil: 0, sprintCooldownUntil: 0, lastSprintCellKey: null,
     ramState: queued.type === "ramBeetle" ? "walking" : null,
     ramStateStartedAt: queued.type === "ramBeetle" ? session.elapsed : -Infinity,
     ramStateEndsAt: Infinity, ramIdleMode: null, ramChargeConsumed: false,
@@ -1028,6 +1066,16 @@ function createEnemy(session, queued) {
     derivanteNextDodgeAt: queued.type === "derivante" ? session.elapsed + 1500 : null,
     derivanteIncomingProjectileId: null,
     derivanteAttackApplied: false,
+    rasgamarState: queued.type === "enguiaRasgamar" ? "spawnSubmerged" : null,
+    rasgamarStateStartedAt: queued.type === "enguiaRasgamar" ? session.elapsed : -Infinity,
+    rasgamarStateEndsAt: queued.type === "enguiaRasgamar" ? session.elapsed + base.submergedSpawnMs : Infinity,
+    rasgamarTargetId: null,
+    rasgamarTargetX: null,
+    rasgamarPulseIndexes: [],
+    rasgamarNextActionAt: queued.type === "enguiaRasgamar" ? session.elapsed + base.submergedSpawnMs : Infinity,
+    rasgamarNextExposureAt: queued.type === "enguiaRasgamar" ? session.elapsed + base.idleSurfaceExposureEveryMs : Infinity,
+    rasgamarSubmerged: queued.type === "enguiaRasgamar",
+    rasgamarPatrolCol: null,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
@@ -1035,6 +1083,11 @@ function createEnemy(session, queued) {
     previousRenderX: FIELD.spawnX, previousRenderY: 0, dead: false,
   };
   if (base.stationary) enemy.moving = false;
+  if (queued.type === "enguiaRasgamar") {
+    enemy.x = FIELD.enemyEntryCol * CELL.width + CELL.width / 2;
+    enemy.previousRenderX = enemy.x;
+    enemy.moving = false;
+  }
   enemy.y = enemy.row * CELL.height + CELL.height / 2;
   enemy.previousRenderY = enemy.y;
   session.enemies.push(enemy);
@@ -1117,7 +1170,17 @@ export function spawnEnemy(session, {
 
 export function setSandboxSettings(session, settings) {
   if (!session.sandbox) return false;
-  session.sandboxSettings = { ...session.sandboxSettings, ...settings };
+  const nextSettings = { ...session.sandboxSettings, ...settings };
+  if (settings.mechanicMode && settings.mechanicMode !== session.sandboxSettings.mechanicMode) {
+    session.phase = applySandboxMechanic(session.phase, nextSettings);
+    session.sandstorm.state = "idle";
+    session.sandstorm.buriedTroopIds = [];
+    session.sandstorm.slowedTroopIds = [];
+    session.windCurrent = createWindCurrentState();
+    session.tideCycle = createTideCycleState();
+  }
+  session.sandboxSettings = nextSettings;
+  initializeSandboxHazard(session);
   return true;
 }
 
@@ -1240,6 +1303,9 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const webFactor = session.elapsed < (troop.webSlowUntil || 0)
     ? troop.webSlowFactor || 1
     : 1;
+  const rasgamarFactor = session.elapsed < (troop.rasgamarAttackSlowUntil || 0)
+    ? troop.rasgamarAttackSlowFactor || 1
+    : 1;
   if (session.elapsed >= (troop.webSlowUntil || 0)) {
     troop.webSlowUntil = 0;
     troop.webSlowFactor = 1;
@@ -1263,7 +1329,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const tideFactor = getTideTroopAttackSpeedFactor(session, troop);
   setTroopAttackSpeedFactor(
     troop,
-    Math.min(parasiteFactor, webFactor, sandFactor, tideFactor),
+    Math.min(parasiteFactor, webFactor, rasgamarFactor, sandFactor, tideFactor),
     session.elapsed,
   );
 }
@@ -1360,7 +1426,7 @@ function updateSandstorm(session, events) {
   const config = session.phase.environmentHazard;
   const storm = session.sandstorm;
   if (config?.id !== "sandstorm") return;
-  if (!session.waveActive) {
+  if (!session.waveActive && !session.sandbox) {
     endSandstorm(session, events, true);
     return;
   }
@@ -1536,6 +1602,10 @@ export function getEnemyDamageTakenFactor(enemy, context = {}) {
   const config = ENEMIES[enemy?.type];
   if (!enemy) return 1;
   let factor = 1;
+  if (config?.id === "carapacaNereida" && context.direct === true
+    && Number.isFinite(context.sourceX) && context.sourceX < enemy.x) {
+    factor *= context.flooded === true ? config.floodedFrontDamageFactor : config.frontDamageFactor;
+  }
   if (isScarabEmperor(config)) {
     const phase = config[`phase${enemy.bossPhase || 1}`] || config.phase1;
     factor *= phase.damageTakenFactor ?? 1;
@@ -1562,8 +1632,26 @@ function rememberEnemyKill(session, enemy, sourceTroopId = null) {
   };
 }
 
+function clearRasgamarCoil(session, enemy, { applySlow = false } = {}) {
+  const troop = indexedTroopById(session, enemy?.rasgamarTargetId);
+  if (troop?.rasgamarCoiledBy === enemy.id) {
+    troop.rasgamarCoiledBy = null;
+    if (applySlow) {
+      troop.rasgamarAttackSlowFactor = ENEMIES.enguiaRasgamar.coilAttackSlowFactor;
+      troop.rasgamarAttackSlowUntil = session.elapsed + ENEMIES.enguiaRasgamar.coilAttackSlowMs;
+    }
+  }
+  if (enemy) {
+    enemy.rasgamarTargetId = null;
+    enemy.rasgamarPulseIndexes = [];
+  }
+}
+
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
+  if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) {
+    return;
+  }
   if (context.fortuneOrbital) {
     enemy.hp -= amount;
     const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
@@ -1571,6 +1659,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     if (enemy.hp <= 0) {
       enemy.hp = 0;
       enemy.dead = true;
+      clearRasgamarCoil(session, enemy);
       detachParasite(session, enemy);
       if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
       rememberEnemyKill(session, enemy, context.sourceTroopId || null);
@@ -1591,6 +1680,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     enemy.shield = 0;
     enemy.hp = 0;
     enemy.dead = true;
+    clearRasgamarCoil(session, enemy);
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     rememberEnemyKill(session, enemy, context.sourceTroopId || null);
@@ -1598,7 +1688,11 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     trySpawnEnergyPickup(session, enemy, events);
     return;
   }
-  const damageTakenFactor = getEnemyDamageTakenFactor(enemy, { ...context, elapsed: session.elapsed });
+  const cell = { row: enemy.row, col: clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1) };
+  const damageTakenFactor = getEnemyDamageTakenFactor(enemy, {
+    ...context, elapsed: session.elapsed, flooded: isTideCellFlooded(session, cell.row, cell.col),
+  });
+  if (enemy.type === "carapacaNereida") enemy.lastHitAt = session.elapsed;
   let chapterFourFactor = 1;
   if (enemy.type === "gorjal" && enemy.chapterFourState === "recover") {
     chapterFourFactor *= ENEMIES.gorjal.recoverDamageTakenFactor;
@@ -1607,6 +1701,15 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     chapterFourFactor *= ENEMIES.raizFulgor.rootedDamageTakenFactor;
   }
   const packetEnemies = getBattleIndex(session)?.enemiesByPacket.get(enemy.packetId) || session.enemies;
+  const nereidaProtector = context.ranged === true && context.direct === true
+    ? session.enemies.find((carrier) => {
+      if (carrier.dead || carrier.type !== "carapacaNereida" || carrier.id === enemy.id) return false;
+      const carrierConfig = ENEMIES.carapacaNereida;
+      return !config?.boss && enemy.type !== "carapacaNereida" && carrier.row === enemy.row
+        && enemy.x > carrier.x && enemy.x - carrier.x <= carrierConfig.escortRangeTiles * CELL.width
+        && Number.isFinite(context.sourceX) && context.sourceX < carrier.x;
+    })
+    : null;
   const protector = packetEnemies.find((candidate) => {
     if (candidate.dead || candidate.type !== "nimbarca" || candidate.id === enemy.id
       || candidate.packetId !== enemy.packetId || candidate.row !== enemy.row) return false;
@@ -1633,6 +1736,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     : 1;
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1)
     * damageTakenFactor * chapterFourFactor * effectiveArmorFactor * ruptureFactor;
+  if (nereidaProtector) incoming *= ENEMIES.carapacaNereida.escortedRangedDamageFactor;
   const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
     const shieldIgnore = clamp(context.shieldIgnoreFactor || 0, 0, 1);
@@ -1660,6 +1764,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     enemy.dead = true;
+    if (enemy.type === "mordelume") setMordelumeState(session, enemy, "death", ENEMIES.mordelume.deathDurationMs);
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     rememberEnemyKill(session, enemy, context.sourceTroopId || null);
@@ -1843,6 +1948,15 @@ function updatePrismaticMantle(session, events) {
 
 export function eliminateTroop(session, troop, events, reason = "enemy", options = {}) {
   if (!troop || troop.dead) return false;
+  for (const enemy of session.enemies) {
+    if (enemy.type === "enguiaRasgamar" && enemy.rasgamarTargetId === troop.id) {
+      clearRasgamarCoil(session, enemy);
+      enemy.rasgamarState = "surfaceRecovery";
+      enemy.rasgamarStateStartedAt = session.elapsed;
+      enemy.rasgamarStateEndsAt = session.elapsed + ENEMIES.enguiaRasgamar.coilRecoveryMs;
+      enemy.rasgamarSubmerged = false;
+    }
+  }
   if (troop.type === "droneSentinela") troop.droneDeathLevel = Number(troop.droneCount || 1);
   troop.hp = options.preserveHp ? troop.hp : 0;
   troop.dead = true;
@@ -2775,6 +2889,10 @@ function updateLeviathanHunter(session, troop, config, events) {
 function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead || troop.windRecovery) continue;
+    if (troop.rasgamarCoiledBy) {
+      troop.defenseActive = false;
+      continue;
+    }
     if (troop.type === "droneSentinela" && troop.state === "attack" && session.elapsed >= troop.stateEndsAt) {
       troop.state = "idle";
       troop.stateStartedAt = troop.stateEndsAt;
@@ -2947,6 +3065,7 @@ function updateProjectiles(session, dt, events) {
           events,
           {
             direct: true,
+            ranged: true,
             sourceX: projectile.origin.x,
             sourceTroopId: projectile.sourceTroopId,
             sourceTroopType: projectile.troopType,
@@ -3018,6 +3137,7 @@ function updateProjectiles(session, dt, events) {
         : session.modifiers.troopDamage;
       damageEnemy(session, target, projectile.baseDamage * targetFactor * decisionFactor, events, {
         direct: true,
+        ranged: true,
         sourceX: projectile.origin.x,
         sourceTroopType: projectile.troopType,
         sourceTroopId: projectile.sourceTroopId,
@@ -4378,6 +4498,11 @@ function updateEnemyProjectiles(session, dt, events) {
     }
     if (target) {
       damageTroop(session, target, projectile.damage, events);
+      if (projectile.kind === "rasgamarDart" && !target.dead) {
+        target.rasgamarAttackSlowFactor = projectile.rasgamarSlowFactor;
+        target.rasgamarAttackSlowUntil = session.elapsed + projectile.rasgamarSlowMs;
+        events.push({ type: "rasgamarDartImpact", sourceEnemyId: projectile.sourceEnemyId, targetTroopId: target.id, x: target.x, y: target.y - 18, color: projectile.color, seed: projectile.seed });
+      }
       if (projectile.kind === "electric") {
         if (sourceEnemy) applyEnemyElectricCharge(session, sourceEnemy, target, events);
       }
@@ -5277,6 +5402,335 @@ function updateChapterFourEnemy(session, enemy, config, dt, events) {
   return true;
 }
 
+function setNereidaState(session, enemy, state, durationMs = Infinity) {
+  enemy.nereidaState = state;
+  enemy.nereidaStateStartedAt = session.elapsed;
+  enemy.nereidaStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.moving = state === "moveLand" || state === "moveWater";
+}
+
+function nereidaProtectsAlly(session, enemy, config) {
+  return session.enemies.some((ally) => !ally.dead && ally.id !== enemy.id
+    && ally.type !== "carapacaNereida" && !ENEMIES[ally.type]?.boss && ally.row === enemy.row
+    && ally.x > enemy.x && ally.x - enemy.x <= config.escortRangeTiles * CELL.width);
+}
+
+function updateCarapacaNereida(session, enemy, config, dt, events) {
+  if (enemy.nereidaState === "spawnEmerge") {
+    if (session.elapsed < enemy.nereidaStateEndsAt) return;
+    setNereidaState(session, enemy, "idle");
+  }
+  if (enemy.nereidaState === "attackClaw") {
+    enemy.moving = false;
+    if (!enemy.nereidaAttackApplied && session.elapsed >= enemy.nereidaStateStartedAt + config.attackVisual.impactMs) {
+      const target = session.troops.find((troop) => troop.id === enemy.nereidaAttackTargetId && !troop.dead
+        && troop.row === enemy.row && enemy.x - troop.x <= config.attackRangeTiles * CELL.width);
+      if (target) {
+        damageTroop(session, target, enemy.damage, events);
+        events.push({ type: "nereidaClawImpact", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y, color: config.color, seed: nextEffectSeed(session) });
+      }
+      enemy.nereidaAttackApplied = true;
+    }
+    if (session.elapsed >= enemy.nereidaStateEndsAt) setNereidaState(session, enemy, "shellGuard");
+    return;
+  }
+  const target = closestTroopForEnemy(session, enemy);
+  if (target && enemy.x - target.x <= config.attackRangeTiles * CELL.width) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      enemy.nereidaAttackTargetId = target.id;
+      enemy.nereidaAttackApplied = false;
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+      setNereidaState(session, enemy, "attackClaw", config.attackVisual.durationMs);
+    } else if (enemy.nereidaState !== "shellGuard") setNereidaState(session, enemy, "shellGuard");
+    return;
+  }
+  const guarded = nereidaProtectsAlly(session, enemy, config) || session.elapsed - enemy.lastHitAt < 900;
+  if (guarded) {
+    if (enemy.nereidaState !== "shellGuard") events.push({ type: "nereidaGuard", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, color: config.color });
+    if (enemy.nereidaState !== "shellGuard") setNereidaState(session, enemy, "shellGuard");
+  }
+  const flooded = isTideCellFlooded(session, enemy.row, clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1));
+  if (!guarded) setNereidaState(session, enemy, flooded ? "moveWater" : "moveLand");
+  moveEnemy(session, enemy, dt, events);
+}
+
+function setMordelumeState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.mordelumeState === state && !Number.isFinite(durationMs)
+    && !Number.isFinite(enemy.mordelumeStateEndsAt)) {
+    enemy.moving = ["moveLand", "moveWater", "sprintWater"].includes(state);
+    return;
+  }
+  enemy.mordelumeState = state;
+  enemy.mordelumeStateStartedAt = session.elapsed;
+  enemy.mordelumeStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.moving = ["moveLand", "moveWater", "sprintWater"].includes(state);
+}
+
+function mordelumeCell(session, enemy) {
+  const col = clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1);
+  return { row: enemy.row, col, flooded: isTideCellFlooded(session, enemy.row, col) };
+}
+
+function moveMordelume(session, enemy, config, dt, events, flooded) {
+  const baseSlow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
+  const slow = getTideAdjustedEnemySlowFactor(session, enemy, baseSlow);
+  const tideSpeed = getTideEnemySpeedFactor(session, enemy);
+  const waterSpeed = flooded ? config.waterSpeedFactor : 1;
+  const sprintSpeed = session.elapsed < enemy.sprintUntil ? config.sprintSpeedFactor : 1;
+  const cappedSpeed = Math.min(enemy.speed * tideSpeed * waterSpeed * sprintSpeed,
+    enemy.speed * config.maximumSpeedFactor);
+  enemy.moving = true;
+  enemy.x -= cappedSpeed * session.modifiers.enemySpeed
+    * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
+  if (enemy.x <= FIELD.baseX) resolveEnemyBreach(session, enemy, events);
+}
+
+function updateMordelume(session, enemy, config, dt, events) {
+  if (enemy.mordelumeState === "spawnEmerge") {
+    enemy.moving = false;
+    if (session.elapsed < enemy.mordelumeStateEndsAt) return;
+    setMordelumeState(session, enemy, "idle");
+  }
+  if (enemy.mordelumeState === "attackBite") {
+    enemy.moving = false;
+    const target = session.troops.find((troop) => troop.id === enemy.mordelumeAttackTargetId && !troop.dead
+      && troop.row === enemy.row && enemy.x - troop.x <= config.attackRangeTiles * CELL.width);
+    for (const frame of config.attackVisual.damageFrames) {
+      const impactAt = enemy.mordelumeStateStartedAt + frame * config.animationFrameMs.attackBite;
+      if (!enemy.mordelumeDamageFramesApplied.includes(frame) && session.elapsed >= impactAt) {
+        if (target) {
+          damageTroop(session, target, enemy.damage, events);
+          events.push({ type: "melee", x: target.x, y: target.y, sourceEnemyId: enemy.id });
+        }
+        enemy.mordelumeDamageFramesApplied.push(frame);
+      }
+    }
+    if (session.elapsed >= enemy.mordelumeStateEndsAt) setMordelumeState(session, enemy, "idle");
+    return;
+  }
+
+  const target = closestTroopForEnemy(session, enemy);
+  if (target && enemy.x - target.x <= config.attackRangeTiles * CELL.width) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      enemy.mordelumeAttackTargetId = target.id;
+      enemy.mordelumeDamageFramesApplied = [];
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+      setMordelumeState(session, enemy, "attackBite", config.attackVisual.durationMs);
+    } else {
+      setMordelumeState(session, enemy, "idle");
+    }
+    return;
+  }
+
+  const cell = mordelumeCell(session, enemy);
+  const cellKey = `${cell.row}:${cell.col}`;
+  if (cell.flooded && cellKey !== enemy.lastSprintCellKey && session.elapsed >= enemy.sprintCooldownUntil) {
+    enemy.lastSprintCellKey = cellKey;
+    enemy.sprintUntil = session.elapsed + config.sprintDurationMs;
+    enemy.sprintCooldownUntil = session.elapsed + config.sprintCooldownMs;
+  }
+  const sprinting = cell.flooded && session.elapsed < enemy.sprintUntil;
+  setMordelumeState(session, enemy, sprinting ? "sprintWater" : cell.flooded ? "moveWater" : "moveLand");
+  moveMordelume(session, enemy, config, dt, events, cell.flooded);
+}
+
+function setRasgamarState(session, enemy, state, durationMs = Infinity) {
+  enemy.rasgamarState = state;
+  enemy.rasgamarStateStartedAt = session.elapsed;
+  enemy.rasgamarStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.rasgamarSubmerged = ["spawnSubmerged", "submergedPatrol", "submergedApproach", "dive", "tideEscape"].includes(state);
+  enemy.moving = ["submergedPatrol", "submergedApproach", "tideEscape", "dive"].includes(state);
+}
+
+function rasgamarFloodedColumns(session, row) {
+  const columns = [];
+  for (let col = FIELD.firstTroopCol; col <= FIELD.enemyEntryCol; col += 1) {
+    if (isTideCellFlooded(session, row, col)) columns.push(col);
+  }
+  return columns;
+}
+
+function rasgamarColumn(enemy) {
+  return clamp(Math.floor(enemy.x / CELL.width), FIELD.firstTroopCol, FIELD.enemyEntryCol);
+}
+
+function moveRasgamarTo(session, enemy, targetX, dt, speedFactor = 1) {
+  const distance = targetX - enemy.x;
+  if (Math.abs(distance) <= 2) {
+    enemy.x = targetX;
+    enemy.moving = false;
+    return true;
+  }
+  enemy.x += Math.sign(distance) * enemy.speed * speedFactor * dt / 1000;
+  enemy.moving = true;
+  return false;
+}
+
+function selectRasgamarAmbushTarget(session, enemy) {
+  const rank = (troop) => [
+    troop.type === "reator" ? 0 : 1,
+    /suporte/i.test(TROOPS[troop.type]?.role || "") ? 0 : 1,
+    (TROOPS[troop.type]?.range || 0) > 1 ? 0 : 1,
+    troop.hp / Math.max(1, troop.maxHp),
+    -troop.col,
+    troop.id,
+  ];
+  return session.troops
+    .filter((troop) => !troop.dead && troop.row === enemy.row && isTideCellFlooded(session, troop.row, troop.col))
+    .sort((left, right) => {
+      const a = rank(left); const b = rank(right);
+      for (let index = 0; index < a.length; index += 1) if (a[index] !== b[index]) return a[index] < b[index] ? -1 : 1;
+      return 0;
+    })[0] || null;
+}
+
+function selectRasgamarRangedPlan(session, enemy, config) {
+  const targets = session.troops.filter((troop) => !troop.dead && troop.row === enemy.row
+    && !isTideCellFlooded(session, troop.row, troop.col));
+  const columns = rasgamarFloodedColumns(session, enemy.row);
+  const plans = targets.flatMap((troop) => columns.map((col) => ({ troop, col, x: col * CELL.width + CELL.width / 2 })))
+    .filter((plan) => plan.x > plan.troop.x && plan.x - plan.troop.x <= config.rangedRange * CELL.width);
+  plans.sort((left, right) => {
+    const edge = right.troop.col - left.troop.col;
+    if (edge) return edge;
+    const reator = Number(right.troop.type === "reator") - Number(left.troop.type === "reator");
+    if (reator) return reator;
+    const support = Number(/suporte/i.test(TROOPS[right.troop.type]?.role || "")) - Number(/suporte/i.test(TROOPS[left.troop.type]?.role || ""));
+    if (support) return support;
+    return left.troop.hp / left.troop.maxHp - right.troop.hp / right.troop.maxHp || left.troop.col - right.troop.col;
+  });
+  return plans[0] || null;
+}
+
+function launchRasgamarDart(session, enemy, config, troop, events) {
+  const origin = getEnemyMuzzleWorldPosition(enemy, { ...config, attackVisual: { muzzle: { x: 0.11, y: 0.48 } } });
+  const seconds = Math.max(0.1, (origin.x - troop.x) / config.projectileSpeed);
+  session.enemyProjectiles.push({
+    id: id("enemy_projectile"), kind: "rasgamarDart", visualKind: "rasgamarOrb", sourceEnemyId: enemy.id,
+    targetTroopId: troop.id, row: enemy.row, x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    previousRenderX: origin.x, previousRenderY: origin.y, vx: -config.projectileSpeed, vy: (troop.y - 18 - origin.y) / seconds,
+    damage: enemy.damage, color: config.color, active: true, launched: true, trail: createProjectileTrail(14, origin.x, origin.y), ageMs: 0,
+    rasgamarSlowFactor: config.rangedAttackSlowFactor, rasgamarSlowMs: config.rangedAttackSlowMs, seed: nextEffectSeed(session),
+  });
+  events.push({ type: "rasgamarDart", sourceEnemyId: enemy.id, x: origin.x, y: origin.y, color: config.color, seed: nextEffectSeed(session) });
+}
+
+function updateRasgamar(session, enemy, config, dt, events) {
+  const currentCellFlooded = isTideCellFlooded(session, enemy.row, rasgamarColumn(enemy));
+  if (!currentCellFlooded) {
+    clearRasgamarCoil(session, enemy);
+    const safe = rasgamarFloodedColumns(session, enemy.row).sort((a, b) => Math.abs(a - rasgamarColumn(enemy)) - Math.abs(b - rasgamarColumn(enemy)))[0];
+    if (safe == null) { enemy.dead = true; return true; }
+    enemy.rasgamarTargetX = safe * CELL.width + CELL.width / 2;
+    setRasgamarState(session, enemy, "tideEscape");
+  }
+  const target = indexedTroopById(session, enemy.rasgamarTargetId);
+  const targetFlooded = target && isTideCellFlooded(session, target.row, target.col);
+  if (["submergedApproach", "coilEmerge", "coilAttack"].includes(enemy.rasgamarState) && !targetFlooded) {
+    clearRasgamarCoil(session, enemy);
+    setRasgamarState(session, enemy, "submergedPatrol");
+  }
+  if (enemy.rasgamarState === "spawnSubmerged") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "submergedPatrol");
+    return true;
+  }
+  if (enemy.rasgamarState === "tideEscape") {
+    if (moveRasgamarTo(session, enemy, enemy.rasgamarTargetX, dt, 1.7)) setRasgamarState(session, enemy, "submergedPatrol");
+    return true;
+  }
+  if (enemy.rasgamarState === "submergedApproach") {
+    if (moveRasgamarTo(session, enemy, target.x + 28, dt)) setRasgamarState(session, enemy, "coilEmerge", config.coilEmergeMs);
+    return true;
+  }
+  if (enemy.rasgamarState === "coilEmerge") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) {
+      enemy.rasgamarSubmerged = false;
+      target.rasgamarCoiledBy = enemy.id;
+      target.paralyzedUntil = Math.max(target.paralyzedUntil || 0, session.elapsed + config.coilDurationMs);
+      damageTroop(session, target, config.coilInitialDamage, events);
+      setRasgamarState(session, enemy, "coilAttack", config.coilDurationMs);
+    }
+    return true;
+  }
+  if (enemy.rasgamarState === "coilAttack") {
+    for (let index = 0; index < config.coilPulseTimes.length; index += 1) {
+      if (session.elapsed >= enemy.rasgamarStateStartedAt + config.coilPulseTimes[index] && !enemy.rasgamarPulseIndexes.includes(index)) {
+        enemy.rasgamarPulseIndexes.push(index);
+        damageTroop(session, target, config.coilPulseDamage, events);
+        events.push({ type: "rasgamarElectricPulse", enemyId: enemy.id, troopId: target.id, pulseIndex: index, x: target.x, y: target.y, color: config.color });
+      }
+    }
+    if (session.elapsed >= enemy.rasgamarStateEndsAt || target.dead) {
+      clearRasgamarCoil(session, enemy, { applySlow: !target.dead });
+      setRasgamarState(session, enemy, "coilRelease", 560);
+    }
+    return true;
+  }
+  if (enemy.rasgamarState === "coilRelease") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "surfaceRecovery", config.coilRecoveryMs);
+    return true;
+  }
+  if (enemy.rasgamarState === "rangedPositioning") {
+    if (!target || isTideCellFlooded(session, target.row, target.col)) { setRasgamarState(session, enemy, "submergedPatrol"); return true; }
+    if (moveRasgamarTo(session, enemy, enemy.rasgamarTargetX, dt)) setRasgamarState(session, enemy, "rangedEmerge", config.rangedEmergeMs);
+    return true;
+  }
+  if (enemy.rasgamarState === "rangedEmerge") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "rangedCharge", config.rangedChargeMs);
+    return true;
+  }
+  if (enemy.rasgamarState === "rangedCharge") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) {
+      launchRasgamarDart(session, enemy, config, target, events);
+      setRasgamarState(session, enemy, "rangedAttack", config.rangedAttackMs);
+    }
+    return true;
+  }
+  if (enemy.rasgamarState === "rangedAttack") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "surfaceRecovery", config.rangedRecoveryMs);
+    return true;
+  }
+  if (enemy.rasgamarState === "surfaceRecovery") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "dive", 480);
+    return true;
+  }
+  if (enemy.rasgamarState === "dive") {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "submergedPatrol");
+    return true;
+  }
+  const ambush = selectRasgamarAmbushTarget(session, enemy);
+  if (ambush) {
+    enemy.rasgamarTargetId = ambush.id;
+    setRasgamarState(session, enemy, "submergedApproach");
+    return true;
+  }
+  const ranged = selectRasgamarRangedPlan(session, enemy, config);
+  if (ambush || ranged) enemy.rasgamarNextExposureAt = session.elapsed + config.idleSurfaceExposureEveryMs;
+  if (ranged && session.elapsed >= enemy.rasgamarNextActionAt) {
+    enemy.rasgamarTargetId = ranged.troop.id;
+    enemy.rasgamarTargetX = ranged.x;
+    enemy.rasgamarNextActionAt = session.elapsed + config.rangedCooldownMs;
+    setRasgamarState(session, enemy, "rangedPositioning");
+    return true;
+  }
+  if (session.elapsed >= enemy.rasgamarNextExposureAt) {
+    enemy.rasgamarNextExposureAt = session.elapsed + config.idleSurfaceExposureEveryMs;
+    setRasgamarState(session, enemy, "surfaceRecovery", config.rangedRecoveryMs);
+    return true;
+  }
+  const columns = rasgamarFloodedColumns(session, enemy.row);
+  if (!columns.length) return true;
+  if (!Number.isInteger(enemy.rasgamarPatrolCol) || !columns.includes(enemy.rasgamarPatrolCol)) {
+    enemy.rasgamarPatrolCol = columns[Math.floor(session.rng() * columns.length)];
+  }
+  if (moveRasgamarTo(session, enemy, enemy.rasgamarPatrolCol * CELL.width + CELL.width / 2, dt)) enemy.rasgamarPatrolCol = null;
+  return true;
+}
+
 function updateEnemies(session, dt, events) {
   const enemyCountAtStart = session.enemies.length;
   for (let enemyIndex = 0; enemyIndex < enemyCountAtStart; enemyIndex += 1) {
@@ -5292,6 +5746,10 @@ function updateEnemies(session, dt, events) {
     }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
       enemy.moving = false;
+      continue;
+    }
+    if (enemy.type === "enguiaRasgamar") {
+      updateRasgamar(session, enemy, config, dt, events);
       continue;
     }
     if (updateChapterFourEnemy(session, enemy, config, dt, events)) continue;
@@ -5318,6 +5776,16 @@ function updateEnemies(session, dt, events) {
 
     if (enemy.type === "ramBeetle") {
       updateRamBeetle(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (enemy.type === "carapacaNereida") {
+      updateCarapacaNereida(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (enemy.type === "mordelume") {
+      updateMordelume(session, enemy, config, dt, events);
       continue;
     }
 

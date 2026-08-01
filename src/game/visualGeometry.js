@@ -212,6 +212,21 @@ export function getEnemyMuzzleWorldPosition(
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "enguiaRasgamar") {
+    const state = enemy.dead
+      ? (enemy.rasgamarSubmerged ? "deathSubmerged" : "deathSurface")
+      : enemy.rasgamarState || "swimSubmerged";
+    const count = Math.max(1, frameCounts[state] || frameCounts.swimSubmerged || 1);
+    const age = Math.max(0, elapsed - (enemy.rasgamarStateStartedAt || enemy.spawnedAt || 0));
+    const duration = Number.isFinite(enemy.rasgamarStateEndsAt)
+      ? Math.max(1, enemy.rasgamarStateEndsAt - (enemy.rasgamarStateStartedAt || 0))
+      : null;
+    if (duration && !["submergedPatrol", "tideEscape"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 90)) % count };
+  }
+
   if (enemyConfig.chapterId === "chapter_04") {
     const stunned = elapsed < (enemy.stunnedUntil || 0);
     const state = stunned
@@ -334,6 +349,37 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     }
     const frameMs = enemyConfig.animationFrameMs?.[state] || 90;
     return { state, frame: Math.floor(age / frameMs) % count };
+  }
+
+  if (enemyConfig.id === "carapacaNereida") {
+    const state = enemy.dead ? "death" : enemy.nereidaState || (enemy.moving ? "moveLand" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const age = Math.max(0, elapsed - (enemy.nereidaStateStartedAt || enemy.spawnedAt || 0));
+    const durations = {
+      spawnEmerge: enemyConfig.spawnDurationMs,
+      attackClaw: enemyConfig.attackVisual?.durationMs,
+      death: 960,
+    };
+    if (Number.isFinite(durations[state])) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(0.999, age / durations[state]) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 110)) % count };
+  }
+
+  if (enemyConfig.id === "mordelume") {
+    const state = enemy.dead ? "death" : enemy.mordelumeState || (enemy.moving ? "moveLand" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const age = Math.max(0, elapsed - (enemy.mordelumeStateStartedAt || enemy.spawnedAt || 0));
+    const durations = {
+      spawnEmerge: enemyConfig.spawnDurationMs,
+      sprintWater: enemyConfig.sprintDurationMs,
+      attackBite: enemyConfig.attackVisual?.durationMs,
+      death: enemyConfig.deathDurationMs,
+    };
+    if (Number.isFinite(durations[state])) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(0.999, age / durations[state]) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 100)) % count };
   }
 
   if (enemy.jumping) {

@@ -705,7 +705,9 @@ function drawDeathVisuals(ctx, runtime, assets, now, phase) {
     const groups = death.kind === "troop" ? assets.troops[entity.type] : assets.enemies[entity.type];
     const droneDeathState = death.kind === "troop" && entity.type === "droneSentinela" ? "death" : null;
     const dedicatedDeathState = droneDeathState || (death.kind === "enemy"
-      ? (entity.type === "workerQueenEgg" ? "destroy" : groups?.death ? "death" : null)
+      ? (entity.type === "enguiaRasgamar"
+        ? (entity.rasgamarSubmerged ? "deathSubmerged" : "deathSurface")
+        : entity.type === "workerQueenEgg" ? "destroy" : groups?.death ? "death" : null)
       : groups?.death ? "death" : null);
     const state = dedicatedDeathState
       || (groups?.attack ? "attack" : groups?.walking ? "walking" : groups?.idle ? "idle" : "defense");
@@ -1161,6 +1163,30 @@ function shouldDrawEnemyHealth(entity, frozen, stunned, adaptive) {
   return !fullHealth || !fullShield;
 }
 
+function drawRasgamarSubmergedCue(ctx, entity, elapsed, settings) {
+  if (entity.type !== "enguiaRasgamar" || !entity.rasgamarSubmerged) return;
+  const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 170) * 3;
+  ctx.save();
+  ctx.globalAlpha = .72;
+  ctx.strokeStyle = "#67e8f9";
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = "#22d3ee";
+  ctx.shadowBlur = 10;
+  for (let ring = 0; ring < 2; ring += 1) {
+    ctx.beginPath();
+    ctx.ellipse(entity.x + ring * 9, entity.y + 18, 27 + ring * 8 + pulse, 6 + ring * 2, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = "#a5f3fc";
+  for (let bubble = 0; bubble < 3; bubble += 1) {
+    const phase = elapsed / 95 + bubble * 2.1;
+    ctx.beginPath();
+    ctx.arc(entity.x - 16 + bubble * 15, entity.y + 10 - (phase % 10), 1.5 + bubble * .4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   const config = ENEMIES[logicalEntity.type];
@@ -1233,6 +1259,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.arc(scratch.x, scratch.y, 24 * logicalEntity.scale, 0, Math.PI * 2);
     ctx.fill();
   }
+  drawRasgamarSubmergedCue(ctx, scratch, session.elapsed, settings);
   drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
   drawPrismaticShield(ctx, scratch, session.elapsed, settings);
   if (frozen) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
@@ -1254,7 +1281,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.restore();
   }
   drawStructuralRupture(ctx, scratch, session.elapsed, settings);
-  if (emergenceProgress >= 0.45 && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
+  if (emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
     drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
   }
   if (logicalEntity.variant === "alpha") {
@@ -1469,7 +1496,7 @@ export function SandboxPanel({
   selectedEnemy, onSelectEnemy, row, onRow, count, onCount, alpha, onAlpha,
   grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo,
   onInjure, onClear, onReset, fortuneTier, onFortuneTier, onSimulateFortune,
-  fortuneDisabled, fortuneReason, disabled = false,
+  fortuneDisabled, fortuneReason, mechanicOptions = [], onMechanic, disabled = false,
 }) {
   const selected = ENEMIES[selectedEnemy];
   const slider = (key, label, min, max) => <label className="sandbox-slider" key={key}>
@@ -1482,6 +1509,13 @@ export function SandboxPanel({
       <button className={settings.rulesMode === "free" ? "active" : ""} onClick={() => onRulesMode("free")}>Livre</button>
       <button className={settings.rulesMode === "real" ? "active" : ""} onClick={() => onRulesMode("real")}>Regras reais</button>
     </div>
+    <section className="sandbox-spawn-card">
+      <header><div><span>MECÂNICAS DOS CAPÍTULOS</span><b>Ambiente de teste</b></div></header>
+      <div className="sandbox-mode-toggle" role="group" aria-label="Mecânica ambiental">
+        {mechanicOptions.map((mechanic) => <button key={mechanic.id} type="button" className={settings.mechanicMode === mechanic.id ? "active" : ""} onClick={() => onMechanic(mechanic.id)}>{mechanic.label}</button>)}
+      </div>
+      <small className="sandbox-fortune-reason">Maré, tempestade de areia, ventania e mecânicas especiais podem ser alternadas a qualquer momento.</small>
+    </section>
     <div className="enemy-catalog" aria-label="Catálogo de inimigos">{Object.values(ENEMIES).filter((enemy) => !enemy.hiddenFromCatalog).map((enemy) => <button
       key={enemy.id}
       className={selectedEnemy === enemy.id ? "selected" : ""}
@@ -2137,6 +2171,12 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     resetSandbox(next);
   };
 
+  const changeSandboxMechanic = (mechanicMode) => {
+    const next = { ...sandboxSettingsState, mechanicMode };
+    setSandboxSettingsState(next);
+    resetSandbox(next);
+  };
+
   const handleSpawnEnemy = () => {
     const result = spawnEnemy(sessionRef.current, {
       type: selectedEnemy,
@@ -2433,6 +2473,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           settings={sandboxSettingsState}
           onSetting={updateSandboxSetting}
           onRulesMode={changeRulesMode}
+          mechanicOptions={Object.entries(phase.sandboxMechanics || {}).map(([id, profile]) => ({ id, label: profile.label }))}
+          onMechanic={changeSandboxMechanic}
           onSpawn={handleSpawnEnemy}
           onForceCombo={handleForceExecutorCombo}
           onInjure={handleInjureTroops}

@@ -1,0 +1,24 @@
+{
+  "id": "enguiaRasgamar",
+  "direction": "left",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "anchor": { "x": 0.5, "y": 0.78 },
+  "hitbox": { "width": 94, "height": 56, "offsetX": 0, "offsetY": 14 },
+  "animations": {
+    "spawnSubmerged": { "frames": 8, "frameMs": 80, "loop": false },
+    "swimSubmerged": { "frames": 8, "frameMs": 60, "loop": true },
+    "tideEscape": { "frames": 8, "frameMs": 40, "loop": true },
+    "rangedEmerge": { "frames": 8, "frameMs": 70, "loop": false },
+    "rangedCharge": { "frames": 8, "frameMs": 80, "loop": false },
+    "rangedAttack": { "frames": 8, "frameMs": 60, "loop": false, "projectileFrames": [3] },
+    "surfaceRecovery": { "frames": 8, "frameMs": 100, "loop": true },
+    "coilEmerge": { "frames": 8, "frameMs": 60, "loop": false },
+    "coilAttack": { "frames": 8, "frameMs": 87, "loop": true, "pulseFrames": [2, 4, 6] },
+    "coilRelease": { "frames": 8, "frameMs": 70, "loop": false },
+    "dive": { "frames": 8, "frameMs": 60, "loop": false },
+    "hitSurface": { "frames": 8, "frameMs": 40, "loop": false },
+    "deathSurface": { "frames": 8, "frameMs": 100, "loop": false },
+    "deathSubmerged": { "frames": 8, "frameMs": 90, "loop": false }
+  }
+}

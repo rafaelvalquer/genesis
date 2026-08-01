@@ -1,0 +1,17 @@
+{
+  "id": "mordelume",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "direction": "left",
+  "anchor": { "x": 0.5, "y": 0.82 },
+  "hitbox": { "width": 82, "height": 54, "offsetX": -4, "offsetY": 20 },
+  "animations": {
+    "idle": { "frames": 8, "frameMs": 100, "loop": true },
+    "moveLand": { "frames": 8, "frameMs": 80, "loop": true },
+    "moveWater": { "frames": 8, "frameMs": 60, "loop": true },
+    "sprintWater": { "frames": 8, "frameMs": 50, "loop": false },
+    "attackBite": { "frames": 8, "frameMs": 70, "loop": false, "damageFrames": [4, 6] },
+    "death": { "frames": 8, "frameMs": 90, "loop": false },
+    "spawnEmerge": { "frames": 8, "frameMs": 80, "loop": false }
+  }
+}

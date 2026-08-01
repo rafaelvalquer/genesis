@@ -907,7 +907,7 @@ export function updateTideCycle(session, events = [], hooks = {}) {
   syncSubmergedTroops(session, config, events, hooks);
   pressureMetrics(session, config);
 
-  if (!session.waveActive) return events;
+  if (!session.waveActive && !session.sandbox) return events;
 
   if (tide.state === "warningAdvance") {
     if (session.elapsed >= tide.warningEndsAt) startRising(session, config, events);

@@ -1,0 +1,17 @@
+{
+  "id": "carapacaNereida",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "direction": "left",
+  "anchor": { "x": 0.5, "y": 0.84 },
+  "hitbox": { "width": 112, "height": 76, "offsetX": 0, "offsetY": 16 },
+  "animations": {
+    "idle": { "frames": 8, "frameMs": 120, "loop": true },
+    "moveLand": { "frames": 8, "frameMs": 100, "loop": true },
+    "moveWater": { "frames": 8, "frameMs": 80, "loop": true },
+    "attackClaw": { "frames": 8, "frameMs": 100, "loop": false, "damageFrames": [4] },
+    "shellGuard": { "frames": 8, "frameMs": 100, "loop": true },
+    "death": { "frames": 8, "frameMs": 120, "loop": false },
+    "spawnEmerge": { "frames": 8, "frameMs": 100, "loop": false }
+  }
+}
