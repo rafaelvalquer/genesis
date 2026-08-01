@@ -1,0 +1,13 @@
+{
+  "name": "Genesis - Maré contínua com ondas realistas",
+  "version": "2.1.0",
+  "target": "Capítulo 5 - Abismo de Nereida",
+  "required": [
+    "src/game/tideRenderer.js",
+    "src/game/tideCycle.js",
+    "src/game/visualGeometry.js",
+    "src/game/GameCanvas.jsx"
+  ],
+  "gameplayChanged": false,
+  "supplyChanged": false
+}

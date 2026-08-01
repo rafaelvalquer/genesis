@@ -179,6 +179,9 @@ describe("Drone Sentinela", () => {
   });
 
   it("usa layouts congelados e um ponto de disparo distinto por drone", () => {
+    expect(getDroneSentinelaLayout(1)[0].scale).toBe(0.78);
+    expect(getDroneSentinelaLayout(2).every(({ scale }) => scale === 0.78)).toBe(true);
+    expect(getDroneSentinelaLayout(3).every(({ scale }) => scale === 0.72)).toBe(true);
     for (let count = 1; count <= 3; count += 1) {
       const layout = getDroneSentinelaLayout(count);
       expect(Object.isFrozen(layout)).toBe(true);

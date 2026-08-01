@@ -2,15 +2,16 @@ import { ENEMY_FRAME_ANCHORS } from "./enemyAnchors.generated.js";
 
 const freezeLayout = (entries) => Object.freeze(entries.map((entry) => Object.freeze(entry)));
 export const DRONE_SENTINELA_LAYOUTS = Object.freeze({
-  1: freezeLayout([{ x: 0, y: 0, scale: 1, idlePhase: 0 }]),
+  // Mantém o drone único proporcional à célula sem dominar o campo.
+  1: freezeLayout([{ x: 0, y: 0, scale: 0.78, idlePhase: 0 }]),
   2: freezeLayout([
-    { x: -20, y: 10, scale: 0.9, idlePhase: 0 },
-    { x: 20, y: -12, scale: 0.9, idlePhase: 2 },
+    { x: -20, y: 10, scale: 0.78, idlePhase: 0 },
+    { x: 20, y: -12, scale: 0.78, idlePhase: 2 },
   ]),
   3: freezeLayout([
-    { x: -26, y: 14, scale: 0.84, idlePhase: 0 },
-    { x: 26, y: 14, scale: 0.84, idlePhase: 2 },
-    { x: 0, y: -22, scale: 0.84, idlePhase: 4 },
+    { x: -26, y: 14, scale: 0.72, idlePhase: 0 },
+    { x: 26, y: 14, scale: 0.72, idlePhase: 2 },
+    { x: 0, y: -22, scale: 0.72, idlePhase: 4 },
   ]),
 });
 
