@@ -22,9 +22,10 @@ function cellRect(row, col, inset = 0) {
   };
 }
 
-function forEachDeployableCell(callback) {
+function forEachTideCell(callback) {
   for (let row = 0; row < FIELD.rows; row += 1) {
-    for (let col = FIELD.firstTroopCol; col <= FIELD.lastTroopCol; col += 1) {
+    // A água também cobre a coluna de entrada, onde os inimigos aparecem.
+    for (let col = FIELD.firstTroopCol; col <= FIELD.enemyEntryCol; col += 1) {
       callback(row, col);
     }
   }
@@ -222,8 +223,9 @@ function drawCoastFoam(ctx, session, row, col, now, settings, mode) {
   ctx.shadowBlur = mode === "high" ? 7 : 2;
   ctx.lineWidth = mode === "high" ? 2.4 : 1.6;
   for (const neighbor of neighbors) {
+    if (neighbor.side === "right" && col === FIELD.enemyEntryCol) continue;
     const inside = neighbor.row >= 0 && neighbor.row < FIELD.rows
-      && neighbor.col >= FIELD.firstTroopCol && neighbor.col <= FIELD.lastTroopCol;
+      && neighbor.col >= FIELD.firstTroopCol && neighbor.col <= FIELD.enemyEntryCol;
     if (inside && hasFloodedNeighbor(session, neighbor.row, neighbor.col)) continue;
     ctx.beginPath();
     const wave = settings.reduceMotion ? 0 : Math.sin(now / 190 + row * 1.3 + col) * 2;
@@ -250,7 +252,7 @@ export function drawTideUnderlay(ctx, session, now, settings = {}, adaptive = {}
   const mode = qualityMode(settings, adaptive);
 
   // Deep water is always visible and never deployable.
-  forEachDeployableCell((row, col) => {
+  forEachTideCell((row, col) => {
     const state = getTideCellState(session, row, col);
     if (state.type === TIDE_CELL_TYPES.DEEP_WATER) {
       drawDeepWaterCell(ctx, row, col, now, settings, mode);
@@ -258,21 +260,21 @@ export function drawTideUnderlay(ctx, session, now, settings = {}, adaptive = {}
   });
 
   // Dry intertidal cells communicate risk before the water arrives.
-  forEachDeployableCell((row, col) => {
+  forEachTideCell((row, col) => {
     const state = getTideCellState(session, row, col);
     if (state.type === TIDE_CELL_TYPES.INTERTIDAL && state.status === "dry") {
       drawWetIntertidalCell(ctx, row, col, now, settings, mode);
     }
   });
 
-  forEachDeployableCell((row, col) => {
+  forEachTideCell((row, col) => {
     const state = getTideCellState(session, row, col);
     if (state.type === TIDE_CELL_TYPES.INTERTIDAL && state.flooded) {
       drawFloodedIntertidalCell(ctx, session, row, col, now, settings, mode);
     }
   });
 
-  forEachDeployableCell((row, col) => {
+  forEachTideCell((row, col) => {
     const state = getTideCellState(session, row, col);
     if (state.status === "warningAdvance") drawWarningCell(ctx, session, row, col, now, settings, true);
     else if (state.status === "warningRetreat") drawWarningCell(ctx, session, row, col, now, settings, false);
@@ -376,13 +378,13 @@ export function drawTideOverlay(ctx, session, now, settings = {}, adaptive = {},
   if (!tideEnabled(session)) return;
   const mode = qualityMode(settings, adaptive);
   ctx.save();
-  forEachDeployableCell((row, col) => {
+  forEachTideCell((row, col) => {
     const state = getTideCellState(session, row, col);
     if (!state.flooded) return;
     drawSubmergedBand(ctx, session, row, col, mode);
     if (!settings.reduceMotion) drawBubbles(ctx, row, col, now, mode);
   });
-  forEachDeployableCell((row, col) => {
+  forEachTideCell((row, col) => {
     const state = getTideCellState(session, row, col);
     if (state.flooded) drawCoastFoam(ctx, session, row, col, now, settings, mode);
   });

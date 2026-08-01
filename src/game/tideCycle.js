@@ -39,6 +39,14 @@ function validCell([row, col]) {
     && col <= FIELD.lastTroopCol;
 }
 
+function isEnemyEntryWaterCell(row, col) {
+  return Number.isInteger(row)
+    && row >= 0
+    && row < FIELD.rows
+    && Number.isInteger(col)
+    && col === FIELD.enemyEntryCol;
+}
+
 function uniqueCells(cells = []) {
   const seen = new Set();
   return cells.filter(validCell).filter(([row, col]) => {
@@ -285,6 +293,16 @@ function deployableCellCountAtLevel(config, level) {
 export function getTideCellState(session, row, col) {
   const config = tideConfig(session);
   const tide = session?.tideCycle;
+  if (config && tide && isEnemyEntryWaterCell(row, col)) {
+    return {
+      type: TIDE_CELL_TYPES.DEEP_WATER,
+      status: "deep",
+      flooded: true,
+      deployable: false,
+      level: 0,
+    };
+  }
+
   if (!config || !tide || !validCell([row, col])) {
     return {
       type: TIDE_CELL_TYPES.FIRM_GROUND,
