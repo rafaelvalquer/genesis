@@ -76,7 +76,7 @@ import {
   registerTroopInIndex,
 } from "./battleIndex.js";
 import { createProjectileTrail, pushProjectileTrail } from "./projectileTrail.js";
-import { updateLeviathan } from "./leviathanNereida.js";
+import { forceLeviathanAttack as forceLeviathanAttackDomain, updateLeviathan } from "./leviathanNereida.js";
 
 export {
   createWindCurrentState,
@@ -1097,6 +1097,14 @@ function createEnemy(session, queued) {
     leviathanBiteReadyAt: 0, leviathanTailReadyAt: 0, leviathanBrineReadyAt: 0,
     leviathanVortexReadyAt: 0, leviathanDiveReadyAt: 0, leviathanTideReadyAt: 0,
     leviathanRoarReadyAt: 0, leviathanExposedUntil: 0, leviathanPulseIndex: 0,
+    leviathanMoveState: queued.type === "leviathanNereida" ? "idle" : null,
+    leviathanHomeX: queued.type === "leviathanNereida" ? FIELD.spawnX + 40 : null,
+    leviathanHomeY: queued.type === "leviathanNereida" ? base.bossAnchorRow * CELL.height + CELL.height / 2 : null,
+    leviathanMoveFromX: null, leviathanMoveFromY: null, leviathanMoveToX: null, leviathanMoveToY: null,
+    leviathanMoveStartedAt: session.elapsed, leviathanMoveEndsAt: session.elapsed,
+    leviathanMoveCurve: "linear", leviathanMoveTargetRow: base.bossAnchorRow,
+    leviathanSurfaceAnchor: "deepOcean", leviathanAttackStage: null,
+    leviathanPreviousRenderX: null, leviathanPreviousRenderY: null,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
@@ -1113,10 +1121,13 @@ function createEnemy(session, queued) {
     enemy.row = base.bossAnchorRow;
     enemy.x = FIELD.spawnX + CELL.width * 0.7;
     enemy.previousRenderX = enemy.x;
+    enemy.leviathanPreviousRenderX = enemy.x;
+    enemy.leviathanPreviousRenderY = enemy.y;
     enemy.moving = false;
   }
   enemy.y = enemy.row * CELL.height + CELL.height / 2;
   enemy.previousRenderY = enemy.y;
+  if (queued.type === "leviathanNereida") enemy.leviathanHomeY = enemy.y;
   session.enemies.push(enemy);
   registerEnemyInIndex(getBattleIndex(session), enemy);
   if (firstLivingCrisalio) session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + base.shieldPulseEveryMs;
@@ -1268,7 +1279,7 @@ function closestEnemy(session, troop, config) {
   const originX = attackOriginX(session, troop, config);
   let closest = null;
   for (const enemy of enemiesForRow(session, troop.row)) {
-    if (enemy.dead || enemy.row !== troop.row || enemy.x < originX
+    if (enemy.dead || (enemy.type === "leviathanNereida" && !enemy.leviathanTargetable) || enemy.row !== troop.row || enemy.x < originX
       || enemy.x - originX > config.range * CELL.width) continue;
     if (!closest || enemy.x < closest.x) closest = enemy;
   }
@@ -1282,6 +1293,33 @@ function enemyColumn(enemy) {
 export function forceExecutorCombo(session, step) {
   if (!session.sandbox) return { ok: false, reason: "Controle disponível apenas no Campo de Provas." };
   return forceExecutorComboStep(session, step, TROOPS.executorArco, enemyColumn);
+}
+
+export function forceLeviathanAttack(session, attack) {
+  if (!session?.sandbox) return { ok: false, reason: "Controle disponível apenas no Campo de Provas.", events: [] };
+  const enemy = session.enemies.find((entry) => !entry.dead && entry.type === "leviathanNereida");
+  const events = [];
+  const result = forceLeviathanAttackDomain(session, enemy, attack, ENEMIES.leviathanNereida, events);
+  return { ...result, events };
+}
+
+export function debugLeviathan(session, action) {
+  if (!session?.sandbox) return { ok: false, reason: "Controle disponível apenas no Campo de Provas." };
+  const boss = session.enemies.find((entry) => !entry.dead && entry.type === "leviathanNereida");
+  if (!boss) return { ok: false, reason: "Leviatã não está ativo." };
+  if (action === "phase1" || action === "phase2" || action === "phase3") {
+    const ratio = action === "phase1" ? 1 : action === "phase2" ? .70 : .35;
+    boss.hp = boss.maxHp * ratio; boss.leviathanPhase = Number(action.at(-1));
+  } else if (action === "resetCooldowns") {
+    for (const key of ["leviathanBiteReadyAt", "leviathanTailReadyAt", "leviathanBrineReadyAt", "leviathanVortexReadyAt", "leviathanDiveReadyAt", "leviathanTideReadyAt", "leviathanRoarReadyAt", "leviathanDelugeReadyAt"]) boss[key] = session.elapsed;
+    boss.leviathanGlobalAttackReadyAt = session.elapsed;
+  } else if (action === "exposeGills") {
+    boss.leviathanState = "exposedGills"; boss.leviathanStateStartedAt = session.elapsed; boss.leviathanStateEndsAt = session.elapsed + ENEMIES.leviathanNereida.devastatingDive.exposedDurationMs; boss.leviathanTargetable = true; boss.leviathanDamageFactor = ENEMIES.leviathanNereida.exposedGillsDamageFactor;
+  } else if (action === "clearTide") {
+    if (session.tideCycle?.bossOverride?.sourceId === boss.id) delete session.tideCycle.bossOverride;
+    session.tideCycle.leviathanFloodedCells = []; session.tideCycle.leviathanFloodedUntil = 0;
+  } else if (action === "kill") { boss.hp = 0; boss.dead = true; }
+  return { ok: true, action };
 }
 
 function mortarTargetGroup(session, troop, config) {
@@ -3600,8 +3638,11 @@ function moveEnemy(session, enemy, dt, events) {
   const slow = getTideAdjustedEnemySlowFactor(session, enemy, baseSlow);
   const swarmSpeed = getSilicaDiggerSwarmSpeedFactor(session, enemy);
   const tideSpeed = getTideEnemySpeedFactor(session, enemy);
+  const leviathanVortexSpeed = session.elapsed < (enemy.leviathanVortexSpeedUntil || 0)
+    ? enemy.leviathanVortexSpeedFactor || 1
+    : 1;
   enemy.x -= enemy.speed * swarmSpeed * tideSpeed * session.modifiers.enemySpeed
-    * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
+    * leviathanVortexSpeed * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * slow * dt / 1000;
   if (enemy.x > FIELD.baseX) return;
 
   resolveEnemyBreach(session, enemy, events);
@@ -5560,21 +5601,23 @@ function selectVeuSalinoDebuffTarget(session, enemy, config) {
       || right.x - left.x || left.id.localeCompare(right.id))[0] || null;
 }
 
-function hasVeuSalinoCover(session, enemy) {
-  return session.enemies.some((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row
-    && ally.x < enemy.x && enemy.x - ally.x <= 5 * CELL.width);
+function selectVeuSalinoCover(session, enemy, config) {
+  return session.enemies.filter((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row
+    && ally.x < enemy.x && enemy.x - ally.x <= config.coverSearchRangeTiles * CELL.width)
+    .sort((left, right) => Number(right.type === "carapacaNereida") - Number(left.type === "carapacaNereida") || right.x - left.x)[0] || null;
 }
 
-function shouldVeuSalinoRetreat(session, enemy, config) {
+function shouldVeuSalinoRetreat(session, enemy, config, cover) {
   const troop = closestTroopForEnemy(session, enemy);
-  return !hasVeuSalinoCover(session, enemy)
-    || (troop && enemy.x - troop.x < config.minimumSafeDistanceTiles * CELL.width);
+  return Boolean(cover) && Boolean(troop)
+    && enemy.x - troop.x < config.minimumSafeDistanceTiles * CELL.width;
 }
 
-function updateVeuSalinoFollowMovement(session, enemy, config, dt, events) {
-  const cover = session.enemies.filter((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row && ally.x < enemy.x)
-    .sort((left, right) => Number(right.type === "carapacaNereida") - Number(left.type === "carapacaNereida") || right.x - left.x)[0];
-  const desiredX = cover ? cover.x + config.retreatBehindAllyTiles * CELL.width : enemy.x - config.speed * dt / 1000;
+function updateVeuSalinoFollowMovement(session, enemy, config, dt, cover) {
+  const troop = closestTroopForEnemy(session, enemy);
+  const desiredX = cover
+    ? cover.x + config.retreatBehindAllyTiles * CELL.width
+    : troop ? troop.x + config.attackRangeTiles * CELL.width : enemy.x;
   if (enemy.x - desiredX > 4) {
     setVeuSalinoState(session, enemy, "moveFloat");
     enemy.x -= Math.min(enemy.speed * dt / 1000, enemy.x - desiredX);
@@ -5582,12 +5625,14 @@ function updateVeuSalinoFollowMovement(session, enemy, config, dt, events) {
   } else setVeuSalinoState(session, enemy, "idle");
 }
 
-function startVeuSalinoRetreat(session, enemy, config, events) {
-  const cover = session.enemies.filter((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row && ally.x < enemy.x)
-    .sort((left, right) => Number(right.type === "carapacaNereida") - Number(left.type === "carapacaNereida") || right.x - left.x)[0];
-  enemy.veuSalinoRetreatTargetX = cover
-    ? Math.min(FIELD.spawnX, cover.x + config.retreatBehindAllyTiles * CELL.width)
-    : FIELD.spawnX;
+function startVeuSalinoRetreat(session, enemy, config, cover, events) {
+  enemy.veuSalinoRetreatTargetX = Math.max(enemy.x,
+    Math.min(FIELD.spawnX, cover.x + config.retreatBehindAllyTiles * CELL.width));
+  if (enemy.veuSalinoRetreatTargetX <= enemy.x + 2) {
+    enemy.moving = false;
+    setVeuSalinoState(session, enemy, "idle");
+    return;
+  }
   setVeuSalinoState(session, enemy, "retreat");
   events.push({ type: "veuSalinoRetreat", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session) });
 }
@@ -5625,7 +5670,8 @@ function updateMedusaVeuSalino(session, enemy, config, dt, events) {
     if (enemy.x >= enemy.veuSalinoRetreatTargetX - 2) setVeuSalinoState(session, enemy, "idle");
     return;
   }
-  if (shouldVeuSalinoRetreat(session, enemy, config)) { startVeuSalinoRetreat(session, enemy, config, events); return; }
+  const cover = selectVeuSalinoCover(session, enemy, config);
+  if (shouldVeuSalinoRetreat(session, enemy, config, cover)) { startVeuSalinoRetreat(session, enemy, config, cover, events); return; }
   if (shouldVeuSalinoHeal(session, enemy, config)) {
     enemy.veuSalinoHealApplied = false;
     session.veuSalinoHealPulseLockedUntil = session.elapsed + config.healVisual.durationMs;
@@ -5639,7 +5685,7 @@ function updateMedusaVeuSalino(session, enemy, config, dt, events) {
     setVeuSalinoState(session, enemy, "attackCast", config.attackCastVisual.durationMs);
     return;
   }
-  updateVeuSalinoFollowMovement(session, enemy, config, dt, events);
+  updateVeuSalinoFollowMovement(session, enemy, config, dt, cover);
 }
 
 function setMordelumeState(session, enemy, state, durationMs = Infinity) {
@@ -6082,7 +6128,7 @@ function updateEnemies(session, dt, events) {
 function updateMines(session, events) {
   for (const mine of session.mines) {
     if (!mine.active) continue;
-    if (isTideMineDisabled(session, mine)) continue;
+    if (isTideMineDisabled(session, mine) || session.elapsed < (mine.leviathanDisabledUntil || 0)) continue;
     const cellLeft = mine.col * CELL.width;
     const cellRight = cellLeft + CELL.width;
     const trigger = session.enemies.find((enemy) => {

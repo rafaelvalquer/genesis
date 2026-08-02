@@ -54,6 +54,8 @@ import {
   getWaveOutroCinematicFactor,
   getTroopRangePenaltyTiles,
   forceExecutorCombo,
+  forceLeviathanAttack,
+  debugLeviathan,
   createPositionalConfirmationEvent,
   getPositionalTargetPreview,
   injureSandboxTroops,
@@ -1187,6 +1189,48 @@ function drawRasgamarSubmergedCue(ctx, entity, elapsed, settings) {
   ctx.restore();
 }
 
+function drawLeviathanBossEffects(ctx, entity, session, settings) {
+  if (entity.type !== "leviathanNereida") return;
+  const state = entity.leviathanState;
+  const submerged = entity.leviathanSubmerged || ["submerge", "submergedTravel"].includes(state);
+  const pulse = settings.reduceMotion ? 0 : Math.sin(session.elapsed / 130) * 4;
+  ctx.save();
+  if (submerged) {
+    ctx.globalAlpha = .32;
+    ctx.fillStyle = "#021d35";
+    ctx.beginPath(); ctx.ellipse(entity.x, entity.y + 20, 94 + pulse, 25 + pulse * .18, -.22, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "rgba(103,232,249,.62)"; ctx.lineWidth = 1.5;
+    for (let index = 0; index < 3; index += 1) { ctx.beginPath(); ctx.ellipse(entity.x + index * 18, entity.y + 25, 36 + index * 8, 7 + index, 0, 0, Math.PI * 2); ctx.stroke(); }
+  }
+  const targets = entity.leviathanTargetCells || [];
+  if (entity.leviathanQueuedAttack && ["surfaceSwim", "submerge", "submergedTravel", "vortexCast", "biteAbyss", "tailSweep", "brineJet", "delugeCharge"].includes(state)) {
+    ctx.globalCompositeOperation = "screen";
+    ctx.strokeStyle = entity.leviathanQueuedAttack === "deluge" ? "#a78bfa" : "#67e8f9";
+    ctx.lineWidth = 2;
+    targets.forEach((target) => { const x = target.col * CELL.width + CELL.width / 2; const y = target.row * CELL.height + CELL.height / 2; ctx.beginPath(); ctx.arc(x, y, 18 + pulse, 0, Math.PI * 2); ctx.stroke(); });
+  }
+  if (state === "brineJet") { ctx.strokeStyle = "rgba(103,232,249,.72)"; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(entity.x - 32, entity.y - 8); ctx.lineTo(0, entity.y - 8); ctx.stroke(); }
+  if (state === "vortexCast") { ctx.strokeStyle = "rgba(103,232,249,.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(entity.x, entity.y, 48 + pulse, 0, Math.PI * 1.8); ctx.stroke(); }
+  if (state === "delugeRelease") { ctx.fillStyle = "rgba(103,232,249,.22)"; ctx.fillRect(0, 0, FIELD.width, FIELD.height); }
+  if (state === "exposedGills") { ctx.fillStyle = "rgba(167,139,250,.35)"; ctx.beginPath(); ctx.arc(entity.x - 18, entity.y - 42, 22 + pulse, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawLeviathanBossHealth(ctx, entity) {
+  if (entity.type !== "leviathanNereida") return;
+  const width = 420; const x = (FIELD.width - width) / 2; const y = 14;
+  const hp = Math.max(0, Math.min(1, entity.hp / Math.max(1, entity.maxHp)));
+  ctx.save();
+  ctx.fillStyle = "rgba(2,12,24,.86)"; ctx.fillRect(x - 5, y - 6, width + 10, 30);
+  ctx.fillStyle = "#102b45"; ctx.fillRect(x, y + 10, width, 10);
+  ctx.fillStyle = entity.leviathanPhase === 3 ? "#a78bfa" : entity.leviathanPhase === 2 ? "#38bdf8" : "#67e8f9";
+  ctx.fillRect(x, y + 10, width * hp, 10);
+  ctx.strokeStyle = "#bae6fd"; ctx.strokeRect(x, y + 10, width, 10);
+  ctx.strokeStyle = "rgba(255,255,255,.45)"; [0.35, .70].forEach((mark) => { ctx.beginPath(); ctx.moveTo(x + width * mark, y + 8); ctx.lineTo(x + width * mark, y + 22); ctx.stroke(); });
+  ctx.fillStyle = "#e0f2fe"; ctx.font = "800 12px system-ui"; ctx.textAlign = "center"; ctx.fillText(`LEVIATÃ DE NEREIDA · FASE ${entity.leviathanPhase || 1}`, FIELD.width / 2, y + 1);
+  ctx.restore();
+}
+
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   const config = ENEMIES[logicalEntity.type];
@@ -1260,6 +1304,8 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.fill();
   }
   drawRasgamarSubmergedCue(ctx, scratch, session.elapsed, settings);
+  drawLeviathanBossEffects(ctx, scratch, session, settings);
+  drawLeviathanBossHealth(ctx, logicalEntity);
   drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
   drawPrismaticShield(ctx, scratch, session.elapsed, settings);
   if (frozen) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
@@ -1494,7 +1540,7 @@ export function FortuneChoiceModal({ tier, options, onChoose }) {
 
 export function SandboxPanel({
   selectedEnemy, onSelectEnemy, row, onRow, count, onCount, alpha, onAlpha,
-  grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo,
+  grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo, onForceLeviathan = () => {}, onDebugLeviathan = () => {},
   onInjure, onClear, onReset, fortuneTier, onFortuneTier, onSimulateFortune,
   fortuneDisabled, fortuneReason, mechanicOptions = [], onMechanic, disabled = false,
 }) {
@@ -1536,6 +1582,12 @@ export function SandboxPanel({
     <section className="sandbox-spawn-card">
       <header><div><span>VÓRTICE</span><b>Controle de combo</b></div></header>
       <div className="sandbox-choice"><span>Próximo golpe</span><div>{[1, 2, 3].map((step) => <button key={step} onClick={() => onForceCombo(step)}>Combo {step}</button>)}</div></div>
+    </section>
+    <section className="sandbox-spawn-card">
+      <header><div><span>CHEFE AQUÁTICO</span><b>Leviatã de Nereida</b></div></header>
+      <button className="sandbox-spawn-button" onClick={() => onSelectEnemy("leviathanNereida")}>SELECIONAR LEVIATÃ</button>
+      <div className="sandbox-choice"><span>Forçar ataque</span><div>{[["biteAbyss", "Mordida"], ["tailSweep", "Cauda"], ["brineJet", "Salmoura"], ["predatoryVortex", "Vórtice"], ["devastatingDive", "Mergulho"], ["tideCommand", "Maré"], ["abyssRoar", "Rugido"], ["deluge", "Dilúvio"]].map(([id, label]) => <button key={id} onClick={() => onForceLeviathan(id)}>{label}</button>)}</div></div>
+      <div className="sandbox-choice"><span>Depuração</span><div>{[["phase1", "Fase 1"], ["phase2", "Fase 2"], ["phase3", "Fase 3"], ["resetCooldowns", "Recargas"], ["exposeGills", "Guelras"], ["clearTide", "Limpar maré"], ["kill", "Eliminar"]].map(([id, label]) => <button key={id} onClick={() => onDebugLeviathan(id)}>{label}</button>)}</div></div>
     </section>
     <section className="sandbox-spawn-card fortune-lab-card">
       <header><div><span>ASSISTÊNCIA ADAPTATIVA</span><b>Protocolo Fortuna</b></div></header>
@@ -2204,6 +2256,22 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setSnapshot(getSnapshot(sessionRef.current));
   };
 
+  const handleForceLeviathan = (attack) => {
+    const result = forceLeviathanAttack(sessionRef.current, attack);
+    if (result.events?.length) {
+      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+    }
+    setMessage(result.ok ? `Leviatã preparado: ${attack}.` : result.reason);
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
+  const handleDebugLeviathan = (action) => {
+    const result = debugLeviathan(sessionRef.current, action);
+    setMessage(result.ok ? `Leviatã: ${action}.` : result.reason);
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
   const handleClear = (target) => {
     clearSandboxEntities(sessionRef.current, target);
     particlesRef.current = [];
@@ -2477,6 +2545,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           onMechanic={changeSandboxMechanic}
           onSpawn={handleSpawnEnemy}
           onForceCombo={handleForceExecutorCombo}
+          onForceLeviathan={handleForceLeviathan}
+          onDebugLeviathan={handleDebugLeviathan}
           onInjure={handleInjureTroops}
           onClear={handleClear}
           onReset={() => resetSandbox()}

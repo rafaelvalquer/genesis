@@ -314,6 +314,8 @@ export function getTideCellState(session, row, col) {
   }
 
   const key = cellKey(row, col);
+  const leviathanFlooded = session.elapsed < (tide.leviathanFloodedUntil || 0)
+    && tide.leviathanFloodedCells?.some(([candidateRow, candidateCol]) => candidateRow === row && candidateCol === col);
   if (deepWaterSet(config).has(key)) {
     return {
       type: TIDE_CELL_TYPES.DEEP_WATER,
@@ -348,7 +350,7 @@ export function getTideCellState(session, row, col) {
     ? Math.max(0, Number(tide.bossOverride.extraLevels) || 0)
     : 0;
   const effectiveLevel = tide.currentLevel + activeOverride;
-  const flooded = level <= effectiveLevel || advancingBand;
+  const flooded = leviathanFlooded || level <= effectiveLevel || advancingBand;
   const status = drying
     ? "drying"
     : warning && tide.state === "warningAdvance"

@@ -120,4 +120,35 @@ describe("Medusa Véu-Salino", () => {
     expect(medusa.x).toBeGreaterThan(x);
     expect(medusa.veuSalinoStateStartedAt).toBe(startedAt);
   });
+
+  it("does not retreat to cover beyond 2.5 tiles", () => {
+    const { session, medusa, cover } = setup();
+    const troop = placeTroop(session, "colono", 1, 7).troop;
+    medusa.x = troop.x + CELL.width;
+    cover.x = medusa.x - ENEMIES.medusaVeuSalino.coverSearchRangeTiles * CELL.width - 1;
+    stepBattle(session, 800);
+    stepBattle(session, 1);
+    expect(medusa.veuSalinoState).not.toBe("retreat");
+    expect(medusa.x).toBeLessThanOrEqual(troop.x + CELL.width);
+  });
+
+  it("without cover advances only until it can attack", () => {
+    const { session, medusa, cover } = setup();
+    const troop = placeTroop(session, "colono", 1, 7).troop;
+    medusa.x = troop.x + (ENEMIES.medusaVeuSalino.attackRangeTiles + 2) * CELL.width;
+    cover.dead = true;
+    stepBattle(session, 800);
+    medusa.veuSalinoNextHealAt = Infinity;
+    medusa.veuSalinoNextAttackAt = Infinity;
+    const initialX = medusa.x;
+    stepBattle(session, 1000);
+    expect(medusa.veuSalinoState).toBe("moveFloat");
+    expect(medusa.x).toBeLessThan(initialX);
+
+    stepBattle(session, 20000);
+    expect(medusa.x - troop.x).toBeCloseTo(ENEMIES.medusaVeuSalino.attackRangeTiles * CELL.width, 0);
+    medusa.veuSalinoNextAttackAt = 0;
+    stepBattle(session, 1);
+    expect(medusa.veuSalinoState).toBe("attackCast");
+  });
 });
