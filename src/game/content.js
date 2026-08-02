@@ -2161,7 +2161,7 @@ export const ENEMIES = {
     phaseTwoCooldownFactor: 0.88, phaseThreeCooldownFactor: 0.72,
     assetStates: ["spawnRise", "idleSurface", "surfaceSwim", "biteAbyss", "biteRecover", "tailSweep", "brineJet", "vortexCast", "submerge", "submergedTravel", "emergeImpact", "tideCommand", "abyssRoar", "delugeCharge", "delugeRelease", "exposedGills", "death"],
     animationFrameMs: { spawnRise: 130, idleSurface: 150, surfaceSwim: 110, biteAbyss: 160, biteRecover: 140, tailSweep: 150, brineJet: 150, vortexCast: 180, submerge: 80, submergedTravel: 100, emergeImpact: 112, tideCommand: 162, abyssRoar: 150, delugeCharge: 400, delugeRelease: 225, exposedGills: 140, death: 200 },
-    biteAbyss: { cooldownMs: 9000, telegraphMs: 1500, durationMs: 1280, damageMaxHpFactor: .40, executeBelowHpFactor: .30, pullTiles: 1, targetsPhaseOne: 1, targetsPhaseTwo: 1, targetsPhaseThree: 2 },
+    biteAbyss: { cooldownMs: 9000, telegraphMs: 1500, durationMs: 1280, recoverDurationMs: 1000, damageMaxHpFactor: .40, executeBelowHpFactor: .30, pullTiles: 1, targetsPhaseOne: 1, targetsPhaseTwo: 1, targetsPhaseThree: 2 },
     tailSweep: { cooldownMs: 11000, telegraphMs: 1800, durationMs: 1200, damageMaxHpFactor: .14, collisionDamageMaxHpFactor: .08, pushTiles: 1, trapDisableMs: 4500, rowsPhaseOne: 2, rowsPhaseTwo: 2, rowsPhaseThree: 3 },
     brineJet: { cooldownMs: 8500, telegraphMs: 1200, durationMs: 1400, damageMaxHpFactor: .10, attackSpeedFactor: .75, attackSpeedDurationMs: 4000, projectileSpeed: 700 },
     predatoryVortex: { cooldownMs: 14000, telegraphMs: 2000, durationMs: 3600, radiusTiles: 1.3, pulseEveryMs: 700, pulseCount: 4, damageMaxHpFactorPerPulse: .035, pullTilesPerPulse: .35, aquaticEnemySpeedFactor: 1.2, aquaticEnemyBuffDurationMs: 4000 },

@@ -219,11 +219,14 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     const state = enemy.dead ? "death" : enemy.leviathanState || "idleSurface";
     const count = Math.max(1, frameCounts[state] || frameCounts.idleSurface || 1);
     const age = Math.max(0, elapsed - (enemy.leviathanStateStartedAt || enemy.spawnedAt || 0));
+    const animationStartedAt = enemy.leviathanAnimationStartedAt ?? enemy.leviathanStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const animationEndsAt = enemy.leviathanAnimationEndsAt ?? enemy.leviathanStateEndsAt;
+    if (enemy.leviathanTelegraphEndsAt && elapsed < enemy.leviathanTelegraphEndsAt) return { state, frame: 0 };
     const duration = Number.isFinite(enemy.leviathanStateEndsAt)
-      ? Math.max(1, enemy.leviathanStateEndsAt - (enemy.leviathanStateStartedAt || 0))
+      ? Math.max(1, animationEndsAt - animationStartedAt)
       : null;
-    if (duration && !["idleSurface", "submergedTravel", "exposedGills"].includes(state)) {
-      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    if (duration && !["idleSurface", "surfaceSwim", "submergedTravel", "exposedGills"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, Math.max(0, elapsed - animationStartedAt) / duration) * count)) };
     }
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
   }

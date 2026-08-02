@@ -11,6 +11,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const aquatic = (enemy) => enemy?.type === "enguiaRasgamar" || enemy?.type === "carapacaNereida" || enemy?.type === "medusaVeuSalino" || enemy?.type === "mordelume";
 const living = (session) => session.troops.filter((troop) => !troop.dead);
 const cooldownField = { biteAbyss: "leviathanBiteReadyAt", tailSweep: "leviathanTailReadyAt", brineJet: "leviathanBrineReadyAt", predatoryVortex: "leviathanVortexReadyAt", devastatingDive: "leviathanDiveReadyAt", tideCommand: "leviathanTideReadyAt", abyssRoar: "leviathanRoarReadyAt", deluge: "leviathanDelugeReadyAt" };
+const impactFrame = Object.freeze({ biteAbyss: 5, tailSweep: 5, brineJet: 4, predatoryVortex: 5, devastatingDive: 5, tideCommand: 5, abyssRoar: 5, deluge: 5 });
 
 function cooldownFactor(enemy, config) { return enemy.leviathanPhase === 3 ? config.phaseThreeCooldownFactor : enemy.leviathanPhase === 2 ? config.phaseTwoCooldownFactor : 1; }
 function attackReady(session, enemy, attack) { return session.elapsed >= Number(enemy[cooldownField[attack]] || 0); }
@@ -20,13 +21,29 @@ function targetRows(session, enemy, count) {
   for (const troop of living(session)) scores[troop.row].score += 1 + (troop.attack || 0) / 10 + (troop.type.includes("muralha") ? .5 : 0);
   return scores.sort((a, b) => b.score - a.score || (a.row === enemy.row ? -1 : 1)).slice(0, count).map(({ row }) => row);
 }
-function setState(session, enemy, state, duration = Infinity) {
+function setState(session, enemy, state, duration = Infinity, { telegraphMs = 0, animationMs } = {}) {
   enemy.leviathanState = state; enemy.leviathanStateStartedAt = session.elapsed;
   enemy.leviathanStateEndsAt = Number.isFinite(duration) ? session.elapsed + duration : Infinity;
+  enemy.leviathanTelegraphStartedAt = telegraphMs ? session.elapsed : null;
+  enemy.leviathanTelegraphEndsAt = telegraphMs ? session.elapsed + telegraphMs : null;
+  enemy.leviathanAnimationStartedAt = session.elapsed + telegraphMs;
+  enemy.leviathanAnimationEndsAt = Number.isFinite(animationMs ?? duration) ? enemy.leviathanAnimationStartedAt + (animationMs ?? duration - telegraphMs) : Infinity;
+  enemy.leviathanImpactFrame = null;
+  enemy.leviathanImpactApplied = false;
   enemy.leviathanAttackApplied = false; enemy.leviathanProjectileReleased = false; enemy.leviathanPulseIndex = 0;
   enemy.leviathanSubmerged = ["submerge", "submergedTravel"].includes(state);
   enemy.leviathanTargetable = !enemy.leviathanSubmerged && state !== "spawnRise" && state !== "death";
   enemy.leviathanDamageFactor = state === "exposedGills" ? enemy._leviathanConfig.exposedGillsDamageFactor : 1;
+}
+function setAttackState(session, enemy, state, config, attack, { telegraphMs = 0, animationMs } = {}) {
+  const animationDuration = animationMs ?? config[attack]?.durationMs ?? config[attack]?.castDurationMs ?? 0;
+  setState(session, enemy, state, telegraphMs + animationDuration, { telegraphMs, animationMs: animationDuration });
+  enemy.leviathanImpactFrame = impactFrame[attack] ?? null;
+}
+function impactReached(session, enemy) {
+  if (enemy.leviathanImpactFrame == null || !Number.isFinite(enemy.leviathanAnimationEndsAt)) return false;
+  const duration = Math.max(1, enemy.leviathanAnimationEndsAt - enemy.leviathanAnimationStartedAt);
+  return session.elapsed >= enemy.leviathanAnimationStartedAt + duration * enemy.leviathanImpactFrame / 8;
 }
 const rowY = (row) => clamp(row, 0, FIELD.rows - 1) * CELL.height + CELL.height / 2;
 const ease = (value, curve) => curve === "linear" ? value : value * value * (3 - 2 * value);
@@ -69,7 +86,8 @@ function moveToAttackPosition(session, enemy, attack, config) {
   const underwater = attack === "biteAbyss" || attack === "devastatingDive" || attack === "predatoryVortex" || attack === "deluge";
   const x = underwater ? clamp((target.col + .55) * CELL.width, 550, 980) : 1030;
   const y = rowY(target.row);
-  startLeviathanMovement(session, enemy, { x, y, durationMs: underwater ? 1050 : 680, state: underwater ? "submergedTravel" : "surfaceSwim", targetRow: target.row });
+  enemy.leviathanPendingMove = { x, y, durationMs: attack === "devastatingDive" ? config.devastatingDive.travelDurationMs : 1050, targetRow: target.row };
+  if (!underwater) startLeviathanMovement(session, enemy, { x, y, durationMs: 680, state: "surfaceSwim", targetRow: target.row });
   enemy.leviathanAttackStage = underwater ? "submerging" : "movingToPosition";
   if (underwater) setState(session, enemy, "submerge", config.devastatingDive?.submergeDurationMs || 640);
   else setState(session, enemy, "surfaceSwim", 680);
@@ -153,12 +171,19 @@ function startAttack(session, enemy, attack, config, events) {
   moveToAttackPosition(session, enemy, attack, config);
   events.push({ type: "leviathanMovementStarted", bossId: enemy.id, attack, targetRow: enemy.leviathanMoveTargetRow, x: enemy.leviathanMoveToX, y: enemy.leviathanMoveToY });
 }
-function returnToDeepOcean(session, enemy, config, events) {
+function returnToDeepOcean(session, enemy, config, events, underwater = false) {
   const attack = enemy.leviathanQueuedAttack;
   if (attack) enemy[cooldownField[attack]] = session.elapsed + (config[attack]?.cooldownMs || 0) * cooldownFactor(enemy, config);
   enemy.leviathanGlobalAttackReadyAt = session.elapsed + config.globalAttackLockMs;
   enemy.leviathanQueuedAttack = null;
   enemy.leviathanAttackStage = "returning";
+  if (underwater) {
+    enemy.leviathanReturningUnderwater = true;
+    enemy.leviathanPendingMove = { x: enemy.leviathanHomeX, y: enemy.leviathanHomeY, durationMs: 1050, targetRow: config.bossAnchorRow };
+    setState(session, enemy, "submerge", config.devastatingDive.submergeDurationMs);
+    events.push({ type: "leviathanReturningOcean", bossId: enemy.id, x: enemy.leviathanHomeX, y: enemy.leviathanHomeY, submerged: true });
+    return;
+  }
   startLeviathanMovement(session, enemy, { x: enemy.leviathanHomeX, y: enemy.leviathanHomeY, durationMs: 760, state: "surfaceSwim", targetRow: config.bossAnchorRow });
   setState(session, enemy, "surfaceSwim", 760);
   events.push({ type: "leviathanReturningOcean", bossId: enemy.id, x: enemy.leviathanHomeX, y: enemy.leviathanHomeY });
@@ -171,60 +196,69 @@ export function updateLeviathan(session, enemy, config, hooks, events) {
   if (enemy.moving && !updateLeviathanMovement(session, enemy)) return;
   if (enemy.leviathanAttackStage === "movingToPosition" && !enemy.moving) {
     const attack = enemy.leviathanQueuedAttack;
-    const telegraph = attack === "deluge" ? config.deluge.chargeDurationMs : config[attack]?.telegraphMs || 0;
-    const duration = config[attack]?.durationMs || config[attack]?.castDurationMs || config.deluge?.releaseDurationMs || 0;
     const state = ({ biteAbyss: "biteAbyss", tailSweep: "tailSweep", brineJet: "brineJet", predatoryVortex: "vortexCast", tideCommand: "tideCommand", abyssRoar: "abyssRoar", deluge: "delugeCharge" })[attack];
     enemy.leviathanAttackStage = "telegraphing";
-    setState(session, enemy, state, telegraph + duration);
-    events.push({ type: "leviathanTelegraph", bossId: enemy.id, attack, rows: [...enemy.leviathanTargetRows], cells: [...enemy.leviathanTargetCells], endsAt: session.elapsed + telegraph });
+    if (attack === "deluge") setState(session, enemy, state, config.deluge.chargeDurationMs, { animationMs: config.deluge.chargeDurationMs });
+    else setAttackState(session, enemy, state, config, attack, { telegraphMs: config[attack]?.telegraphMs || 0 });
+    events.push({ type: "leviathanTelegraph", bossId: enemy.id, attack, rows: [...enemy.leviathanTargetRows], cells: [...enemy.leviathanTargetCells], endsAt: enemy.leviathanTelegraphEndsAt || session.elapsed });
   }
-  if (enemy.leviathanAttackStage === "returning" && !enemy.moving) {
+  if (enemy.leviathanAttackStage === "returning" && !enemy.moving && !enemy.leviathanReturningUnderwater) {
     enemy.leviathanAttackStage = null;
     setState(session, enemy, "idleSurface");
     enemy.leviathanSurfaceAnchor = "deepOcean";
   }
   if (enemy.leviathanState === "spawnRise" && session.elapsed >= enemy.leviathanStateEndsAt) { setState(session, enemy, "idleSurface"); enemy.leviathanGlobalAttackReadyAt = session.elapsed + 1500; return; }
-  if (enemy.leviathanState === "submerge" && session.elapsed >= enemy.leviathanStateEndsAt) { setState(session, enemy, "submergedTravel", config.devastatingDive.travelDurationMs); return; }
+  if (enemy.leviathanState === "submerge" && session.elapsed >= enemy.leviathanStateEndsAt) {
+    const move = enemy.leviathanPendingMove || { x: enemy.x, y: enemy.y, durationMs: config.devastatingDive.travelDurationMs, targetRow: enemy.row };
+    setState(session, enemy, "submergedTravel");
+    startLeviathanMovement(session, enemy, { ...move, state: "submergedTravel" });
+    return;
+  }
   if (enemy.leviathanState === "submergedTravel" && !enemy.moving) {
+    if (enemy.leviathanReturningUnderwater) {
+      enemy.leviathanReturningUnderwater = false;
+      enemy.leviathanAttackStage = null;
+      setState(session, enemy, "idleSurface");
+      enemy.leviathanSurfaceAnchor = "deepOcean";
+      return;
+    }
     const queued = enemy.leviathanQueuedAttack;
     if (queued === "devastatingDive") {
-      setState(session, enemy, "emergeImpact", config.devastatingDive.emergeDurationMs);
+      setAttackState(session, enemy, "emergeImpact", config, "devastatingDive", { animationMs: config.devastatingDive.emergeDurationMs });
       enemy.leviathanAttackStage = "attacking";
       events.push({ type: "leviathanEmergeTelegraph", bossId: enemy.id, x: enemy.x, y: enemy.y });
       return;
     }
     const state = ({ biteAbyss: "biteAbyss", predatoryVortex: "vortexCast", deluge: "delugeCharge" })[queued] || "idleSurface";
-    const telegraph = queued === "deluge" ? config.deluge.chargeDurationMs : config[queued]?.telegraphMs || 0;
-    const duration = config[queued]?.durationMs || config[queued]?.castDurationMs || config.deluge?.releaseDurationMs || 0;
     enemy.leviathanAttackStage = "telegraphing";
-    setState(session, enemy, state, telegraph + duration);
-    events.push({ type: "leviathanTelegraph", bossId: enemy.id, attack: queued, rows: [...enemy.leviathanTargetRows], cells: [...enemy.leviathanTargetCells], endsAt: session.elapsed + telegraph });
+    if (queued === "deluge") setState(session, enemy, state, config.deluge.chargeDurationMs, { animationMs: config.deluge.chargeDurationMs });
+    else setAttackState(session, enemy, state, config, queued, { telegraphMs: config[queued]?.telegraphMs || 0 });
+    events.push({ type: "leviathanTelegraph", bossId: enemy.id, attack: queued, rows: [...enemy.leviathanTargetRows], cells: [...enemy.leviathanTargetCells], endsAt: enemy.leviathanTelegraphEndsAt || session.elapsed });
     return;
   }
-  if (enemy.leviathanState === "emergeImpact" && !enemy.leviathanAttackApplied && session.elapsed >= enemy.leviathanStateStartedAt + config.devastatingDive.emergeDurationMs * .65) { applyAttack(session, enemy, "devastatingDive", config, hooks, events); enemy.leviathanAttackApplied = true; return; }
+  if (enemy.leviathanState === "emergeImpact" && !enemy.leviathanImpactApplied && impactReached(session, enemy)) { applyAttack(session, enemy, "devastatingDive", config, hooks, events); enemy.leviathanAttackApplied = true; enemy.leviathanImpactApplied = true; return; }
   if (enemy.leviathanState === "emergeImpact" && session.elapsed >= enemy.leviathanStateEndsAt) { enemy.leviathanExposedUntil = session.elapsed + config.devastatingDive.exposedDurationMs; setState(session, enemy, "exposedGills", config.devastatingDive.exposedDurationMs); return; }
-  if (enemy.leviathanState === "exposedGills" && session.elapsed >= enemy.leviathanStateEndsAt) { setState(session, enemy, "idleSurface"); return; }
-  if (enemy.leviathanState === "biteAbyss" && enemy.leviathanAttackApplied && session.elapsed >= enemy.leviathanStateEndsAt) { setState(session, enemy, "biteRecover", 540); return; }
+  if (enemy.leviathanState === "exposedGills" && session.elapsed >= enemy.leviathanStateEndsAt) { returnToDeepOcean(session, enemy, config, events, true); return; }
+  if (enemy.leviathanState === "biteAbyss" && enemy.leviathanAttackApplied && session.elapsed >= enemy.leviathanStateEndsAt) { setState(session, enemy, "biteRecover", config.biteAbyss.recoverDurationMs, { animationMs: config.biteAbyss.recoverDurationMs }); return; }
   if (enemy.leviathanState === "biteRecover" && session.elapsed >= enemy.leviathanStateEndsAt) { returnToDeepOcean(session, enemy, config, events); return; }
   const attack = enemy.leviathanQueuedAttack;
   if (attack && enemy.leviathanState !== "idleSurface") {
-    const attackConfig = config[attack]; const trigger = attack === "deluge" ? config.deluge.chargeDurationMs : attackConfig?.telegraphMs || Math.min(600, attackConfig?.castDurationMs || 0);
-    if (attack === "predatoryVortex" && session.elapsed >= enemy.leviathanStateStartedAt + trigger) {
-      const expectedPulses = Math.min(config.predatoryVortex.pulseCount, Math.floor((session.elapsed - enemy.leviathanStateStartedAt - trigger) / config.predatoryVortex.pulseEveryMs) + 1);
+    if (attack === "deluge" && enemy.leviathanState === "delugeCharge" && session.elapsed >= enemy.leviathanStateEndsAt) {
+      setAttackState(session, enemy, "delugeRelease", config, "deluge", { animationMs: config.deluge.releaseDurationMs });
+      return;
+    }
+    const impactAt = enemy.leviathanAnimationStartedAt + Math.max(1, enemy.leviathanAnimationEndsAt - enemy.leviathanAnimationStartedAt) * (enemy.leviathanImpactFrame || 0) / 8;
+    if (attack === "predatoryVortex" && impactReached(session, enemy)) {
+      const expectedPulses = Math.min(config.predatoryVortex.pulseCount, Math.floor((session.elapsed - impactAt) / config.predatoryVortex.pulseEveryMs) + 1);
       while (enemy.leviathanPulseIndex < expectedPulses) {
         applyAttack(session, enemy, attack, config, hooks, events);
         enemy.leviathanPulseIndex += 1;
       }
       enemy.leviathanAttackApplied = enemy.leviathanPulseIndex >= config.predatoryVortex.pulseCount;
     }
-    if (attack !== "predatoryVortex" && !enemy.leviathanAttackApplied && session.elapsed >= enemy.leviathanStateStartedAt + trigger) { applyAttack(session, enemy, attack, config, hooks, events); enemy.leviathanAttackApplied = true; }
-    if (attack === "deluge" && enemy.leviathanAttackApplied && enemy.leviathanState === "delugeCharge") {
-      setState(session, enemy, "delugeRelease", config.deluge.releaseDurationMs);
-      enemy.leviathanAttackApplied = true;
-      return;
-    }
+    if (attack !== "predatoryVortex" && !enemy.leviathanImpactApplied && impactReached(session, enemy)) { applyAttack(session, enemy, attack, config, hooks, events); enemy.leviathanAttackApplied = true; enemy.leviathanImpactApplied = true; }
     if (session.elapsed >= enemy.leviathanStateEndsAt) {
-      if (attack === "biteAbyss") { setState(session, enemy, "biteRecover", 540); return; }
+      if (attack === "biteAbyss") { setState(session, enemy, "biteRecover", config.biteAbyss.recoverDurationMs, { animationMs: config.biteAbyss.recoverDurationMs }); return; }
       returnToDeepOcean(session, enemy, config, events);
     }
     return;

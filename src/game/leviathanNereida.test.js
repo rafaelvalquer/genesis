@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
 import { createBattleSession, forceLeviathanAttack, spawnEnemy, stepBattle } from "./battleModel.js";
 import { startLeviathanMovement, updateLeviathanMovement } from "./leviathanNereida.js";
+import { getEnemyAnimation } from "./visualGeometry.js";
 
 describe("Leviatã de Nereida", () => {
   const sandbox = () => createBattleSession(PHASES.find((phase) => phase.chapterId === "chapter_05") || PHASES[0], [], 947, {
@@ -75,17 +76,22 @@ describe("Leviatã de Nereida", () => {
     expect(forceLeviathanAttack(session, "deluge")).toMatchObject({ ok: false });
   });
 
-  it("keeps the bite separate from devastating dive after submerged travel", () => {
+  it("keeps the bite separate from devastating dive after a visible submerged travel", () => {
     const session = sandbox();
     const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
     boss.leviathanState = "idleSurface";
     boss.leviathanTargetable = true;
     expect(forceLeviathanAttack(session, "biteAbyss")).toMatchObject({ ok: true });
 
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.submergeDurationMs + 80);
+    expect(boss).toMatchObject({ leviathanState: "submergedTravel", moving: true });
     stepBattle(session, 1100);
-    stepBattle(session, 20);
     expect(boss.leviathanState).toBe("biteAbyss");
-    stepBattle(session, ENEMIES.leviathanNereida.biteAbyss.telegraphMs + ENEMIES.leviathanNereida.biteAbyss.durationMs + 1);
+    expect(boss.leviathanTelegraphEndsAt).toBeGreaterThan(session.elapsed);
+    expect(getEnemyAnimation(boss, ENEMIES.leviathanNereida, session.elapsed, { biteAbyss: 8 }).frame).toBe(0);
+    stepBattle(session, ENEMIES.leviathanNereida.biteAbyss.telegraphMs + ENEMIES.leviathanNereida.biteAbyss.durationMs * 5 / 8 + 20);
+    expect(boss.leviathanImpactApplied).toBe(true);
+    stepBattle(session, ENEMIES.leviathanNereida.biteAbyss.durationMs * 3 / 8 + 40);
     expect(boss.leviathanState).toBe("biteRecover");
   });
 });
