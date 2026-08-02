@@ -214,6 +214,23 @@ export function getEnemyMuzzleWorldPosition(
   return { x: rect.x + rect.width * muzzle.x, y: rect.y + rect.height * muzzle.y };
 }
 
+export function getLeviathanBrineMouthPosition(enemy, enemyConfig = {}, frame = 0, aspectRatio = 1) {
+  const state = enemyConfig.brineJetVisual?.state || "brineJet";
+  const rect = getEnemySpriteRect(enemy, enemyConfig, state, frame, aspectRatio);
+  const muzzles = enemyConfig.brineJetVisual?.frameMuzzles || [];
+  const muzzle = muzzles[Math.min(Math.max(0, frame), Math.max(0, muzzles.length - 1))]
+    || muzzles[enemyConfig.brineJetVisual?.releaseFrame || 4]
+    || { x: .15, y: .46 };
+  return { x: rect.x + rect.width * muzzle.x, y: rect.y + rect.height * muzzle.y };
+}
+
+export function getLeviathanHitPointForRow(enemy, enemyConfig = {}, troopRow, state = "idleSurface", frame = 0, aspectRatio = 1) {
+  const rect = getEnemySpriteRect(enemy, enemyConfig, state, frame, aspectRatio);
+  const attackRow = troopRow === enemy.leviathanAttackRow;
+  const anchor = attackRow ? { x: .34, y: .34 } : { x: .56, y: .69 };
+  return { x: rect.x + rect.width * anchor.x, y: rect.y + rect.height * anchor.y };
+}
+
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
   if (enemyConfig.id === "leviathanNereida") {
     const state = enemy.dead ? "death" : enemy.leviathanState || "idleSurface";

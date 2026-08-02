@@ -23,7 +23,7 @@ import {
   drawPulseScorches,
 } from "./pulseRenderer.js";
 import {
-  getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect,
+  getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect, getLeviathanBrineMouthPosition,
   getEnemyDeathVisualY,
   getJanoDroneAnimation, getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
   buildBattleRenderRows, createBattleRowBuffers, getDroneSentinelaLayout, isEnemyFrozen,
@@ -1209,7 +1209,48 @@ function drawLeviathanBossEffects(ctx, entity, session, settings) {
     ctx.lineWidth = 2;
     targets.forEach((target) => { const x = target.col * CELL.width + CELL.width / 2; const y = target.row * CELL.height + CELL.height / 2; ctx.beginPath(); ctx.arc(x, y, 18 + pulse, 0, Math.PI * 2); ctx.stroke(); });
   }
-  if (state === "brineJet") { ctx.strokeStyle = "rgba(103,232,249,.72)"; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(entity.x - 32, entity.y - 8); ctx.lineTo(0, entity.y - 8); ctx.stroke(); }
+  if (state === "brineJet") {
+    const config = ENEMIES.leviathanNereida;
+    const frame = Math.min(7, Math.max(0, Math.floor((session.elapsed - entity.leviathanAnimationStartedAt) / (config.animationFrameMs?.brineJet || 150))));
+    const mouth = getLeviathanBrineMouthPosition(entity, config, frame);
+    const end = { x: FIELD.baseX - CELL.width * .2, y: (entity.leviathanAttackRow ?? entity.row) * CELL.height + CELL.height / 2 };
+    const control1 = { x: mouth.x - CELL.width * .7, y: mouth.y };
+    const control2 = { x: mouth.x - CELL.width * 1.5, y: end.y };
+    const releasedAt = entity.leviathanBrineReleasedAt;
+    const pathLength = Math.max(1, mouth.x - end.x + Math.abs(mouth.y - end.y) * .45);
+    const traveled = releasedAt ? (session.elapsed - releasedAt) * config.brineJet.projectileSpeed / 1000 : 0;
+    const progress = Math.max(0, Math.min(1, traveled / pathLength));
+    const pointAt = (t) => {
+      const u = 1 - t;
+      return { x: u ** 3 * mouth.x + 3 * u ** 2 * t * control1.x + 3 * u * t ** 2 * control2.x + t ** 3 * end.x, y: u ** 3 * mouth.y + 3 * u ** 2 * t * control1.y + 3 * u * t ** 2 * control2.y + t ** 3 * end.y };
+    };
+    if (!releasedAt) {
+      ctx.fillStyle = "rgba(34,211,238,.14)";
+      ctx.fillRect(0, end.y - CELL.height * .35, FIELD.width, CELL.height * .7);
+      ctx.strokeStyle = "rgba(186,230,253,.72)";
+      ctx.lineWidth = 2;
+      for (let x = FIELD.baseX + 26; x < FIELD.width - 36; x += 74) {
+        const y = end.y + Math.sin(session.elapsed * .01 + x) * 5;
+        ctx.beginPath(); ctx.moveTo(x + 12, y); ctx.lineTo(x, y - 7); ctx.lineTo(x, y + 7); ctx.stroke();
+      }
+    } else {
+      const streamEnd = pointAt(progress);
+      const drawCurve = (width, color, wobble = 0) => {
+        ctx.beginPath(); ctx.moveTo(mouth.x, mouth.y);
+        ctx.bezierCurveTo(control1.x, control1.y + wobble, control2.x, control2.y - wobble, streamEnd.x, streamEnd.y);
+        ctx.lineWidth = width; ctx.strokeStyle = color; ctx.stroke();
+      };
+      ctx.globalCompositeOperation = "screen";
+      drawCurve(CELL.width * config.brineJet.streamWidthTiles, "rgba(34,211,238,.42)");
+      drawCurve(CELL.width * config.brineJet.streamWidthTiles * config.brineJet.innerStreamWidthFactor, "rgba(186,230,253,.72)", Math.sin(session.elapsed * .018) * 5);
+      drawCurve(3, "rgba(240,249,255,.9)", Math.sin(session.elapsed * .018 + 2) * 8);
+      for (let index = 0; index < 10; index += 1) {
+        const drop = pointAt(progress * index / 10);
+        ctx.fillStyle = index % 2 ? "rgba(186,230,253,.8)" : "rgba(255,255,255,.9)";
+        ctx.beginPath(); ctx.arc(drop.x, drop.y + Math.sin(session.elapsed * .014 + index) * 5, 1.5 + (index % 3), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
   if (state === "vortexCast") { ctx.strokeStyle = "rgba(103,232,249,.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(entity.x, entity.y, 48 + pulse, 0, Math.PI * 1.8); ctx.stroke(); }
   if (state === "delugeRelease") { ctx.fillStyle = "rgba(103,232,249,.22)"; ctx.fillRect(0, 0, FIELD.width, FIELD.height); }
   if (state === "exposedGills") { ctx.fillStyle = "rgba(167,139,250,.35)"; ctx.beginPath(); ctx.arc(entity.x - 18, entity.y - 42, 22 + pulse, 0, Math.PI * 2); ctx.fill(); }

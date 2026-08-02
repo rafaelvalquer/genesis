@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
-import { createBattleSession, forceLeviathanAttack, spawnEnemy, stepBattle } from "./battleModel.js";
-import { startLeviathanMovement, updateLeviathanMovement } from "./leviathanNereida.js";
-import { getEnemyAnimation } from "./visualGeometry.js";
+import { createBattleSession, createTroopEntity, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, stepBattle } from "./battleModel.js";
+import { chooseBrineJetPlacement, startLeviathanMovement, updateLeviathanMovement } from "./leviathanNereida.js";
+import { CELL, FIELD, getEnemyAnimation } from "./visualGeometry.js";
 
 describe("Leviatã de Nereida", () => {
   const sandbox = () => createBattleSession(PHASES.find((phase) => phase.chapterId === "chapter_05") || PHASES[0], [], 947, {
@@ -93,5 +93,93 @@ describe("Leviatã de Nereida", () => {
     expect(boss.leviathanImpactApplied).toBe(true);
     stepBattle(session, ENEMIES.leviathanNereida.biteAbyss.durationMs * 3 / 8 + 40);
     expect(boss.leviathanState).toBe("biteRecover");
+  });
+
+  it("holds Deluge damage until frame 5 of delugeRelease", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss.hp = boss.maxHp * .35;
+    boss.leviathanPhase = 3; boss.leviathanState = "idleSurface"; boss.leviathanTargetable = true; boss.leviathanNextDecisionAt = Infinity;
+    expect(forceLeviathanAttack(session, "deluge")).toMatchObject({ ok: true });
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.submergeDurationMs + 80);
+    stepBattle(session, 1050 + 100);
+    expect(boss).toMatchObject({ leviathanState: "delugeCharge", leviathanImpactApplied: false });
+    stepBattle(session, ENEMIES.leviathanNereida.deluge.chargeDurationMs + 80);
+    expect(boss).toMatchObject({ leviathanState: "delugeRelease", leviathanImpactApplied: false, leviathanImpactFrame: 5 });
+    stepBattle(session, ENEMIES.leviathanNereida.deluge.releaseDurationMs * 5 / 8 + 80);
+    expect(boss.leviathanImpactApplied).toBe(true);
+  });
+
+  it("returns underwater after exposed gills instead of idling at the dive impact", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss.hp = boss.maxHp * .70;
+    boss.leviathanPhase = 2; boss.leviathanState = "idleSurface"; boss.leviathanTargetable = true; boss.leviathanNextDecisionAt = Infinity;
+    expect(forceLeviathanAttack(session, "devastatingDive")).toMatchObject({ ok: true });
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.submergeDurationMs + 80);
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.travelDurationMs + 100);
+    expect(boss.leviathanState).toBe("emergeImpact");
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.emergeDurationMs + 80);
+    stepBattle(session, 20);
+    expect(boss.leviathanState).toBe("exposedGills");
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.exposedDurationMs + 80);
+    expect(boss.leviathanState).toBe("submerge");
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.submergeDurationMs + 80);
+    expect(boss).toMatchObject({ leviathanState: "submergedTravel", moving: true });
+    stepBattle(session, 1200);
+    expect(boss).toMatchObject({ leviathanState: "idleSurface", leviathanAttackStage: null, moving: false });
+  });
+
+  it("keeps returns inside the rightmost tile", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    const rightmostTileCenter = FIELD.enemyEntryCol * CELL.width + CELL.width / 2;
+
+    expect(boss).toMatchObject({ x: rightmostTileCenter, leviathanHomeX: rightmostTileCenter });
+    startLeviathanMovement(session, boss, {
+      x: FIELD.spawnX + 100,
+      y: boss.y,
+      durationMs: 100,
+      state: "surfaceSwim",
+    });
+    expect(boss.leviathanMoveToX).toBe(rightmostTileCenter);
+  });
+
+  it("keeps the body on row 3 while Brine Jet attacks row 2", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss.leviathanTargetable = true;
+    const placement = chooseBrineJetPlacement(session, boss, 1);
+    Object.assign(boss, { leviathanBodyRow: placement.bodyRow, leviathanAttackRow: placement.attackRow, leviathanTargetableRows: placement.targetableRows });
+    expect(placement).toEqual({ bodyRow: 2, attackRow: 1, targetableRows: [1, 2] });
+    expect(getEnemyTargetableRows(boss)).toEqual([1, 2]);
+    expect(getEnemyTargetableRows(boss)).not.toContain(0);
+    expect(getEnemyTargetableRows(boss)).not.toContain(3);
+  });
+
+  it("applies Brine Jet once, by travel time, only to the attacked row", () => {
+    const session = sandbox();
+    const attacked = createTroopEntity(session, "marine", 1, 8);
+    const bodyRow = createTroopEntity(session, "reator", 2, 8);
+    session.troops.push(attacked, bodyRow);
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss.leviathanState = "idleSurface";
+    boss.leviathanTargetable = true;
+    boss.leviathanNextDecisionAt = Infinity;
+    boss.row = 0;
+    const attackedHp = attacked.hp;
+    const bodyRowHp = bodyRow.hp;
+
+    expect(forceLeviathanAttack(session, "brineJet")).toMatchObject({ ok: true });
+    stepBattle(session, 720);
+    stepBattle(session, ENEMIES.leviathanNereida.brineJet.telegraphMs + 20);
+    stepBattle(session, ENEMIES.leviathanNereida.brineJet.durationMs * .55);
+    expect(boss.leviathanBrineReleasedAt).toBeTypeOf("number");
+    expect(boss.leviathanAttackRow).toBe(1);
+    stepBattle(session, 900);
+    expect(attacked.hp).toBeCloseTo(attackedHp * .9);
+    expect(bodyRow.hp).toBe(bodyRowHp);
+    expect(attacked.leviathanBrineAttackSpeedFactor).toBe(.75);
+    expect(boss.leviathanBrineHitTroopIds.filter((id) => id === attacked.id)).toHaveLength(1);
   });
 });

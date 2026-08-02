@@ -20,7 +20,7 @@ import {
   updateAdaptiveAidLifecycle,
 } from "./adaptiveAid.js";
 import {
-  CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition,
+  CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition, getLeviathanHitPointForRow,
   getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
 } from "./visualGeometry.js";
 import {
@@ -1096,13 +1096,18 @@ function createEnemy(session, queued) {
     leviathanNextDecisionAt: queued.type === "leviathanNereida" ? session.elapsed + base.attackDecisionEveryMs : Infinity,
     leviathanGlobalAttackReadyAt: queued.type === "leviathanNereida" ? session.elapsed + base.spawnDurationMs + 1500 : Infinity,
     leviathanTargetRows: [], leviathanTargetCells: [], leviathanTargetTroopIds: [],
+    leviathanBodyRow: queued.type === "leviathanNereida" ? base.bossAnchorRow : null,
+    leviathanAttackRow: null, leviathanTargetableRows: [], leviathanBrineTargetTroopIds: [],
+    leviathanBrineReleasedAt: null, leviathanBrineEndsAt: null, leviathanBrineHitTroopIds: [], leviathanBrineContacts: [],
     leviathanAttackApplied: false, leviathanProjectileReleased: false, leviathanDelugeUsed: false,
     leviathanSubmerged: false, leviathanTargetable: false, leviathanDamageFactor: 1,
     leviathanBiteReadyAt: 0, leviathanTailReadyAt: 0, leviathanBrineReadyAt: 0,
     leviathanVortexReadyAt: 0, leviathanDiveReadyAt: 0, leviathanTideReadyAt: 0,
     leviathanRoarReadyAt: 0, leviathanExposedUntil: 0, leviathanPulseIndex: 0,
     leviathanMoveState: queued.type === "leviathanNereida" ? "idle" : null,
-    leviathanHomeX: queued.type === "leviathanNereida" ? FIELD.spawnX + 40 : null,
+    leviathanHomeX: queued.type === "leviathanNereida"
+      ? FIELD.enemyEntryCol * CELL.width + CELL.width / 2
+      : null,
     leviathanHomeY: queued.type === "leviathanNereida" ? base.bossAnchorRow * CELL.height + CELL.height / 2 : null,
     leviathanMoveFromX: null, leviathanMoveFromY: null, leviathanMoveToX: null, leviathanMoveToY: null,
     leviathanMoveStartedAt: session.elapsed, leviathanMoveEndsAt: session.elapsed,
@@ -1124,7 +1129,7 @@ function createEnemy(session, queued) {
   }
   if (queued.type === "leviathanNereida") {
     enemy.row = base.bossAnchorRow;
-    enemy.x = FIELD.spawnX + CELL.width * 0.7;
+    enemy.x = FIELD.enemyEntryCol * CELL.width + CELL.width / 2;
     enemy.previousRenderX = enemy.x;
     enemy.leviathanPreviousRenderX = enemy.x;
     enemy.leviathanPreviousRenderY = enemy.y;
@@ -1280,11 +1285,22 @@ function attackOriginX(session, troop, config) {
   return adjacentWall?.x ?? troop.x;
 }
 
+export function getEnemyTargetableRows(enemy, config = ENEMIES[enemy?.type]) {
+  if (enemy?.type === "leviathanNereida") {
+    if (!enemy.leviathanTargetable) return [];
+    return enemy.leviathanTargetableRows?.length ? enemy.leviathanTargetableRows : [enemy.row];
+  }
+  return [enemy?.row];
+}
+
 function closestEnemy(session, troop, config) {
   const originX = attackOriginX(session, troop, config);
   let closest = null;
-  for (const enemy of enemiesForRow(session, troop.row)) {
-    if (enemy.dead || (enemy.type === "leviathanNereida" && !enemy.leviathanTargetable) || enemy.row !== troop.row || enemy.x < originX
+  const rowEnemies = enemiesForRow(session, troop.row);
+  const leviathanOverlaps = session.enemies.filter((enemy) => enemy.type === "leviathanNereida"
+    && !rowEnemies.includes(enemy) && getEnemyTargetableRows(enemy).includes(troop.row));
+  for (const enemy of [...rowEnemies, ...leviathanOverlaps]) {
+    if (enemy.dead || !getEnemyTargetableRows(enemy).includes(troop.row) || enemy.x < originX
       || enemy.x - originX > config.range * CELL.width) continue;
     if (!closest || enemy.x < closest.x) closest = enemy;
   }
@@ -1816,7 +1832,10 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     * damageTakenFactor * chapterFourFactor * effectiveArmorFactor * ruptureFactor;
   if (enemy.type === "leviathanNereida") incoming *= enemy.leviathanDamageFactor || 1;
   if (nereidaProtector) incoming *= ENEMIES.carapacaNereida.escortedRangedDamageFactor;
-  const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
+  const sourceTroop = context.sourceTroopId ? indexedTroopById(session, context.sourceTroopId) : null;
+  const hitPoint = enemy.type === "leviathanNereida" && sourceTroop
+    ? getLeviathanHitPointForRow(enemy, ENEMIES[enemy.type], sourceTroop.row, enemy.leviathanState, 0)
+    : getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
     const shieldIgnore = clamp(context.shieldIgnoreFactor || 0, 0, 1);
     const bypassDamage = incoming * shieldIgnore;
