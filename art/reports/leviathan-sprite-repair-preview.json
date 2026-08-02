@@ -1,0 +1,966 @@
+{
+  "rules": {
+    "alphaThreshold": 16,
+    "transparentMarginPx": 24,
+    "cornerZonePx": 72,
+    "ignoreComponentAreaPx": 4,
+    "warningComponentAreaPx": 8,
+    "errorComponentAreaPx": 20,
+    "maximumSecondaryAreaFactor": 0.0005,
+    "maximumAnchorDriftPx": 10
+  },
+  "decisions": [
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame0.png",
+      "state": "abyssRoar",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame1.png",
+      "state": "abyssRoar",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame2.png",
+      "state": "abyssRoar",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame3.png",
+      "state": "abyssRoar",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame4.png",
+      "state": "abyssRoar",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame5.png",
+      "state": "abyssRoar",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame6.png",
+      "state": "abyssRoar",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\abyssRoar\\frame7.png",
+      "state": "abyssRoar",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame0.png",
+      "state": "biteAbyss",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame1.png",
+      "state": "biteAbyss",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame2.png",
+      "state": "biteAbyss",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame3.png",
+      "state": "biteAbyss",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame4.png",
+      "state": "biteAbyss",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame5.png",
+      "state": "biteAbyss",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame6.png",
+      "state": "biteAbyss",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteAbyss\\frame7.png",
+      "state": "biteAbyss",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame0.png",
+      "state": "biteRecover",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame1.png",
+      "state": "biteRecover",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame2.png",
+      "state": "biteRecover",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame3.png",
+      "state": "biteRecover",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame4.png",
+      "state": "biteRecover",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame5.png",
+      "state": "biteRecover",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame6.png",
+      "state": "biteRecover",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\biteRecover\\frame7.png",
+      "state": "biteRecover",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame0.png",
+      "state": "brineJet",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame1.png",
+      "state": "brineJet",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame2.png",
+      "state": "brineJet",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame3.png",
+      "state": "brineJet",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame4.png",
+      "state": "brineJet",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame5.png",
+      "state": "brineJet",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame6.png",
+      "state": "brineJet",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\brineJet\\frame7.png",
+      "state": "brineJet",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame0.png",
+      "state": "death",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame1.png",
+      "state": "death",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame2.png",
+      "state": "death",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame3.png",
+      "state": "death",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame4.png",
+      "state": "death",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame5.png",
+      "state": "death",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame6.png",
+      "state": "death",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\death\\frame7.png",
+      "state": "death",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame0.png",
+      "state": "delugeCharge",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame1.png",
+      "state": "delugeCharge",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame2.png",
+      "state": "delugeCharge",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame3.png",
+      "state": "delugeCharge",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame4.png",
+      "state": "delugeCharge",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame5.png",
+      "state": "delugeCharge",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame6.png",
+      "state": "delugeCharge",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeCharge\\frame7.png",
+      "state": "delugeCharge",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame0.png",
+      "state": "delugeRelease",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame1.png",
+      "state": "delugeRelease",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame2.png",
+      "state": "delugeRelease",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame3.png",
+      "state": "delugeRelease",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame4.png",
+      "state": "delugeRelease",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame5.png",
+      "state": "delugeRelease",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame6.png",
+      "state": "delugeRelease",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\delugeRelease\\frame7.png",
+      "state": "delugeRelease",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame0.png",
+      "state": "emergeImpact",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame1.png",
+      "state": "emergeImpact",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame2.png",
+      "state": "emergeImpact",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame3.png",
+      "state": "emergeImpact",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame4.png",
+      "state": "emergeImpact",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame5.png",
+      "state": "emergeImpact",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame6.png",
+      "state": "emergeImpact",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\emergeImpact\\frame7.png",
+      "state": "emergeImpact",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame0.png",
+      "state": "exposedGills",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame1.png",
+      "state": "exposedGills",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame2.png",
+      "state": "exposedGills",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame3.png",
+      "state": "exposedGills",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame4.png",
+      "state": "exposedGills",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame5.png",
+      "state": "exposedGills",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame6.png",
+      "state": "exposedGills",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\exposedGills\\frame7.png",
+      "state": "exposedGills",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame0.png",
+      "state": "idleSurface",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame1.png",
+      "state": "idleSurface",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame2.png",
+      "state": "idleSurface",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame3.png",
+      "state": "idleSurface",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame4.png",
+      "state": "idleSurface",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame5.png",
+      "state": "idleSurface",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame6.png",
+      "state": "idleSurface",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\idleSurface\\frame7.png",
+      "state": "idleSurface",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame0.png",
+      "state": "spawnRise",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame1.png",
+      "state": "spawnRise",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame2.png",
+      "state": "spawnRise",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame3.png",
+      "state": "spawnRise",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame4.png",
+      "state": "spawnRise",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame5.png",
+      "state": "spawnRise",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame6.png",
+      "state": "spawnRise",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\spawnRise\\frame7.png",
+      "state": "spawnRise",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame0.png",
+      "state": "submerge",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame1.png",
+      "state": "submerge",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame2.png",
+      "state": "submerge",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame3.png",
+      "state": "submerge",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame4.png",
+      "state": "submerge",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame5.png",
+      "state": "submerge",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame6.png",
+      "state": "submerge",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submerge\\frame7.png",
+      "state": "submerge",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "REDRAW_REQUIRED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame0.png",
+      "state": "submergedTravel",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame1.png",
+      "state": "submergedTravel",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame2.png",
+      "state": "submergedTravel",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame3.png",
+      "state": "submergedTravel",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame4.png",
+      "state": "submergedTravel",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame5.png",
+      "state": "submergedTravel",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame6.png",
+      "state": "submergedTravel",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\submergedTravel\\frame7.png",
+      "state": "submergedTravel",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame0.png",
+      "state": "surfaceSwim",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame1.png",
+      "state": "surfaceSwim",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame2.png",
+      "state": "surfaceSwim",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame3.png",
+      "state": "surfaceSwim",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame4.png",
+      "state": "surfaceSwim",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame5.png",
+      "state": "surfaceSwim",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame6.png",
+      "state": "surfaceSwim",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\surfaceSwim\\frame7.png",
+      "state": "surfaceSwim",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame0.png",
+      "state": "tailSweep",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame1.png",
+      "state": "tailSweep",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame2.png",
+      "state": "tailSweep",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame3.png",
+      "state": "tailSweep",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame4.png",
+      "state": "tailSweep",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame5.png",
+      "state": "tailSweep",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame6.png",
+      "state": "tailSweep",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tailSweep\\frame7.png",
+      "state": "tailSweep",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame0.png",
+      "state": "tideCommand",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame1.png",
+      "state": "tideCommand",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame2.png",
+      "state": "tideCommand",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame3.png",
+      "state": "tideCommand",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame4.png",
+      "state": "tideCommand",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame5.png",
+      "state": "tideCommand",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame6.png",
+      "state": "tideCommand",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\tideCommand\\frame7.png",
+      "state": "tideCommand",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame0.png",
+      "state": "vortexCast",
+      "frame": 0,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame1.png",
+      "state": "vortexCast",
+      "frame": 1,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame2.png",
+      "state": "vortexCast",
+      "frame": 2,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame3.png",
+      "state": "vortexCast",
+      "frame": 3,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame4.png",
+      "state": "vortexCast",
+      "frame": 4,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame5.png",
+      "state": "vortexCast",
+      "frame": 5,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame6.png",
+      "state": "vortexCast",
+      "frame": 6,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    },
+    {
+      "path": "art\\source\\leviathanNereida\\vortexCast\\frame7.png",
+      "state": "vortexCast",
+      "frame": 7,
+      "removedComponents": [],
+      "status": "UNCHANGED"
+    }
+  ]
+}

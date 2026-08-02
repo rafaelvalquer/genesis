@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
+import { LEVIATHAN_AUDIT_RULES as auditRules, analyzeLeviathanComponents, componentTouchesProtectedZone } from "./leviathan-sprite-components.mjs";
 
 const states = ["spawnRise", "idleSurface", "surfaceSwim", "biteAbyss", "biteRecover", "tailSweep", "brineJet", "vortexCast", "submerge", "submergedTravel", "emergeImpact", "tideCommand", "abyssRoar", "delugeCharge", "delugeRelease", "exposedGills", "death"];
 const minimumChangedPixelRatio = { idleSurface: .025, surfaceSwim: .06, biteAbyss: .10, biteRecover: .07, tailSweep: .10, brineJet: .08, vortexCast: .08, submerge: .12, submergedTravel: .06, emergeImpact: .12, tideCommand: .08, abyssRoar: .09, delugeCharge: .08, delugeRelease: .12, exposedGills: .04, death: .14, spawnRise: .14 };
@@ -34,6 +35,17 @@ function assertSafeBounds(state, frame, pixels) {
   if (box.left < 24 || box.right > 487 || box.top < 24 || box.bottom > 491) fail(`${state}/${frame}: excede a margem de segurança artística (24/24/20 px).`);
   return box;
 }
+function assertConnectedAnatomy(state, frame, pixels) {
+  const analysis = analyzeLeviathanComponents(pixels, 512, 512);
+  if (!analysis.main || analysis.mainComponentRatio < .98) fail(`${state}/${frame}: MAIN_COMPONENT_TOO_SMALL — o corpo principal deve representar ao menos 98% dos pixels visíveis.`);
+  for (const component of analysis.secondary) {
+    const zones = componentTouchesProtectedZone(component, 512, 512, auditRules);
+    if (zones.inCorner) fail(`${state}/${frame}: CORNER_CONTAMINATION — componente isolado em zona de canto.`);
+    if (zones.touchesMargin) fail(`${state}/${frame}: EDGE_CONTAMINATION — componente isolado junto à margem.`);
+    if (component.area > auditRules.warningComponentAreaPx) fail(`${state}/${frame}: ISOLATED_PIXEL_ISLAND — componente desconectado com ${component.area} pixels.`);
+    if (component.area / analysis.main.area > auditRules.maximumSecondaryAreaFactor) fail(`${state}/${frame}: SECONDARY_COMPONENT_TOO_LARGE.`);
+  }
+}
 async function normalize(sourcePath, outputPath) {
   const image = sharp(sourcePath).ensureAlpha().resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png();
   const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
@@ -59,6 +71,7 @@ for (const state of states) {
     hashes.add(createHash("sha256").update(bytes).digest("hex"));
     const pixels = await normalize(sourcePath, join(outputDir, file));
     boxes.push(assertSafeBounds(state, file, pixels));
+    assertConnectedAnatomy(state, file, pixels);
     frames.push(pixels);
   }
   if (hashes.size < 7) fail(`${state}: menos de sete poses diferentes.`);
@@ -68,8 +81,8 @@ for (const state of states) {
   if (!specialHeightStates.has(state)) {
     const base = boxes[0];
     for (const box of boxes.slice(1)) {
-      if (Math.abs(box.height - base.height) / base.height > .12) fail(`${state}: altura aparente varia mais de 12%.`);
-      if (Math.abs(box.centerY - base.centerY) > 20) fail(`${state}: centro da anatomia varia mais de 20 px.`);
+      if (Math.abs(box.height - base.height) / base.height > .08) fail(`${state}: FRAME_BODY_SCALE_DRIFT — altura aparente varia mais de 8%.`);
+      if (Math.abs(box.centerY - base.centerY) > auditRules.maximumAnchorDriftPx) fail(`${state}: ANCHOR_DRIFT — centro da anatomia varia mais de 10 px.`);
     }
   }
   const signature = [...hashes].sort().join("|");

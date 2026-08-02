@@ -2166,8 +2166,10 @@ export const ENEMIES = {
     brineJet: {
       cooldownMs: 8500, telegraphMs: 1200, durationMs: 1400, releaseFrame: 4,
       damageMaxHpFactor: .10, attackSpeedFactor: .75, attackSpeedDurationMs: 4000,
-      projectileSpeed: 700, maximumRowOffset: 1, targetableRowSpan: 2,
-      streamWidthTiles: .44, innerStreamWidthFactor: .52, sustainMs: 580, fadeOutMs: 180,
+      projectileSpeed: 700, mouthToGroundMs: 180, groundSweepMaxMs: 1700, groundSustainMs: 450,
+      streamHeightPx: 58, frontSplashRadiusPx: 34, priorityStartsAfterMs: 12000, highPriorityAfterMs: 20000, guaranteeAfterMs: 26000,
+      maximumRowOffset: 1, targetableRowSpan: 2,
+      streamWidthTiles: .44, innerStreamWidthFactor: .52, sustainMs: 580, fadeOutMs: 280,
       splashRadiusPx: 26, mouthState: "brineJet",
     },
     brineJetVisual: {
@@ -2175,7 +2177,7 @@ export const ENEMIES = {
       frameMuzzles: [{ x: .27, y: .37 }, { x: .25, y: .39 }, { x: .22, y: .42 }, { x: .19, y: .44 }, { x: .15, y: .46 }, { x: .16, y: .47 }, { x: .20, y: .45 }, { x: .24, y: .42 }],
     },
     predatoryVortex: { cooldownMs: 14000, telegraphMs: 2000, durationMs: 3600, radiusTiles: 1.3, pulseEveryMs: 700, pulseCount: 4, damageMaxHpFactorPerPulse: .035, pullTilesPerPulse: .35, aquaticEnemySpeedFactor: 1.2, aquaticEnemyBuffDurationMs: 4000 },
-    devastatingDive: { cooldownMs: 16000, submergeDurationMs: 640, travelDurationMs: 1800, emergeDurationMs: 900, impactDamageMaxHpFactor: .18, impactRadiusTiles: 1.4, floodedDurationMs: 6500, exposedDurationMs: 4000, exposedDamageFactor: 1.35 },
+    devastatingDive: { cooldownMs: 16000, submergeDurationMs: 650, travelDurationMs: 1100, stalkDurationByPhase: { 1: 3200, 2: 2800, 3: 2300 }, finalApproachByPhase: { 1: 1000, 2: 900, 3: 800 }, submergedBreathEveryMs: 900, shadowOpacityMin: .20, shadowOpacityMax: .38, emergeDurationMs: 900, impactDamageMaxHpFactor: .18, impactRadiusTiles: 1.4, floodedDurationMs: 6500, exposedDurationMs: 4000, exposedDamageFactor: 1.35 },
     tideCommand: { cooldownMs: 22000, castDurationMs: 1300, extraLevels: 1, durationMs: 10000 },
     abyssRoar: { cooldownMs: 15000, durationMs: 1200, healFactor: .06, speedFactor: 1.2, buffDurationMs: 6000, controlDurationFactor: .65 },
     deluge: { chargeDurationMs: 3200, releaseDurationMs: 1800, damageMaxHpFactor: .18, attackSpeedFactor: .80, attackSpeedDurationMs: 5000, trapDisableMs: 6500, extraTideLevels: 2, floodedDurationMs: 10000, lightTroopPushTiles: 1 },

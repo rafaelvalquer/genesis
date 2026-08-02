@@ -118,6 +118,10 @@ describe("Leviatã de Nereida", () => {
     expect(forceLeviathanAttack(session, "devastatingDive")).toMatchObject({ ok: true });
     stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.submergeDurationMs + 80);
     stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.travelDurationMs + 100);
+    expect(boss.leviathanState).toBe("submergedStalk");
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.stalkDurationByPhase[2] + 40);
+    expect(boss.leviathanState).toBe("submergedFinalApproach");
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.finalApproachByPhase[2] + 40);
     expect(boss.leviathanState).toBe("emergeImpact");
     stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.emergeDurationMs + 80);
     stepBattle(session, 20);
@@ -180,6 +184,6 @@ describe("Leviatã de Nereida", () => {
     expect(attacked.hp).toBeCloseTo(attackedHp * .9);
     expect(bodyRow.hp).toBe(bodyRowHp);
     expect(attacked.leviathanBrineAttackSpeedFactor).toBe(.75);
-    expect(boss.leviathanBrineHitTroopIds.filter((id) => id === attacked.id)).toHaveLength(1);
+    expect(boss.leviathanBrineCastId).toContain(boss.id);
   });
 });

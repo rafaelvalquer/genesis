@@ -1235,6 +1235,19 @@ function drawLeviathanBossEffects(ctx, entity, session, settings) {
       }
     } else {
       const streamEnd = pointAt(progress);
+      // The long-distance portion is a ground wave, not a beam: keep it inside the chosen lane.
+      const laneTop = end.y - CELL.height * .32;
+      const waveHeight = config.brineJet.streamHeightPx || 58;
+      const frontX = Number.isFinite(entity.leviathanBrineFrontX) ? entity.leviathanBrineFrontX : streamEnd.x;
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, (entity.leviathanAttackRow ?? entity.row) * CELL.height, FIELD.width, CELL.height); ctx.clip();
+      ctx.fillStyle = "rgba(8,145,178,.34)";
+      ctx.fillRect(frontX, end.y - waveHeight, FIELD.width - frontX, waveHeight);
+      ctx.fillStyle = "rgba(186,230,253,.32)";
+      ctx.fillRect(frontX, laneTop, FIELD.width - frontX, waveHeight * .45);
+      ctx.strokeStyle = "rgba(240,249,255,.92)"; ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(frontX, end.y - waveHeight * .42, waveHeight * .42, Math.PI / 2, Math.PI * 1.5); ctx.stroke();
+      ctx.restore();
       const drawCurve = (width, color, wobble = 0) => {
         ctx.beginPath(); ctx.moveTo(mouth.x, mouth.y);
         ctx.bezierCurveTo(control1.x, control1.y + wobble, control2.x, control2.y - wobble, streamEnd.x, streamEnd.y);

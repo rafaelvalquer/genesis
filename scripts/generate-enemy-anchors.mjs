@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import sharp from "sharp";
+import { analyzeLeviathanComponents } from "./leviathan-sprite-components.mjs";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const ENEMY_ROOT = path.join(ROOT, "src", "game", "assets", "enemy");
@@ -19,10 +20,13 @@ const rounded = (value) => Number(value.toFixed(4));
 
 async function calculateAnchor(file, airborne) {
   const { data, info } = await sharp(file).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const leviathan = file.includes(`${path.sep}leviathanNereida${path.sep}`);
+  const mainPixels = leviathan ? new Set(analyzeLeviathanComponents(data, info.width, info.height).main?.pixels || []) : null;
   const points = [];
   for (let y = 0; y < info.height; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
       const offset = (y * info.width + x) * 4;
+      if (mainPixels && !mainPixels.has(y * info.width + x)) continue;
       const alpha = data[offset + 3];
       const luminance = data[offset] * 0.2126 + data[offset + 1] * 0.7152 + data[offset + 2] * 0.0722;
       if (alpha > 150 && luminance < 128 && x > info.width * 0.1 && x < info.width * 0.93) {
@@ -34,6 +38,7 @@ async function calculateAnchor(file, airborne) {
     points.length = 0;
     for (let y = 0; y < info.height; y += 1) {
       for (let x = 0; x < info.width; x += 1) {
+        if (mainPixels && !mainPixels.has(y * info.width + x)) continue;
         const alpha = data[(y * info.width + x) * 4 + 3];
         if (alpha > 150) points.push({ x, y, weight: 1 });
       }
