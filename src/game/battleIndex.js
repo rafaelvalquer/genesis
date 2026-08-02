@@ -1,4 +1,5 @@
 import { CELL, FIELD } from "./visualGeometry.js";
+import { isEnemyTargetable } from "./enemyTargeting.js";
 
 const indexes = new WeakMap();
 
@@ -49,9 +50,9 @@ export function registerEnemyInIndex(index, enemy) {
   if (!index || !enemy || enemy.dead) return;
   index.enemyById.set(enemy.id, enemy);
   index.enemiesByRow[enemy.row]?.push(enemy);
-  const targetRows = enemy.type === "leviathanNereida"
-    ? (enemy.leviathanTargetableRows || [])
-    : [enemy.row];
+  const targetRows = !isEnemyTargetable(enemy)
+    ? []
+    : enemy.type === "leviathanNereida" ? (enemy.leviathanTargetableRows || []) : [enemy.row];
   for (const row of new Set(targetRows)) index.targetableEnemiesByRow[row]?.push(enemy);
   bucketFor(index.enemiesByTile, battleTileKey(enemy.row, enemy.x)).push(enemy);
   bucketFor(index.enemiesByType, enemy.type).push(enemy);

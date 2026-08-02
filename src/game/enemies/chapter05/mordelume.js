@@ -1,0 +1,2 @@
+import { enemyBehavior } from "../enemyBehavior.js";
+export const mordelumeBehavior = enemyBehavior({ createState: (session, queued, config) => ({ mordelumeState: "spawnEmerge", mordelumeStateStartedAt: session.elapsed, mordelumeStateEndsAt: session.elapsed + config.spawnDurationMs, mordelumeAttackTargetId: null, mordelumeDamageFramesApplied: [] }), update: (runtime, enemy, config, dt, events) => (runtime.updateMordelume(enemy, config, dt, events), true), onDeath: (runtime, enemy) => runtime.setMordelumeState(enemy, "death", runtime.configFor(enemy).deathDurationMs) });

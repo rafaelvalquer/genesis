@@ -68,6 +68,7 @@ import {
   validatePositionalTarget,
 } from "./positionalTargeting.js";
 import { compactActive } from "./battleCollections.js";
+import { isEnemyTargetable } from "./enemyTargeting.js";
 import {
   getBattleIndex,
   livingEnemyById,
@@ -78,6 +79,8 @@ import {
 } from "./battleIndex.js";
 import { createProjectileTrail, pushProjectileTrail } from "./projectileTrail.js";
 import { forceLeviathanAttack as forceLeviathanAttackDomain, updateLeviathan } from "./leviathanNereida.js";
+import { createEnemyEntity } from "./enemies/enemyFactory.js";
+import { getEnemyBehavior } from "./enemies/enemyRegistry.js";
 
 export {
   createWindCurrentState,
@@ -944,7 +947,9 @@ export function selectDecision(session, option, target = null) {
   return true;
 }
 
-function createEnemy(session, queued) {
+// Kept temporarily as a reference while the individual algorithms migrate to
+// their behavior modules. New entities are created exclusively by enemyFactory.
+function createEnemyLegacy(session, queued) {
   const base = ENEMIES[queued.type];
   if (!base) return null;
   const alpha = queued.variant === "alpha" && base.allowAlphaVariant !== false;
@@ -1162,6 +1167,40 @@ function createEnemy(session, queued) {
   return enemy;
 }
 
+function createEnemyRuntime(session) {
+  return {
+    get elapsed() { return session.elapsed; },
+    configFor: (enemy) => ENEMIES[enemy.type],
+    updateScarabEmperor: (enemy, config, dt, events) => updateScarabEmperor(session, enemy, config, dt, events),
+    updateWorkerQueen: (enemy, config, dt, events) => updateWorkerQueen(session, enemy, config, dt, events),
+    updateWorkerQueenEgg: (enemy, config, events) => updateWorkerQueenEgg(session, enemy, config, events),
+    updateDuneRipper: (enemy, config, dt, events) => updateDuneRipper(session, enemy, config, dt, events),
+    updateVoltriz: (enemy, config, dt, events) => updateVoltriz(session, enemy, config, dt, events),
+    updateNimbarca: (enemy, config, dt, events) => updateNimbarca(session, enemy, config, dt, events),
+    updateGorjal: (enemy, config, dt, events) => updateGorjal(session, enemy, config, dt, events),
+    updateDerivante: (enemy, config, dt, events) => updateDerivante(session, enemy, config, dt, events),
+    updateRaizFulgor: (enemy, config, dt, events) => updateRaizFulgor(session, enemy, config, dt, events),
+    updateRasgamar: (enemy, config, dt, events) => updateRasgamar(session, enemy, config, dt, events),
+    updateCarapacaNereida: (enemy, config, dt, events) => updateCarapacaNereida(session, enemy, config, dt, events),
+    updateMedusaVeuSalino: (enemy, config, dt, events) => updateMedusaVeuSalino(session, enemy, config, dt, events),
+    updateMordelume: (enemy, config, dt, events) => updateMordelume(session, enemy, config, dt, events),
+    updateLeviathan: (enemy, config, events) => updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events),
+    setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
+  };
+}
+
+function createEnemy(session, queued) {
+  const config = ENEMIES[queued.type];
+  if (!config) return null;
+  const firstLivingCrisalio = queued.type === "crisalio"
+    && !session.enemies.some((entry) => !entry.dead && entry.type === "crisalio");
+  const { enemy } = createEnemyEntity(session, queued, config, id);
+  session.enemies.push(enemy);
+  registerEnemyInIndex(getBattleIndex(session), enemy);
+  if (firstLivingCrisalio) session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
+  return enemy;
+}
+
 function enqueueBossReinforcement(session, packetKey) {
   const encounter = session.bossEncounter;
   const packet = CHAPTER_FIVE_PACKETS[packetKey];
@@ -1350,8 +1389,7 @@ export function getEnemyTargetableRows(enemy, config = ENEMIES[enemy?.type]) {
 }
 
 export function enemyOccupiesTargetRow(enemy, row) {
-  if (!enemy || enemy.dead || enemy.hp <= 0) return false;
-  if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) return false;
+  if (!isEnemyTargetable(enemy)) return false;
   return enemy.type === "leviathanNereida"
     ? Boolean(enemy.leviathanTargetable && enemy.leviathanTargetableRows?.includes(row))
     : enemy.row === row;
@@ -1810,8 +1848,13 @@ function clearRasgamarCoil(session, enemy, { applySlow = false } = {}) {
   }
 }
 
+function notifyEnemyDeath(session, enemy, events, context = {}) {
+  getEnemyBehavior(enemy.type).onDeath(createEnemyRuntime(session), enemy, events, context);
+}
+
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
+  getEnemyBehavior(enemy.type).receiveDamage(createEnemyRuntime(session), enemy, amount, events, context);
   if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) {
     return;
   }
@@ -1823,6 +1866,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     if (enemy.hp <= 0) {
       enemy.hp = 0;
       enemy.dead = true;
+      notifyEnemyDeath(session, enemy, events, context);
       clearRasgamarCoil(session, enemy);
       detachParasite(session, enemy);
       if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
@@ -1844,6 +1888,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     enemy.shield = 0;
     enemy.hp = 0;
     enemy.dead = true;
+    notifyEnemyDeath(session, enemy, events, context);
     clearRasgamarCoil(session, enemy);
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
@@ -1932,7 +1977,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   if (enemy.hp <= 0) {
     enemy.hp = 0;
     enemy.dead = true;
-    if (enemy.type === "mordelume") setMordelumeState(session, enemy, "death", ENEMIES.mordelume.deathDurationMs);
+    notifyEnemyDeath(session, enemy, events, context);
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     rememberEnemyKill(session, enemy, context.sourceTroopId || null);
@@ -3271,6 +3316,7 @@ function updateProjectiles(session, dt, events) {
       const config = TROOPS.interceptadorIcaro;
       const source = indexedTroopById(session, projectile.sourceTroopId);
       let target = indexedEnemyById(session, projectile.targetId);
+      if (!isEnemyTargetable(target)) target = null;
       if (!target && !projectile.special) {
         target = selectIcaroBurstRetarget(session, projectile, config);
         projectile.targetId = target?.id || null;
@@ -3331,6 +3377,7 @@ function updateProjectiles(session, dt, events) {
         continue;
       }
       const target = indexedEnemyById(session, projectile.targetId);
+      if (!isEnemyTargetable(target)) { projectile.active = false; continue; }
       if (!target) {
         projectile.active = false;
         continue;
@@ -3506,10 +3553,11 @@ function updateProjectiles(session, dt, events) {
       }
     } else {
       target = indexedEnemyById(session, projectile.targetId);
+      if (!isEnemyTargetable(target)) target = null;
       if (!target) {
         let closestDistanceSquared = Infinity;
         for (const enemy of session.enemies) {
-          if (enemy.dead) continue;
+          if (!isEnemyTargetable(enemy) || !enemyOccupiesTargetRow(enemy, projectile.row)) continue;
           const dx = enemy.x - projectile.x;
           const dy = enemy.y - projectile.y;
           const distanceSquared = dx * dx + dy * dy;
@@ -6136,19 +6184,21 @@ function updateRasgamar(session, enemy, config, dt, events) {
 
 function updateEnemies(session, dt, events) {
   const enemyCountAtStart = session.enemies.length;
+  const runtime = createEnemyRuntime(session);
   for (let enemyIndex = 0; enemyIndex < enemyCountAtStart; enemyIndex += 1) {
     const enemy = session.enemies[enemyIndex];
     if (enemy.dead) continue;
     enemy.previousRenderX = enemy.x;
     enemy.previousRenderY = enemy.y;
     const config = ENEMIES[enemy.type];
+    const behavior = getEnemyBehavior(enemy.type);
     if (updateSilicaDiggerEmergence(session, enemy, config, events)) continue;
     if (enemy.type === "scarabEmperor") {
-      updateScarabEmperor(session, enemy, config, dt, events);
+      behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
     if (enemy.type === "leviathanNereida") {
-      updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events);
+      behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
@@ -6156,10 +6206,10 @@ function updateEnemies(session, dt, events) {
       continue;
     }
     if (enemy.type === "enguiaRasgamar") {
-      updateRasgamar(session, enemy, config, dt, events);
+      behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
-    if (updateChapterFourEnemy(session, enemy, config, dt, events)) continue;
+    if (config.chapterId === "chapter_04" && behavior.update(runtime, enemy, config, dt, events)) continue;
     if (enemy.variant === "alpha") {
       const ratio = enemy.hp / enemy.maxHp;
       const targetPhase = ratio <= 0.33 ? 2 : ratio <= 0.66 ? 1 : 0;
@@ -6175,6 +6225,8 @@ function updateEnemies(session, dt, events) {
       updateParasiteSaltador(session, enemy, config, dt, events);
       continue;
     }
+
+    if (behavior.update(runtime, enemy, config, dt, events)) continue;
 
     if (enemy.type === "duneRipper") {
       updateDuneRipper(session, enemy, config, dt, events);

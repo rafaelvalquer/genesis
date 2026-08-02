@@ -1175,6 +1175,10 @@ export function isLeviathanShadowOnly(entity, elapsed, animationFrame = null) {
   return (elapsed - entity.leviathanStateStartedAt) / duration >= 5 / 8;
 }
 
+export function isRasgamarShadowOnly(entity) {
+  return Boolean(entity?.type === "enguiaRasgamar" && entity.rasgamarSubmerged);
+}
+
 function drawLeviathanUnderwaterShadow(ctx, entity, session, config, settings) {
   const age = session.elapsed - entity.leviathanStateStartedAt;
   const pulse = settings.reduceMotion ? 0 : Math.sin(age / 260);
@@ -1281,6 +1285,7 @@ function drawLeviathanBossHealth(ctx, entity) {
 
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
+  if (isRasgamarShadowOnly(logicalEntity)) return;
   const config = ENEMIES[logicalEntity.type];
   const reaction = getHitReaction(runtime, logicalEntity.id, now);
   Object.assign(scratch, logicalEntity);
@@ -1398,8 +1403,8 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       const reaction = getHitReaction(runtime, entity.id, now);
       buffers.position.x = entry.x + reaction.offsetX;
       buffers.position.y = entry.y;
-      const leviathanShadowOnly = entry.kind === "enemy" && isLeviathanShadowOnly(entity, session.elapsed);
-      if (!leviathanShadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
+      const shadowOnly = entry.kind === "enemy" && (isLeviathanShadowOnly(entity, session.elapsed) || isRasgamarShadowOnly(entity));
+      if (!shadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
         const emergenceScale = entry.kind === "enemy"
           ? 0.2 + 0.8 * silicaDiggerEmergenceProgress(entity, session.elapsed)
           : 1;

@@ -2,6 +2,7 @@ import { ENEMIES } from "./content.js";
 import { CELL } from "./visualGeometry.js";
 import { getBattleIndex, livingEnemyById } from "./battleIndex.js";
 import { createProjectileTrail } from "./projectileTrail.js";
+import { isEnemyTargetable } from "./enemyTargeting.js";
 
 const alive = (enemy) => enemy && !enemy.dead && enemy.hp > 0;
 const baseDistance = (enemy) => Number(enemy.x) || Infinity;
@@ -19,7 +20,7 @@ export function isIcaroAirTarget(enemy) {
 }
 
 function inNormalRange(enemy, troop, config) {
-  return alive(enemy)
+  return isEnemyTargetable(enemy)
     && enemy.row === troop.row
     && enemy.x >= troop.x
     && enemy.x - troop.x <= config.range * CELL.width;
@@ -60,7 +61,7 @@ export function selectIcaroTarget(session, troop, config) {
 }
 
 function inInterceptionRange(enemy, troop, config) {
-  if (!alive(enemy) || !isIcaroAirTarget(enemy) || enemy.x < troop.x) return false;
+  if (!isEnemyTargetable(enemy) || !isIcaroAirTarget(enemy) || enemy.x < troop.x) return false;
   const dx = (enemy.x - troop.x) / CELL.width;
   const dy = (enemy.y - troop.y) / CELL.height;
   return Math.hypot(dx, dy) <= config.range;
@@ -95,7 +96,7 @@ export function selectIcaroBurstRetarget(session, projectile, config) {
   const candidates = getBattleIndex(session)?.enemiesByRow[projectile.row] || session.enemies;
   let best = null;
   for (const enemy of candidates) {
-    if (!alive(enemy) || enemy.row !== projectile.row || !isIcaroAirTarget(enemy)
+    if (!isEnemyTargetable(enemy) || enemy.row !== projectile.row || !isIcaroAirTarget(enemy)
       || enemy.x < projectile.origin.x
       || enemy.x - projectile.origin.x > config.range * CELL.width) continue;
     if (!best || comparePriority(enemy, best, normalPriority) < 0) best = enemy;

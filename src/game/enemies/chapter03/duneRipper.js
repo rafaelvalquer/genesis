@@ -1,0 +1,2 @@
+import { enemyBehavior } from "../enemyBehavior.js";
+export const duneRipperBehavior = enemyBehavior({ createState: (session, queued, config) => ({ duneState: "walking", duneStateStartedAt: session.elapsed, duneStateEndsAt: Infinity, duneAttackApplied: false, duneAttackImpactAt: Infinity, duneAttackTargetId: null, duneRoarSummoned: false, duneNextSummonAt: session.elapsed + config.firstSummonDelayMs }), update: (runtime, enemy, config, dt, events) => (runtime.updateDuneRipper(enemy, config, dt, events), true) });

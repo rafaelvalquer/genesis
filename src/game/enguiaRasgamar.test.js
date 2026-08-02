@@ -7,6 +7,8 @@ import { CELL, createBattleSession, enemyOccupiesTargetRow, placeTroop, spawnEne
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
 import { getEnemyPreviewUrl } from "./assetCatalog.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
+import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
+import { isRasgamarShadowOnly } from "./GameCanvas.jsx";
 
 const assetPath = (relative) => fileURLToPath(new URL(relative, import.meta.url));
 const states = ["spawnSubmerged", "swimSubmerged", "tideEscape", "rangedEmerge", "rangedCharge", "rangedAttack", "surfaceRecovery", "coilEmerge", "coilAttack", "coilRelease", "dive", "deathSurface", "deathSubmerged"];
@@ -62,6 +64,27 @@ describe("Enguia Rasgamar", () => {
     stepBattle(session, 1);
     expect(enemy.rasgamarState).toBe("tideEscape");
     expect(troop).toBeTruthy();
+  });
+
+  it("does not index or fire at submerged Rasgamar", () => {
+    const session = tideSandbox();
+    expect(placeTroop(session, "medicaNanites", 0, 4).ok).toBe(true);
+    const troop = session.troops.at(-1);
+    const enemy = spawnEnemy(session, { type: "enguiaRasgamar", row: 0 }).enemies[0];
+    enemy.x = troop.x + CELL.width;
+    enemy.rasgamarSubmerged = true;
+    rebuildBattleIndex(session);
+    const index = getBattleIndex(session);
+    expect(index.enemiesByRow[0]).toContain(enemy);
+    expect(index.targetableEnemiesByRow[0]).not.toContain(enemy);
+    const events = stepBattle(session, 32);
+    expect(events.some((event) => event.type === "shoot" && event.targetId === enemy.id)).toBe(false);
+    expect(session.projectiles.some((projectile) => projectile.targetId === enemy.id)).toBe(false);
+  });
+
+  it("keeps a submerged Rasgamar shadow-only", () => {
+    expect(isRasgamarShadowOnly({ type: "enguiaRasgamar", rasgamarSubmerged: true })).toBe(true);
+    expect(isRasgamarShadowOnly({ type: "enguiaRasgamar", rasgamarSubmerged: false })).toBe(false);
   });
 
   it("entrega 13 animações completas sem animação de hit", async () => {

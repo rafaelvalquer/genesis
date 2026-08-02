@@ -38,6 +38,7 @@ export function createBaseEnemy(session, queued, config, createId) {
     structuralRuptureAppliedAt: null, structuralRuptureDamageTakenFactor: 1,
     meleeAttackPending: false, meleeAttackStartedAt: -Infinity, meleeImpactAt: Infinity,
     meleeTargetId: null, sprintUntil: 0, sprintCooldownUntil: 0, lastSprintCellKey: null,
+    queenGuardOwnerId: queued.queenGuardOwnerId || null, eggOwnerId: queued.eggOwnerId || null,
     ramState: queued.type === "ramBeetle" ? "walking" : null,
     ramStateStartedAt: queued.type === "ramBeetle" ? session.elapsed : -Infinity,
     ramStateEndsAt: Infinity, ramIdleMode: null, ramChargeConsumed: false, ramChargeTargetId: null,
