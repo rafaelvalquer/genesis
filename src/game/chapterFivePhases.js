@@ -1,4 +1,5 @@
 import { createTideCycleHazard } from "./tideCycle.js";
+import { createChapterFiveWaves } from "./chapterFiveWaves.js";
 
 const phase = (
   id, name, subtitle, energy, arenaId, palette, battlefieldTheme, tide, waves, extra = {},
@@ -330,8 +331,8 @@ const PHASE_BLUEPRINTS = [
 ];
 
 function createChapterFivePhase(blueprint, chapterIndex) {
-  const { tide, waves: waveBlueprints, ...rest } = blueprint;
-  const waves = waveBlueprints.map((enemies) => ({ enemies }));
+  const { tide, waves: _legacyWaveBlueprints, ...rest } = blueprint;
+  const waves = createChapterFiveWaves(chapterIndex);
   return {
     ...rest,
     waves,

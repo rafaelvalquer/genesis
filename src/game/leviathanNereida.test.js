@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
-import { createBattleSession, createTroopEntity, enemyOccupiesTargetRow, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, stepBattle } from "./battleModel.js";
+import { createBattleSession, createTroopEntity, enemyOccupiesTargetRow, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, startWave, stepBattle } from "./battleModel.js";
 import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
 import { LEVIATHAN_SHADOW_ONLY_STATES, chooseBrineJetPlacement, dynamicAttackWeight, startLeviathanMovement, syncLeviathanHitZones, updateLeviathanMovement } from "./leviathanNereida.js";
 import { CELL, FIELD, getEnemyAnimation } from "./visualGeometry.js";
@@ -10,10 +10,34 @@ describe("Leviatã de Nereida", () => {
     sandbox: true, sandboxSettings: { rulesMode: "free", enemySpeedMultiplier: 0 },
   });
 
-  it("é um chefe de teste, sem entrada em ondas ou variantes", () => {
+  it("é exclusivo do encontro final, sem entrada normal em ondas ou variantes", () => {
     const boss = ENEMIES.leviathanNereida;
-    expect(boss).toMatchObject({ boss: true, debugOnly: true, testOnly: true, allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false });
+    expect(boss).toMatchObject({ boss: true, debugOnly: false, testOnly: false, allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false });
     expect(PHASES.flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies)).some((entry) => entry.type === boss.id)).toBe(false);
+    expect(PHASES.find((phase) => phase.id === "fase_40").waves.at(-1).bossEncounter.type).toBe(boss.id);
+  });
+
+  it("entra uma única vez na onda final da campanha e libera reforços uma vez por limiar", () => {
+    const phase = PHASES.find((entry) => entry.id === "fase_40");
+    const session = createBattleSession(phase, [], 771);
+    session.waveIndex = 5;
+    expect(startWave(session)).toBe(true);
+    stepBattle(session, 20000);
+    const boss = session.enemies.find((enemy) => enemy.type === "leviathanNereida");
+    expect(boss).toBeTruthy();
+    expect(session.enemies.filter((enemy) => enemy.type === "leviathanNereida")).toHaveLength(1);
+
+    boss.hp = boss.maxHp * .69;
+    stepBattle(session, 1);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(2);
+    stepBattle(session, 1);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(1);
+
+    boss.hp = boss.maxHp * .34;
+    stepBattle(session, 1);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(6);
+    stepBattle(session, 1);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(5);
   });
 
   it("declara animações de locomoção, oito frames por estado e nenhuma reação hit", () => {

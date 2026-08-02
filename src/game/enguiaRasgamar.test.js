@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
-import { CELL, createBattleSession, placeTroop, spawnEnemy, stepBattle } from "./battleModel.js";
+import { CELL, createBattleSession, enemyOccupiesTargetRow, placeTroop, spawnEnemy, stepBattle } from "./battleModel.js";
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
 import { getEnemyPreviewUrl } from "./assetCatalog.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
@@ -20,9 +20,9 @@ function advance(session, milliseconds) {
 }
 
 describe("Enguia Rasgamar", () => {
-  it("fica disponível somente no Campo de Provas, sem alterar ondas do Capítulo 5", () => {
+  it("está disponível no Campo de Provas e integra as ondas do Capítulo 5", () => {
     expect(ENEMIES.enguiaRasgamar).toMatchObject({ hp: 40, speed: 39, baseDamage: 0, allowAlphaVariant: false });
-    expect(PHASES.flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies)).some((entry) => entry.type === "enguiaRasgamar")).toBe(false);
+    expect(PHASES.flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies)).some((entry) => entry.type === "enguiaRasgamar")).toBe(true);
     const session = tideSandbox();
     expect(spawnEnemy(session, { type: "enguiaRasgamar", row: 0 }).ok).toBe(true);
     expect(getEnemyPreviewUrl("enguiaRasgamar")).toMatch(/enguiaRasgamar.*surfaceRecovery.*frame0\.png/i);
@@ -55,6 +55,7 @@ describe("Enguia Rasgamar", () => {
     enemy.rasgamarSubmerged = true;
     stepBattle(session, 1);
     expect(enemy.hp).toBe(hp);
+    expect(enemyOccupiesTargetRow(enemy, enemy.row)).toBe(false);
     session.tideCycle.currentLevel = 0;
     enemy.x = 4.5 * CELL.width;
     enemy.rasgamarState = "surfaceRecovery";

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DECISION_STAGE_RULES, ENEMIES, TROOPS } from "./content.js";
+import { DECISION_STAGE_RULES, ENEMIES, getEnemyCatalogEntries, TROOPS } from "./content.js";
 import {
   getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, releaseBattleAssets,
   resolveTroopFrame,
@@ -1166,30 +1166,6 @@ function shouldDrawEnemyHealth(entity, frozen, stunned, adaptive) {
   return !fullHealth || !fullShield;
 }
 
-function drawRasgamarSubmergedCue(ctx, entity, elapsed, settings) {
-  if (entity.type !== "enguiaRasgamar" || !entity.rasgamarSubmerged) return;
-  const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 170) * 3;
-  ctx.save();
-  ctx.globalAlpha = .72;
-  ctx.strokeStyle = "#67e8f9";
-  ctx.lineWidth = 1.5;
-  ctx.shadowColor = "#22d3ee";
-  ctx.shadowBlur = 10;
-  for (let ring = 0; ring < 2; ring += 1) {
-    ctx.beginPath();
-    ctx.ellipse(entity.x + ring * 9, entity.y + 18, 27 + ring * 8 + pulse, 6 + ring * 2, 0, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.fillStyle = "#a5f3fc";
-  for (let bubble = 0; bubble < 3; bubble += 1) {
-    const phase = elapsed / 95 + bubble * 2.1;
-    ctx.beginPath();
-    ctx.arc(entity.x - 16 + bubble * 15, entity.y + 10 - (phase % 10), 1.5 + bubble * .4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.restore();
-}
-
 export function isLeviathanShadowOnly(entity, elapsed, animationFrame = null) {
   if (entity?.type !== "leviathanNereida") return false;
   if (LEVIATHAN_SHADOW_ONLY_STATES.has(entity.leviathanState)) return true;
@@ -1376,7 +1352,6 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.arc(scratch.x, scratch.y, 24 * logicalEntity.scale, 0, Math.PI * 2);
     ctx.fill();
   }
-  drawRasgamarSubmergedCue(ctx, scratch, session.elapsed, settings);
   drawLeviathanBossEffects(ctx, scratch, session, settings);
   drawLeviathanBossHealth(ctx, logicalEntity);
   drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
@@ -1636,7 +1611,7 @@ export function SandboxPanel({
       </div>
       <small className="sandbox-fortune-reason">Maré, tempestade de areia, ventania e mecânicas especiais podem ser alternadas a qualquer momento.</small>
     </section>
-    <div className="enemy-catalog" aria-label="Catálogo de inimigos">{Object.values(ENEMIES).filter((enemy) => !enemy.hiddenFromCatalog).map((enemy) => <button
+    <div className="enemy-catalog" aria-label="Catálogo de inimigos">{getEnemyCatalogEntries().map((enemy) => <button
       key={enemy.id}
       className={selectedEnemy === enemy.id ? "selected" : ""}
       style={{ "--enemy-color": enemy.color }}

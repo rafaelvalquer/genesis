@@ -564,11 +564,17 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
     if (event.type === "veuSalinoHealPulse") {
-      particles.push({ kind: "ring", x: event.x, y: event.y + 16, color: "#67e8f9", born: now, life: 540, maxRadius: 74 });
-      particles.push({ kind: "ring", x: event.x, y: event.y + 16, color: "#f0abfc", born: now + 80, life: 420, maxRadius: 54 });
-      addSparks(particles, event, now, settings.reduceMotion ? 4 : Math.max(10, Math.round(22 * quality.density)), random, {
-        color: "#f0abfc", minSpeed: 14, speed: 64, life: 520, size: 2,
-      });
+      const membraneScale = event.flooded ? 1.2 : 1;
+      particles.push({ kind: "veuSalinoHealCore", x: event.x, y: event.y + 6, born: now, life: 550, flooded: event.flooded });
+      particles.push({ kind: "veuSalinoHealMembrane", x: event.x, y: event.y + 12, born: now + 330, life: 220, scale: membraneScale, flooded: event.flooded });
+      for (const target of event.targets || []) {
+        const curveOffset = 18 + Math.abs(target.x - event.x) * 0.08;
+        particles.push({ kind: "veuSalinoHealLink", x0: event.x, y0: event.y + 22, x1: target.x, y1: target.y, curveOffset,
+          born: now, life: settings.reduceMotion ? 180 : 240, flooded: event.flooded, seed: event.seed + curveOffset });
+        particles.push({ kind: "veuSalinoHealImpact", x: target.x, y: target.y, born: now + 120, life: 420, flooded: event.flooded });
+        particles.push({ kind: "floatingText", x: target.x, y: target.y - 12, born: now + 130, life: 700,
+          text: `+${Math.round(target.healedAmount)}`, color: "#a5f3fc", glowColor: "#67e8f9", fontSize: 15 });
+      }
       continue;
     }
     if (event.type === "veuSalinoProjectile") {
@@ -1607,6 +1613,43 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
       }
       ctx.fillStyle = "rgba(196,181,253,.8)";
       ctx.beginPath(); ctx.arc(particle.x, particle.y - 2, 3, 0, Math.PI * 2); ctx.fill();
+    } else if (particle.kind === "veuSalinoHealCore") {
+      const pulse = .62 + Math.sin(progress * Math.PI * 4) * .18;
+      drawCachedRadialGlow(ctx, "veu-salino-heal-core", particle.x, particle.y, 34 * pulse, 24 * pulse,
+        "#ecfeff", particle.flooded ? "#22d3ee" : "#67e8f9", "rgba(167,139,250,0)", .42);
+    } else if (particle.kind === "veuSalinoHealMembrane") {
+      const radius = (18 + progress * 58) * particle.scale;
+      ctx.fillStyle = `rgba(167,139,250,${.16 * (1 - progress)})`;
+      ctx.strokeStyle = `rgba(103,232,249,${.82 * (1 - progress)})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let index = 0; index <= 16; index += 1) {
+        const angle = index / 16 * Math.PI * 2;
+        const wobble = 1 + Math.sin(angle * 3 + progress * 6) * .1;
+        const x = particle.x + Math.cos(angle) * radius * wobble;
+        const y = particle.y + Math.sin(angle) * radius * .62 * wobble;
+        if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (particle.kind === "veuSalinoHealLink") {
+      const midX = (particle.x0 + particle.x1) / 2;
+      const midY = Math.min(particle.y0, particle.y1) - particle.curveOffset;
+      ctx.lineCap = "round"; ctx.lineWidth = particle.flooded ? 3.5 : 2.5;
+      ctx.strokeStyle = "rgba(103,232,249,.86)"; ctx.shadowColor = "#a78bfa"; ctx.shadowBlur = 7;
+      ctx.beginPath(); ctx.moveTo(particle.x0, particle.y0); ctx.quadraticCurveTo(midX, midY, particle.x1, particle.y1); ctx.stroke();
+      ctx.fillStyle = "#f0abfc";
+      for (let index = 0; index < 2; index += 1) {
+        const t = (progress + index * .42) % 1;
+        const x = (1 - t) ** 2 * particle.x0 + 2 * (1 - t) * t * midX + t ** 2 * particle.x1;
+        const y = (1 - t) ** 2 * particle.y0 + 2 * (1 - t) * t * midY + t ** 2 * particle.y1;
+        ctx.beginPath(); ctx.arc(x, y, 2.2, 0, Math.PI * 2); ctx.fill();
+      }
+    } else if (particle.kind === "veuSalinoHealImpact") {
+      const radius = 7 + progress * 14;
+      ctx.strokeStyle = `rgba(103,232,249,${.8 * (1 - progress)})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2); ctx.stroke();
+      drawCachedRadialGlow(ctx, "veu-salino-heal-impact", particle.x, particle.y - 4, 18, 24,
+        "#ecfeff", particle.flooded ? "#22d3ee" : "#67e8f9", "rgba(103,232,249,0)", .35);
     } else if (particle.kind === "muzzle") {
       const radius = particle.size * (0.55 + progress * 0.85);
       drawCachedRadialGlow(

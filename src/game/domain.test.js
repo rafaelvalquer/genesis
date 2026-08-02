@@ -88,10 +88,10 @@ describe("campanha e ondas", () => {
     expect(wavePressure(PHASES[23], 5)).toBeGreaterThanOrEqual(wavePressure(PHASES[22], 5) * 1.04);
   });
 
-  it("organiza vinte e quatro fases em três capítulos de oito operações", () => {
-    expect(CHAPTERS).toHaveLength(4);
-    expect(PHASES).toHaveLength(32);
-    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8]);
+  it("organiza quarenta fases em cinco capítulos de oito operações", () => {
+    expect(CHAPTERS).toHaveLength(5);
+    expect(PHASES).toHaveLength(40);
+    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8, 8]);
     expect(getChapterForPhase("fase_08")?.id).toBe("chapter_01");
     expect(getChapterForPhase("fase_09")?.id).toBe("chapter_02");
     expect(getChapterForPhase("fase_17")?.id).toBe("chapter_03");
@@ -99,6 +99,7 @@ describe("campanha e ondas", () => {
     expect(PHASES.slice(0, 8).every((phase) => phase.waves.length === 4)).toBe(true);
     expect(PHASES.slice(8, 20).every((phase) => phase.waves.length === 5)).toBe(true);
     expect(PHASES.slice(20, 24).every((phase) => phase.waves.length === 6)).toBe(true);
+    expect(PHASES.slice(32, 40).every((phase) => phase.waves.length === 6)).toBe(true);
   });
 
   it("configura as Dunas de Quitina com apenas as seis criaturas planejadas", () => {

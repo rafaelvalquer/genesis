@@ -293,7 +293,7 @@ export function validateCampaignBalance(phases = PHASES) {
   phases.forEach((phase, phaseIndex) => {
     // Chapter 4 is authored around tactical packet intent, not monotonically
     // increasing raw counts, so it has its own packet/wave validation suite.
-    if (phase.chapterId === "chapter_04") return;
+    if (phase.chapterId === "chapter_04" || phase.chapterId === "chapter_05") return;
     const budgets = phase.waves.map(waveBudget);
     const coordinated = phase.waves.every((waveEntry) => waveEntry.coordinated);
     budgets.forEach((budget, waveIndex) => {

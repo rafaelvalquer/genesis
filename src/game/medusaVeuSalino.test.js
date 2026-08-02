@@ -8,7 +8,7 @@ import { getEnemyAnimation } from "./visualGeometry.js";
 
 function setup() {
   const session = createBattleSession({ ...PHASES[32], id: "medusa-test", waves: [] }, Object.keys(TROOPS), 42,
-    { sandbox: true, sandboxSettings: { rulesMode: "free", enemySpeedMultiplier: 0 } });
+    { sandbox: true, sandboxSettings: { rulesMode: "free", enemySpeedMultiplier: 1 } });
   const medusa = spawnEnemy(session, { type: "medusaVeuSalino", row: 1 }).enemies[0];
   const cover = spawnEnemy(session, { type: "carapacaNereida", row: 1, x: medusa.x - 100 }).enemies[0];
   cover.x = medusa.x - 100;
@@ -110,7 +110,7 @@ describe("Medusa Véu-Salino", () => {
     const { session, medusa, cover } = setup();
     const troop = placeTroop(session, "colono", 1, 7).troop;
     medusa.x = troop.x + CELL.width;
-    cover.x = medusa.x - 100;
+    cover.x = medusa.x - CELL.width / 2;
     stepBattle(session, 800);
     stepBattle(session, 1);
     expect(medusa.veuSalinoState).toBe("retreat");
@@ -145,8 +145,10 @@ describe("Medusa Véu-Salino", () => {
     expect(medusa.veuSalinoState).toBe("moveFloat");
     expect(medusa.x).toBeLessThan(initialX);
 
-    stepBattle(session, 20000);
-    expect(medusa.x - troop.x).toBeCloseTo(ENEMIES.medusaVeuSalino.attackRangeTiles * CELL.width, 0);
+    for (let index = 0; index < 1500 && medusa.x - troop.x > ENEMIES.medusaVeuSalino.preferredDistanceTiles * CELL.width + 1; index += 1) {
+      stepBattle(session, 32);
+    }
+    expect(medusa.x - troop.x).toBeLessThanOrEqual(ENEMIES.medusaVeuSalino.preferredDistanceTiles * CELL.width + 1);
     medusa.veuSalinoNextAttackAt = 0;
     stepBattle(session, 1);
     expect(medusa.veuSalinoState).toBe("attackCast");

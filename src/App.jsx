@@ -6,7 +6,7 @@ import LoadoutPicker from "./loadout/LoadoutPage.jsx";
 import CommandPage from "./home/CommandPage.jsx";
 import MaintenancePanel from "./settings/MaintenancePanel.jsx";
 import { getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
-import { ENEMIES, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
+import { ENEMIES, getEnemyCatalogEntries, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
 import { getEnemyInfo, getEnemyUnlockAt } from "./game/enemyInfo.js";
 import { getTroopInfo } from "./game/troopInfo.js";
 import {
@@ -89,7 +89,7 @@ const ENCYCLOPEDIA_CATEGORIES = {
   enemies: {
     label: "Inimigos",
     eyebrow: "ARQUIVO DE AMEAÇAS",
-    entries: () => Object.values(ENEMIES).filter((entry) => !entry.hiddenFromCatalog),
+    entries: getEnemyCatalogEntries,
     getImage: (entry) => getEnemyPreviewUrl(entry.id),
     getInfo: getEnemyInfo,
     isUnlocked: (entry, campaign) => {

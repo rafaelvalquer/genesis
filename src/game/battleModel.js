@@ -1,5 +1,6 @@
 import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "./domain.js";
+import { CHAPTER_FIVE_PACKETS } from "./chapterFivePackets.js";
 import {
   adaptiveAidBlocksIntermission,
   adaptiveAidCinematicFactor,
@@ -345,6 +346,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     queue: [],
     nextSpawnAt: 0,
     waveStartedAt: 0,
+    bossEncounter: null,
     troops: [],
     enemies: [],
     mines: [],
@@ -888,7 +890,17 @@ export function startWave(session) {
   session.currentWaveBaseDamageFactor = session.nextWaveBaseDamageFactor;
   if (session.activeTemporaryDecisions.includes("core_barrier")) session.currentWaveBaseDamageFactor *= 0.6;
   session.nextWaveBaseDamageFactor = 1;
+  const wave = session.phase.waves[session.waveIndex];
   session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
+  session.bossEncounter = wave?.bossEncounter ? {
+    ...wave.bossEncounter,
+    spawned: false,
+    reinforcementPackets: new Set(),
+  } : null;
+  if (session.bossEncounter) {
+    session.queue.push({ type: session.bossEncounter.type, variant: null, sourceIndex: 0, row: 2, packetId: "boss_encounter", block: "boss", spawnAtMs: session.bossEncounter.spawnAtMs });
+    session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs || String(left.packetId || "").localeCompare(String(right.packetId || "")));
+  }
   session.waveActive = true;
   session.waveKillStart = session.killed;
   session.lastEnemyKillCandidate = null;
@@ -988,6 +1000,10 @@ function createEnemy(session, queued) {
     veuSalinoNextAttackAt: queued.type === "medusaVeuSalino" ? session.elapsed : Infinity,
     veuSalinoAttackTargetId: null, veuSalinoProjectileReleased: false, veuSalinoHealApplied: false,
     veuSalinoRetreatTargetX: null, veuSalinoRetreatCheckedAt: -Infinity,
+    veuSalinoMovementMode: queued.type === "medusaVeuSalino" ? "advance" : null,
+    veuSalinoCoverTargetId: null, veuSalinoCoverCheckedAt: -Infinity, veuSalinoMovementTargetX: null,
+    veuSalinoCombatTargetId: null, veuSalinoRetreatStartedAt: -Infinity, veuSalinoRetreatCompletedAt: -Infinity,
+    veuSalinoHasAttackPosition: false, veuSalinoHealTargetIds: [],
     mordelumeState: queued.type === "mordelume" ? "spawnEmerge" : null,
     mordelumeStateStartedAt: queued.type === "mordelume" ? session.elapsed : -Infinity,
     mordelumeStateEndsAt: queued.type === "mordelume" ? session.elapsed + base.spawnDurationMs : Infinity,
@@ -1146,6 +1162,44 @@ function createEnemy(session, queued) {
   return enemy;
 }
 
+function enqueueBossReinforcement(session, packetKey) {
+  const encounter = session.bossEncounter;
+  const packet = CHAPTER_FIVE_PACKETS[packetKey];
+  if (!encounter || !packet || encounter.reinforcementPackets.has(packetKey)) return;
+  encounter.reinforcementPackets.add(packetKey);
+  const livingByType = new Map();
+  session.enemies.filter((enemy) => !enemy.dead).forEach((enemy) => livingByType.set(enemy.type, (livingByType.get(enemy.type) || 0) + 1));
+  const row = Math.floor(session.rng() * FIELD.rows);
+  const at = Math.max(0, session.elapsed - session.waveStartedAt);
+  const packetId = `boss_${packet.id}_${encounter.reinforcementPackets.size}`;
+  const entries = [];
+  for (const unit of packet.units) {
+    const maximum = encounter.maximumLivingByType?.[unit.type] ?? Infinity;
+    const available = Math.max(0, maximum - (livingByType.get(unit.type) || 0));
+    const count = Math.min(unit.count, available);
+    livingByType.set(unit.type, (livingByType.get(unit.type) || 0) + count);
+    for (let index = 0; index < count; index += 1) entries.push({
+      type: unit.type, variant: null, sourceIndex: index, row, packetId, block: "boss_reinforcement",
+      spawnAtMs: at + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
+      xOffsetTiles: unit.xOffsetTiles || 0,
+      formationOffsetPx: unit.spawnIntervalMs ? 0 : (index - (count - 1) / 2) * 10,
+    });
+  }
+  session.queue.push(...entries);
+  session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs || String(left.packetId || "").localeCompare(String(right.packetId || "")) || left.sourceIndex - right.sourceIndex);
+  session.nextSpawnAt = session.waveStartedAt + (session.queue[0]?.spawnAtMs ?? Infinity);
+}
+
+function updateBossEncounter(session) {
+  const encounter = session.bossEncounter;
+  if (!encounter?.spawned) return;
+  const boss = session.enemies.find((enemy) => !enemy.dead && enemy.type === encounter.type);
+  if (!boss) return;
+  for (const reinforcement of encounter.reinforcements || []) {
+    if (boss.hp <= boss.maxHp * reinforcement.hpFactor) enqueueBossReinforcement(session, reinforcement.packet);
+  }
+}
+
 export function trySpawnGlassEcho(session, source, events = []) {
   const mechanic = session.phase.chapterMechanic;
   if (mechanic?.id !== "glass_echoes" || source?.isEcho || source?.variant === "alpha"
@@ -1297,6 +1351,7 @@ export function getEnemyTargetableRows(enemy, config = ENEMIES[enemy?.type]) {
 
 export function enemyOccupiesTargetRow(enemy, row) {
   if (!enemy || enemy.dead || enemy.hp <= 0) return false;
+  if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) return false;
   return enemy.type === "leviathanNereida"
     ? Boolean(enemy.leviathanTargetable && enemy.leviathanTargetableRows?.includes(row))
     : enemy.row === row;
@@ -3591,6 +3646,7 @@ function activateDematerializationPulse(session, pulse, events) {
 
 function disintegrateEnemy(session, enemy, events) {
   if (!enemy || enemy.dead) return;
+  if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) return;
   enemy.hp = 0;
   enemy.dead = true;
   detachParasite(session, enemy);
@@ -5622,22 +5678,34 @@ function shouldVeuSalinoHeal(session, enemy, config) {
 }
 
 function applyVeuSalinoHeal(session, enemy, config, events) {
-  const factor = veuSalinoFlooded(session, enemy) ? config.floodedHealFactor : config.healFactor;
-  const targets = selectVeuSalinoHealTargets(session, enemy, config);
-  for (const ally of targets) ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * factor);
+  const flooded = veuSalinoFlooded(session, enemy);
+  const factor = flooded ? config.floodedHealFactor : config.healFactor;
+  const targets = (enemy.veuSalinoHealTargetIds || []).map((targetId) => indexedEnemyById(session, targetId))
+    .filter((ally) => ally && !ally.dead && ally.hp > 0);
+  const healedTargets = targets.map((ally) => {
+    const previousHp = ally.hp;
+    ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * factor);
+    return { id: ally.id, x: ally.x, y: ally.y, row: ally.row, healedAmount: ally.hp - previousHp };
+  });
+  const previousSelfHp = enemy.hp;
   if (enemy.hp > 0 && enemy.hp < enemy.maxHp) enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * config.selfHealFactor);
   session.veuSalinoHealPulseLockedUntil = session.elapsed + config.healPulseLockMs;
   enemy.veuSalinoNextHealAt = session.elapsed + config.healEveryMs;
   enemy.veuSalinoHealApplied = true;
-  events.push({ type: "veuSalinoHealPulse", sourceEnemyId: enemy.id, targetEnemyIds: targets.map((target) => target.id), x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session) });
+  events.push({ type: "veuSalinoHealPulse", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, color: config.color,
+    flooded, selfHealAmount: enemy.hp - previousSelfHp, targets: healedTargets,
+    startedAt: enemy.veuSalinoStateStartedAt, applyAt: session.elapsed, endsAt: enemy.veuSalinoStateEndsAt,
+    seed: nextEffectSeed(session) });
 }
 
-function selectVeuSalinoDebuffTarget(session, enemy, config) {
-  return session.troops
-    .filter((troop) => !troop.dead && troop.x < enemy.x && enemy.x - troop.x <= config.attackRangeTiles * CELL.width)
-    .sort((left, right) => (TROOPS[left.type]?.attackEveryMs || Infinity) - (TROOPS[right.type]?.attackEveryMs || Infinity)
-      || Number(/suporte/i.test(TROOPS[right.type]?.role || "")) - Number(/suporte/i.test(TROOPS[left.type]?.role || ""))
-      || right.x - left.x || left.id.localeCompare(right.id))[0] || null;
+function selectVeuSalinoFrontTroop(session, enemy) {
+  return session.troops.filter((troop) => !troop.dead && troop.row === enemy.row && troop.x < enemy.x)
+    .sort((left, right) => right.x - left.x || left.id.localeCompare(right.id))[0] || null;
+}
+
+function selectVeuSalinoDebuffTarget(session, enemy, config, frontTroop = selectVeuSalinoFrontTroop(session, enemy)) {
+  const inRange = frontTroop && enemy.x - frontTroop.x <= config.attackRangeTiles * CELL.width + 1;
+  return inRange ? frontTroop : null;
 }
 
 function selectVeuSalinoCover(session, enemy, config) {
@@ -5646,32 +5714,67 @@ function selectVeuSalinoCover(session, enemy, config) {
     .sort((left, right) => Number(right.type === "carapacaNereida") - Number(left.type === "carapacaNereida") || right.x - left.x)[0] || null;
 }
 
-function shouldVeuSalinoRetreat(session, enemy, config, cover) {
-  const troop = closestTroopForEnemy(session, enemy);
-  return Boolean(cover) && Boolean(troop)
+function updateVeuSalinoCover(session, enemy, config) {
+  const cached = indexedEnemyById(session, enemy.veuSalinoCoverTargetId);
+  const cacheValid = cached && !cached.dead && cached.row === enemy.row && cached.x < enemy.x;
+  if (cacheValid && session.elapsed < enemy.veuSalinoCoverCheckedAt + config.coverMinimumHoldMs) return cached;
+  const cover = selectVeuSalinoCover(session, enemy, config);
+  enemy.veuSalinoCoverTargetId = cover?.id || null;
+  enemy.veuSalinoCoverCheckedAt = session.elapsed;
+  return cover;
+}
+
+function shouldVeuSalinoRetreat(enemy, config, troop, cover) {
+  return Boolean(troop && cover) && troop.x < cover.x && cover.x < enemy.x
     && enemy.x - troop.x < config.minimumSafeDistanceTiles * CELL.width;
 }
 
-function updateVeuSalinoFollowMovement(session, enemy, config, dt, cover) {
-  const troop = closestTroopForEnemy(session, enemy);
-  const desiredX = cover
-    ? cover.x + config.retreatBehindAllyTiles * CELL.width
-    : troop ? troop.x + config.attackRangeTiles * CELL.width : enemy.x;
-  if (enemy.x - desiredX > 4) {
-    setVeuSalinoState(session, enemy, "moveFloat");
-    enemy.x -= Math.min(enemy.speed * dt / 1000, enemy.x - desiredX);
-    enemy.moving = true;
-  } else setVeuSalinoState(session, enemy, "idle");
+function getEffectiveEnemyMoveSpeed(session, enemy) {
+  const baseSlow = session.elapsed < enemy.slowUntil ? enemy.slowFactor : 1;
+  const tideSlow = getTideAdjustedEnemySlowFactor(session, enemy, baseSlow);
+  const tideSpeed = getTideEnemySpeedFactor(session, enemy);
+  const vortexSpeed = session.elapsed < (enemy.leviathanVortexSpeedUntil || 0) ? enemy.leviathanVortexSpeedFactor || 1 : 1;
+  return enemy.speed * getSilicaDiggerSwarmSpeedFactor(session, enemy) * tideSlow * tideSpeed * vortexSpeed
+    * session.modifiers.enemySpeed * (session.sandboxSettings?.enemySpeedMultiplier ?? 1);
 }
 
-function startVeuSalinoRetreat(session, enemy, config, cover, events) {
-  enemy.veuSalinoRetreatTargetX = Math.max(enemy.x,
-    Math.min(FIELD.spawnX, cover.x + config.retreatBehindAllyTiles * CELL.width));
-  if (enemy.veuSalinoRetreatTargetX <= enemy.x + 2) {
-    enemy.moving = false;
-    setVeuSalinoState(session, enemy, "idle");
+function moveEnemyTowardX(session, enemy, targetX, dt, events, speedFactor = 1) {
+  const distance = getEffectiveEnemyMoveSpeed(session, enemy) * speedFactor * dt / 1000;
+  enemy.x = targetX < enemy.x ? Math.max(targetX, enemy.x - distance) : Math.min(targetX, enemy.x + distance);
+  enemy.moving = true;
+  if (enemy.x <= FIELD.baseX) resolveEnemyBreach(session, enemy, events);
+}
+
+function updateVeuSalinoMovement(session, enemy, config, troop, cover, dt, events) {
+  if (!troop) {
+    enemy.veuSalinoMovementMode = "advance";
+    enemy.veuSalinoMovementTargetX = FIELD.baseX;
+    setVeuSalinoState(session, enemy, "moveFloat");
+    moveEnemy(session, enemy, dt, events);
     return;
   }
+  const preferredCombatX = troop.x + config.preferredDistanceTiles * CELL.width;
+  const coverFollowX = cover ? cover.x + config.retreatBehindAllyTiles * CELL.width : -Infinity;
+  const desiredX = cover ? Math.max(preferredCombatX, coverFollowX) : preferredCombatX;
+  enemy.veuSalinoMovementTargetX = desiredX;
+  enemy.veuSalinoHasAttackPosition = enemy.x - troop.x <= config.attackRangeTiles * CELL.width + 1;
+  if (enemy.x > desiredX + 1) {
+    enemy.veuSalinoMovementMode = cover ? "followCover" : "approachTarget";
+    setVeuSalinoState(session, enemy, "moveFloat");
+    moveEnemyTowardX(session, enemy, desiredX, dt, events);
+    return;
+  }
+  enemy.veuSalinoMovementMode = "holdRange";
+  enemy.moving = false;
+  setVeuSalinoState(session, enemy, "idle");
+}
+
+function startVeuSalinoRetreat(session, enemy, config, troop, cover, events) {
+  const safeX = Math.min(troop.x + config.maximumSafeDistanceTiles * CELL.width,
+    Math.max(cover.x + config.retreatBehindAllyTiles * CELL.width, troop.x + config.preferredDistanceTiles * CELL.width));
+  enemy.veuSalinoRetreatTargetX = Math.max(enemy.x, safeX);
+  enemy.veuSalinoMovementMode = "retreat";
+  enemy.veuSalinoRetreatStartedAt = session.elapsed;
   setVeuSalinoState(session, enemy, "retreat");
   events.push({ type: "veuSalinoRetreat", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session) });
 }
@@ -5685,7 +5788,7 @@ function updateMedusaVeuSalino(session, enemy, config, dt, events) {
   if (enemy.veuSalinoState === "healPulse") {
     enemy.moving = false;
     if (!enemy.veuSalinoHealApplied && session.elapsed >= enemy.veuSalinoStateStartedAt + config.healVisual.applyAtMs) applyVeuSalinoHeal(session, enemy, config, events);
-    if (session.elapsed >= enemy.veuSalinoStateEndsAt) setVeuSalinoState(session, enemy, "idle");
+    if (session.elapsed >= enemy.veuSalinoStateEndsAt) { enemy.veuSalinoHealTargetIds = []; setVeuSalinoState(session, enemy, "idle"); }
     return;
   }
   if (enemy.veuSalinoState === "attackCast") {
@@ -5704,27 +5807,36 @@ function updateMedusaVeuSalino(session, enemy, config, dt, events) {
     return;
   }
   if (enemy.veuSalinoState === "retreat") {
-    enemy.x = Math.min(enemy.veuSalinoRetreatTargetX, enemy.x + enemy.speed * config.retreatSpeedFactor * dt / 1000);
-    enemy.moving = true;
-    if (enemy.x >= enemy.veuSalinoRetreatTargetX - 2) setVeuSalinoState(session, enemy, "idle");
+    const troop = selectVeuSalinoFrontTroop(session, enemy);
+    const cover = updateVeuSalinoCover(session, enemy, config);
+    if (!cover || !troop || enemy.x >= enemy.veuSalinoRetreatTargetX - 2
+      || enemy.x - troop.x >= config.retreatExitDistanceTiles * CELL.width) {
+      enemy.veuSalinoRetreatCompletedAt = session.elapsed;
+      enemy.veuSalinoMovementMode = cover ? "followCover" : "holdRange";
+      setVeuSalinoState(session, enemy, "idle");
+      return;
+    }
+    moveEnemyTowardX(session, enemy, enemy.veuSalinoRetreatTargetX, dt, events, config.retreatSpeedFactor);
     return;
   }
-  const cover = selectVeuSalinoCover(session, enemy, config);
-  if (shouldVeuSalinoRetreat(session, enemy, config, cover)) { startVeuSalinoRetreat(session, enemy, config, cover, events); return; }
+  const troop = selectVeuSalinoFrontTroop(session, enemy);
+  const cover = updateVeuSalinoCover(session, enemy, config);
+  if (shouldVeuSalinoRetreat(enemy, config, troop, cover)) { startVeuSalinoRetreat(session, enemy, config, troop, cover, events); return; }
   if (shouldVeuSalinoHeal(session, enemy, config)) {
     enemy.veuSalinoHealApplied = false;
+    enemy.veuSalinoHealTargetIds = selectVeuSalinoHealTargets(session, enemy, config).map((target) => target.id);
     session.veuSalinoHealPulseLockedUntil = session.elapsed + config.healVisual.durationMs;
     setVeuSalinoState(session, enemy, "healPulse", config.healVisual.durationMs);
     return;
   }
-  const target = selectVeuSalinoDebuffTarget(session, enemy, config);
+  const target = selectVeuSalinoDebuffTarget(session, enemy, config, troop);
   if (target && session.elapsed >= enemy.veuSalinoNextAttackAt) {
     enemy.veuSalinoAttackTargetId = target.id; enemy.veuSalinoProjectileReleased = false;
     enemy.veuSalinoNextAttackAt = session.elapsed + config.attackEveryMs;
     setVeuSalinoState(session, enemy, "attackCast", config.attackCastVisual.durationMs);
     return;
   }
-  updateVeuSalinoFollowMovement(session, enemy, config, dt, cover);
+  updateVeuSalinoMovement(session, enemy, config, troop, cover, dt, events);
 }
 
 function setMordelumeState(session, enemy, state, durationMs = Infinity) {
@@ -6283,6 +6395,7 @@ export function stepBattle(session, dt = 32) {
         ? session.waveStartedAt + session.queue[0].spawnAtMs
         : Infinity;
       if (!enemy) continue;
+      if (queued.type === session.bossEncounter?.type && queued.packetId === "boss_encounter") session.bossEncounter.spawned = true;
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
     updateDematerializationPulses(session, events);
@@ -6291,6 +6404,7 @@ export function stepBattle(session, dt = 32) {
     updateProjectiles(session, dt, events);
     updateEnemyProjectiles(session, dt, events);
     updateEnemies(session, dt, events);
+    updateBossEncounter(session);
     updateMines(session, events);
     if (!session.sandbox && session.integrity <= 0) {
       endSandstorm(session, events, true);

@@ -2151,7 +2151,7 @@ export const ENEMIES = {
   leviathanNereida: {
     id: "leviathanNereida", label: "Leviatã de Nereida",
     role: "Chefe aquático / controle territorial / destruidor de formação",
-    boss: true, chapterId: "chapter_05", debugOnly: true, testOnly: true,
+    boss: true, chapterId: "chapter_05", debugOnly: false, testOnly: false,
     previewState: "idleSurface",
     allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false,
     hp: 6000, maxHp: 6000, damage: 0, attackEveryMs: 0, baseDamage: 0, speed: 0, threat: 1000,
@@ -2208,12 +2208,13 @@ export const ENEMIES = {
     chapterId: "chapter_05", allowAlphaVariant: false,
     hp: 42, speed: 12, damage: 3, baseDamage: 8, threat: 34,
     attackEveryMs: 4000, projectileSpeed: 260, attackRangeTiles: 5.5,
-    preferredDistanceTiles: 3.5, minimumSafeDistanceTiles: 2, maximumSafeDistanceTiles: 4.5,
+    attackEntryBufferTiles: 0.2, preferredDistanceTiles: 3.5, minimumSafeDistanceTiles: 2, maximumSafeDistanceTiles: 4.5,
     healEveryMs: 7000, healTargetLimit: 4, healRangeTiles: 3.2, healAdjacentRows: 1,
     healFactor: 0.10, floodedHealFactor: 0.13, selfHealFactor: 0.05, floodedRangeFactor: 1.20,
     healMinimumMissingHpFactor: 0.02, healPulseLockMs: 500,
     attackSpeedDebuffFactor: 0.75, attackSpeedDebuffDurationMs: 4000,
-    retreatSpeedFactor: 1.2, coverSearchRangeTiles: 2.5, retreatBehindAllyTiles: 1.4, retreatReevaluateMs: 300,
+    retreatSpeedFactor: 1.2, coverSearchRangeTiles: 2.5, coverMinimumHoldMs: 300, coverLostGraceMs: 250,
+    retreatExitDistanceTiles: 3.5, retreatBehindAllyTiles: 1.4, retreatReevaluateMs: 300, advanceWithoutTarget: true,
     color: "#a78bfa", scale: 1.24, spriteOffsetY: -12,
     assetStates: ["idle", "moveFloat", "retreat", "healPulse", "attackCast", "attackRelease", "death", "spawnRise"],
     animationFrameMs: { idle: 120, moveFloat: 90, retreat: 90, healPulse: 110, attackCast: 80, attackRelease: 60, death: 112, spawnRise: 100 },
@@ -2254,6 +2255,23 @@ export const ENEMIES = {
   },
   ...CHAPTER_FOUR_ENEMIES,
 };
+
+const LATEST_ENEMY_IDS = Object.freeze([
+  "enguiaRasgamar",
+  "leviathanNereida",
+  "carapacaNereida",
+  "medusaVeuSalino",
+  "mordelume",
+]);
+
+export function getEnemyCatalogEntries() {
+  const latestIds = new Set(LATEST_ENEMY_IDS);
+  const entries = Object.values(ENEMIES).filter((enemy) => !enemy.hiddenFromCatalog);
+  return [
+    ...entries.filter((enemy) => !latestIds.has(enemy.id)),
+    ...LATEST_ENEMY_IDS.map((id) => ENEMIES[id]).filter(Boolean),
+  ];
+}
 
 Object.values(ENEMIES).forEach((enemy) => {
   const heavyRole = /tanque|colosso|santuário|blindad/i.test(enemy.role || "");
