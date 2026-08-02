@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import path from "node:path";
+import sharp from "sharp";
 import { ENEMIES, PHASES, TROOPS } from "./content.js";
 import { CELL, createBattleSession, placeTroop, spawnEnemy, stepBattle } from "./battleModel.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
@@ -17,6 +20,32 @@ describe("Medusa Véu-Salino", () => {
   it("registra somente os oito estados esperados", () => {
     expect(ENEMIES.medusaVeuSalino.assetStates).toEqual(["idle", "moveFloat", "retreat", "healPulse", "attackCast", "attackRelease", "death", "spawnRise"]);
     expect(ENEMIES.medusaVeuSalino.assetStates).not.toContain("hit");
+  });
+
+  it("exporta oito poses transparentes e visualmente distintas por estado", async () => {
+    const root = path.join(process.cwd(), "src", "game", "assets", "enemy", "medusaVeuSalino");
+    for (const state of ENEMIES.medusaVeuSalino.assetStates) {
+      const files = (await fs.readdir(path.join(root, state))).filter((file) => /^frame[0-7]\.png$/.test(file)).sort();
+      expect(files).toHaveLength(8);
+      const frames = [];
+      for (const file of files) {
+        const result = await sharp(path.join(root, state, file)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+        expect(result.info).toMatchObject({ width: 256, height: 256, channels: 4 });
+        expect([result.data[3], result.data[(255 * 4) + 3], result.data[(255 * 256 * 4) + 3], result.data[(256 * 256 - 1) * 4 + 3]]).toEqual([0, 0, 0, 0]);
+        frames.push(result.data);
+      }
+      const signatures = new Set(frames.map((frame) => frame.toString("base64")));
+      expect(signatures.size).toBeGreaterThanOrEqual(7);
+      const changed = (left, right) => {
+        let pixels = 0;
+        for (let index = 0; index < left.length; index += 4) {
+          if (Math.abs(left[index] - right[index]) + Math.abs(left[index + 1] - right[index + 1])
+            + Math.abs(left[index + 2] - right[index + 2]) + Math.abs(left[index + 3] - right[index + 3]) > 60) pixels += 1;
+        }
+        return pixels / (256 * 256);
+      };
+      expect(changed(frames[0], frames[3])).toBeGreaterThanOrEqual(0.025);
+    }
   });
 
   it("cura no sexto frame apenas os quatro aliados vivos mais feridos", () => {

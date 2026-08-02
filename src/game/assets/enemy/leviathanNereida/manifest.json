@@ -1,0 +1,24 @@
+{
+  "id": "leviathanNereida",
+  "frameWidth": 512,
+  "frameHeight": 512,
+  "direction": "left",
+  "anchor": { "x": 0.67, "y": 0.78 },
+  "animations": {
+    "spawnRise": { "frames": 8, "frameMs": 130, "loop": false },
+    "idleSurface": { "frames": 8, "frameMs": 150, "loop": true },
+    "biteAbyss": { "frames": 8, "frameMs": 160, "loop": false, "impactFrames": [5] },
+    "tailSweep": { "frames": 8, "frameMs": 150, "loop": false, "impactFrames": [5] },
+    "brineJet": { "frames": 8, "frameMs": 150, "loop": false, "projectileFrames": [4] },
+    "vortexCast": { "frames": 8, "frameMs": 180, "loop": false, "castFrames": [5] },
+    "submerge": { "frames": 8, "frameMs": 80, "loop": false },
+    "submergedTravel": { "frames": 8, "frameMs": 100, "loop": true },
+    "emergeImpact": { "frames": 8, "frameMs": 112, "loop": false, "impactFrames": [5] },
+    "tideCommand": { "frames": 8, "frameMs": 162, "loop": false, "castFrames": [5] },
+    "abyssRoar": { "frames": 8, "frameMs": 150, "loop": false, "castFrames": [5] },
+    "delugeCharge": { "frames": 8, "frameMs": 400, "loop": false },
+    "delugeRelease": { "frames": 8, "frameMs": 225, "loop": false, "impactFrames": [5] },
+    "exposedGills": { "frames": 8, "frameMs": 140, "loop": true },
+    "death": { "frames": 8, "frameMs": 200, "loop": false }
+  }
+}

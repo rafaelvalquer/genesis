@@ -207,11 +207,26 @@ export function getEnemyMuzzleWorldPosition(
     frame,
     enemyConfig.attackVisual?.aspectRatio || 1,
   );
-  const muzzle = enemyConfig.attackVisual?.muzzle || { x: 0.25, y: 0.25 };
+  const frameMuzzles = enemyConfig.attackVisual?.frameMuzzles || [];
+  const muzzle = frameMuzzles[Math.min(Math.max(0, frame), Math.max(0, frameMuzzles.length - 1))]
+    || enemyConfig.attackVisual?.muzzle
+    || { x: 0.25, y: 0.25 };
   return { x: rect.x + rect.width * muzzle.x, y: rect.y + rect.height * muzzle.y };
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "leviathanNereida") {
+    const state = enemy.dead ? "death" : enemy.leviathanState || "idleSurface";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idleSurface || 1);
+    const age = Math.max(0, elapsed - (enemy.leviathanStateStartedAt || enemy.spawnedAt || 0));
+    const duration = Number.isFinite(enemy.leviathanStateEndsAt)
+      ? Math.max(1, enemy.leviathanStateEndsAt - (enemy.leviathanStateStartedAt || 0))
+      : null;
+    if (duration && !["idleSurface", "submergedTravel", "exposedGills"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
   if (enemyConfig.id === "enguiaRasgamar") {
     const state = enemy.dead
       ? (enemy.rasgamarSubmerged ? "deathSubmerged" : "deathSurface")

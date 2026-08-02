@@ -342,7 +342,13 @@ export function getTideCellState(session, row, col) {
     candidateRow === row && candidateCol === col
   ));
   const advancingBand = tide.state === "rising" && level === tide.targetLevel;
-  const flooded = level <= tide.currentLevel || advancingBand;
+  // Boss overrides are an additive, expiring presentation/gameplay layer.  They
+  // never mutate the natural tide level or its probability state.
+  const activeOverride = tide.bossOverride && session.elapsed < tide.bossOverride.until
+    ? Math.max(0, Number(tide.bossOverride.extraLevels) || 0)
+    : 0;
+  const effectiveLevel = tide.currentLevel + activeOverride;
+  const flooded = level <= effectiveLevel || advancingBand;
   const status = drying
     ? "drying"
     : warning && tide.state === "warningAdvance"

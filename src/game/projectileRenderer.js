@@ -577,6 +577,7 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     }
     if (event.type === "veuSalinoAttackSpeedDebuff") {
       particles.push({ kind: "ring", x: event.x, y: event.y, color: "#c084fc", born: now, life: 440, maxRadius: 30 });
+      particles.push({ kind: "veuSalinoDebuff", x: event.x, y: event.y, born: now, life: event.durationMs || 4000, color: "#e879f9", seed: event.seed || 1 });
       addSparks(particles, event, now, settings.reduceMotion ? 3 : Math.max(7, Math.round(14 * quality.density)), random, {
         color: "#e9d5ff", minSpeed: 8, speed: 38, life: 460, size: 1.7,
       });
@@ -759,6 +760,65 @@ function drawTracer(ctx, projectile, length, width, core) {
   ctx.moveTo(tailX, tailY);
   ctx.lineTo(projectile.x, projectile.y);
   ctx.stroke();
+}
+
+function drawVeuSalinoMucus(ctx, projectile, quality) {
+  const age = Math.max(0, Number(projectile.ageMs) || 0);
+  const seed = Number(projectile.seed) || 1;
+  const pulse = 1 + Math.sin(age * 0.018 + seed) * 0.06;
+  const wobble = Math.sin(age * 0.024 + seed * 0.7) * 2.5;
+  const angle = Math.atan2(projectile.vy || 0, projectile.vx || -1);
+  const density = quality?.density || 1;
+  const filamentCount = density < .5 ? 1 : 2;
+
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y + wobble);
+  ctx.rotate(angle);
+  ctx.scale(pulse, 1 / pulse);
+  ctx.lineCap = "round";
+
+  for (let index = 0; index < filamentCount; index += 1) {
+    const offset = index ? 2.4 : -2.4;
+    ctx.strokeStyle = index ? "rgba(232,121,249,.58)" : "rgba(103,232,249,.66)";
+    ctx.lineWidth = index ? 1.15 : 1.35;
+    ctx.beginPath();
+    ctx.moveTo(-3, offset * 0.35);
+    ctx.quadraticCurveTo(-10, offset + Math.sin(age * 0.022 + index) * 2, -20, offset * 0.75);
+    ctx.stroke();
+  }
+
+  const membrane = ctx.createRadialGradient(-2, -2, 1, 0, 0, 11);
+  membrane.addColorStop(0, "rgba(255,255,255,.95)");
+  membrane.addColorStop(.28, "rgba(240,171,252,.92)");
+  membrane.addColorStop(.62, "rgba(103,232,249,.78)");
+  membrane.addColorStop(1, "rgba(34,211,238,.12)");
+  ctx.fillStyle = membrane;
+  ctx.shadowBlur = 8;
+  ctx.shadowColor = "rgba(103,232,249,.55)";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = "rgba(126,34,206,.9)";
+  ctx.beginPath();
+  ctx.ellipse(-1, 0, 4.5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.8)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 10, 6, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  if (density > .9) {
+    ctx.fillStyle = "rgba(186,230,253,.8)";
+    for (let index = 0; index < 2; index += 1) {
+      const x = -13 - index * 6;
+      const y = Math.sin(age * .02 + seed + index) * 3;
+      ctx.beginPath(); ctx.arc(x, y, 1.2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 function drawRoundBullet(ctx, projectile, { radius, glowRadius, rim, glowEdge }) {
@@ -1340,6 +1400,7 @@ export function drawProjectileCollection(
     else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "inhibitorWeb") drawInhibitorWeb(ctx, projectileScratch);
+    else if (projectile.visualKind === "veuSalinoMucus") drawVeuSalinoMucus(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "mortarShell") drawMortarShell(ctx, projectileScratch, quality);
     else drawTracer(ctx, projectileScratch, 14, 2.5, "#ffffff");
@@ -1526,6 +1587,26 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
       const radius = Math.max(0.01, 5 + progress * maxRadius);
       ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (particle.kind === "veuSalinoDebuff") {
+      const wobble = settings.reduceMotion ? 0 : Math.sin(seconds * 5 + particle.seed) * 3;
+      ctx.lineCap = "round";
+      ctx.lineWidth = 1.4;
+      ctx.strokeStyle = "rgba(232,121,249,.72)";
+      ctx.shadowBlur = 5;
+      ctx.shadowColor = "#c084fc";
+      for (let index = 0; index < 4; index += 1) {
+        const angle = index * Math.PI / 2 + .35;
+        const startX = particle.x + Math.cos(angle) * 10;
+        const startY = particle.y + Math.sin(angle) * 7;
+        const endX = particle.x + Math.cos(angle) * 24;
+        const endY = particle.y + Math.sin(angle) * 17 + wobble;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.quadraticCurveTo((startX + endX) / 2 + wobble, (startY + endY) / 2 - wobble, endX, endY);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "rgba(196,181,253,.8)";
+      ctx.beginPath(); ctx.arc(particle.x, particle.y - 2, 3, 0, Math.PI * 2); ctx.fill();
     } else if (particle.kind === "muzzle") {
       const radius = particle.size * (0.55 + progress * 0.85);
       drawCachedRadialGlow(

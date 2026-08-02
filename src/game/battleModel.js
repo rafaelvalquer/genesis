@@ -76,6 +76,7 @@ import {
   registerTroopInIndex,
 } from "./battleIndex.js";
 import { createProjectileTrail, pushProjectileTrail } from "./projectileTrail.js";
+import { updateLeviathan } from "./leviathanNereida.js";
 
 export {
   createWindCurrentState,
@@ -1083,6 +1084,19 @@ function createEnemy(session, queued) {
     rasgamarNextExposureAt: queued.type === "enguiaRasgamar" ? session.elapsed + base.idleSurfaceExposureEveryMs : Infinity,
     rasgamarSubmerged: queued.type === "enguiaRasgamar",
     rasgamarPatrolCol: null,
+    leviathanState: queued.type === "leviathanNereida" ? "spawnRise" : null,
+    leviathanStateStartedAt: queued.type === "leviathanNereida" ? session.elapsed : -Infinity,
+    leviathanStateEndsAt: queued.type === "leviathanNereida" ? session.elapsed + base.spawnDurationMs : Infinity,
+    leviathanPhase: queued.type === "leviathanNereida" ? 1 : 0,
+    leviathanPreviousAttack: null, leviathanQueuedAttack: null,
+    leviathanNextDecisionAt: queued.type === "leviathanNereida" ? session.elapsed + base.attackDecisionEveryMs : Infinity,
+    leviathanGlobalAttackReadyAt: queued.type === "leviathanNereida" ? session.elapsed + base.spawnDurationMs + 1500 : Infinity,
+    leviathanTargetRows: [], leviathanTargetCells: [], leviathanTargetTroopIds: [],
+    leviathanAttackApplied: false, leviathanProjectileReleased: false, leviathanDelugeUsed: false,
+    leviathanSubmerged: false, leviathanTargetable: false, leviathanDamageFactor: 1,
+    leviathanBiteReadyAt: 0, leviathanTailReadyAt: 0, leviathanBrineReadyAt: 0,
+    leviathanVortexReadyAt: 0, leviathanDiveReadyAt: 0, leviathanTideReadyAt: 0,
+    leviathanRoarReadyAt: 0, leviathanExposedUntil: 0, leviathanPulseIndex: 0,
     summoned: Boolean(queued.summoned),
     summonerId: queued.summonerId || null,
     baseDamage: (alpha ? 40 : base.baseDamage) * echoDamageFactor,
@@ -1092,6 +1106,12 @@ function createEnemy(session, queued) {
   if (base.stationary) enemy.moving = false;
   if (queued.type === "enguiaRasgamar") {
     enemy.x = FIELD.enemyEntryCol * CELL.width + CELL.width / 2;
+    enemy.previousRenderX = enemy.x;
+    enemy.moving = false;
+  }
+  if (queued.type === "leviathanNereida") {
+    enemy.row = base.bossAnchorRow;
+    enemy.x = FIELD.spawnX + CELL.width * 0.7;
     enemy.previousRenderX = enemy.x;
     enemy.moving = false;
   }
@@ -1157,6 +1177,7 @@ export function spawnEnemy(session, {
 } = {}) {
   if (!session.sandbox) return { ok: false, reason: "Spawn manual disponível apenas no Campo de Provas.", enemies: [], events: [] };
   if (!ENEMIES[type] || ENEMIES[type].hiddenFromCatalog) return { ok: false, reason: "Inimigo desconhecido.", enemies: [], events: [] };
+  if (ENEMIES[type].debugOnly && !session.sandbox) return { ok: false, reason: "Chefe disponível apenas no Campo de Provas.", enemies: [], events: [] };
   const amount = clamp(Math.floor(Number(count) || 1), 1, 50);
   const targetRow = clamp(Math.floor(Number(row) || 0), 0, FIELD.rows - 1);
   const enemies = [];
@@ -1316,6 +1337,9 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const veuSalinoFactor = session.elapsed < (troop.veuSalinoAttackSlowUntil || 0)
     ? troop.veuSalinoAttackSlowFactor || 1
     : 1;
+  const leviathanFactor = session.elapsed < (troop.leviathanBrineUntil || 0)
+    ? troop.leviathanBrineAttackSpeedFactor || 1
+    : 1;
   if (session.elapsed >= (troop.webSlowUntil || 0)) {
     troop.webSlowUntil = 0;
     troop.webSlowFactor = 1;
@@ -1339,7 +1363,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const tideFactor = getTideTroopAttackSpeedFactor(session, troop);
   setTroopAttackSpeedFactor(
     troop,
-    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, sandFactor, tideFactor),
+    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, leviathanFactor, sandFactor, tideFactor),
     session.elapsed,
   );
 }
@@ -1662,6 +1686,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) {
     return;
   }
+  if (enemy.type === "leviathanNereida" && enemy.leviathanSubmerged) return;
   if (context.fortuneOrbital) {
     enemy.hp -= amount;
     const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
@@ -1746,6 +1771,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     : 1;
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1)
     * damageTakenFactor * chapterFourFactor * effectiveArmorFactor * ruptureFactor;
+  if (enemy.type === "leviathanNereida") incoming *= enemy.leviathanDamageFactor || 1;
   if (nereidaProtector) incoming *= ENEMIES.carapacaNereida.escortedRangedDamageFactor;
   const hitPoint = getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
@@ -5780,7 +5806,12 @@ function launchRasgamarDart(session, enemy, config, troop, events) {
 }
 
 function launchVeuSalinoProjectile(session, enemy, troop, config, events) {
-  const origin = getEnemyMuzzleWorldPosition(enemy, config);
+  const origin = getEnemyMuzzleWorldPosition(
+    enemy,
+    config,
+    "attackRelease",
+    config.attackReleaseVisual.projectileFrame,
+  );
   const seconds = Math.max(0.1, (origin.x - troop.x) / config.projectileSpeed);
   session.enemyProjectiles.push({
     id: id("enemy_projectile"), kind: "veuSalinoMucus", visualKind: "veuSalinoMucus", sourceEnemyId: enemy.id,
@@ -5917,6 +5948,10 @@ function updateEnemies(session, dt, events) {
     if (updateSilicaDiggerEmergence(session, enemy, config, events)) continue;
     if (enemy.type === "scarabEmperor") {
       updateScarabEmperor(session, enemy, config, dt, events);
+      continue;
+    }
+    if (enemy.type === "leviathanNereida") {
+      updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events);
       continue;
     }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
