@@ -8,6 +8,7 @@ import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
 import { getEnemyPreviewUrl } from "./assetCatalog.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
 import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
+import { isEnemyTargetable } from "./enemyTargeting.js";
 import { isRasgamarShadowOnly } from "./GameCanvas.jsx";
 
 const assetPath = (relative) => fileURLToPath(new URL(relative, import.meta.url));
@@ -80,6 +81,21 @@ describe("Enguia Rasgamar", () => {
     const events = stepBattle(session, 32);
     expect(events.some((event) => event.type === "shoot" && event.targetId === enemy.id)).toBe(false);
     expect(session.projectiles.some((projectile) => projectile.targetId === enemy.id)).toBe(false);
+  });
+
+  it("permanece submersa durante rangedPositioning", () => {
+    const session = tideSandbox();
+    const enemy = spawnEnemy(session, { type: "enguiaRasgamar", row: 0 }).enemies[0];
+    enemy.rasgamarState = "rangedPositioning";
+    enemy.rasgamarSubmerged = false;
+
+    rebuildBattleIndex(session);
+
+    expect(isEnemyTargetable(enemy)).toBe(false);
+    expect(isRasgamarShadowOnly(enemy)).toBe(true);
+    expect(getBattleIndex(session).targetableEnemiesByRow[0]).not.toContain(enemy);
+    expect(getEnemyAnimation(enemy, ENEMIES.enguiaRasgamar, session.elapsed, { swimSubmerged: 8 }).state)
+      .toBe("swimSubmerged");
   });
 
   it("keeps a submerged Rasgamar shadow-only", () => {

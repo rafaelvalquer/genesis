@@ -248,9 +248,14 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
   }
   if (enemyConfig.id === "enguiaRasgamar") {
+    const logicalState = enemy.rasgamarState || "submergedPatrol";
     const state = enemy.dead
       ? (enemy.rasgamarSubmerged ? "deathSubmerged" : "deathSurface")
-      : enemy.rasgamarState || "swimSubmerged";
+      : ({
+        submergedPatrol: "swimSubmerged",
+        submergedApproach: "swimSubmerged",
+        rangedPositioning: "swimSubmerged",
+      }[logicalState] || logicalState);
     const count = Math.max(1, frameCounts[state] || frameCounts.swimSubmerged || 1);
     const age = Math.max(0, elapsed - (enemy.rasgamarStateStartedAt || enemy.spawnedAt || 0));
     const duration = Number.isFinite(enemy.rasgamarStateEndsAt)

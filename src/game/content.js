@@ -86,7 +86,7 @@ export const TROOPS = {
     maxDeployed: 5,
     energyPerPulse: 1,
     waveEnergyBonus: 8,
-    spriteOffsetY: 10,
+    spriteOffsetY: -11,
     idleVisual: {
       durationMs: 2000,
       timeline: [
@@ -2189,7 +2189,7 @@ export const ENEMIES = {
     label: "Carapaça de Nereida",
     role: "Tanque aquático / proteção de aliados / corpo a corpo",
     hp: 104, speed: 15, damage: 14, attackEveryMs: 1800, baseDamage: 28, threat: 30,
-    color: "#22d3ee", scale: 1.48, spriteOffsetY: 14, chapterId: "chapter_05", allowAlphaVariant: false,
+    color: "#22d3ee", scale: 1.48, spriteOffsetY: -11, chapterId: "chapter_05", allowAlphaVariant: false,
     assetStates: ["idle", "moveLand", "moveWater", "attackClaw", "shellGuard", "death", "spawnEmerge"],
     animationFrameMs: { idle: 120, moveLand: 100, moveWater: 80, shellGuard: 100, death: 120 },
     landAnimationCycleDistance: 12,
@@ -2239,7 +2239,7 @@ export const ENEMIES = {
     label: "Mordelume",
     role: "Enxame rápido aquático / corpo a corpo",
     hp: 18, speed: 46, damage: 3, attackEveryMs: 700, baseDamage: 8, threat: 16,
-    color: "#22d3ee", scale: 1.05, spriteOffsetY: 14, chapterId: "chapter_05", allowAlphaVariant: false,
+    color: "#22d3ee", scale: 1.05, spriteOffsetY: -11, chapterId: "chapter_05", allowAlphaVariant: false,
     assetStates: ["idle", "moveLand", "moveWater", "sprintWater", "attackBite", "death", "spawnEmerge"],
     animationFrameMs: { idle: 100, moveLand: 80, moveWater: 60, sprintWater: 50, attackBite: 70, death: 90, spawnEmerge: 80 },
     attackRangeTiles: 0.45,

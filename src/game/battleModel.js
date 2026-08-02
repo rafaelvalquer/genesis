@@ -68,7 +68,7 @@ import {
   validatePositionalTarget,
 } from "./positionalTargeting.js";
 import { compactActive } from "./battleCollections.js";
-import { isEnemyTargetable } from "./enemyTargeting.js";
+import { isEnemyTargetable, isRasgamarSubmerged, RASGAMAR_SUBMERGED_STATES } from "./enemyTargeting.js";
 import {
   getBattleIndex,
   livingEnemyById,
@@ -1855,7 +1855,7 @@ function notifyEnemyDeath(session, enemy, events, context = {}) {
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
   getEnemyBehavior(enemy.type).receiveDamage(createEnemyRuntime(session), enemy, amount, events, context);
-  if (enemy.type === "enguiaRasgamar" && enemy.rasgamarSubmerged) {
+  if (isRasgamarSubmerged(enemy)) {
     return;
   }
   if (enemy.type === "leviathanNereida" && enemy.leviathanSubmerged) return;
@@ -5973,8 +5973,8 @@ function setRasgamarState(session, enemy, state, durationMs = Infinity) {
   enemy.rasgamarState = state;
   enemy.rasgamarStateStartedAt = session.elapsed;
   enemy.rasgamarStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
-  enemy.rasgamarSubmerged = ["spawnSubmerged", "submergedPatrol", "submergedApproach", "dive", "tideEscape"].includes(state);
-  enemy.moving = ["submergedPatrol", "submergedApproach", "tideEscape", "dive"].includes(state);
+  enemy.rasgamarSubmerged = RASGAMAR_SUBMERGED_STATES.has(state);
+  enemy.moving = ["submergedPatrol", "submergedApproach", "rangedPositioning", "tideEscape", "dive"].includes(state);
 }
 
 function rasgamarFloodedColumns(session, row) {

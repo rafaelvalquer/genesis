@@ -39,6 +39,7 @@ import {
   drawWetReflections, getSpriteFilter, getTroopSpriteFilter, presentScene,
 } from "./graphicsRenderer.js";
 import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
+import { isRasgamarSubmerged } from "./enemyTargeting.js";
 import {
   CELL, FIELD, VIEWPORT,
   adaptiveAidBlocksIntermission,
@@ -1176,7 +1177,26 @@ export function isLeviathanShadowOnly(entity, elapsed, animationFrame = null) {
 }
 
 export function isRasgamarShadowOnly(entity) {
-  return Boolean(entity?.type === "enguiaRasgamar" && entity.rasgamarSubmerged);
+  return isRasgamarSubmerged(entity);
+}
+
+function drawRasgamarUnderwaterShadow(ctx, entity, elapsed, settings) {
+  const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 180) * 2;
+  ctx.save();
+  ctx.globalAlpha = 0.42;
+  ctx.fillStyle = "rgba(2, 30, 48, 0.78)";
+  ctx.shadowColor = "rgba(34, 211, 238, 0.28)";
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.ellipse(entity.x, entity.y + 34, 38 + pulse, 11 + pulse * 0.25, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = "#67e8f9";
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.ellipse(entity.x, entity.y + 34, 46 + pulse * 2, 15 + pulse * 0.4, -0.12, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawLeviathanUnderwaterShadow(ctx, entity, session, config, settings) {
@@ -1403,8 +1423,11 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       const reaction = getHitReaction(runtime, entity.id, now);
       buffers.position.x = entry.x + reaction.offsetX;
       buffers.position.y = entry.y;
-      const shadowOnly = entry.kind === "enemy" && (isLeviathanShadowOnly(entity, session.elapsed) || isRasgamarShadowOnly(entity));
-      if (!shadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
+      const rasgamarShadowOnly = entry.kind === "enemy" && isRasgamarShadowOnly(entity);
+      const leviathanShadowOnly = entry.kind === "enemy" && isLeviathanShadowOnly(entity, session.elapsed);
+      if (rasgamarShadowOnly) {
+        drawRasgamarUnderwaterShadow(ctx, buffers.position, session.elapsed, settings);
+      } else if (!leviathanShadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
         const emergenceScale = entry.kind === "enemy"
           ? 0.2 + 0.8 * silicaDiggerEmergenceProgress(entity, session.elapsed)
           : 1;
