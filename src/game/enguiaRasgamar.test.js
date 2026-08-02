@@ -5,10 +5,11 @@ import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
 import { CELL, createBattleSession, placeTroop, spawnEnemy, stepBattle } from "./battleModel.js";
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
+import { getEnemyPreviewUrl } from "./assetCatalog.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
 
 const assetPath = (relative) => fileURLToPath(new URL(relative, import.meta.url));
-const states = ["spawnSubmerged", "swimSubmerged", "tideEscape", "rangedEmerge", "rangedCharge", "rangedAttack", "surfaceRecovery", "coilEmerge", "coilAttack", "coilRelease", "dive", "hitSurface", "deathSurface", "deathSubmerged"];
+const states = ["spawnSubmerged", "swimSubmerged", "tideEscape", "rangedEmerge", "rangedCharge", "rangedAttack", "surfaceRecovery", "coilEmerge", "coilAttack", "coilRelease", "dive", "deathSurface", "deathSubmerged"];
 
 function tideSandbox() {
   return createBattleSession(CHAPTER_FIVE_PHASES[6], ["medicaNanites", "reator"], 3001, { sandbox: true });
@@ -24,6 +25,7 @@ describe("Enguia Rasgamar", () => {
     expect(PHASES.flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies)).some((entry) => entry.type === "enguiaRasgamar")).toBe(false);
     const session = tideSandbox();
     expect(spawnEnemy(session, { type: "enguiaRasgamar", row: 0 }).ok).toBe(true);
+    expect(getEnemyPreviewUrl("enguiaRasgamar")).toMatch(/enguiaRasgamar.*surfaceRecovery.*frame0\.png/i);
   });
 
   it("embosca uma tropa alagada, aplica pulsos e a libera", () => {
@@ -61,9 +63,11 @@ describe("Enguia Rasgamar", () => {
     expect(troop).toBeTruthy();
   });
 
-  it("entrega 14 animações completas, manifest e frames transparentes", async () => {
+  it("entrega 13 animações completas sem animação de hit", async () => {
     const manifest = JSON.parse(readFileSync(assetPath("./assets/enemy/enguiaRasgamar/enguia_rasgamar.json"), "utf8"));
     expect(Object.keys(manifest.animations)).toEqual(states);
+    expect(manifest.animations.hitSurface).toBeUndefined();
+    expect(existsSync(assetPath("./assets/enemy/enguiaRasgamar/hitSurface/frame0.png"))).toBe(false);
     for (const state of states) {
       expect(manifest.animations[state].frames).toBe(8);
       for (let frame = 0; frame < 8; frame += 1) {

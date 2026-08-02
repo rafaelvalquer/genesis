@@ -977,7 +977,14 @@ function createEnemy(session, queued) {
     nereidaState: queued.type === "carapacaNereida" ? "spawnEmerge" : null,
     nereidaStateStartedAt: queued.type === "carapacaNereida" ? session.elapsed : -Infinity,
     nereidaStateEndsAt: queued.type === "carapacaNereida" ? session.elapsed + base.spawnDurationMs : Infinity,
-    nereidaAttackApplied: false, nereidaAttackTargetId: null, lastHitAt: -Infinity,
+    nereidaAttackApplied: false, nereidaAttackTargetId: null, nereidaMovementDistance: 0, lastHitAt: -Infinity,
+    veuSalinoState: queued.type === "medusaVeuSalino" ? "spawnRise" : null,
+    veuSalinoStateStartedAt: queued.type === "medusaVeuSalino" ? session.elapsed : -Infinity,
+    veuSalinoStateEndsAt: queued.type === "medusaVeuSalino" ? session.elapsed + base.spawnDurationMs : Infinity,
+    veuSalinoNextHealAt: queued.type === "medusaVeuSalino" ? session.elapsed + base.healEveryMs : Infinity,
+    veuSalinoNextAttackAt: queued.type === "medusaVeuSalino" ? session.elapsed : Infinity,
+    veuSalinoAttackTargetId: null, veuSalinoProjectileReleased: false, veuSalinoHealApplied: false,
+    veuSalinoRetreatTargetX: null, veuSalinoRetreatCheckedAt: -Infinity,
     mordelumeState: queued.type === "mordelume" ? "spawnEmerge" : null,
     mordelumeStateStartedAt: queued.type === "mordelume" ? session.elapsed : -Infinity,
     mordelumeStateEndsAt: queued.type === "mordelume" ? session.elapsed + base.spawnDurationMs : Infinity,
@@ -1306,6 +1313,9 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const rasgamarFactor = session.elapsed < (troop.rasgamarAttackSlowUntil || 0)
     ? troop.rasgamarAttackSlowFactor || 1
     : 1;
+  const veuSalinoFactor = session.elapsed < (troop.veuSalinoAttackSlowUntil || 0)
+    ? troop.veuSalinoAttackSlowFactor || 1
+    : 1;
   if (session.elapsed >= (troop.webSlowUntil || 0)) {
     troop.webSlowUntil = 0;
     troop.webSlowFactor = 1;
@@ -1329,7 +1339,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const tideFactor = getTideTroopAttackSpeedFactor(session, troop);
   setTroopAttackSpeedFactor(
     troop,
-    Math.min(parasiteFactor, webFactor, rasgamarFactor, sandFactor, tideFactor),
+    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, sandFactor, tideFactor),
     session.elapsed,
   );
 }
@@ -4470,13 +4480,21 @@ function updateEnemyProjectiles(session, dt, events) {
     const intendedTarget = projectile.targetTroopId
       ? indexedTroopById(session, projectile.targetTroopId)
       : null;
-    if (projectile.kind === "inhibitorWeb" && projectile.targetLocked) {
+    if (["inhibitorWeb", "veuSalinoMucus"].includes(projectile.kind) && projectile.targetLocked) {
       if (!intendedTarget) {
         projectile.active = false;
         continue;
       }
       if (projectile.x <= intendedTarget.x + 20) {
-        resolveInhibitorWebImpact(session, projectile, intendedTarget, events);
+        if (projectile.kind === "inhibitorWeb") {
+          resolveInhibitorWebImpact(session, projectile, intendedTarget, events);
+        } else {
+          damageTroop(session, intendedTarget, projectile.damage, events);
+          intendedTarget.veuSalinoAttackSlowFactor = projectile.attackSpeedDebuffFactor;
+          intendedTarget.veuSalinoAttackSlowUntil = session.elapsed + projectile.attackSpeedDebuffDurationMs;
+          refreshTroopAttackSpeedFactor(session, intendedTarget);
+          events.push({ type: "veuSalinoAttackSpeedDebuff", sourceEnemyId: projectile.sourceEnemyId, targetTroopId: intendedTarget.id, x: intendedTarget.x, y: intendedTarget.y - 18, attackSpeedFactor: projectile.attackSpeedDebuffFactor, durationMs: projectile.attackSpeedDebuffDurationMs, color: projectile.color, seed: projectile.seed });
+        }
         projectile.active = false;
       } else if (projectile.x <= FIELD.baseX || projectile.y < -80 || projectile.y > FIELD.height + 80) {
         projectile.active = false;
@@ -5403,9 +5421,18 @@ function updateChapterFourEnemy(session, enemy, config, dt, events) {
 }
 
 function setNereidaState(session, enemy, state, durationMs = Infinity) {
+  const sameState = enemy.nereidaState === state;
+  if (sameState && !Number.isFinite(durationMs)) {
+    enemy.moving = state === "moveLand" || state === "moveWater";
+    return;
+  }
+  const previousState = enemy.nereidaState;
   enemy.nereidaState = state;
   enemy.nereidaStateStartedAt = session.elapsed;
   enemy.nereidaStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  if (previousState !== state && (state === "moveLand" || state === "moveWater")) {
+    enemy.nereidaMovementDistance = 0;
+  }
   enemy.moving = state === "moveLand" || state === "moveWater";
 }
 
@@ -5417,8 +5444,10 @@ function nereidaProtectsAlly(session, enemy, config) {
 
 function updateCarapacaNereida(session, enemy, config, dt, events) {
   if (enemy.nereidaState === "spawnEmerge") {
+    enemy.moving = false;
     if (session.elapsed < enemy.nereidaStateEndsAt) return;
-    setNereidaState(session, enemy, "idle");
+    const flooded = isTideCellFlooded(session, enemy.row, clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1));
+    setNereidaState(session, enemy, flooded ? "moveWater" : "moveLand");
   }
   if (enemy.nereidaState === "attackClaw") {
     enemy.moving = false;
@@ -5446,14 +5475,145 @@ function updateCarapacaNereida(session, enemy, config, dt, events) {
     } else if (enemy.nereidaState !== "shellGuard") setNereidaState(session, enemy, "shellGuard");
     return;
   }
-  const guarded = nereidaProtectsAlly(session, enemy, config) || session.elapsed - enemy.lastHitAt < 900;
-  if (guarded) {
-    if (enemy.nereidaState !== "shellGuard") events.push({ type: "nereidaGuard", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, color: config.color });
-    if (enemy.nereidaState !== "shellGuard") setNereidaState(session, enemy, "shellGuard");
-  }
   const flooded = isTideCellFlooded(session, enemy.row, clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1));
-  if (!guarded) setNereidaState(session, enemy, flooded ? "moveWater" : "moveLand");
+  setNereidaState(session, enemy, flooded ? "moveWater" : "moveLand");
+  const previousX = enemy.x;
   moveEnemy(session, enemy, dt, events);
+  enemy.nereidaMovementDistance += Math.abs(previousX - enemy.x);
+}
+
+function setVeuSalinoState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.veuSalinoState === state && !Number.isFinite(durationMs)
+    && !Number.isFinite(enemy.veuSalinoStateEndsAt)) {
+    enemy.moving = state === "moveFloat" || state === "retreat";
+    return;
+  }
+  enemy.veuSalinoState = state;
+  enemy.veuSalinoStateStartedAt = session.elapsed;
+  enemy.veuSalinoStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.moving = state === "moveFloat" || state === "retreat";
+}
+
+function veuSalinoFlooded(session, enemy) {
+  return isTideCellFlooded(session, enemy.row, clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1));
+}
+
+function selectVeuSalinoHealTargets(session, enemy, config) {
+  const range = config.healRangeTiles * (veuSalinoFlooded(session, enemy) ? config.floodedRangeFactor : 1) * CELL.width;
+  return session.enemies
+    .filter((ally) => !ally.dead && ally.hp > 0 && ally.id !== enemy.id
+      && Math.abs(ally.row - enemy.row) <= config.healAdjacentRows
+      && Math.abs(ally.x - enemy.x) <= range
+      && ally.hp / Math.max(1, ally.maxHp) < 1 - config.healMinimumMissingHpFactor)
+    .sort((left, right) => left.hp / left.maxHp - right.hp / right.maxHp || left.x - right.x || left.id.localeCompare(right.id))
+    .slice(0, config.healTargetLimit);
+}
+
+function shouldVeuSalinoHeal(session, enemy, config) {
+  return session.elapsed >= enemy.veuSalinoNextHealAt
+    && session.elapsed >= (session.veuSalinoHealPulseLockedUntil || 0)
+    && selectVeuSalinoHealTargets(session, enemy, config).length > 0;
+}
+
+function applyVeuSalinoHeal(session, enemy, config, events) {
+  const factor = veuSalinoFlooded(session, enemy) ? config.floodedHealFactor : config.healFactor;
+  const targets = selectVeuSalinoHealTargets(session, enemy, config);
+  for (const ally of targets) ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * factor);
+  if (enemy.hp > 0 && enemy.hp < enemy.maxHp) enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.maxHp * config.selfHealFactor);
+  session.veuSalinoHealPulseLockedUntil = session.elapsed + config.healPulseLockMs;
+  enemy.veuSalinoNextHealAt = session.elapsed + config.healEveryMs;
+  enemy.veuSalinoHealApplied = true;
+  events.push({ type: "veuSalinoHealPulse", sourceEnemyId: enemy.id, targetEnemyIds: targets.map((target) => target.id), x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session) });
+}
+
+function selectVeuSalinoDebuffTarget(session, enemy, config) {
+  return session.troops
+    .filter((troop) => !troop.dead && troop.x < enemy.x && enemy.x - troop.x <= config.attackRangeTiles * CELL.width)
+    .sort((left, right) => (TROOPS[left.type]?.attackEveryMs || Infinity) - (TROOPS[right.type]?.attackEveryMs || Infinity)
+      || Number(/suporte/i.test(TROOPS[right.type]?.role || "")) - Number(/suporte/i.test(TROOPS[left.type]?.role || ""))
+      || right.x - left.x || left.id.localeCompare(right.id))[0] || null;
+}
+
+function hasVeuSalinoCover(session, enemy) {
+  return session.enemies.some((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row
+    && ally.x < enemy.x && enemy.x - ally.x <= 5 * CELL.width);
+}
+
+function shouldVeuSalinoRetreat(session, enemy, config) {
+  const troop = closestTroopForEnemy(session, enemy);
+  return !hasVeuSalinoCover(session, enemy)
+    || (troop && enemy.x - troop.x < config.minimumSafeDistanceTiles * CELL.width);
+}
+
+function updateVeuSalinoFollowMovement(session, enemy, config, dt, events) {
+  const cover = session.enemies.filter((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row && ally.x < enemy.x)
+    .sort((left, right) => Number(right.type === "carapacaNereida") - Number(left.type === "carapacaNereida") || right.x - left.x)[0];
+  const desiredX = cover ? cover.x + config.retreatBehindAllyTiles * CELL.width : enemy.x - config.speed * dt / 1000;
+  if (enemy.x - desiredX > 4) {
+    setVeuSalinoState(session, enemy, "moveFloat");
+    enemy.x -= Math.min(enemy.speed * dt / 1000, enemy.x - desiredX);
+    enemy.moving = true;
+  } else setVeuSalinoState(session, enemy, "idle");
+}
+
+function startVeuSalinoRetreat(session, enemy, config, events) {
+  const cover = session.enemies.filter((ally) => !ally.dead && ally.id !== enemy.id && ally.row === enemy.row && ally.x < enemy.x)
+    .sort((left, right) => Number(right.type === "carapacaNereida") - Number(left.type === "carapacaNereida") || right.x - left.x)[0];
+  enemy.veuSalinoRetreatTargetX = cover
+    ? Math.min(FIELD.spawnX, cover.x + config.retreatBehindAllyTiles * CELL.width)
+    : FIELD.spawnX;
+  setVeuSalinoState(session, enemy, "retreat");
+  events.push({ type: "veuSalinoRetreat", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, color: config.color, seed: nextEffectSeed(session) });
+}
+
+function updateMedusaVeuSalino(session, enemy, config, dt, events) {
+  if (enemy.veuSalinoState === "spawnRise") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.veuSalinoStateEndsAt) setVeuSalinoState(session, enemy, "idle");
+    return;
+  }
+  if (enemy.veuSalinoState === "healPulse") {
+    enemy.moving = false;
+    if (!enemy.veuSalinoHealApplied && session.elapsed >= enemy.veuSalinoStateStartedAt + config.healVisual.applyAtMs) applyVeuSalinoHeal(session, enemy, config, events);
+    if (session.elapsed >= enemy.veuSalinoStateEndsAt) setVeuSalinoState(session, enemy, "idle");
+    return;
+  }
+  if (enemy.veuSalinoState === "attackCast") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.veuSalinoStateEndsAt) setVeuSalinoState(session, enemy, "attackRelease", config.attackReleaseVisual.durationMs);
+    return;
+  }
+  if (enemy.veuSalinoState === "attackRelease") {
+    enemy.moving = false;
+    if (!enemy.veuSalinoProjectileReleased && session.elapsed >= enemy.veuSalinoStateStartedAt + config.attackReleaseVisual.projectileAtMs) {
+      const target = indexedTroopById(session, enemy.veuSalinoAttackTargetId);
+      enemy.veuSalinoProjectileReleased = true;
+      if (target) launchVeuSalinoProjectile(session, enemy, target, config, events);
+    }
+    if (session.elapsed >= enemy.veuSalinoStateEndsAt) { enemy.veuSalinoAttackTargetId = null; setVeuSalinoState(session, enemy, "idle"); }
+    return;
+  }
+  if (enemy.veuSalinoState === "retreat") {
+    enemy.x = Math.min(enemy.veuSalinoRetreatTargetX, enemy.x + enemy.speed * config.retreatSpeedFactor * dt / 1000);
+    enemy.moving = true;
+    if (enemy.x >= enemy.veuSalinoRetreatTargetX - 2) setVeuSalinoState(session, enemy, "idle");
+    return;
+  }
+  if (shouldVeuSalinoRetreat(session, enemy, config)) { startVeuSalinoRetreat(session, enemy, config, events); return; }
+  if (shouldVeuSalinoHeal(session, enemy, config)) {
+    enemy.veuSalinoHealApplied = false;
+    session.veuSalinoHealPulseLockedUntil = session.elapsed + config.healVisual.durationMs;
+    setVeuSalinoState(session, enemy, "healPulse", config.healVisual.durationMs);
+    return;
+  }
+  const target = selectVeuSalinoDebuffTarget(session, enemy, config);
+  if (target && session.elapsed >= enemy.veuSalinoNextAttackAt) {
+    enemy.veuSalinoAttackTargetId = target.id; enemy.veuSalinoProjectileReleased = false;
+    enemy.veuSalinoNextAttackAt = session.elapsed + config.attackEveryMs;
+    setVeuSalinoState(session, enemy, "attackCast", config.attackCastVisual.durationMs);
+    return;
+  }
+  updateVeuSalinoFollowMovement(session, enemy, config, dt, events);
 }
 
 function setMordelumeState(session, enemy, state, durationMs = Infinity) {
@@ -5619,6 +5779,21 @@ function launchRasgamarDart(session, enemy, config, troop, events) {
   events.push({ type: "rasgamarDart", sourceEnemyId: enemy.id, x: origin.x, y: origin.y, color: config.color, seed: nextEffectSeed(session) });
 }
 
+function launchVeuSalinoProjectile(session, enemy, troop, config, events) {
+  const origin = getEnemyMuzzleWorldPosition(enemy, config);
+  const seconds = Math.max(0.1, (origin.x - troop.x) / config.projectileSpeed);
+  session.enemyProjectiles.push({
+    id: id("enemy_projectile"), kind: "veuSalinoMucus", visualKind: "veuSalinoMucus", sourceEnemyId: enemy.id,
+    targetTroopId: troop.id, targetLocked: true, row: troop.row, x: origin.x, y: origin.y,
+    previousX: origin.x, previousY: origin.y, previousRenderX: origin.x, previousRenderY: origin.y,
+    vx: -config.projectileSpeed, vy: (troop.y - 18 - origin.y) / seconds, damage: enemy.damage,
+    color: config.color, active: true, launched: true, trail: createProjectileTrail(14, origin.x, origin.y), ageMs: 0,
+    attackSpeedDebuffFactor: config.attackSpeedDebuffFactor, attackSpeedDebuffDurationMs: config.attackSpeedDebuffDurationMs,
+    seed: nextEffectSeed(session),
+  });
+  events.push({ type: "veuSalinoProjectile", sourceEnemyId: enemy.id, x: origin.x, y: origin.y, color: config.color, seed: nextEffectSeed(session) });
+}
+
 function updateRasgamar(session, enemy, config, dt, events) {
   const currentCellFlooded = isTideCellFlooded(session, enemy.row, rasgamarColumn(enemy));
   if (!currentCellFlooded) {
@@ -5781,6 +5956,11 @@ function updateEnemies(session, dt, events) {
 
     if (enemy.type === "carapacaNereida") {
       updateCarapacaNereida(session, enemy, config, dt, events);
+      continue;
+    }
+
+    if (enemy.type === "medusaVeuSalino") {
+      updateMedusaVeuSalino(session, enemy, config, dt, events);
       continue;
     }
 

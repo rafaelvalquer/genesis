@@ -7,7 +7,7 @@ const source = path.resolve("tmp/imagegen/enguia-rasgamar-master.png");
 const sheetRoot = path.resolve("tmp/imagegen/enguia-sheets");
 const states = [
   "spawnSubmerged", "swimSubmerged", "tideEscape", "rangedEmerge", "rangedCharge", "rangedAttack",
-  "surfaceRecovery", "coilEmerge", "coilAttack", "coilRelease", "dive", "hitSurface", "deathSurface", "deathSubmerged",
+  "surfaceRecovery", "coilEmerge", "coilAttack", "coilRelease", "dive", "deathSurface", "deathSubmerged",
 ];
 
 await mkdir(root, { recursive: true });

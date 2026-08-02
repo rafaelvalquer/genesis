@@ -1,0 +1,18 @@
+{
+  "id": "medusaVeuSalino",
+  "frameWidth": 256,
+  "frameHeight": 256,
+  "direction": "left",
+  "anchor": { "x": 0.5, "y": 0.76 },
+  "hitbox": { "width": 86, "height": 82, "offsetX": 0, "offsetY": 6 },
+  "animations": {
+    "idle": { "frames": 8, "frameMs": 120, "loop": true },
+    "moveFloat": { "frames": 8, "frameMs": 90, "loop": true },
+    "retreat": { "frames": 8, "frameMs": 90, "loop": true },
+    "healPulse": { "frames": 8, "frameMs": 110, "loop": false, "healFrames": [5] },
+    "attackCast": { "frames": 8, "frameMs": 80, "loop": false },
+    "attackRelease": { "frames": 8, "frameMs": 60, "loop": false, "projectileFrames": [3] },
+    "death": { "frames": 8, "frameMs": 112, "loop": false },
+    "spawnRise": { "frames": 8, "frameMs": 100, "loop": false }
+  }
+}

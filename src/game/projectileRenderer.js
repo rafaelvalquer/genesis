@@ -563,6 +563,31 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       });
       continue;
     }
+    if (event.type === "veuSalinoHealPulse") {
+      particles.push({ kind: "ring", x: event.x, y: event.y + 16, color: "#67e8f9", born: now, life: 540, maxRadius: 74 });
+      particles.push({ kind: "ring", x: event.x, y: event.y + 16, color: "#f0abfc", born: now + 80, life: 420, maxRadius: 54 });
+      addSparks(particles, event, now, settings.reduceMotion ? 4 : Math.max(10, Math.round(22 * quality.density)), random, {
+        color: "#f0abfc", minSpeed: 14, speed: 64, life: 520, size: 2,
+      });
+      continue;
+    }
+    if (event.type === "veuSalinoProjectile") {
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#f0abfc", born: now, life: 180, size: 18 });
+      continue;
+    }
+    if (event.type === "veuSalinoAttackSpeedDebuff") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#c084fc", born: now, life: 440, maxRadius: 30 });
+      addSparks(particles, event, now, settings.reduceMotion ? 3 : Math.max(7, Math.round(14 * quality.density)), random, {
+        color: "#e9d5ff", minSpeed: 8, speed: 38, life: 460, size: 1.7,
+      });
+      continue;
+    }
+    if (event.type === "veuSalinoRetreat") {
+      addSparks(particles, { ...event, y: event.y + 20 }, now, settings.reduceMotion ? 2 : Math.max(5, Math.round(10 * quality.density)), random, {
+        color: "#67e8f9", minSpeed: 10, speed: 34, life: 340, size: 1.5,
+      });
+      continue;
+    }
     if (event.type === "shotgun") {
       particles.push({ kind: "shotgun", ...event, color, born: now, life: 170 });
       particles.push({ kind: "muzzle", x: event.x0, y: event.y0, color: "#fff7d6", born: now, life: 95, size: 18 });
@@ -1483,8 +1508,8 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
       ctx.shadowBlur = particle.kind === "snow" ? 7 : 3;
       ctx.shadowColor = particle.color;
       ctx.beginPath();
-      if (particle.kind === "snow") ctx.arc(x, y, particle.size, 0, Math.PI * 2);
-      else ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+      const radius = Math.max(0.01, Number(particle.size) || 0);
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
     } else if (particle.kind === "casing") {
       const x = particle.x + particle.vx * seconds;
@@ -1497,7 +1522,9 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
       ctx.strokeStyle = particle.color;
       ctx.lineWidth = 3 * (1 - progress);
       ctx.beginPath();
-      ctx.arc(particle.x, particle.y, 5 + progress * (particle.maxRadius || 65), 0, Math.PI * 2);
+      const maxRadius = Math.max(0, Number(particle.maxRadius) || 0);
+      const radius = Math.max(0.01, 5 + progress * maxRadius);
+      ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
       ctx.stroke();
     } else if (particle.kind === "muzzle") {
       const radius = particle.size * (0.55 + progress * 0.85);
@@ -1519,7 +1546,7 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
       ctx.fillStyle = particle.color;
       ctx.globalAlpha *= 0.35;
       ctx.beginPath();
-      ctx.arc(x, y, particle.size * (0.7 + progress), 0, Math.PI * 2);
+      ctx.arc(x, y, Math.max(0.01, (Number(particle.size) || 0) * (0.7 + progress)), 0, Math.PI * 2);
       ctx.fill();
     } else if (particle.kind === "floatingText") {
       const x = particle.x + (particle.vx || 0) * seconds;

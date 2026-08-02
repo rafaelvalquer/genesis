@@ -363,7 +363,25 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     if (Number.isFinite(durations[state])) {
       return { state, frame: Math.min(count - 1, Math.floor(Math.min(0.999, age / durations[state]) * count)) };
     }
+    if (state === "moveLand" || state === "moveWater") {
+      const cycleDistance = state === "moveWater"
+        ? enemyConfig.waterAnimationCycleDistance
+        : enemyConfig.landAnimationCycleDistance;
+      const progress = Number(enemy.nereidaMovementDistance || 0) / Math.max(1, cycleDistance);
+      return { state, frame: Math.floor(progress * count) % count };
+    }
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 110)) % count };
+  }
+
+  if (enemyConfig.id === "medusaVeuSalino") {
+    const state = enemy.dead ? "death" : enemy.veuSalinoState || (enemy.moving ? "moveFloat" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const age = Math.max(0, elapsed - (enemy.veuSalinoStateStartedAt || enemy.spawnedAt || 0));
+    const duration = { spawnRise: enemyConfig.spawnDurationMs, healPulse: enemyConfig.healVisual?.durationMs,
+      attackCast: enemyConfig.attackCastVisual?.durationMs, attackRelease: enemyConfig.attackReleaseVisual?.durationMs,
+      death: enemyConfig.deathDurationMs }[state];
+    if (Number.isFinite(duration)) return { state, frame: Math.min(count - 1, Math.floor(Math.min(0.999, age / duration) * count)) };
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 100)) % count };
   }
 
   if (enemyConfig.id === "mordelume") {
