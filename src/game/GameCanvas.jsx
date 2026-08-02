@@ -38,6 +38,7 @@ import {
   drawCachedSpriteHalo, drawDecals, drawDeploymentEffects, drawDynamicLights, drawPostProcessing,
   drawWetReflections, getSpriteFilter, getTroopSpriteFilter, presentScene,
 } from "./graphicsRenderer.js";
+import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
 import {
   CELL, FIELD, VIEWPORT,
   adaptiveAidBlocksIntermission,
@@ -1189,81 +1190,98 @@ function drawRasgamarSubmergedCue(ctx, entity, elapsed, settings) {
   ctx.restore();
 }
 
+export function isLeviathanShadowOnly(entity, elapsed, animationFrame = null) {
+  if (entity?.type !== "leviathanNereida") return false;
+  if (LEVIATHAN_SHADOW_ONLY_STATES.has(entity.leviathanState)) return true;
+  if (entity.leviathanState !== "submerge") return false;
+  if (Number.isInteger(animationFrame)) return animationFrame >= 5;
+  const duration = Math.max(1, entity.leviathanStateEndsAt - entity.leviathanStateStartedAt);
+  return (elapsed - entity.leviathanStateStartedAt) / duration >= 5 / 8;
+}
+
+function drawLeviathanUnderwaterShadow(ctx, entity, session, config, settings) {
+  const age = session.elapsed - entity.leviathanStateStartedAt;
+  const pulse = settings.reduceMotion ? 0 : Math.sin(age / 260);
+  const range = config.devastatingDive.shadowOpacityMax - config.devastatingDive.shadowOpacityMin;
+  ctx.save();
+  ctx.globalAlpha = config.devastatingDive.shadowOpacityMin + range * (.5 + pulse * .5);
+  ctx.fillStyle = "#021525";
+  ctx.beginPath();
+  ctx.ellipse(entity.x - 44, entity.y + 16, 72 + pulse * 3, 24 + pulse, -.18, 0, Math.PI * 2);
+  ctx.ellipse(entity.x + 34, entity.y + 24, 80 + pulse * 4, 18 + pulse, .16, 0, Math.PI * 2);
+  ctx.fill();
+  if (["submergedStalk", "submergedFinalApproach"].includes(entity.leviathanState)) {
+    const interval = entity.leviathanState === "submergedFinalApproach" ? 300 : config.devastatingDive.submergedBreathEveryMs;
+    const phase = (age % interval) / interval;
+    ctx.strokeStyle = `rgba(165,243,252,${.12 + phase * .38})`; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(entity.x - 10, entity.y - 6, 8 + phase * 24, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "rgba(207,250,254,.62)";
+    for (let index = 0; index < 3; index += 1) { ctx.beginPath(); ctx.arc(entity.x - 18 + index * 11, entity.y + 8 - phase * (20 + index * 5), 2 + index * .5, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+export function drawLeviathanBrineJet(ctx, entity, session, config) {
+  const attackRow = entity.leviathanAttackRow;
+  if (!Number.isInteger(attackRow)) return;
+  const laneTop = attackRow * CELL.height; const laneY = laneTop + CELL.height * .72;
+  const releasedAt = entity.leviathanBrineReleasedAt;
+  if (!Number.isFinite(releasedAt)) {
+    ctx.save(); ctx.beginPath(); ctx.rect(0, laneTop, FIELD.width, CELL.height); ctx.clip();
+    ctx.fillStyle = "rgba(34,211,238,.12)"; ctx.fillRect(0, laneTop, FIELD.width, CELL.height);
+    ctx.strokeStyle = "rgba(186,230,253,.66)"; ctx.lineWidth = 2; ctx.setLineDash?.([12, 10]);
+    ctx.beginPath(); ctx.moveTo(0, laneY); ctx.lineTo(FIELD.width, laneY); ctx.stroke(); ctx.restore();
+    return;
+  }
+  const elapsed = session.elapsed - releasedAt;
+  if (elapsed < 0) return;
+  const height = config.brineJet.streamHeightPx || 58;
+  const fieldRight = FIELD.enemyEntryCol * CELL.width + CELL.width;
+  const frontX = Number.isFinite(entity.leviathanBrineFrontX) ? entity.leviathanBrineFrontX : fieldRight;
+  const fadeStart = Math.max(0, (entity.leviathanBrineEndsAt || Infinity) - config.brineJet.fadeOutMs);
+  const fade = session.elapsed >= fadeStart ? Math.max(0, (entity.leviathanBrineEndsAt - session.elapsed) / config.brineJet.fadeOutMs) : 1;
+  const mouthPhase = elapsed < config.brineJet.mouthToGroundMs;
+  const frame = Math.min(7, Math.max(0, Math.floor((session.elapsed - entity.leviathanAnimationStartedAt) / (config.animationFrameMs?.brineJet || 150))));
+  const mouth = getLeviathanBrineMouthPosition(entity, config, frame);
+  ctx.save();
+  if (!mouthPhase) { ctx.beginPath(); ctx.rect(0, laneTop, FIELD.width, CELL.height); ctx.clip(); }
+  ctx.globalAlpha = fade;
+  ctx.beginPath();
+  if (mouthPhase) {
+    const t = elapsed / Math.max(1, config.brineJet.mouthToGroundMs);
+    const contactX = fieldRight - CELL.width * .12;
+    ctx.moveTo(mouth.x, mouth.y - height * .12);
+    ctx.quadraticCurveTo(mouth.x - CELL.width * .35, mouth.y, contactX, laneY - height * t);
+    ctx.lineTo(contactX, laneY);
+    ctx.quadraticCurveTo(mouth.x - CELL.width * .25, mouth.y + height * .12, mouth.x, mouth.y + height * .12);
+  } else {
+    ctx.moveTo(fieldRight, laneY);
+    for (let x = fieldRight; x >= frontX; x -= 12) ctx.lineTo(x, laneY - height + Math.sin(x * .031 + elapsed * .014) * 4);
+    ctx.lineTo(frontX, laneY);
+  }
+  ctx.closePath(); ctx.fillStyle = "rgba(14,165,194,.56)"; ctx.fill();
+  if (!mouthPhase) {
+    ctx.beginPath();
+    for (let x = fieldRight; x >= frontX; x -= 12) { const y = laneY - height + Math.sin(x * .031 + elapsed * .014) * 4; if (x === fieldRight) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    ctx.strokeStyle = "rgba(240,249,255,.78)"; ctx.lineWidth = 3; ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawLeviathanBossEffects(ctx, entity, session, settings) {
   if (entity.type !== "leviathanNereida") return;
   const state = entity.leviathanState;
-  const submerged = entity.leviathanSubmerged || ["submerge", "submergedTravel"].includes(state);
+  const submerged = entity.leviathanSubmerged || LEVIATHAN_UNDERWATER_STATES.has(state);
   const pulse = settings.reduceMotion ? 0 : Math.sin(session.elapsed / 130) * 4;
   ctx.save();
-  if (submerged) {
-    ctx.globalAlpha = .32;
-    ctx.fillStyle = "#021d35";
-    ctx.beginPath(); ctx.ellipse(entity.x, entity.y + 20, 94 + pulse, 25 + pulse * .18, -.22, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = "rgba(103,232,249,.62)"; ctx.lineWidth = 1.5;
-    for (let index = 0; index < 3; index += 1) { ctx.beginPath(); ctx.ellipse(entity.x + index * 18, entity.y + 25, 36 + index * 8, 7 + index, 0, 0, Math.PI * 2); ctx.stroke(); }
-  }
+  if (submerged) drawLeviathanUnderwaterShadow(ctx, entity, session, ENEMIES.leviathanNereida, settings);
   const targets = entity.leviathanTargetCells || [];
   if (entity.leviathanQueuedAttack && ["surfaceSwim", "submerge", "submergedTravel", "vortexCast", "biteAbyss", "tailSweep", "brineJet", "delugeCharge"].includes(state)) {
-    ctx.globalCompositeOperation = "screen";
     ctx.strokeStyle = entity.leviathanQueuedAttack === "deluge" ? "#a78bfa" : "#67e8f9";
     ctx.lineWidth = 2;
     targets.forEach((target) => { const x = target.col * CELL.width + CELL.width / 2; const y = target.row * CELL.height + CELL.height / 2; ctx.beginPath(); ctx.arc(x, y, 18 + pulse, 0, Math.PI * 2); ctx.stroke(); });
   }
-  if (state === "brineJet") {
-    const config = ENEMIES.leviathanNereida;
-    const frame = Math.min(7, Math.max(0, Math.floor((session.elapsed - entity.leviathanAnimationStartedAt) / (config.animationFrameMs?.brineJet || 150))));
-    const mouth = getLeviathanBrineMouthPosition(entity, config, frame);
-    const end = { x: FIELD.baseX - CELL.width * .2, y: (entity.leviathanAttackRow ?? entity.row) * CELL.height + CELL.height / 2 };
-    const control1 = { x: mouth.x - CELL.width * .7, y: mouth.y };
-    const control2 = { x: mouth.x - CELL.width * 1.5, y: end.y };
-    const releasedAt = entity.leviathanBrineReleasedAt;
-    const pathLength = Math.max(1, mouth.x - end.x + Math.abs(mouth.y - end.y) * .45);
-    const traveled = releasedAt ? (session.elapsed - releasedAt) * config.brineJet.projectileSpeed / 1000 : 0;
-    const progress = Math.max(0, Math.min(1, traveled / pathLength));
-    const pointAt = (t) => {
-      const u = 1 - t;
-      return { x: u ** 3 * mouth.x + 3 * u ** 2 * t * control1.x + 3 * u * t ** 2 * control2.x + t ** 3 * end.x, y: u ** 3 * mouth.y + 3 * u ** 2 * t * control1.y + 3 * u * t ** 2 * control2.y + t ** 3 * end.y };
-    };
-    if (!releasedAt) {
-      ctx.fillStyle = "rgba(34,211,238,.14)";
-      ctx.fillRect(0, end.y - CELL.height * .35, FIELD.width, CELL.height * .7);
-      ctx.strokeStyle = "rgba(186,230,253,.72)";
-      ctx.lineWidth = 2;
-      for (let x = FIELD.baseX + 26; x < FIELD.width - 36; x += 74) {
-        const y = end.y + Math.sin(session.elapsed * .01 + x) * 5;
-        ctx.beginPath(); ctx.moveTo(x + 12, y); ctx.lineTo(x, y - 7); ctx.lineTo(x, y + 7); ctx.stroke();
-      }
-    } else {
-      const streamEnd = pointAt(progress);
-      // The long-distance portion is a ground wave, not a beam: keep it inside the chosen lane.
-      const laneTop = end.y - CELL.height * .32;
-      const waveHeight = config.brineJet.streamHeightPx || 58;
-      const frontX = Number.isFinite(entity.leviathanBrineFrontX) ? entity.leviathanBrineFrontX : streamEnd.x;
-      ctx.save();
-      ctx.beginPath(); ctx.rect(0, (entity.leviathanAttackRow ?? entity.row) * CELL.height, FIELD.width, CELL.height); ctx.clip();
-      ctx.fillStyle = "rgba(8,145,178,.34)";
-      ctx.fillRect(frontX, end.y - waveHeight, FIELD.width - frontX, waveHeight);
-      ctx.fillStyle = "rgba(186,230,253,.32)";
-      ctx.fillRect(frontX, laneTop, FIELD.width - frontX, waveHeight * .45);
-      ctx.strokeStyle = "rgba(240,249,255,.92)"; ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(frontX, end.y - waveHeight * .42, waveHeight * .42, Math.PI / 2, Math.PI * 1.5); ctx.stroke();
-      ctx.restore();
-      const drawCurve = (width, color, wobble = 0) => {
-        ctx.beginPath(); ctx.moveTo(mouth.x, mouth.y);
-        ctx.bezierCurveTo(control1.x, control1.y + wobble, control2.x, control2.y - wobble, streamEnd.x, streamEnd.y);
-        ctx.lineWidth = width; ctx.strokeStyle = color; ctx.stroke();
-      };
-      ctx.globalCompositeOperation = "screen";
-      drawCurve(CELL.width * config.brineJet.streamWidthTiles, "rgba(34,211,238,.42)");
-      drawCurve(CELL.width * config.brineJet.streamWidthTiles * config.brineJet.innerStreamWidthFactor, "rgba(186,230,253,.72)", Math.sin(session.elapsed * .018) * 5);
-      drawCurve(3, "rgba(240,249,255,.9)", Math.sin(session.elapsed * .018 + 2) * 8);
-      for (let index = 0; index < 10; index += 1) {
-        const drop = pointAt(progress * index / 10);
-        ctx.fillStyle = index % 2 ? "rgba(186,230,253,.8)" : "rgba(255,255,255,.9)";
-        ctx.beginPath(); ctx.arc(drop.x, drop.y + Math.sin(session.elapsed * .014 + index) * 5, 1.5 + (index % 3), 0, Math.PI * 2); ctx.fill();
-      }
-    }
-  }
+  if (state === "brineJet") drawLeviathanBrineJet(ctx, entity, session, ENEMIES.leviathanNereida);
   if (state === "vortexCast") { ctx.strokeStyle = "rgba(103,232,249,.7)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(entity.x, entity.y, 48 + pulse, 0, Math.PI * 1.8); ctx.stroke(); }
   if (state === "delugeRelease") { ctx.fillStyle = "rgba(103,232,249,.22)"; ctx.fillRect(0, 0, FIELD.width, FIELD.height); }
   if (state === "exposedGills") { ctx.fillStyle = "rgba(167,139,250,.35)"; ctx.beginPath(); ctx.arc(entity.x - 18, entity.y - 42, 22 + pulse, 0, Math.PI * 2); ctx.fill(); }
@@ -1327,6 +1345,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
   const image = frames[animation.frame % Math.max(1, frames.length)];
   const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
   const enemyRect = getEnemySpriteRect(scratch, config, animation.state, animation.frame, enemyAspectRatio);
+  const leviathanShadowOnly = isLeviathanShadowOnly(logicalEntity, session.elapsed, animation.frame);
   const spriteFilter = getSpriteFilter(
     reaction.flash,
     logicalEntity.bossPhase || 0,
@@ -1337,7 +1356,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
   drawSilicaDiggerSand(ctx, scratch, session.elapsed, settings);
   drawSilicaDiggerEmergence(ctx, scratch, session.elapsed, settings);
   const emergenceProgress = silicaDiggerEmergenceProgress(logicalEntity, session.elapsed);
-  if (drawHalo && emergenceProgress >= 0.45) {
+  if (drawHalo && !leviathanShadowOnly && emergenceProgress >= 0.45) {
     drawCachedSpriteHalo(
       ctx,
       enemyRect,
@@ -1346,12 +1365,12 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
       logicalEntity.isEcho ? 1.4 : 1,
     );
   }
-  let spriteDrawn = drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter);
-  if (!spriteDrawn) spriteDrawn = drawProceduralGlassEnemy(ctx, scratch, config, session.elapsed, spriteFilter);
+  let spriteDrawn = leviathanShadowOnly ? false : drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter);
+  if (!spriteDrawn && !leviathanShadowOnly) spriteDrawn = drawProceduralGlassEnemy(ctx, scratch, config, session.elapsed, spriteFilter);
   if (frozen && spriteDrawn) {
     drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
   }
-  if (!spriteDrawn) {
+  if (!spriteDrawn && !leviathanShadowOnly) {
     ctx.fillStyle = frozen ? "#38bdf8" : config.color;
     ctx.beginPath();
     ctx.arc(scratch.x, scratch.y, 24 * logicalEntity.scale, 0, Math.PI * 2);
@@ -1362,7 +1381,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
   drawLeviathanBossHealth(ctx, logicalEntity);
   drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
   drawPrismaticShield(ctx, scratch, session.elapsed, settings);
-  if (frozen) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
+  if (frozen && !leviathanShadowOnly) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
   if (stunned) drawStunnedEnemyEffect(ctx, scratch, session.elapsed, settings);
   if (logicalEntity.isEcho) {
     const radius = 31 * logicalEntity.scale;
@@ -1381,7 +1400,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.restore();
   }
   drawStructuralRupture(ctx, scratch, session.elapsed, settings);
-  if (emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
+  if (logicalEntity.type !== "leviathanNereida" && emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
     drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
   }
   if (logicalEntity.variant === "alpha") {
@@ -1404,7 +1423,8 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       const reaction = getHitReaction(runtime, entity.id, now);
       buffers.position.x = entry.x + reaction.offsetX;
       buffers.position.y = entry.y;
-      if (entry.kind !== "enemy" || !entity.attachedToTroopId) {
+      const leviathanShadowOnly = entry.kind === "enemy" && isLeviathanShadowOnly(entity, session.elapsed);
+      if (!leviathanShadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
         const emergenceScale = entry.kind === "enemy"
           ? 0.2 + 0.8 * silicaDiggerEmergenceProgress(entity, session.elapsed)
           : 1;

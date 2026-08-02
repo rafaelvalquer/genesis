@@ -7,6 +7,9 @@ export const LEVIATHAN_PHASE_ATTACKS = Object.freeze({
   3: ["biteAbyss", "tailSweep", "brineJet", "predatoryVortex", "devastatingDive", "tideCommand", "abyssRoar", "deluge"],
 });
 export const LEVIATHAN_ATTACK_WEIGHTS = Object.freeze({ biteAbyss: 22, tailSweep: 18, brineJet: 18, predatoryVortex: 14, devastatingDive: 12, tideCommand: 10, abyssRoar: 8, deluge: 100 });
+export const LEVIATHAN_UNDERWATER_STATES = new Set(["submerge", "submergedTravel", "submergedStalk", "submergedFinalApproach"]);
+export const LEVIATHAN_SHADOW_ONLY_STATES = new Set(["submergedTravel", "submergedStalk", "submergedFinalApproach"]);
+export const LEVIATHAN_SURFACED_STATES = new Set(["idleSurface", "surfaceSwim", "biteAbyss", "biteRecover", "tailSweep", "brineJet", "vortexCast", "emergeImpact", "tideCommand", "abyssRoar", "delugeCharge", "delugeRelease", "exposedGills"]);
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const aquatic = (enemy) => enemy?.type === "enguiaRasgamar" || enemy?.type === "carapacaNereida" || enemy?.type === "medusaVeuSalino" || enemy?.type === "mordelume";
 const living = (session) => session.troops.filter((troop) => !troop.dead);
@@ -22,6 +25,26 @@ export function chooseBrineJetPlacement(session, enemy, attackRow) {
 }
 export function resetLeviathanBrineJet(enemy) {
   Object.assign(enemy, { leviathanBrineCastId: null, leviathanBrineReleasedAt: null, leviathanBrineEndsAt: null, leviathanBrineTargetTroopIds: [], leviathanBrineHitTroopIds: [], leviathanBrineContacts: [], leviathanBrineFrontX: null, leviathanBrinePreviousFrontX: null, leviathanBrinePhase: null });
+}
+
+export function syncLeviathanHitZones(enemy, config = enemy?._leviathanConfig) {
+  if (!enemy || !config || !enemy.leviathanTargetable || !LEVIATHAN_SURFACED_STATES.has(enemy.leviathanState)) {
+    if (enemy) { enemy.leviathanHitZones = []; enemy.leviathanTargetableRows = []; }
+    return [];
+  }
+  let bodyRow = clamp(Math.round((enemy.y - CELL.height / 2) / CELL.height), 0, FIELD.rows - 1);
+  let headRow;
+  if (enemy.leviathanState === "brineJet" && Number.isInteger(enemy.leviathanAttackRow)) {
+    headRow = enemy.leviathanAttackRow;
+    bodyRow = clamp(enemy.leviathanBodyRow, 0, FIELD.rows - 1);
+  } else {
+    headRow = bodyRow === 0 ? 1 : bodyRow - 1;
+  }
+  if (headRow === bodyRow) headRow = bodyRow < FIELD.rows - 1 ? bodyRow + 1 : bodyRow - 1;
+  enemy.leviathanBodyRow = bodyRow;
+  enemy.leviathanHitZones = [{ part: "head", row: headRow }, { part: "neck", row: bodyRow }];
+  enemy.leviathanTargetableRows = [...new Set([headRow, bodyRow])];
+  return enemy.leviathanHitZones;
 }
 
 function cooldownFactor(enemy, config) { return enemy.leviathanPhase === 3 ? config.phaseThreeCooldownFactor : enemy.leviathanPhase === 2 ? config.phaseTwoCooldownFactor : 1; }
@@ -42,14 +65,19 @@ function setState(session, enemy, state, duration = Infinity, { telegraphMs = 0,
   enemy.leviathanImpactFrame = null;
   enemy.leviathanImpactApplied = false;
   enemy.leviathanAttackApplied = false; enemy.leviathanProjectileReleased = false; enemy.leviathanPulseIndex = 0;
-  enemy.leviathanSubmerged = ["submerge", "submergedTravel"].includes(state);
+  enemy.leviathanSubmerged = LEVIATHAN_UNDERWATER_STATES.has(state);
   enemy.leviathanTargetable = !enemy.leviathanSubmerged && state !== "spawnRise" && state !== "death";
   enemy.leviathanDamageFactor = state === "exposedGills" ? enemy._leviathanConfig.exposedGillsDamageFactor : 1;
+  syncLeviathanHitZones(enemy, enemy._leviathanConfig);
 }
 function setAttackState(session, enemy, state, config, attack, { telegraphMs = 0, animationMs } = {}) {
   const animationDuration = animationMs ?? config[attack]?.durationMs ?? config[attack]?.castDurationMs ?? 0;
   setState(session, enemy, state, telegraphMs + animationDuration, { telegraphMs, animationMs: animationDuration });
   enemy.leviathanImpactFrame = impactFrame[attack] ?? null;
+  if (attack === "predatoryVortex") {
+    const impactAt = enemy.leviathanAnimationStartedAt + animationDuration * enemy.leviathanImpactFrame / 8;
+    enemy.leviathanStateEndsAt = Math.max(enemy.leviathanStateEndsAt, impactAt + config.predatoryVortex.pulseEveryMs * (config.predatoryVortex.pulseCount - 1) + 350);
+  }
 }
 function impactReached(session, enemy) {
   if (enemy.leviathanImpactFrame == null || !Number.isFinite(enemy.leviathanAnimationEndsAt)) return false;
@@ -88,11 +116,13 @@ export function updateLeviathanMovement(session, enemy) {
   // A shallow sine arc keeps underwater travel from looking like a rigid line.
   const arc = enemy.leviathanMoveState === "submergedTravel" ? Math.sin(raw * Math.PI) * CELL.height * .32 : 0;
   enemy.y = enemy.leviathanMoveFromY + (enemy.leviathanMoveToY - enemy.leviathanMoveFromY) * progress + arc;
+  syncLeviathanHitZones(enemy, enemy._leviathanConfig);
   if (raw < 1) return false;
   enemy.x = enemy.leviathanMoveToX;
   enemy.y = enemy.leviathanMoveToY;
   enemy.row = clamp(Math.round((enemy.y - CELL.height / 2) / CELL.height), 0, FIELD.rows - 1);
   enemy.moving = false;
+  syncLeviathanHitZones(enemy, enemy._leviathanConfig);
   return true;
 }
 function moveToAttackPosition(session, enemy, attack, config) {
@@ -205,11 +235,20 @@ function validAttack(session, enemy, attack) {
   if (attack === "abyssRoar" && !session.enemies.some((ally) => !ally.dead && ally.id !== enemy.id && aquatic(ally))) return false;
   return !(attack === "deluge" && (enemy.leviathanPhase < 3 || enemy.leviathanDelugeUsed));
 }
-function choose(session, enemy) {
+export function dynamicAttackWeight(session, enemy, attack, config) {
+  const weight = LEVIATHAN_ATTACK_WEIGHTS[attack];
+  if (attack !== "brineJet") return weight;
+  const elapsedSinceUse = session.elapsed - (enemy.leviathanBrineLastUsedAt ?? enemy.spawnedAt ?? 0);
+  if (elapsedSinceUse >= config.brineJet.guaranteeAfterMs) return 1000;
+  if (elapsedSinceUse >= config.brineJet.highPriorityAfterMs) return weight * 2;
+  if (elapsedSinceUse >= config.brineJet.priorityStartsAfterMs) return weight * 1.5;
+  return weight;
+}
+function choose(session, enemy, config) {
   const candidates = LEVIATHAN_PHASE_ATTACKS[enemy.leviathanPhase].filter((attack) => validAttack(session, enemy, attack));
   if (!candidates.length) return null;
-  const total = candidates.reduce((sum, attack) => sum + LEVIATHAN_ATTACK_WEIGHTS[attack], 0); let roll = session.rng() * total;
-  return candidates.find((attack) => ((roll -= LEVIATHAN_ATTACK_WEIGHTS[attack]) <= 0)) || candidates.at(-1);
+  const total = candidates.reduce((sum, attack) => sum + dynamicAttackWeight(session, enemy, attack, config), 0); let roll = session.rng() * total;
+  return candidates.find((attack) => ((roll -= dynamicAttackWeight(session, enemy, attack, config)) <= 0)) || candidates.at(-1);
 }
 function startAttack(session, enemy, attack, config, events) {
   if (attack === "brineJet") resetLeviathanBrineJet(enemy);
@@ -222,13 +261,12 @@ function startAttack(session, enemy, attack, config, events) {
     const placement = chooseBrineJetPlacement(session, enemy, attackRow);
     enemy.leviathanBodyRow = placement.bodyRow;
     enemy.leviathanAttackRow = placement.attackRow;
-    enemy.leviathanTargetableRows = placement.targetableRows;
     enemy.leviathanTargetRows = [attackRow];
   } else {
     enemy.leviathanBodyRow = enemy.row;
     enemy.leviathanAttackRow = null;
-    enemy.leviathanTargetableRows = enemy.leviathanTargetable ? [enemy.row] : [];
   }
+  syncLeviathanHitZones(enemy, config);
   if (attack === "biteAbyss") enemy.leviathanTargetTroopIds = floodedTroops(session).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp || b.col - a.col).slice(0, config.biteAbyss[`targetsPhase${phase === 1 ? "One" : phase === 2 ? "Two" : "Three"}`]).map((troop) => troop.id);
   else enemy.leviathanTargetTroopIds = living(session).filter((troop) => enemy.leviathanTargetRows.includes(troop.row)).map((troop) => troop.id);
   enemy.leviathanTargetCells = enemy.leviathanTargetTroopIds.map((troopId) => { const troop = session.troops.find((entry) => entry.id === troopId); return troop ? { row: troop.row, col: troop.col } : null; }).filter(Boolean);
@@ -238,7 +276,7 @@ function startAttack(session, enemy, attack, config, events) {
 }
 function returnToDeepOcean(session, enemy, config, events, underwater = false) {
   const attack = enemy.leviathanQueuedAttack;
-  if (attack === "brineJet") resetLeviathanBrineJet(enemy);
+  if (attack === "brineJet") { enemy.leviathanBrineLastUsedAt = session.elapsed; resetLeviathanBrineJet(enemy); }
   if (attack) enemy[cooldownField[attack]] = session.elapsed + (config[attack]?.cooldownMs || 0) * cooldownFactor(enemy, config);
   enemy.leviathanGlobalAttackReadyAt = session.elapsed + config.globalAttackLockMs;
   enemy.leviathanQueuedAttack = null;
@@ -258,6 +296,7 @@ function returnToDeepOcean(session, enemy, config, events, underwater = false) {
 }
 export function updateLeviathan(session, enemy, config, hooks, events) {
   enemy._leviathanConfig = config;
+  syncLeviathanHitZones(enemy, config);
   const ratio = enemy.hp / Math.max(1, enemy.maxHp); const phase = ratio <= config.phaseThreeHpFactor ? 3 : ratio <= config.phaseTwoHpFactor ? 2 : 1;
   if (phase !== enemy.leviathanPhase) { enemy.leviathanPhase = phase; events.push({ type: "leviathanPhaseChanged", enemyId: enemy.id, phase, x: enemy.x, y: enemy.y }); }
   if (session.tideCycle?.bossOverride?.sourceId === enemy.id && session.elapsed >= session.tideCycle.bossOverride.until) delete session.tideCycle.bossOverride;
@@ -351,7 +390,7 @@ export function updateLeviathan(session, enemy, config, hooks, events) {
   }
   if (enemy.leviathanState !== "idleSurface" || session.elapsed < enemy.leviathanNextDecisionAt || session.elapsed < enemy.leviathanGlobalAttackReadyAt) return;
   enemy.leviathanNextDecisionAt = session.elapsed + config.attackDecisionEveryMs;
-  const next = choose(session, enemy); if (next) startAttack(session, enemy, next, config, events);
+  const next = choose(session, enemy, config); if (next) startAttack(session, enemy, next, config, events);
 }
 
 export function forceLeviathanAttack(session, enemy, attack, config, events = []) {

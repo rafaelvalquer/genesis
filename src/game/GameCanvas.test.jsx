@@ -1,11 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DECISIONS } from "./content.js";
+import { DECISIONS, ENEMIES } from "./content.js";
 import {
   CapsuleInteractionButton, ColossusSpecialButtons, DecisionModal, FortuneChoiceModal, WaveOutroOverlay,
   getWaveOutroCameraTransform,
   SandboxPanel, resolveCanvasClickAction, resolveInspectedTroopId,
+  drawLeviathanBrineJet, isLeviathanShadowOnly,
 } from "./GameCanvas.jsx";
 
 afterEach(cleanup);
@@ -49,6 +50,38 @@ describe("clique no Campo de Provas", () => {
       type: "remove",
       cell: { row: 0, col: 1 },
     });
+  });
+});
+
+describe("renderização submersa do Leviatã", () => {
+  it("mantém somente a sombra na viagem, espreita, aproximação e no fim da submersão", () => {
+    const entity = { type: "leviathanNereida", leviathanStateStartedAt: 0, leviathanStateEndsAt: 800 };
+    for (const state of ["submergedTravel", "submergedStalk", "submergedFinalApproach"]) {
+      entity.leviathanState = state;
+      expect(isLeviathanShadowOnly(entity, 100)).toBe(true);
+    }
+    entity.leviathanState = "submerge";
+    expect(isLeviathanShadowOnly(entity, 400, 4)).toBe(false);
+    expect(isLeviathanShadowOnly(entity, 600, 5)).toBe(true);
+    entity.leviathanState = "emergeImpact";
+    expect(isLeviathanShadowOnly(entity, 700)).toBe(false);
+  });
+});
+
+describe("Jato de Salmoura", () => {
+  it("desenha uma única massa horizontal após o contato com a rota", () => {
+    const ctx = Object.fromEntries(["save", "restore", "beginPath", "rect", "clip", "moveTo", "lineTo", "closePath", "fill", "stroke", "fillRect", "quadraticCurveTo", "setLineDash"].map((method) => [method, vi.fn()]));
+    const config = ENEMIES.leviathanNereida;
+    drawLeviathanBrineJet(ctx, {
+      type: "leviathanNereida", leviathanAttackRow: 1,
+      leviathanBrineReleasedAt: 100, leviathanBrineFrontX: 420,
+      leviathanBrineEndsAt: 3000, leviathanAnimationStartedAt: 0,
+    }, { elapsed: 100 + config.brineJet.mouthToGroundMs + 200 }, config);
+    expect(ctx.fill).toHaveBeenCalledOnce();
+    expect(ctx.stroke).toHaveBeenCalledOnce();
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+    expect(ctx.quadraticCurveTo).not.toHaveBeenCalled();
+    expect(ctx.globalCompositeOperation).not.toBe("screen");
   });
 });
 

@@ -12,6 +12,7 @@ function createBattleIndex() {
     enemyById: new Map(),
     troopsByRow: createRows(),
     enemiesByRow: createRows(),
+    targetableEnemiesByRow: createRows(),
     enemiesByTile: new Map(),
     activeTroopsByType: new Map(),
     enemiesByType: new Map(),
@@ -48,6 +49,10 @@ export function registerEnemyInIndex(index, enemy) {
   if (!index || !enemy || enemy.dead) return;
   index.enemyById.set(enemy.id, enemy);
   index.enemiesByRow[enemy.row]?.push(enemy);
+  const targetRows = enemy.type === "leviathanNereida"
+    ? (enemy.leviathanTargetableRows || [])
+    : [enemy.row];
+  for (const row of new Set(targetRows)) index.targetableEnemiesByRow[row]?.push(enemy);
   bucketFor(index.enemiesByTile, battleTileKey(enemy.row, enemy.x)).push(enemy);
   bucketFor(index.enemiesByType, enemy.type).push(enemy);
   if (enemy.packetId != null) bucketFor(index.enemiesByPacket, enemy.packetId).push(enemy);
@@ -88,6 +93,7 @@ export function rebuildBattleIndex(session) {
   index.enemyById.clear();
   for (const row of index.troopsByRow) row.length = 0;
   for (const row of index.enemiesByRow) row.length = 0;
+  for (const row of index.targetableEnemiesByRow) row.length = 0;
   clearBuckets(index.enemiesByTile);
   clearBuckets(index.activeTroopsByType);
   clearBuckets(index.enemiesByType);

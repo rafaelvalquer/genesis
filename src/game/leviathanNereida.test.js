@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
-import { createBattleSession, createTroopEntity, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, stepBattle } from "./battleModel.js";
-import { chooseBrineJetPlacement, startLeviathanMovement, updateLeviathanMovement } from "./leviathanNereida.js";
+import { createBattleSession, createTroopEntity, enemyOccupiesTargetRow, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, stepBattle } from "./battleModel.js";
+import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
+import { LEVIATHAN_SHADOW_ONLY_STATES, chooseBrineJetPlacement, dynamicAttackWeight, startLeviathanMovement, syncLeviathanHitZones, updateLeviathanMovement } from "./leviathanNereida.js";
 import { CELL, FIELD, getEnemyAnimation } from "./visualGeometry.js";
 
 describe("Leviatã de Nereida", () => {
@@ -159,6 +160,83 @@ describe("Leviatã de Nereida", () => {
     expect(getEnemyTargetableRows(boss)).toEqual([1, 2]);
     expect(getEnemyTargetableRows(boss)).not.toContain(0);
     expect(getEnemyTargetableRows(boss)).not.toContain(3);
+  });
+
+  it("mantém cabeça e pescoço em duas rotas durante toda a permanência na superfície", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss._leviathanConfig = ENEMIES.leviathanNereida;
+    Object.assign(boss, { leviathanState: "idleSurface", leviathanTargetable: true, y: 2 * CELL.height + CELL.height / 2, row: 2 });
+    syncLeviathanHitZones(boss, ENEMIES.leviathanNereida);
+    expect(boss.leviathanHitZones).toEqual([{ part: "head", row: 1 }, { part: "neck", row: 2 }]);
+    expect(enemyOccupiesTargetRow(boss, 1)).toBe(true);
+    expect(enemyOccupiesTargetRow(boss, 2)).toBe(true);
+    rebuildBattleIndex(session);
+    expect(getBattleIndex(session).targetableEnemiesByRow[1]).toContain(boss);
+    expect(getBattleIndex(session).targetableEnemiesByRow[2]).toContain(boss);
+
+    startLeviathanMovement(session, boss, { x: boss.x, y: 3 * CELL.height + CELL.height / 2, durationMs: 1000, state: "surfaceSwim", targetRow: 3 });
+    session.elapsed = 700;
+    updateLeviathanMovement(session, boss);
+    expect(new Set(boss.leviathanTargetableRows).size).toBe(2);
+    expect(boss.leviathanTargetableRows).toContain(3);
+  });
+
+  it("permite que tropas nas duas rotas atinjam a mesma barra de vida", () => {
+    const session = sandbox();
+    const headShooter = createTroopEntity(session, "marine", 1, 8);
+    const neckShooter = createTroopEntity(session, "marine", 2, 8);
+    session.troops.push(headShooter, neckShooter);
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss._leviathanConfig = ENEMIES.leviathanNereida;
+    Object.assign(boss, { leviathanState: "idleSurface", leviathanTargetable: true, leviathanNextDecisionAt: Infinity, y: 2 * CELL.height + CELL.height / 2, row: 2 });
+    syncLeviathanHitZones(boss, ENEMIES.leviathanNereida);
+    const initialHp = boss.hp;
+    const events = [];
+    for (let tick = 0; tick < 15; tick += 1) events.push(...stepBattle(session, 100));
+    const shooters = new Set(events.filter((event) => event.type === "shoot").map((event) => event.sourceTroopId));
+    expect(shooters).toEqual(new Set([headShooter.id, neckShooter.id]));
+    expect(boss.hp).toBeLessThan(initialHp);
+  });
+
+  it("remove todas as zonas de dano durante espreita e aproximação submersas", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss.hp = boss.maxHp * .7;
+    Object.assign(boss, { leviathanPhase: 2, leviathanState: "idleSurface", leviathanTargetable: true, leviathanNextDecisionAt: Infinity });
+    expect(forceLeviathanAttack(session, "devastatingDive").ok).toBe(true);
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.submergeDurationMs + 80);
+    expect(boss.leviathanTargetableRows).toEqual([]);
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.travelDurationMs + 100);
+    expect(boss).toMatchObject({ leviathanState: "submergedStalk", leviathanSubmerged: true, leviathanTargetable: false });
+    expect(boss.leviathanHitZones).toEqual([]);
+    expect(LEVIATHAN_SHADOW_ONLY_STATES.has(boss.leviathanState)).toBe(true);
+    stepBattle(session, ENEMIES.leviathanNereida.devastatingDive.stalkDurationByPhase[2] + 40);
+    expect(boss).toMatchObject({ leviathanState: "submergedFinalApproach", leviathanTargetable: false });
+    expect(boss.leviathanTargetableRows).toEqual([]);
+  });
+
+  it("aumenta a prioridade do Jato com o tempo e reserva duração para quatro pulsos do Vórtice", () => {
+    const config = ENEMIES.leviathanNereida;
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    boss.leviathanBrineLastUsedAt = 0;
+    session.elapsed = config.brineJet.priorityStartsAfterMs;
+    expect(dynamicAttackWeight(session, boss, "brineJet", config)).toBe(27);
+    session.elapsed = config.brineJet.highPriorityAfterMs;
+    expect(dynamicAttackWeight(session, boss, "brineJet", config)).toBe(36);
+    session.elapsed = config.brineJet.guaranteeAfterMs;
+    expect(dynamicAttackWeight(session, boss, "brineJet", config)).toBe(1000);
+
+    Object.assign(boss, { hp: boss.maxHp * .7, leviathanPhase: 2, leviathanState: "idleSurface", leviathanTargetable: true, leviathanNextDecisionAt: Infinity, moving: false });
+    expect(forceLeviathanAttack(session, "predatoryVortex").ok).toBe(true);
+    stepBattle(session, config.devastatingDive.submergeDurationMs + 80);
+    stepBattle(session, 1150);
+    expect(boss.leviathanState).toBe("vortexCast");
+    expect(boss.leviathanStateEndsAt).toBeGreaterThan(boss.leviathanAnimationEndsAt);
+    const pulseEvents = stepBattle(session, boss.leviathanStateEndsAt - session.elapsed + 10)
+      .filter((event) => event.type === "leviathanPredatoryVortexImpact");
+    expect(pulseEvents).toHaveLength(4);
   });
 
   it("applies Brine Jet once, by travel time, only to the attacked row", () => {

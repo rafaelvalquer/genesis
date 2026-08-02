@@ -2152,6 +2152,7 @@ export const ENEMIES = {
     id: "leviathanNereida", label: "Leviatã de Nereida",
     role: "Chefe aquático / controle territorial / destruidor de formação",
     boss: true, chapterId: "chapter_05", debugOnly: true, testOnly: true,
+    previewState: "idleSurface",
     allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false,
     hp: 6000, maxHp: 6000, damage: 0, attackEveryMs: 0, baseDamage: 0, speed: 0, threat: 1000,
     color: "#22d3ee", scale: 2.15, spriteOffsetX: 30, spriteOffsetY: -18,
@@ -2169,7 +2170,7 @@ export const ENEMIES = {
       projectileSpeed: 700, mouthToGroundMs: 180, groundSweepMaxMs: 1700, groundSustainMs: 450,
       streamHeightPx: 58, frontSplashRadiusPx: 34, priorityStartsAfterMs: 12000, highPriorityAfterMs: 20000, guaranteeAfterMs: 26000,
       maximumRowOffset: 1, targetableRowSpan: 2,
-      streamWidthTiles: .44, innerStreamWidthFactor: .52, sustainMs: 580, fadeOutMs: 280,
+      streamWidthTiles: .44, sustainMs: 580, fadeOutMs: 280,
       splashRadiusPx: 26, mouthState: "brineJet",
     },
     brineJetVisual: {

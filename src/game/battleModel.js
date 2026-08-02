@@ -21,7 +21,7 @@ import {
 } from "./adaptiveAid.js";
 import {
   CELL, FIELD, VIEWPORT, getEnemyHitPoint, getEnemyMuzzleWorldPosition, getLeviathanHitPointForRow,
-  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation,
+  getMuzzleWorldPosition, getRepulsorKnockbackOffset, getTroopAnimation, getEnemyAnimation,
 } from "./visualGeometry.js";
 import {
   forceExecutorComboStep, isExecutorArco, updateExecutorArco,
@@ -115,7 +115,9 @@ function indexedEnemyById(session, enemyId) {
 }
 
 function enemiesForRow(session, row) {
-  return getBattleIndex(session)?.enemiesByRow[row] || session.enemies;
+  const indexed = getBattleIndex(session)?.targetableEnemiesByRow[row];
+  if (indexed) return indexed;
+  return session.enemies.filter((enemy) => enemyOccupiesTargetRow(enemy, row));
 }
 
 function troopsForRow(session, row) {
@@ -1293,14 +1295,27 @@ export function getEnemyTargetableRows(enemy, config = ENEMIES[enemy?.type]) {
   return [enemy?.row];
 }
 
+export function enemyOccupiesTargetRow(enemy, row) {
+  if (!enemy || enemy.dead || enemy.hp <= 0) return false;
+  return enemy.type === "leviathanNereida"
+    ? Boolean(enemy.leviathanTargetable && enemy.leviathanTargetableRows?.includes(row))
+    : enemy.row === row;
+}
+
+function enemyHitPointForRow(enemy, row, elapsed) {
+  const config = ENEMIES[enemy.type];
+  if (enemy.type !== "leviathanNereida") return getEnemyHitPoint(enemy, config);
+  const state = enemy.leviathanState || "idleSurface";
+  const animation = getEnemyAnimation(enemy, config, elapsed, { [state]: 8, idleSurface: 8 });
+  return getLeviathanHitPointForRow(enemy, config, row, animation.state, animation.frame);
+}
+
 function closestEnemy(session, troop, config) {
   const originX = attackOriginX(session, troop, config);
   let closest = null;
   const rowEnemies = enemiesForRow(session, troop.row);
-  const leviathanOverlaps = session.enemies.filter((enemy) => enemy.type === "leviathanNereida"
-    && !rowEnemies.includes(enemy) && getEnemyTargetableRows(enemy).includes(troop.row));
-  for (const enemy of [...rowEnemies, ...leviathanOverlaps]) {
-    if (enemy.dead || !getEnemyTargetableRows(enemy).includes(troop.row) || enemy.x < originX
+  for (const enemy of rowEnemies) {
+    if (!enemyOccupiesTargetRow(enemy, troop.row) || enemy.x < originX
       || enemy.x - originX > config.range * CELL.width) continue;
     if (!closest || enemy.x < closest.x) closest = enemy;
   }
@@ -1347,7 +1362,7 @@ function mortarTargetGroup(session, troop, config) {
   mortarTargetCounts.fill(0);
   mortarTargetEntities.fill(null);
   for (const enemy of enemiesForRow(session, troop.row)) {
-    if (enemy.dead || enemy.row !== troop.row) continue;
+    if (!enemyOccupiesTargetRow(enemy, troop.row)) continue;
     const col = enemyColumn(enemy);
     const offset = col - troop.col;
     if (offset < config.minRange || offset > config.range) continue;
@@ -1605,9 +1620,9 @@ function attackIntervalFor(session, troop, config, interval) {
 
 export function getFocusedFireDamageMultiplier(session, troop, target) {
   if (!target || !session.modifiers.focusedFire || troop.row !== session.focusedFireRow
-    || target.row !== session.focusedFireRow) return 1;
+    || !enemyOccupiesTargetRow(target, session.focusedFireRow)) return 1;
   const closest = session.enemies
-    .filter((enemy) => !enemy.dead && enemy.row === session.focusedFireRow)
+    .filter((enemy) => enemyOccupiesTargetRow(enemy, session.focusedFireRow))
     .reduce((best, enemy) => (!best || enemy.x < best.x ? enemy : best), null);
   return closest?.id === target.id ? 1.18 : 1;
 }
@@ -1834,7 +1849,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   if (nereidaProtector) incoming *= ENEMIES.carapacaNereida.escortedRangedDamageFactor;
   const sourceTroop = context.sourceTroopId ? indexedTroopById(session, context.sourceTroopId) : null;
   const hitPoint = enemy.type === "leviathanNereida" && sourceTroop
-    ? getLeviathanHitPointForRow(enemy, ENEMIES[enemy.type], sourceTroop.row, enemy.leviathanState, 0)
+    ? enemyHitPointForRow(enemy, sourceTroop.row, session.elapsed)
     : getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
     const shieldIgnore = clamp(context.shieldIgnoreFactor || 0, 0, 1);
@@ -2119,7 +2134,7 @@ function damageTroop(session, troop, amount, events) {
 function updateFlameChannel(session, troop, config, events, dt) {
   const getTargets = () => session.enemies
     .filter((enemy) => !enemy.dead
-      && enemy.row === troop.row
+      && enemyOccupiesTargetRow(enemy, troop.row)
       && enemy.x >= troop.x
       && enemy.x - troop.x <= config.range * CELL.width)
     .sort((left, right) => left.x - right.x)
@@ -2174,7 +2189,7 @@ function fireTroop(session, troop, config, target, events) {
     ? config.attackVisual?.shots?.[0]?.frame ?? null
     : null;
   const origin = getMuzzleWorldPosition(troop, config, 0, muzzleFrame);
-  const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+  const targetPoint = enemyHitPointForRow(target, troop.row, session.elapsed);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
     damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
@@ -2191,7 +2206,7 @@ function fireTroop(session, troop, config, target, events) {
     const maxTargets = config.shotgunMaxTargets ?? 3;
     const damageFactors = config.shotgunDamageFactors ?? [0.48, 0.40, 0.32];
     const targets = session.enemies
-      .filter((enemy) => !enemy.dead && enemy.row === troop.row && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
+      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
       .sort((left, right) => left.x - right.x)
       .slice(0, maxTargets);
     targets.forEach((enemy, index) => damageEnemy(
@@ -2249,7 +2264,7 @@ function fireOperadorJano(session, troop, config, target, events) {
     troop.stateEndsAt = session.elapsed + (config.attackVisual?.durationMs || 640);
   }
   const droneCandidates = session.enemies
-    .filter((enemy) => !enemy.dead && enemy.row === troop.row
+    .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
       && (enemy.x < troop.x || enemy.x - troop.x <= config.range * CELL.width));
   const droneTarget = droneCandidates
     .filter((enemy) => enemy.x < troop.x)
@@ -2258,7 +2273,7 @@ function fireOperadorJano(session, troop, config, target, events) {
     || target;
   if (!droneTarget) return;
   const origin = { x: troop.x + (config.droneOffset?.x || 42), y: troop.y + (config.droneOffset?.y || -76) };
-  const targetPoint = getEnemyHitPoint(droneTarget, ENEMIES[droneTarget.type]);
+  const targetPoint = enemyHitPointForRow(droneTarget, troop.row, session.elapsed);
   const dx = targetPoint.x - origin.x;
   const dy = targetPoint.y - origin.y;
   const distance = Math.max(1, Math.hypot(dx, dy));
@@ -2282,7 +2297,7 @@ function fireOperadorJano(session, troop, config, target, events) {
 export function fireDroneSentinela(session, troop, config, target, events = []) {
   const level = clamp(Number(troop.droneCount || 1), 1, config.maxDronesPerTile);
   const visual = config.attackVisual;
-  const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+  const targetPoint = enemyHitPointForRow(target, troop.row, session.elapsed);
   const damage = config.damage * attackDamageMultiplier(session, troop, { target });
   for (let shotIndex = 0; shotIndex < level; shotIndex += 1) {
     const shotDefinition = visual.shots[shotIndex];
@@ -2341,7 +2356,7 @@ function mineCellIsFree(session, row, col) {
   if (getTidePlacementBlockReason(session, row, col)) return false;
   const troopOccupied = session.troops.some((troop) => !troop.dead && troop.row === row && troop.col === col);
   const enemyOccupied = session.enemies.some((enemy) => !enemy.dead
-    && enemy.row === row
+    && enemyOccupiesTargetRow(enemy, row)
     && enemy.x >= col * CELL.width
     && enemy.x < (col + 1) * CELL.width);
   const mineOccupied = session.mines.some((mine) => mine.active && mine.row === row && mine.col === col);
@@ -2413,7 +2428,7 @@ function fireCloseGun(session, troop, config, target) {
 
 function updateDemolidora(session, troop, config, events) {
   const closeTarget = session.enemies
-    .filter((enemy) => !enemy.dead && enemy.row === troop.row && enemy.x >= troop.x && enemy.x - troop.x <= config.closeRange * CELL.width)
+    .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= config.closeRange * CELL.width)
     .sort((left, right) => left.x - right.x)[0] || null;
   if (closeTarget) {
     if (session.elapsed >= troop.gunReadyAt) fireCloseGun(session, troop, config, closeTarget);
@@ -2424,7 +2439,7 @@ function updateDemolidora(session, troop, config, events) {
 
 function enemiesInTroopTile(session, troop) {
   return session.enemies.filter((enemy) => !enemy.dead
-    && enemy.row === troop.row
+    && enemyOccupiesTargetRow(enemy, troop.row)
     && enemyColumn(enemy) === troop.col);
 }
 
@@ -2432,7 +2447,7 @@ function enemiesInTileMeleeRange(session, troop, config) {
   const rearOverlap = CELL.width / 2;
   const forwardRange = Math.max(0, Number(config.range) || 0) * CELL.width;
   return session.enemies.filter((enemy) => !enemy.dead
-    && enemy.row === troop.row
+    && enemyOccupiesTargetRow(enemy, troop.row)
     && enemy.x >= troop.x - rearOverlap
     && enemy.x <= troop.x + forwardRange);
 }
@@ -2465,7 +2480,7 @@ export function selectNaniteAttackTarget(session, medic, config = TROOPS.medicaN
   return session.enemies
     .filter((enemy) => !enemy.dead
       && enemy.hp > 0
-      && enemy.row === medic.row
+      && enemyOccupiesTargetRow(enemy, medic.row)
       && enemyColumn(enemy) > medic.col
       && enemyColumn(enemy) - medic.col <= config.range)
     .sort((left, right) => enemyColumn(left) - enemyColumn(right) || left.x - right.x)[0] || null;
@@ -2583,7 +2598,7 @@ export function findAdjacentLumiThreat(session, troop) {
   if (protectedTile) return null;
   return session.enemies
     .filter((enemy) => !enemy.dead
-      && enemy.row === troop.row
+      && enemyOccupiesTargetRow(enemy, troop.row)
       && !ENEMIES[enemy.type]?.airborne
       && enemyColumn(enemy) === frontCol)
     .sort((left, right) => left.x - right.x)[0] || null;
@@ -2592,7 +2607,7 @@ export function findAdjacentLumiThreat(session, troop) {
 export function findRepulsorTarget(session, troop, config = TROOPS.lumiUrsa7) {
   return session.enemies
     .filter((enemy) => !enemy.dead
-      && enemy.row === troop.row
+      && enemyOccupiesTargetRow(enemy, troop.row)
       && !ENEMIES[enemy.type]?.airborne
       && enemy.x > troop.x
       && enemy.x - troop.x <= config.repulsorRangeTiles * CELL.width)
@@ -2807,7 +2822,7 @@ export function selectLeviathanTarget(session, troop, config = TROOPS.cacadorLev
     .filter((enemy) => (
       !enemy.dead
       && enemy.hp > 0
-      && enemy.row === troop.row
+      && enemyOccupiesTargetRow(enemy, troop.row)
       && enemy.x >= minimumX
       && enemy.x <= maximumX
       && !ENEMIES[enemy.type]?.airborne
@@ -3094,7 +3109,7 @@ function updateTroops(session, events, dt) {
     }
     if (config.attack === "janoDual") {
       const target = closestEnemy(session, troop, config);
-      const hasDroneTarget = session.enemies.some((enemy) => !enemy.dead && enemy.row === troop.row
+      const hasDroneTarget = session.enemies.some((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
         && (enemy.x < troop.x || enemy.x - troop.x <= config.range * CELL.width));
       if (!target && !hasDroneTarget) continue;
       fireOperadorJano(session, troop, config, target, events);
@@ -3141,7 +3156,7 @@ function updateProjectiles(session, dt, events) {
         .filter((enemy) => (
           !enemy.dead
           && enemy.hp > 0
-          && enemy.row === projectile.row
+          && enemyOccupiesTargetRow(enemy, projectile.row)
           && !ENEMIES[enemy.type]?.airborne
           && !projectile.hitIds.includes(enemy.id)
           && enemy.x >= Math.min(projectile.previousX, projectile.x)
@@ -3390,7 +3405,7 @@ function updateProjectiles(session, dt, events) {
       pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
       if (progress >= 1) {
         const occupants = session.enemies.filter((enemy) => !enemy.dead
-          && enemy.row === projectile.targetRow
+          && enemyOccupiesTargetRow(enemy, projectile.targetRow)
           && Math.abs(enemy.x - projectile.targetX) <= CELL.width * 0.5 * projectile.radiusFactor);
         for (const enemy of occupants) {
           const multiplier = enemy.id === projectile.targetId ? 1 : projectile.collateralMultiplier;
@@ -3431,7 +3446,7 @@ function updateProjectiles(session, dt, events) {
     if (projectile.straightLane) {
       target = null;
       for (const enemy of enemiesForRow(session, projectile.row)) {
-        if (enemy.dead || enemy.row !== projectile.row || enemy.x < projectile.previousX - 24) continue;
+        if (!enemyOccupiesTargetRow(enemy, projectile.row) || enemy.x < projectile.previousX - 24) continue;
         if (!target || enemy.x < target.x) target = enemy;
       }
     } else {
@@ -3610,7 +3625,7 @@ function updateDematerializationPulses(session, events) {
       seed: nextEffectSeed(session),
     });
     session.enemies
-      .filter((enemy) => !enemy.dead && enemy.row === pulse.row)
+      .filter((enemy) => enemyOccupiesTargetRow(enemy, pulse.row))
       .forEach((enemy) => disintegrateEnemy(session, enemy, events));
   }
   compactActive(session.enemies, (enemy) => !enemy.dead);
@@ -6156,7 +6171,7 @@ function updateMines(session, events) {
     const cellLeft = mine.col * CELL.width;
     const cellRight = cellLeft + CELL.width;
     const trigger = session.enemies.find((enemy) => {
-      if (enemy.dead || enemy.row !== mine.row || ENEMIES[enemy.type]?.triggersGroundTraps === false || !isGroundTrapEligible(enemy)) return false;
+      if (!enemyOccupiesTargetRow(enemy, mine.row) || ENEMIES[enemy.type]?.triggersGroundTraps === false || !isGroundTrapEligible(enemy)) return false;
       const previousX = Number.isFinite(enemy.previousRenderX) ? enemy.previousRenderX : enemy.x;
       return Math.min(previousX, enemy.x) <= cellRight && Math.max(previousX, enemy.x) >= cellLeft;
     });
@@ -6690,7 +6705,7 @@ export function getRouteTelemetry(session) {
   const sandstormActive = session.sandstorm?.state === "active";
 
   return Array.from({ length: FIELD.rows }, (_, row) => {
-    const enemies = activeEnemies.filter((enemy) => enemy.row === row);
+    const enemies = activeEnemies.filter((enemy) => enemyOccupiesTargetRow(enemy, row));
     const nearest = enemies.reduce(
       (current, enemy) => (!current || enemy.x < current.x ? enemy : current),
       null,
