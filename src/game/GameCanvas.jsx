@@ -1176,8 +1176,13 @@ export function isLeviathanShadowOnly(entity, elapsed, animationFrame = null) {
   return (elapsed - entity.leviathanStateStartedAt) / duration >= 5 / 8;
 }
 
-export function isRasgamarShadowOnly(entity) {
-  return isRasgamarSubmerged(entity);
+export function isRasgamarShadowOnly(entity, elapsed, animationFrame = null) {
+  if (!isRasgamarSubmerged(entity)) return false;
+  if (entity.rasgamarState !== "dive") return true;
+  if (Number.isInteger(animationFrame)) return animationFrame >= 3;
+  if (!Number.isFinite(elapsed)) return false;
+  const duration = Math.max(1, entity.rasgamarStateEndsAt - entity.rasgamarStateStartedAt);
+  return (elapsed - entity.rasgamarStateStartedAt) / duration >= 3 / 4;
 }
 
 function drawRasgamarUnderwaterShadow(ctx, entity, elapsed, settings) {
@@ -1305,7 +1310,7 @@ function drawLeviathanBossHealth(ctx, entity) {
 
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
-  if (isRasgamarShadowOnly(logicalEntity)) return;
+  if (isRasgamarShadowOnly(logicalEntity, session.elapsed)) return;
   const config = ENEMIES[logicalEntity.type];
   const reaction = getHitReaction(runtime, logicalEntity.id, now);
   Object.assign(scratch, logicalEntity);
@@ -1423,7 +1428,7 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       const reaction = getHitReaction(runtime, entity.id, now);
       buffers.position.x = entry.x + reaction.offsetX;
       buffers.position.y = entry.y;
-      const rasgamarShadowOnly = entry.kind === "enemy" && isRasgamarShadowOnly(entity);
+      const rasgamarShadowOnly = entry.kind === "enemy" && isRasgamarShadowOnly(entity, session.elapsed);
       const leviathanShadowOnly = entry.kind === "enemy" && isLeviathanShadowOnly(entity, session.elapsed);
       if (rasgamarShadowOnly) {
         drawRasgamarUnderwaterShadow(ctx, buffers.position, session.elapsed, settings);

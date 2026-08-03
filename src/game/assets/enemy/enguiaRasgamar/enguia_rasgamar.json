@@ -16,7 +16,7 @@
     "coilEmerge": { "frames": 8, "frameMs": 60, "loop": false },
     "coilAttack": { "frames": 8, "frameMs": 87, "loop": true, "pulseFrames": [2, 4, 6] },
     "coilRelease": { "frames": 8, "frameMs": 70, "loop": false },
-    "dive": { "frames": 8, "frameMs": 60, "loop": false },
+    "dive": { "frames": 4, "frameMs": 120, "loop": false },
     "deathSurface": { "frames": 8, "frameMs": 100, "loop": false },
     "deathSubmerged": { "frames": 8, "frameMs": 90, "loop": false }
   }

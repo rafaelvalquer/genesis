@@ -2,100 +2,65 @@ import { describe, expect, it } from "vitest";
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
 import { CHAPTER_FIVE_PACKETS } from "./chapterFivePackets.js";
 import { buildSpawnQueue, wavePressure } from "./domain.js";
+import { createBattleSession, startWave, stepBattle } from "./battleModel.js";
 
-const TOTAL_DEPLOYABLE_CELLS = 45;
-const key = ([row, col]) => `${row}:${col}`;
-
-function floodedAtMaximum(hazard) {
-  return new Set([
-    ...hazard.permanentWaterCells,
-    ...hazard.intertidalBands
-      .filter((band) => band.level <= hazard.maximumLevel)
-      .flatMap((band) => band.cells),
-  ].map(key));
-}
-
-describe("Capítulo 5 — Maré Territorial Progressiva", () => {
-  it("contém oito missões da fase 33 até a 40", () => {
+describe("Chapter 5 coordinated pressure", () => {
+  it("keeps eight missions, six waves, and only Nereida enemies", () => {
+    const allowed = new Set(["mordelume", "enguiaRasgamar", "carapacaNereida", "medusaVeuSalino"]);
     expect(CHAPTER_FIVE_PHASES).toHaveLength(8);
-    expect(CHAPTER_FIVE_PHASES.map((phase) => phase.id)).toEqual(
-      Array.from({ length: 8 }, (_, index) => `fase_${33 + index}`),
-    );
-  });
-
-  it("preserva seis ondas, Supply 40 e loadout de oito tropas", () => {
-    for (const phase of CHAPTER_FIVE_PHASES) {
+    CHAPTER_FIVE_PHASES.forEach((phase, phaseIndex) => {
+      expect(phase.id).toBe(`fase_${33 + phaseIndex}`);
       expect(phase.waves).toHaveLength(6);
-      expect(phase.supplyLimit).toBe(40);
-      expect(phase.loadoutLimit).toBe(8);
-      expect(phase.environmentHazard.id).toBe("tide_cycle");
-      expect(phase.environmentHazard.mode).toBe("territorial_progressive");
-      expect(phase.waves.flatMap((wave) => wave.enemies).length).toBeGreaterThan(0);
-    }
-  });
-
-  it("define água profunda, faixas intermaré e pelo menos 15 células seguras", () => {
-    for (const phase of CHAPTER_FIVE_PHASES) {
-      const hazard = phase.environmentHazard;
-      expect(hazard.permanentWaterCells.length).toBeGreaterThan(0);
-      expect(hazard.intertidalBands.length).toBeGreaterThan(0);
-      expect(hazard.maximumLevel).toBeGreaterThan(0);
-      expect(TOTAL_DEPLOYABLE_CELLS - floodedAtMaximum(hazard).size).toBeGreaterThanOrEqual(15);
-    }
-  });
-
-  it("aumenta a pressão territorial ao longo das missões", () => {
-    const hazards = CHAPTER_FIVE_PHASES.map((phase) => phase.environmentHazard);
-    for (let index = 1; index < hazards.length; index += 1) {
-      expect(hazards[index].maximumAdvanceChance)
-        .toBeGreaterThanOrEqual(hazards[index - 1].maximumAdvanceChance);
-      expect(hazards[index].enemySpeedFactor)
-        .toBeGreaterThanOrEqual(hazards[index - 1].enemySpeedFactor);
-      expect(hazards[index].maximumRetreatChance)
-        .toBeLessThanOrEqual(hazards[index - 1].maximumRetreatChance);
-    }
-    expect(hazards.at(-1).pressureMaximumHpRatio).toBe(0.28);
-    expect(hazards.at(-1).submergedAttackSpeedFactor).toBe(0.70);
-  });
-
-  it("usa somente os inimigos de Nereida e pacotes coordenados", () => {
-    const allowed = new Set([
-      "mordelume", "enguiaRasgamar", "carapacaNereida", "medusaVeuSalino",
-    ]);
-    for (const phase of CHAPTER_FIVE_PHASES) {
-      for (const wave of phase.waves) {
+      phase.waves.forEach((wave) => {
         expect(wave.coordinated).toBe(true);
-        expect(wave.packetThreat).toBeGreaterThan(0);
-        expect(Number.isFinite(wavePressure(phase, phase.waves.indexOf(wave)))).toBe(true);
-        for (const enemy of wave.enemies) {
-        expect(allowed.has(enemy.type)).toBe(true);
-        }
-      }
-    }
+        expect(wave.maximumLivingEnemies).toBe(20 + phaseIndex * 4);
+        wave.enemies.forEach((enemy) => expect(allowed.has(enemy.type)).toBe(true));
+      });
+    });
   });
 
-  it("mantém os pacotes em uma rota e não repete três pacotes na mesma rota", () => {
-    for (const phase of CHAPTER_FIVE_PHASES) {
-      for (let waveIndex = 0; waveIndex < phase.waves.length; waveIndex += 1) {
+  it("distributes N10 across three rows with simultaneous eels", () => {
+    const queue = buildSpawnQueue(CHAPTER_FIVE_PHASES[2], 2, 99);
+    const eels = queue.filter((entry) => entry.packetId.startsWith("triphase_ambush") && entry.type === "enguiaRasgamar");
+    expect(eels.map((entry) => entry.row).sort()).toEqual([0, 2, 4]);
+    expect(Math.max(...eels.map((entry) => entry.spawnAtMs)) - Math.min(...eels.map((entry) => entry.spawnAtMs))).toBeLessThanOrEqual(100);
+  });
+
+  it("respects short packet gaps and increases pressure by phase", () => {
+    let previousPressure = -Infinity;
+    CHAPTER_FIVE_PHASES.forEach((phase) => {
+      const phasePressure = phase.waves.reduce((total, wave, waveIndex) => {
         const queue = buildSpawnQueue(phase, waveIndex, 99);
-        const rowsByPacket = new Map();
-        for (const entry of queue) {
-          if (!rowsByPacket.has(entry.packetId)) rowsByPacket.set(entry.packetId, new Set());
-          rowsByPacket.get(entry.packetId).add(entry.row);
-        }
-        expect([...rowsByPacket.values()].every((rows) => rows.size === 1)).toBe(true);
-        const packetRows = [...rowsByPacket.values()].map((rows) => [...rows][0]);
-        for (let index = 2; index < packetRows.length; index += 1) {
-          expect(packetRows[index] === packetRows[index - 1] && packetRows[index] === packetRows[index - 2]).toBe(false);
-        }
-      }
-    }
+        const startByPacket = new Map();
+        queue.forEach((entry) => startByPacket.set(entry.packetId, Math.min(startByPacket.get(entry.packetId) ?? Infinity, entry.spawnAtMs)));
+        const starts = [...startByPacket.values()].sort((a, b) => a - b);
+        for (let index = 1; index < starts.length; index += 1) expect(starts[index] - starts[index - 1]).toBeLessThanOrEqual(wave.packetGapMs + 500);
+        if (Number(phase.id.slice(-2)) >= 37) expect(Math.max(...starts.slice(1).map((start, index) => start - starts[index]))).toBeLessThanOrEqual(9000);
+        return total + wavePressure(phase, waveIndex);
+      }, 0);
+      expect(phasePressure).toBeGreaterThan(previousPressure);
+      previousPressure = phasePressure;
+    });
   });
 
-  it("não inclui o Leviatã em pacotes comuns e configura o encontro final", () => {
+  it("configures the final boss encounter and its limits", () => {
+    expect(CHAPTER_FIVE_PACKETS.N14.units.flatMap((unit) => unit.rows || [])).toContain(4);
     expect(Object.values(CHAPTER_FIVE_PACKETS).flatMap((packet) => packet.units).some((unit) => unit.type === "leviathanNereida")).toBe(false);
     const bossWave = CHAPTER_FIVE_PHASES.at(-1).waves.at(-1);
-    expect(bossWave.bossEncounter).toMatchObject({ type: "leviathanNereida", spawnAtMs: 20000 });
-    expect(bossWave.bossEncounter.reinforcements).toEqual([{ hpFactor: .70, packet: "N4" }, { hpFactor: .35, packet: "N8" }]);
+    expect(bossWave.bossEncounter).toMatchObject({ type: "leviathanNereida", spawnAtMs: 18000 });
+    expect(bossWave.bossEncounter.reinforcements).toEqual([{ hpFactor: .85, packet: "N6" }, { hpFactor: .70, packet: "N10" }, { hpFactor: .55, packet: "N11" }, { hpFactor: .40, packet: "N12" }, { hpFactor: .25, packet: "N13" }, { hpFactor: .12, packet: "N14" }]);
+    expect(bossWave.bossEncounter.maximumLivingByType).toEqual({ medusaVeuSalino: 3, carapacaNereida: 4, enguiaRasgamar: 5, mordelume: 16 });
+  });
+
+  it("defers a full packet when its living-enemy ceiling is reached", () => {
+    const source = CHAPTER_FIVE_PHASES[0];
+    const phase = { ...source, waves: [{ ...source.waves[0], maximumLivingEnemies: 1 }] };
+    const session = createBattleSession(phase, [], 7, { sandbox: true });
+    startWave(session);
+    stepBattle(session, 1);
+    expect(session.enemies.filter((enemy) => !enemy.dead)).toHaveLength(1);
+    stepBattle(session, 180);
+    const delayed = session.queue.filter((entry) => entry.packetId === session.queue[0].packetId);
+    expect(delayed.every((entry) => entry.spawnAtMs >= 930)).toBe(true);
   });
 });

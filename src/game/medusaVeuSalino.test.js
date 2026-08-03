@@ -16,7 +16,25 @@ function setup() {
   return { session, medusa, cover };
 }
 
+function expectEarlyPriorityHeal() {
+  const { session, medusa } = setup();
+  const preferred = spawnEnemy(session, { type: "mordelume", row: 2, x: medusa.x - 40 }).enemies[0];
+  const lowerHp = spawnEnemy(session, { type: "carapacaNereida", row: 1, x: medusa.x - 20 }).enemies[0];
+  preferred.hp = preferred.maxHp * 0.7; preferred.mordelumeState = "idle"; preferred.speed = 0;
+  lowerHp.hp = lowerHp.maxHp * 0.1; lowerHp.nereidaState = "idle"; lowerHp.speed = 0;
+  expect(medusa.veuSalinoNextHealAt).toBe(ENEMIES.medusaVeuSalino.firstHealDelayMs);
+  stepBattle(session, 4200);
+  stepBattle(session, 1);
+  expect(medusa.veuSalinoState).toBe("healPulse");
+  expect(medusa.veuSalinoHealTargetIds[0]).toBe(preferred.id);
+  stepBattle(session, ENEMIES.medusaVeuSalino.healVisual.applyAtMs + 1);
+  expect(preferred.hp).toBeGreaterThan(preferred.maxHp * 0.7);
+  expect(lowerHp.hp).toBeGreaterThan(lowerHp.maxHp * 0.1);
+}
+
 describe("Medusa Véu-Salino", () => {
+  it("prioritizes injured Mordelumes for the early adjacent-row heal", expectEarlyPriorityHeal);
+
   it("registra somente os oito estados esperados", () => {
     expect(ENEMIES.medusaVeuSalino.assetStates).toEqual(["idle", "moveFloat", "retreat", "healPulse", "attackCast", "attackRelease", "death", "spawnRise"]);
     expect(ENEMIES.medusaVeuSalino.assetStates).not.toContain("hit");

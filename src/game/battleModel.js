@@ -1001,7 +1001,7 @@ function createEnemyLegacy(session, queued) {
     veuSalinoState: queued.type === "medusaVeuSalino" ? "spawnRise" : null,
     veuSalinoStateStartedAt: queued.type === "medusaVeuSalino" ? session.elapsed : -Infinity,
     veuSalinoStateEndsAt: queued.type === "medusaVeuSalino" ? session.elapsed + base.spawnDurationMs : Infinity,
-    veuSalinoNextHealAt: queued.type === "medusaVeuSalino" ? session.elapsed + base.healEveryMs : Infinity,
+    veuSalinoNextHealAt: queued.type === "medusaVeuSalino" ? session.elapsed + (base.firstHealDelayMs ?? base.healEveryMs) : Infinity,
     veuSalinoNextAttackAt: queued.type === "medusaVeuSalino" ? session.elapsed : Infinity,
     veuSalinoAttackTargetId: null, veuSalinoProjectileReleased: false, veuSalinoHealApplied: false,
     veuSalinoRetreatTargetX: null, veuSalinoRetreatCheckedAt: -Infinity,
@@ -1215,18 +1215,45 @@ function enqueueBossReinforcement(session, packetKey) {
   for (const unit of packet.units) {
     const maximum = encounter.maximumLivingByType?.[unit.type] ?? Infinity;
     const available = Math.max(0, maximum - (livingByType.get(unit.type) || 0));
-    const count = Math.min(unit.count, available);
+    const rows = unit.rows?.length ? unit.rows : [row];
+    const countPerRow = unit.rows?.length ? unit.countPerRow || 1 : unit.count;
+    const count = Math.min(rows.length * countPerRow, available);
     livingByType.set(unit.type, (livingByType.get(unit.type) || 0) + count);
-    for (let index = 0; index < count; index += 1) entries.push({
-      type: unit.type, variant: null, sourceIndex: index, row, packetId, block: "boss_reinforcement",
-      spawnAtMs: at + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
-      xOffsetTiles: unit.xOffsetTiles || 0,
-      formationOffsetPx: unit.spawnIntervalMs ? 0 : (index - (count - 1) / 2) * 10,
+    let remaining = count;
+    rows.forEach((unitRow, rowIndex) => {
+      for (let index = 0; index < countPerRow && remaining > 0; index += 1, remaining -= 1) entries.push({
+        type: unit.type, variant: null, sourceIndex: rowIndex * countPerRow + index, row: unitRow, packetId, block: "boss_reinforcement",
+        spawnAtMs: at + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
+        xOffsetTiles: unit.xOffsetTiles || 0,
+        formationOffsetPx: unit.spawnIntervalMs ? 0 : (index - (countPerRow - 1) / 2) * 10,
+      });
     });
   }
   session.queue.push(...entries);
   session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs || String(left.packetId || "").localeCompare(String(right.packetId || "")) || left.sourceIndex - right.sourceIndex);
   session.nextSpawnAt = session.waveStartedAt + (session.queue[0]?.spawnAtMs ?? Infinity);
+}
+
+function livingEnemyCount(session) {
+  return session.enemies.reduce((count, enemy) => count + Number(!enemy.dead), 0);
+}
+
+function deferChapterFivePacket(session, packetId, delayMs = 750) {
+  session.queue.forEach((entry) => {
+    if (entry.packetId === packetId) entry.spawnAtMs += delayMs;
+  });
+  session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs
+    || String(left.packetId || "").localeCompare(String(right.packetId || ""))
+    || left.sourceIndex - right.sourceIndex);
+  session.nextSpawnAt = session.waveStartedAt + (session.queue[0]?.spawnAtMs ?? Infinity);
+}
+
+function shouldDeferChapterFiveSpawn(session, queued) {
+  const maximum = session.phase.waves[session.waveIndex]?.maximumLivingEnemies;
+  if (!Number.isFinite(maximum) || queued.packetId === "boss_encounter") return false;
+  const bossPending = session.bossEncounter && !session.bossEncounter.spawned && session.elapsed < session.waveStartedAt + session.bossEncounter.spawnAtMs;
+  const reserve = bossPending ? 1 : 0;
+  return livingEnemyCount(session) >= maximum - reserve;
 }
 
 function updateBossEncounter(session) {
@@ -5715,7 +5742,14 @@ function selectVeuSalinoHealTargets(session, enemy, config) {
       && Math.abs(ally.row - enemy.row) <= config.healAdjacentRows
       && Math.abs(ally.x - enemy.x) <= range
       && ally.hp / Math.max(1, ally.maxHp) < 1 - config.healMinimumMissingHpFactor)
-    .sort((left, right) => left.hp / left.maxHp - right.hp / right.maxHp || left.x - right.x || left.id.localeCompare(right.id))
+    .sort((left, right) => {
+      const leftPreferred = config.healPriorityTypes?.includes(left.type) ? 0 : 1;
+      const rightPreferred = config.healPriorityTypes?.includes(right.type) ? 0 : 1;
+      return leftPreferred - rightPreferred
+        || left.hp / left.maxHp - right.hp / right.maxHp
+        || Math.abs(left.x - enemy.x) - Math.abs(right.x - enemy.x)
+        || left.id.localeCompare(right.id);
+    })
     .slice(0, config.healTargetLimit);
 }
 
@@ -6441,6 +6475,10 @@ export function stepBattle(session, dt = 32) {
       session.supply = Math.min(session.supplyMax, session.supply + 1);
     }
     while (session.waveActive && session.queue.length && session.elapsed >= session.nextSpawnAt) {
+      if (shouldDeferChapterFiveSpawn(session, session.queue[0])) {
+        deferChapterFivePacket(session, session.queue[0].packetId);
+        break;
+      }
       const queued = session.queue.shift();
       const enemy = createEnemy(session, queued);
       session.nextSpawnAt = session.queue.length

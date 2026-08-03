@@ -24,7 +24,7 @@ function advance(session, milliseconds) {
 
 describe("Enguia Rasgamar", () => {
   it("está disponível no Campo de Provas e integra as ondas do Capítulo 5", () => {
-    expect(ENEMIES.enguiaRasgamar).toMatchObject({ hp: 40, speed: 39, baseDamage: 0, allowAlphaVariant: false });
+    expect(ENEMIES.enguiaRasgamar).toMatchObject({ hp: 60, speed: 39, baseDamage: 0, rangedRange: 5, allowAlphaVariant: false });
     expect(PHASES.flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies)).some((entry) => entry.type === "enguiaRasgamar")).toBe(true);
     const session = tideSandbox();
     expect(spawnEnemy(session, { type: "enguiaRasgamar", row: 0 }).ok).toBe(true);
@@ -103,19 +103,39 @@ describe("Enguia Rasgamar", () => {
     expect(isRasgamarShadowOnly({ type: "enguiaRasgamar", rasgamarSubmerged: false })).toBe(false);
   });
 
+  it("exibe os trÃªs primeiros frames do mergulho antes da sombra submersa", () => {
+    const enemy = {
+      type: "enguiaRasgamar",
+      rasgamarSubmerged: true,
+      rasgamarState: "dive",
+      rasgamarStateStartedAt: 0,
+      rasgamarStateEndsAt: 480,
+    };
+
+    expect(getEnemyAnimation(enemy, ENEMIES.enguiaRasgamar, 0, { dive: 4 })).toEqual({ state: "dive", frame: 0 });
+    expect(getEnemyAnimation(enemy, ENEMIES.enguiaRasgamar, 120, { dive: 4 })).toEqual({ state: "dive", frame: 1 });
+    expect(getEnemyAnimation(enemy, ENEMIES.enguiaRasgamar, 240, { dive: 4 })).toEqual({ state: "dive", frame: 2 });
+    expect(getEnemyAnimation(enemy, ENEMIES.enguiaRasgamar, 360, { dive: 4 })).toEqual({ state: "dive", frame: 3 });
+    expect(isRasgamarShadowOnly(enemy, 359)).toBe(false);
+    expect(isRasgamarShadowOnly(enemy, 360)).toBe(true);
+  });
+
   it("entrega 13 animações completas sem animação de hit", async () => {
     const manifest = JSON.parse(readFileSync(assetPath("./assets/enemy/enguiaRasgamar/enguia_rasgamar.json"), "utf8"));
     expect(Object.keys(manifest.animations)).toEqual(states);
     expect(manifest.animations.hitSurface).toBeUndefined();
     expect(existsSync(assetPath("./assets/enemy/enguiaRasgamar/hitSurface/frame0.png"))).toBe(false);
     for (const state of states) {
-      expect(manifest.animations[state].frames).toBe(8);
-      for (let frame = 0; frame < 8; frame += 1) {
+      const frames = manifest.animations[state].frames;
+      expect(frames).toBe(state === "dive" ? 4 : 8);
+      for (let frame = 0; frame < frames; frame += 1) {
         const file = assetPath(`./assets/enemy/enguiaRasgamar/${state}/frame${frame}.png`);
         expect(existsSync(file)).toBe(true);
         expect(await sharp(file).metadata()).toMatchObject({ width: 256, height: 256, hasAlpha: true });
       }
     }
+    expect(manifest.animations.dive).toMatchObject({ frames: 4, frameMs: 120, loop: false });
+    expect(existsSync(assetPath("./assets/enemy/enguiaRasgamar/dive/frame4.png"))).toBe(false);
     expect(getEnemyAnimation({ type: "enguiaRasgamar", rasgamarState: "rangedCharge", rasgamarStateStartedAt: 0, rasgamarStateEndsAt: 650 }, ENEMIES.enguiaRasgamar, 400, { rangedCharge: 8 })).toEqual({ state: "rangedCharge", frame: 4 });
   });
 });

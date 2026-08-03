@@ -42,19 +42,24 @@ function scaledCoordinatedPackets(spawnBlocks, countMultiplier) {
     if (!occurrences.has(key)) occurrences.set(key, []);
     occurrences.get(key).push(unit);
   }));
+  const unitCount = (unit) => unit.rows?.length
+    ? unit.rows.length * (unit.countPerRow || 1)
+    : unit.count;
   occurrences.forEach((units) => {
-    const current = units.reduce((sum, unit) => sum + unit.count, 0);
+    const current = units.reduce((sum, unit) => sum + unitCount(unit), 0);
     let remaining = Math.max(0, Math.ceil(current * countMultiplier) - current);
     let cursor = 0;
     while (remaining > 0) {
       const unit = units[cursor % units.length];
       const cap = unit.type === "silicaDigger" ? 8 : Infinity;
-      if (unit.count < cap) {
-        unit.count += 1;
+      const currentCount = unitCount(unit);
+      if (currentCount < cap) {
+        if (unit.rows?.length) unit.countPerRow = (unit.countPerRow || 1) + 1;
+        else unit.count += 1;
         remaining -= 1;
       }
       cursor += 1;
-      if (cursor > units.length * 16 && units.every((entry) => entry.count >= (entry.type === "silicaDigger" ? 8 : Infinity))) break;
+      if (cursor > units.length * 16 && units.every((entry) => unitCount(entry) >= (entry.type === "silicaDigger" ? 8 : Infinity))) break;
     }
   });
   return packets;
@@ -73,19 +78,23 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
     const row = candidates[(Math.floor(rng() * candidates.length) + packetIndex) % candidates.length];
     recentRows.push(row);
     if (recentRows.length > 2) recentRows.shift();
-    return packet.units.flatMap((unit) => Array.from({ length: unit.count }, (_, index) => ({
-      type: unit.type,
-      variant: unit.variant || null,
-      sourceIndex: index,
-      row,
-      packetId: packet.id,
-      block: packet.block,
-      spawnAtMs: packet.spawnAtMs + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
-      xOffsetTiles: unit.xOffsetTiles || 0,
-      formationOffsetPx: unit.spawnIntervalMs
-        ? 0
-        : (index - (unit.count - 1) / 2) * 10,
-    })));
+    return packet.units.flatMap((unit) => {
+      const rows = unit.rows?.length ? unit.rows : [row];
+      const count = unit.rows?.length ? unit.countPerRow || 1 : unit.count;
+      return rows.flatMap((unitRow, rowIndex) => Array.from({ length: count }, (_, index) => ({
+        type: unit.type,
+        variant: unit.variant || null,
+        sourceIndex: rowIndex * count + index,
+        row: unitRow,
+        packetId: packet.id,
+        block: packet.block,
+        spawnAtMs: packet.spawnAtMs + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
+        xOffsetTiles: unit.xOffsetTiles || 0,
+        formationOffsetPx: unit.spawnIntervalMs
+          ? 0
+          : (index - (count - 1) / 2) * 10,
+      })));
+    });
   });
   return queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs
     || left.packetId.localeCompare(right.packetId)
