@@ -1941,7 +1941,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     ? session.enemies.find((carrier) => {
       if (carrier.dead || carrier.type !== "carapacaNereida" || carrier.id === enemy.id) return false;
       const carrierConfig = ENEMIES.carapacaNereida;
-      return !ENEMIES[enemy.type]?.boss && enemy.type !== "carapacaNereida" && carrier.row === enemy.row
+      return !config?.boss && enemy.type !== "carapacaNereida" && carrier.row === enemy.row
         && enemy.x > carrier.x && enemy.x - carrier.x <= carrierConfig.escortRangeTiles * CELL.width
         && Number.isFinite(context.sourceX) && context.sourceX < carrier.x;
     })
