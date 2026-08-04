@@ -1,0 +1,24 @@
+Genesis — Fuzileiro Voltaico v1.0.0
+
+Instalador:
+- install.ps1
+- validate.ps1
+- apply_changes.mjs
+- verify_changes.mjs
+
+Documentação:
+- README.md
+- CHANGELOG.md
+- MANIFEST.txt
+
+Payload:
+- payload/src/game/fuzileiroVoltaico.js
+- payload/src/game/fuzileiroVoltaico.test.js
+- payload/src/game/fuzileiroVoltaico.integration.test.js
+
+Arquivos alterados no repositório pelo instalador:
+- src/game/content.js
+- src/game/battleModel.js
+- src/game/tideCycle.js
+- src/game/projectileRenderer.js
+- src/game/assetCatalog.js

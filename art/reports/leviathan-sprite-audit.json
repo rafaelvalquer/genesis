@@ -9,9 +9,9 @@
     "maximumSecondaryAreaFactor": 0.0005,
     "maximumAnchorDriftPx": 10
   },
-  "generatedAt": "2026-08-02T17:15:57.116Z",
+  "generatedAt": "2026-08-03T20:31:16.243Z",
   "totalFrames": 272,
-  "failures": 40,
+  "failures": 90,
   "warnings": 0,
   "frames": [
     {
@@ -3492,18 +3492,81 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 136963,
-        "left": 27,
-        "top": 24,
-        "right": 484,
-        "bottom": 491
+        "area": 72315,
+        "left": 93,
+        "top": 137,
+        "right": 423,
+        "bottom": 501
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.99154,
+      "secondaryComponents": [
+        {
+          "area": 417,
+          "left": 365,
+          "top": 393,
+          "right": 397,
+          "bottom": 424,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 113,
+          "left": 141,
+          "top": 394,
+          "right": 155,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 46,
+          "left": 161,
+          "top": 392,
+          "right": 167,
+          "bottom": 400,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 24,
+          "left": 178,
+          "top": 405,
+          "right": 182,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 409,
+          "top": 432,
+          "right": 413,
+          "bottom": 436,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3512,18 +3575,70 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame1.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 5,
       "mainComponent": {
-        "area": 119733,
-        "left": 48,
-        "top": 24,
-        "right": 463,
-        "bottom": 491
+        "area": 70496,
+        "left": 90,
+        "top": 145,
+        "right": 413,
+        "bottom": 503
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.991686,
+      "secondaryComponents": [
+        {
+          "area": 408,
+          "left": 356,
+          "top": 402,
+          "right": 388,
+          "bottom": 431,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 118,
+          "left": 136,
+          "top": 403,
+          "right": 149,
+          "bottom": 416,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 45,
+          "left": 154,
+          "top": 402,
+          "right": 161,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 396,
+          "top": 439,
+          "right": 400,
+          "bottom": 443,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3532,18 +3647,70 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame2.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 5,
       "mainComponent": {
-        "area": 114621,
-        "left": 52,
-        "top": 25,
-        "right": 458,
-        "bottom": 491
+        "area": 65279,
+        "left": 68,
+        "top": 205,
+        "right": 411,
+        "bottom": 502
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.994409,
+      "secondaryComponents": [
+        {
+          "area": 209,
+          "left": 366,
+          "top": 404,
+          "right": 389,
+          "bottom": 428,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 98,
+          "left": 100,
+          "top": 406,
+          "right": 113,
+          "bottom": 416,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 40,
+          "left": 118,
+          "top": 405,
+          "right": 125,
+          "bottom": 412,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 446,
+          "top": 378,
+          "right": 447,
+          "bottom": 389,
+          "distanceToMainPx": 34,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3552,18 +3719,57 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame3.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 4,
       "mainComponent": {
-        "area": 116388,
-        "left": 50,
-        "top": 24,
-        "right": 460,
-        "bottom": 491
+        "area": 66903,
+        "left": 64,
+        "top": 206,
+        "right": 393,
+        "bottom": 501
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.997064,
+      "secondaryComponents": [
+        {
+          "area": 104,
+          "left": 84,
+          "top": 427,
+          "right": 98,
+          "bottom": 436,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 60,
+          "left": 378,
+          "top": 419,
+          "right": 388,
+          "bottom": 425,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 33,
+          "left": 101,
+          "top": 428,
+          "right": 107,
+          "bottom": 434,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3572,18 +3778,183 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 15,
       "mainComponent": {
-        "area": 122697,
-        "left": 24,
-        "top": 35,
-        "right": 487,
-        "bottom": 480
+        "area": 74413,
+        "left": 83,
+        "top": 213,
+        "right": 447,
+        "bottom": 498
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.990813,
+      "secondaryComponents": [
+        {
+          "area": 204,
+          "left": 341,
+          "top": 259,
+          "right": 355,
+          "bottom": 278,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 74,
+          "left": 387,
+          "top": 250,
+          "right": 395,
+          "bottom": 261,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 64,
+          "left": 119,
+          "top": 423,
+          "right": 129,
+          "bottom": 431,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 46,
+          "left": 187,
+          "top": 399,
+          "right": 195,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 45,
+          "left": 440,
+          "top": 329,
+          "right": 447,
+          "bottom": 336,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 44,
+          "left": 441,
+          "top": 227,
+          "right": 447,
+          "bottom": 234,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 43,
+          "left": 362,
+          "top": 245,
+          "right": 368,
+          "bottom": 252,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 40,
+          "left": 338,
+          "top": 290,
+          "right": 344,
+          "bottom": 297,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 37,
+          "left": 427,
+          "top": 276,
+          "right": 434,
+          "bottom": 282,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 432,
+          "top": 440,
+          "right": 438,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 442,
+          "top": 384,
+          "right": 447,
+          "bottom": 388,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 440,
+          "top": 402,
+          "right": 445,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 198,
+          "top": 406,
+          "right": 201,
+          "bottom": 411,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 5,
+          "left": 167,
+          "top": 418,
+          "right": 169,
+          "bottom": 420,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3592,18 +3963,174 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 14,
       "mainComponent": {
-        "area": 130276,
-        "left": 27,
-        "top": 26,
-        "right": 484,
-        "bottom": 490
+        "area": 64162,
+        "left": 76,
+        "top": 227,
+        "right": 444,
+        "bottom": 496
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.986713,
+      "secondaryComponents": [
+        {
+          "area": 156,
+          "left": 384,
+          "top": 332,
+          "right": 395,
+          "bottom": 352,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 106,
+          "left": 426,
+          "top": 303,
+          "right": 437,
+          "bottom": 314,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 105,
+          "left": 91,
+          "top": 407,
+          "right": 103,
+          "bottom": 418,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 81,
+          "left": 110,
+          "top": 419,
+          "right": 123,
+          "bottom": 434,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 72,
+          "left": 64,
+          "top": 288,
+          "right": 70,
+          "bottom": 301,
+          "distanceToMainPx": 5,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 69,
+          "left": 402,
+          "top": 309,
+          "right": 410,
+          "bottom": 321,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 55,
+          "left": 64,
+          "top": 362,
+          "right": 69,
+          "bottom": 373,
+          "distanceToMainPx": 6,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 55,
+          "left": 249,
+          "top": 390,
+          "right": 257,
+          "bottom": 397,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 47,
+          "left": 226,
+          "top": 397,
+          "right": 233,
+          "bottom": 404,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 46,
+          "left": 64,
+          "top": 344,
+          "right": 70,
+          "bottom": 352,
+          "distanceToMainPx": 5,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 44,
+          "left": 434,
+          "top": 336,
+          "right": 441,
+          "bottom": 343,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 108,
+          "top": 410,
+          "right": 113,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 3,
+          "left": 64,
+          "top": 229,
+          "right": 64,
+          "bottom": 231,
+          "distanceToMainPx": 11,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3612,18 +4139,69 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 5,
       "mainComponent": {
-        "area": 124345,
-        "left": 31,
-        "top": 25,
-        "right": 480,
-        "bottom": 491
+        "area": 62369,
+        "left": 87,
+        "top": 208,
+        "right": 412,
+        "bottom": 501
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.995737,
+      "secondaryComponents": [
+        {
+          "area": 107,
+          "left": 133,
+          "top": 410,
+          "right": 146,
+          "bottom": 421,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 87,
+          "left": 152,
+          "top": 408,
+          "right": 165,
+          "bottom": 415,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 52,
+          "left": 180,
+          "top": 400,
+          "right": 189,
+          "bottom": 407,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 399,
+          "top": 433,
+          "right": 403,
+          "bottom": 437,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3632,18 +4210,81 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 128509,
-        "left": 28,
-        "top": 24,
-        "right": 482,
-        "bottom": 491
+        "area": 63440,
+        "left": 66,
+        "top": 180,
+        "right": 393,
+        "bottom": 503
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.989966,
+      "secondaryComponents": [
+        {
+          "area": 456,
+          "left": 331,
+          "top": 400,
+          "right": 364,
+          "bottom": 433,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 108,
+          "left": 110,
+          "top": 411,
+          "right": 124,
+          "bottom": 422,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 41,
+          "left": 129,
+          "top": 410,
+          "right": 135,
+          "bottom": 417,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 376,
+          "top": 441,
+          "right": 380,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 145,
+          "top": 421,
+          "right": 149,
+          "bottom": 425,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3652,18 +4293,82 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 119378,
-        "left": 38,
-        "top": 24,
-        "right": 472,
-        "bottom": 491
+        "area": 97964,
+        "left": 39,
+        "top": 124,
+        "right": 477,
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.992915,
+      "secondaryComponents": [
+        {
+          "area": 468,
+          "left": 398,
+          "top": 391,
+          "right": 432,
+          "bottom": 426,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 124,
+          "left": 110,
+          "top": 390,
+          "right": 125,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 56,
+          "left": 135,
+          "top": 388,
+          "right": 143,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 30,
+          "left": 157,
+          "top": 402,
+          "right": 161,
+          "bottom": 408,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 450,
+          "top": 441,
+          "right": 454,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION"
+      ]
     },
     {
       "location": "runtime",
@@ -3672,18 +4377,92 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame1.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 118978,
-        "left": 40,
-        "top": 24,
+        "area": 93509,
+        "left": 17,
+        "top": 146,
         "right": 471,
-        "bottom": 490
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.991728,
+      "secondaryComponents": [
+        {
+          "area": 532,
+          "left": 383,
+          "top": 389,
+          "right": 423,
+          "bottom": 428,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 133,
+          "left": 77,
+          "top": 409,
+          "right": 93,
+          "bottom": 420,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 51,
+          "left": 101,
+          "top": 407,
+          "right": 109,
+          "bottom": 415,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 30,
+          "left": 123,
+          "top": 420,
+          "right": 128,
+          "bottom": 425,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 28,
+          "left": 393,
+          "top": 420,
+          "right": 398,
+          "bottom": 425,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 6,
+          "left": 439,
+          "top": 442,
+          "right": 441,
+          "bottom": 444,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION"
+      ]
     },
     {
       "location": "runtime",
@@ -3692,18 +4471,69 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame2.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 5,
       "mainComponent": {
-        "area": 122836,
-        "left": 37,
-        "top": 24,
-        "right": 474,
-        "bottom": 491
+        "area": 84841,
+        "left": 21,
+        "top": 122,
+        "right": 454,
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.994736,
+      "secondaryComponents": [
+        {
+          "area": 284,
+          "left": 377,
+          "top": 434,
+          "right": 407,
+          "bottom": 458,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 105,
+          "left": 89,
+          "top": 440,
+          "right": 103,
+          "bottom": 450,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 40,
+          "left": 114,
+          "top": 437,
+          "right": 120,
+          "bottom": 444,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 134,
+          "top": 450,
+          "right": 138,
+          "bottom": 454,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3714,11 +4544,11 @@
       "height": 512,
       "componentCount": 1,
       "mainComponent": {
-        "area": 123392,
-        "left": 35,
-        "top": 24,
-        "right": 475,
-        "bottom": 491
+        "area": 83755,
+        "left": 30,
+        "top": 122,
+        "right": 454,
+        "bottom": 511
       },
       "mainComponentRatio": 1,
       "secondaryComponents": [],
@@ -3732,18 +4562,47 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 3,
       "mainComponent": {
-        "area": 125745,
-        "left": 33,
-        "top": 24,
-        "right": 477,
-        "bottom": 491
+        "area": 83919,
+        "left": 44,
+        "top": 74,
+        "right": 462,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.984768,
+      "secondaryComponents": [
+        {
+          "area": 1295,
+          "left": 110,
+          "top": 0,
+          "right": 416,
+          "bottom": 7,
+          "distanceToMainPx": 66,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 3,
+          "left": 423,
+          "top": 0,
+          "right": 425,
+          "bottom": 0,
+          "distanceToMainPx": 73,
+          "issues": [
+            "EDGE_CONTAMINATION"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3752,18 +4611,39 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 2,
       "mainComponent": {
-        "area": 125224,
-        "left": 35,
-        "top": 24,
-        "right": 475,
-        "bottom": 491
+        "area": 83377,
+        "left": 27,
+        "top": 74,
+        "right": 444,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.979385,
+      "secondaryComponents": [
+        {
+          "area": 1755,
+          "left": 64,
+          "top": 0,
+          "right": 432,
+          "bottom": 6,
+          "distanceToMainPx": 67,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3772,18 +4652,50 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 3,
       "mainComponent": {
-        "area": 126974,
-        "left": 26,
-        "top": 24,
-        "right": 484,
-        "bottom": 491
+        "area": 83761,
+        "left": 23,
+        "top": 74,
+        "right": 440,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.983526,
+      "secondaryComponents": [
+        {
+          "area": 1401,
+          "left": 69,
+          "top": 0,
+          "right": 421,
+          "bottom": 6,
+          "distanceToMainPx": 67,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 2,
+          "left": 63,
+          "top": 0,
+          "right": 64,
+          "bottom": 0,
+          "distanceToMainPx": 73,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3792,18 +4704,36 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 2,
       "mainComponent": {
-        "area": 122369,
-        "left": 32,
-        "top": 24,
-        "right": 479,
-        "bottom": 491
+        "area": 83836,
+        "left": 30,
+        "top": 74,
+        "right": 448,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.985355,
+      "secondaryComponents": [
+        {
+          "area": 1246,
+          "left": 81,
+          "top": 0,
+          "right": 421,
+          "bottom": 6,
+          "distanceToMainPx": 67,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3812,18 +4742,56 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 4,
       "mainComponent": {
-        "area": 128481,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 116116,
+        "left": 85,
+        "top": 72,
+        "right": 511,
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.998298,
+      "secondaryComponents": [
+        {
+          "area": 129,
+          "left": 155,
+          "top": 389,
+          "right": 172,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 42,
+          "left": 183,
+          "top": 387,
+          "right": 190,
+          "bottom": 394,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 206,
+          "top": 401,
+          "right": 211,
+          "bottom": 406,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -3832,18 +4800,134 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame1.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 10,
       "mainComponent": {
-        "area": 127841,
-        "left": 24,
-        "top": 25,
-        "right": 487,
-        "bottom": 491
+        "area": 118392,
+        "left": 40,
+        "top": 79,
+        "right": 484,
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.991002,
+      "secondaryComponents": [
+        {
+          "area": 673,
+          "left": 0,
+          "top": 451,
+          "right": 14,
+          "bottom": 511,
+          "distanceToMainPx": 25,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 133,
+          "left": 0,
+          "top": 418,
+          "right": 11,
+          "bottom": 431,
+          "distanceToMainPx": 28,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 129,
+          "left": 111,
+          "top": 390,
+          "right": 128,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 45,
+          "left": 139,
+          "top": 387,
+          "right": 146,
+          "bottom": 394,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 28,
+          "left": 163,
+          "top": 401,
+          "right": 167,
+          "bottom": 406,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 480,
+          "top": 409,
+          "right": 484,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 10,
+          "top": 409,
+          "right": 13,
+          "bottom": 414,
+          "distanceToMainPx": 26,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 0,
+          "top": 441,
+          "right": 4,
+          "bottom": 445,
+          "distanceToMainPx": 35,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 10,
+          "left": 470,
+          "top": 442,
+          "right": 473,
+          "bottom": 444,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3852,18 +4936,136 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame2.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 10,
       "mainComponent": {
-        "area": 130769,
-        "left": 25,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 118772,
+        "left": 3,
+        "top": 79,
+        "right": 445,
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.988852,
+      "secondaryComponents": [
+        {
+          "area": 558,
+          "left": 479,
+          "top": 467,
+          "right": 511,
+          "bottom": 495,
+          "distanceToMainPx": 33,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 404,
+          "left": 490,
+          "top": 405,
+          "right": 511,
+          "bottom": 432,
+          "distanceToMainPx": 44,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 126,
+          "left": 74,
+          "top": 390,
+          "right": 91,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 78,
+          "left": 503,
+          "top": 453,
+          "right": 511,
+          "bottom": 464,
+          "distanceToMainPx": 57,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 64,
+          "left": 498,
+          "top": 501,
+          "right": 511,
+          "bottom": 507,
+          "distanceToMainPx": 52,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 42,
+          "left": 102,
+          "top": 387,
+          "right": 109,
+          "bottom": 394,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 30,
+          "left": 125,
+          "top": 401,
+          "right": 130,
+          "bottom": 406,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 22,
+          "left": 441,
+          "top": 409,
+          "right": 444,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 15,
+          "left": 431,
+          "top": 441,
+          "right": 435,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3872,18 +5074,98 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame3.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 130008,
-        "left": 24,
-        "top": 25,
-        "right": 487,
-        "bottom": 491
+        "area": 109361,
+        "left": 79,
+        "top": 42,
+        "right": 493,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.962253,
+      "secondaryComponents": [
+        {
+          "area": 3565,
+          "left": 132,
+          "top": 0,
+          "right": 502,
+          "bottom": 14,
+          "distanceToMainPx": 27,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 522,
+          "left": 431,
+          "top": 337,
+          "right": 467,
+          "bottom": 373,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 122,
+          "left": 144,
+          "top": 339,
+          "right": 160,
+          "bottom": 351,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 39,
+          "left": 170,
+          "top": 337,
+          "right": 176,
+          "bottom": 344,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 193,
+          "top": 350,
+          "right": 197,
+          "bottom": 355,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 15,
+          "left": 490,
+          "top": 358,
+          "right": 492,
+          "bottom": 362,
+          "distanceToMainPx": 0,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3892,18 +5174,79 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 121697,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 117120,
+        "left": 0,
+        "top": 82,
+        "right": 410,
+        "bottom": 511
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.997981,
+      "secondaryComponents": [
+        {
+          "area": 126,
+          "left": 38,
+          "top": 390,
+          "right": 55,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 45,
+          "left": 66,
+          "top": 387,
+          "right": 73,
+          "bottom": 394,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 29,
+          "left": 89,
+          "top": 401,
+          "right": 94,
+          "bottom": 406,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 406,
+          "top": 409,
+          "right": 409,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 395,
+          "top": 441,
+          "right": 399,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3912,18 +5255,119 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 125944,
-        "left": 24,
-        "top": 25,
-        "right": 486,
-        "bottom": 491
+        "area": 108189,
+        "left": 38,
+        "top": 43,
+        "right": 451,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.961184,
+      "secondaryComponents": [
+        {
+          "area": 3626,
+          "left": 86,
+          "top": 0,
+          "right": 460,
+          "bottom": 14,
+          "distanceToMainPx": 28,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 537,
+          "left": 389,
+          "top": 337,
+          "right": 425,
+          "bottom": 374,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 115,
+          "left": 104,
+          "top": 339,
+          "right": 119,
+          "bottom": 351,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 42,
+          "left": 129,
+          "top": 337,
+          "right": 136,
+          "bottom": 344,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 152,
+          "top": 350,
+          "right": 156,
+          "bottom": 356,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 448,
+          "top": 358,
+          "right": 451,
+          "bottom": 362,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 4,
+          "left": 511,
+          "top": 414,
+          "right": 511,
+          "bottom": 417,
+          "distanceToMainPx": 59,
+          "issues": [
+            "EDGE_CONTAMINATION"
+          ]
+        },
+        {
+          "area": 1,
+          "left": 511,
+          "top": 432,
+          "right": 511,
+          "bottom": 432,
+          "distanceToMainPx": 59,
+          "issues": [
+            "EDGE_CONTAMINATION"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3932,18 +5376,151 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 11,
       "mainComponent": {
-        "area": 128655,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 107291,
+        "left": 0,
+        "top": 43,
+        "right": 411,
+        "bottom": 469
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.952665,
+      "secondaryComponents": [
+        {
+          "area": 3605,
+          "left": 50,
+          "top": 0,
+          "right": 421,
+          "bottom": 14,
+          "distanceToMainPx": 28,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 528,
+          "left": 349,
+          "top": 338,
+          "right": 385,
+          "bottom": 374,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 493,
+          "left": 481,
+          "top": 414,
+          "right": 511,
+          "bottom": 440,
+          "distanceToMainPx": 69,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 383,
+          "left": 491,
+          "top": 353,
+          "right": 511,
+          "bottom": 380,
+          "distanceToMainPx": 79,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 116,
+          "left": 64,
+          "top": 340,
+          "right": 80,
+          "bottom": 351,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 72,
+          "left": 504,
+          "top": 401,
+          "right": 511,
+          "bottom": 412,
+          "distanceToMainPx": 92,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 60,
+          "left": 499,
+          "top": 446,
+          "right": 511,
+          "bottom": 451,
+          "distanceToMainPx": 87,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 90,
+          "top": 338,
+          "right": 96,
+          "bottom": 344,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 113,
+          "top": 351,
+          "right": 117,
+          "bottom": 356,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 408,
+          "top": 358,
+          "right": 411,
+          "bottom": 362,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -3952,18 +5529,106 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 8,
       "mainComponent": {
-        "area": 128945,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 106076,
+        "left": 0,
+        "top": 43,
+        "right": 383,
+        "bottom": 470
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.960912,
+      "secondaryComponents": [
+        {
+          "area": 3606,
+          "left": 12,
+          "top": 0,
+          "right": 385,
+          "bottom": 14,
+          "distanceToMainPx": 28,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 518,
+          "left": 321,
+          "top": 338,
+          "right": 357,
+          "bottom": 373,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 114,
+          "left": 36,
+          "top": 339,
+          "right": 52,
+          "bottom": 351,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 62,
+          "top": 338,
+          "right": 68,
+          "bottom": 344,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 23,
+          "left": 84,
+          "top": 351,
+          "right": 89,
+          "bottom": 356,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 380,
+          "top": 358,
+          "right": 383,
+          "bottom": 362,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 3,
+          "left": 372,
+          "top": 390,
+          "right": 373,
+          "bottom": 391,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5159,18 +6824,107 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 110163,
-        "left": 87,
-        "top": 24,
-        "right": 423,
-        "bottom": 491
+        "area": 85973,
+        "left": 88,
+        "top": 104,
+        "right": 447,
+        "bottom": 497
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.993356,
+      "secondaryComponents": [
+        {
+          "area": 414,
+          "left": 394,
+          "top": 382,
+          "right": 425,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 86,
+          "left": 145,
+          "top": 384,
+          "right": 158,
+          "bottom": 393,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 33,
+          "left": 168,
+          "top": 381,
+          "right": 174,
+          "bottom": 387,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 23,
+          "left": 187,
+          "top": 392,
+          "right": 191,
+          "bottom": 397,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 9,
+          "left": 446,
+          "top": 399,
+          "right": 447,
+          "bottom": 403,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 7,
+          "left": 428,
+          "top": 373,
+          "right": 430,
+          "bottom": 375,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 2,
+          "left": 390,
+          "top": 417,
+          "right": 390,
+          "bottom": 418,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 1,
+          "left": 147,
+          "top": 398,
+          "right": 147,
+          "bottom": 398,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5179,57 +6933,171 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame1.png",
       "width": 512,
       "height": 512,
-      "componentCount": 4,
+      "componentCount": 14,
       "mainComponent": {
-        "area": 112013,
-        "left": 122,
-        "top": 25,
-        "right": 461,
-        "bottom": 491
+        "area": 84386,
+        "left": 83,
+        "top": 101,
+        "right": 447,
+        "bottom": 496
       },
-      "mainComponentRatio": 0.996052,
+      "mainComponentRatio": 0.989308,
       "secondaryComponents": [
         {
-          "area": 200,
-          "left": 50,
-          "top": 261,
-          "right": 59,
-          "bottom": 293,
-          "distanceToMainPx": 62,
+          "area": 368,
+          "left": 378,
+          "top": 380,
+          "right": 407,
+          "bottom": 411,
+          "distanceToMainPx": 0,
           "issues": [
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
           ]
         },
         {
-          "area": 185,
-          "left": 50,
-          "top": 211,
-          "right": 62,
-          "bottom": 237,
-          "distanceToMainPx": 59,
+          "area": 267,
+          "left": 64,
+          "top": 438,
+          "right": 81,
+          "bottom": 459,
+          "distanceToMainPx": 1,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 116,
+          "left": 133,
+          "top": 381,
+          "right": 149,
+          "bottom": 392,
+          "distanceToMainPx": 0,
           "issues": [
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
           ]
         },
         {
-          "area": 59,
-          "left": 50,
-          "top": 164,
-          "right": 57,
-          "bottom": 175,
-          "distanceToMainPx": 64,
+          "area": 45,
+          "left": 64,
+          "top": 465,
+          "right": 73,
+          "bottom": 473,
+          "distanceToMainPx": 9,
           "issues": [
+            "CORNER_CONTAMINATION",
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
           ]
+        },
+        {
+          "area": 30,
+          "left": 64,
+          "top": 477,
+          "right": 71,
+          "bottom": 481,
+          "distanceToMainPx": 11,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 157,
+          "top": 380,
+          "right": 163,
+          "bottom": 385,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 15,
+          "left": 176,
+          "top": 390,
+          "right": 179,
+          "bottom": 394,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 12,
+          "left": 411,
+          "top": 371,
+          "right": 414,
+          "bottom": 374,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 11,
+          "left": 64,
+          "top": 399,
+          "right": 66,
+          "bottom": 403,
+          "distanceToMainPx": 16,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 9,
+          "left": 390,
+          "top": 403,
+          "right": 393,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 5,
+          "left": 446,
+          "top": 464,
+          "right": 447,
+          "bottom": 466,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION"
+          ]
+        },
+        {
+          "area": 4,
+          "left": 68,
+          "top": 462,
+          "right": 70,
+          "bottom": 463,
+          "distanceToMainPx": 12,
+          "issues": [
+            "CORNER_CONTAMINATION"
+          ]
+        },
+        {
+          "area": 3,
+          "left": 435,
+          "top": 463,
+          "right": 437,
+          "bottom": 463,
+          "distanceToMainPx": 0,
+          "issues": []
         }
       ],
       "severity": "REDRAW_REQUIRED",
       "issues": [
         "SECONDARY_COMPONENT_TOO_LARGE",
-        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION",
+        "ISOLATED_PIXEL_ISLAND"
       ]
     },
     {
@@ -5239,33 +7107,112 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame2.png",
       "width": 512,
       "height": 512,
-      "componentCount": 2,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 108115,
-        "left": 119,
-        "top": 24,
-        "right": 452,
-        "bottom": 491
+        "area": 82114,
+        "left": 64,
+        "top": 118,
+        "right": 431,
+        "bottom": 496
       },
-      "mainComponentRatio": 0.999131,
+      "mainComponentRatio": 0.996372,
       "secondaryComponents": [
         {
-          "area": 94,
-          "left": 58,
-          "top": 221,
-          "right": 64,
-          "bottom": 240,
-          "distanceToMainPx": 54,
+          "area": 177,
+          "left": 111,
+          "top": 382,
+          "right": 134,
+          "bottom": 401,
+          "distanceToMainPx": 0,
           "issues": [
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
           ]
+        },
+        {
+          "area": 36,
+          "left": 440,
+          "top": 450,
+          "right": 447,
+          "bottom": 456,
+          "distanceToMainPx": 8,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 137,
+          "top": 382,
+          "right": 143,
+          "bottom": 387,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 15,
+          "left": 394,
+          "top": 371,
+          "right": 397,
+          "bottom": 375,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 15,
+          "left": 443,
+          "top": 463,
+          "right": 447,
+          "bottom": 465,
+          "distanceToMainPx": 11,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 443,
+          "top": 410,
+          "right": 446,
+          "bottom": 414,
+          "distanceToMainPx": 11,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 12,
+          "left": 157,
+          "top": 392,
+          "right": 160,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 4,
+          "left": 136,
+          "top": 409,
+          "right": 137,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": []
         }
       ],
       "severity": "REDRAW_REQUIRED",
       "issues": [
         "SECONDARY_COMPONENT_TOO_LARGE",
-        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION",
+        "ISOLATED_PIXEL_ISLAND"
       ]
     },
     {
@@ -5275,18 +7222,80 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame3.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 109117,
-        "left": 86,
-        "top": 24,
-        "right": 425,
-        "bottom": 491
+        "area": 80436,
+        "left": 64,
+        "top": 114,
+        "right": 420,
+        "bottom": 496
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.992522,
+      "secondaryComponents": [
+        {
+          "area": 443,
+          "left": 347,
+          "top": 381,
+          "right": 380,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 92,
+          "left": 107,
+          "top": 383,
+          "right": 121,
+          "bottom": 392,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 34,
+          "left": 385,
+          "top": 368,
+          "right": 391,
+          "bottom": 374,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 130,
+          "top": 381,
+          "right": 134,
+          "bottom": 387,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 12,
+          "left": 149,
+          "top": 392,
+          "right": 152,
+          "bottom": 395,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5295,18 +7304,91 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 107963,
-        "left": 85,
-        "top": 25,
-        "right": 425,
-        "bottom": 491
+        "area": 83150,
+        "left": 87,
+        "top": 107,
+        "right": 447,
+        "bottom": 496
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.991664,
+      "secondaryComponents": [
+        {
+          "area": 409,
+          "left": 388,
+          "top": 382,
+          "right": 420,
+          "bottom": 413,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 205,
+          "left": 136,
+          "top": 383,
+          "right": 163,
+          "bottom": 403,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 34,
+          "left": 164,
+          "top": 382,
+          "right": 170,
+          "bottom": 388,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 22,
+          "left": 397,
+          "top": 407,
+          "right": 401,
+          "bottom": 411,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 424,
+          "top": 372,
+          "right": 427,
+          "bottom": 376,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 13,
+          "left": 184,
+          "top": 393,
+          "right": 187,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5315,18 +7397,147 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 12,
       "mainComponent": {
-        "area": 106774,
-        "left": 90,
-        "top": 24,
-        "right": 421,
-        "bottom": 491
+        "area": 80477,
+        "left": 64,
+        "top": 111,
+        "right": 442,
+        "bottom": 496
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.996681,
+      "secondaryComponents": [
+        {
+          "area": 124,
+          "left": 125,
+          "top": 383,
+          "right": 141,
+          "bottom": 394,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 28,
+          "left": 151,
+          "top": 382,
+          "right": 156,
+          "bottom": 388,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 64,
+          "top": 467,
+          "right": 69,
+          "bottom": 470,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 142,
+          "top": 395,
+          "right": 146,
+          "bottom": 400,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 380,
+          "top": 407,
+          "right": 384,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 404,
+          "top": 373,
+          "right": 408,
+          "bottom": 376,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 171,
+          "top": 393,
+          "right": 174,
+          "bottom": 397,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 12,
+          "left": 445,
+          "top": 450,
+          "right": 447,
+          "bottom": 455,
+          "distanceToMainPx": 2,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 9,
+          "left": 64,
+          "top": 478,
+          "right": 66,
+          "bottom": 481,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 8,
+          "left": 445,
+          "top": 464,
+          "right": 447,
+          "bottom": 466,
+          "distanceToMainPx": 2,
+          "issues": [
+            "CORNER_CONTAMINATION"
+          ]
+        },
+        {
+          "area": 1,
+          "left": 368,
+          "top": 403,
+          "right": 368,
+          "bottom": 403,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5335,18 +7546,106 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 8,
       "mainComponent": {
-        "area": 111887,
-        "left": 82,
-        "top": 24,
-        "right": 428,
-        "bottom": 491
+        "area": 81591,
+        "left": 64,
+        "top": 110,
+        "right": 429,
+        "bottom": 497
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.990182,
+      "secondaryComponents": [
+        {
+          "area": 440,
+          "left": 355,
+          "top": 382,
+          "right": 387,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 120,
+          "left": 435,
+          "top": 451,
+          "right": 447,
+          "bottom": 469,
+          "distanceToMainPx": 5,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 99,
+          "left": 438,
+          "top": 400,
+          "right": 447,
+          "bottom": 416,
+          "distanceToMainPx": 8,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 90,
+          "left": 112,
+          "top": 384,
+          "right": 125,
+          "bottom": 393,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 135,
+          "top": 382,
+          "right": 140,
+          "bottom": 387,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 154,
+          "top": 393,
+          "right": 158,
+          "bottom": 397,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 391,
+          "top": 372,
+          "right": 394,
+          "bottom": 376,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5355,18 +7654,90 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 105925,
-        "left": 86,
-        "top": 25,
-        "right": 425,
-        "bottom": 491
+        "area": 81942,
+        "left": 64,
+        "top": 109,
+        "right": 419,
+        "bottom": 496
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.997687,
+      "secondaryComponents": [
+        {
+          "area": 107,
+          "left": 102,
+          "top": 383,
+          "right": 116,
+          "bottom": 393,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 126,
+          "top": 382,
+          "right": 131,
+          "bottom": 387,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 119,
+          "top": 395,
+          "right": 122,
+          "bottom": 400,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 383,
+          "top": 373,
+          "right": 386,
+          "bottom": 376,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 145,
+          "top": 392,
+          "right": 148,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 357,
+          "top": 407,
+          "right": 360,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5375,126 +7746,23 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 2,
       "mainComponent": {
-        "area": 117551,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 26758,
+        "left": 75,
+        "top": 321,
+        "right": 482,
+        "bottom": 454
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
-    },
-    {
-      "location": "runtime",
-      "state": "spawnRise",
-      "frame": 1,
-      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame1.png",
-      "width": 512,
-      "height": 512,
-      "componentCount": 1,
-      "mainComponent": {
-        "area": 129691,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
-      },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
-    },
-    {
-      "location": "runtime",
-      "state": "spawnRise",
-      "frame": 2,
-      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame2.png",
-      "width": 512,
-      "height": 512,
-      "componentCount": 7,
-      "mainComponent": {
-        "area": 51285,
-        "left": 24,
-        "top": 25,
-        "right": 354,
-        "bottom": 281
-      },
-      "mainComponentRatio": 0.923189,
+      "mainComponentRatio": 0.997465,
       "secondaryComponents": [
         {
-          "area": 1446,
-          "left": 464,
-          "top": 180,
-          "right": 487,
-          "bottom": 262,
-          "distanceToMainPx": 109,
-          "issues": [
-            "SECONDARY_COMPONENT_TOO_LARGE",
-            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
-          ]
-        },
-        {
-          "area": 1418,
-          "left": 227,
-          "top": 457,
-          "right": 308,
-          "bottom": 491,
-          "distanceToMainPx": 175,
-          "issues": [
-            "EDGE_CONTAMINATION",
-            "SECONDARY_COMPONENT_TOO_LARGE",
-            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
-          ]
-        },
-        {
-          "area": 1116,
-          "left": 127,
-          "top": 454,
-          "right": 188,
-          "bottom": 491,
-          "distanceToMainPx": 172,
-          "issues": [
-            "EDGE_CONTAMINATION",
-            "SECONDARY_COMPONENT_TOO_LARGE",
-            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
-          ]
-        },
-        {
-          "area": 178,
-          "left": 183,
-          "top": 479,
-          "right": 207,
-          "bottom": 491,
-          "distanceToMainPx": 197,
-          "issues": [
-            "EDGE_CONTAMINATION",
-            "SECONDARY_COMPONENT_TOO_LARGE",
-            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
-          ]
-        },
-        {
-          "area": 64,
-          "left": 484,
-          "top": 126,
-          "right": 487,
-          "bottom": 151,
-          "distanceToMainPx": 129,
-          "issues": [
-            "SECONDARY_COMPONENT_TOO_LARGE",
-            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
-          ]
-        },
-        {
-          "area": 45,
-          "left": 486,
-          "top": 278,
-          "right": 487,
-          "bottom": 305,
-          "distanceToMainPx": 131,
+          "area": 68,
+          "left": 153,
+          "top": 393,
+          "right": 165,
+          "bottom": 401,
+          "distanceToMainPx": 0,
           "issues": [
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
@@ -5503,10 +7771,139 @@
       ],
       "severity": "REDRAW_REQUIRED",
       "issues": [
-        "MAIN_COMPONENT_TOO_SMALL",
         "SECONDARY_COMPONENT_TOO_LARGE",
-        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
-        "EDGE_CONTAMINATION"
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 5,
+      "mainComponent": {
+        "area": 45530,
+        "left": 51,
+        "top": 258,
+        "right": 461,
+        "bottom": 455
+      },
+      "mainComponentRatio": 0.994235,
+      "secondaryComponents": [
+        {
+          "area": 76,
+          "left": 85,
+          "top": 370,
+          "right": 96,
+          "bottom": 378,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 75,
+          "left": 437,
+          "top": 394,
+          "right": 449,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 66,
+          "left": 403,
+          "top": 354,
+          "right": 414,
+          "bottom": 364,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 47,
+          "left": 66,
+          "top": 416,
+          "right": 75,
+          "bottom": 422,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 4,
+      "mainComponent": {
+        "area": 69313,
+        "left": 28,
+        "top": 183,
+        "right": 444,
+        "bottom": 464
+      },
+      "mainComponentRatio": 0.996449,
+      "secondaryComponents": [
+        {
+          "area": 165,
+          "left": 83,
+          "top": 335,
+          "right": 101,
+          "bottom": 351,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 61,
+          "left": 419,
+          "top": 396,
+          "right": 428,
+          "bottom": 403,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 405,
+          "top": 386,
+          "right": 409,
+          "bottom": 391,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
       ]
     },
     {
@@ -5516,49 +7913,79 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame3.png",
       "width": 512,
       "height": 512,
-      "componentCount": 3,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 93726,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 345
+        "area": 85066,
+        "left": 26,
+        "top": 125,
+        "right": 452,
+        "bottom": 474
       },
-      "mainComponentRatio": 0.908796,
+      "mainComponentRatio": 0.996299,
       "secondaryComponents": [
         {
-          "area": 6062,
-          "left": 187,
-          "top": 431,
-          "right": 422,
-          "bottom": 491,
-          "distanceToMainPx": 85,
+          "area": 170,
+          "left": 88,
+          "top": 350,
+          "right": 106,
+          "bottom": 366,
+          "distanceToMainPx": 0,
           "issues": [
-            "EDGE_CONTAMINATION",
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
           ]
         },
         {
-          "area": 3344,
-          "left": 111,
-          "top": 431,
-          "right": 231,
-          "bottom": 491,
-          "distanceToMainPx": 85,
+          "area": 70,
+          "left": 114,
+          "top": 351,
+          "right": 123,
+          "bottom": 360,
+          "distanceToMainPx": 0,
           "issues": [
-            "EDGE_CONTAMINATION",
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 42,
+          "left": 135,
+          "top": 365,
+          "right": 142,
+          "bottom": 372,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 419,
+          "top": 381,
+          "right": 422,
+          "bottom": 386,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 378,
+          "top": 366,
+          "right": 380,
+          "bottom": 371,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
           ]
         }
       ],
       "severity": "REDRAW_REQUIRED",
       "issues": [
-        "MAIN_COMPONENT_TOO_SMALL",
-        "EDGE_CONTAMINATION",
         "SECONDARY_COMPONENT_TOO_LARGE",
-        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
       ]
     },
     {
@@ -5568,18 +7995,156 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 13,
       "mainComponent": {
-        "area": 149240,
-        "left": 24,
-        "top": 24,
+        "area": 97178,
+        "left": 42,
+        "top": 56,
         "right": 487,
-        "bottom": 491
+        "bottom": 410
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.9905,
+      "secondaryComponents": [
+        {
+          "area": 264,
+          "left": 437,
+          "top": 162,
+          "right": 461,
+          "bottom": 188,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 238,
+          "left": 82,
+          "top": 170,
+          "right": 104,
+          "bottom": 195,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 128,
+          "left": 468,
+          "top": 202,
+          "right": 483,
+          "bottom": 214,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 77,
+          "left": 409,
+          "top": 189,
+          "right": 418,
+          "bottom": 206,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 58,
+          "left": 459,
+          "top": 278,
+          "right": 470,
+          "bottom": 285,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 54,
+          "left": 69,
+          "top": 306,
+          "right": 78,
+          "bottom": 314,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 53,
+          "left": 464,
+          "top": 292,
+          "right": 473,
+          "bottom": 300,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 41,
+          "left": 53,
+          "top": 258,
+          "right": 61,
+          "bottom": 263,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 470,
+          "top": 227,
+          "right": 473,
+          "bottom": 231,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 3,
+          "left": 147,
+          "top": 228,
+          "right": 148,
+          "bottom": 229,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 1,
+          "left": 397,
+          "top": 228,
+          "right": 397,
+          "bottom": 228,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 1,
+          "left": 439,
+          "top": 326,
+          "right": 439,
+          "bottom": 326,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -5588,18 +8153,211 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 17,
       "mainComponent": {
-        "area": 143563,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 116422,
+        "left": 8,
+        "top": 18,
+        "right": 499,
+        "bottom": 408
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.98253,
+      "secondaryComponents": [
+        {
+          "area": 470,
+          "left": 435,
+          "top": 133,
+          "right": 468,
+          "bottom": 168,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 352,
+          "left": 398,
+          "top": 164,
+          "right": 419,
+          "bottom": 197,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 218,
+          "left": 69,
+          "top": 99,
+          "right": 85,
+          "bottom": 121,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 158,
+          "left": 48,
+          "top": 272,
+          "right": 70,
+          "bottom": 301,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 157,
+          "left": 126,
+          "top": 197,
+          "right": 140,
+          "bottom": 221,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 145,
+          "left": 433,
+          "top": 285,
+          "right": 449,
+          "bottom": 303,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 90,
+          "left": 103,
+          "top": 140,
+          "right": 112,
+          "bottom": 157,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 76,
+          "left": 416,
+          "top": 131,
+          "right": 425,
+          "bottom": 144,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 64,
+          "left": 26,
+          "top": 265,
+          "right": 36,
+          "bottom": 273,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 59,
+          "left": 33,
+          "top": 203,
+          "right": 43,
+          "bottom": 211,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 58,
+          "left": 476,
+          "top": 124,
+          "right": 485,
+          "bottom": 132,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 57,
+          "left": 470,
+          "top": 155,
+          "right": 480,
+          "bottom": 163,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 47,
+          "left": 461,
+          "top": 286,
+          "right": 468,
+          "bottom": 293,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 44,
+          "left": 482,
+          "top": 208,
+          "right": 490,
+          "bottom": 215,
+          "distanceToMainPx": 0,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 39,
+          "left": 19,
+          "top": 203,
+          "right": 26,
+          "bottom": 209,
+          "distanceToMainPx": 0,
+          "issues": [
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 36,
+          "left": 197,
+          "top": 246,
+          "right": 203,
+          "bottom": 253,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "EDGE_CONTAMINATION"
+      ]
     },
     {
       "location": "runtime",
@@ -5608,33 +8366,220 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 2,
+      "componentCount": 18,
       "mainComponent": {
-        "area": 106853,
-        "left": 24,
-        "top": 24,
-        "right": 349,
-        "bottom": 491
+        "area": 87260,
+        "left": 21,
+        "top": 38,
+        "right": 450,
+        "bottom": 419
       },
-      "mainComponentRatio": 0.99128,
+      "mainComponentRatio": 0.974656,
       "secondaryComponents": [
         {
-          "area": 940,
-          "left": 469,
-          "top": 119,
-          "right": 487,
-          "bottom": 186,
-          "distanceToMainPx": 119,
+          "area": 369,
+          "left": 396,
+          "top": 283,
+          "right": 429,
+          "bottom": 314,
+          "distanceToMainPx": 0,
           "issues": [
             "SECONDARY_COMPONENT_TOO_LARGE",
             "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
           ]
+        },
+        {
+          "area": 318,
+          "left": 37,
+          "top": 223,
+          "right": 63,
+          "bottom": 245,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 304,
+          "left": 92,
+          "top": 250,
+          "right": 114,
+          "bottom": 279,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 293,
+          "left": 360,
+          "top": 300,
+          "right": 384,
+          "bottom": 328,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 244,
+          "left": 77,
+          "top": 284,
+          "right": 100,
+          "bottom": 303,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 218,
+          "left": 390,
+          "top": 255,
+          "right": 410,
+          "bottom": 278,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 106,
+          "left": 418,
+          "top": 200,
+          "right": 430,
+          "bottom": 214,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 87,
+          "left": 62,
+          "top": 198,
+          "right": 72,
+          "bottom": 209,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 82,
+          "left": 138,
+          "top": 294,
+          "right": 146,
+          "bottom": 309,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 73,
+          "left": 402,
+          "top": 230,
+          "right": 412,
+          "bottom": 241,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 69,
+          "left": 38,
+          "top": 274,
+          "right": 48,
+          "bottom": 282,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 49,
+          "left": 422,
+          "top": 242,
+          "right": 430,
+          "bottom": 249,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 69,
+          "top": 260,
+          "right": 73,
+          "bottom": 266,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 11,
+          "left": 372,
+          "top": 283,
+          "right": 375,
+          "bottom": 285,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 9,
+          "left": 91,
+          "top": 230,
+          "right": 93,
+          "bottom": 233,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 9,
+          "left": 116,
+          "top": 287,
+          "right": 118,
+          "bottom": 290,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 3,
+          "left": 413,
+          "top": 338,
+          "right": 415,
+          "bottom": 340,
+          "distanceToMainPx": 0,
+          "issues": []
         }
       ],
       "severity": "REDRAW_REQUIRED",
       "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
         "SECONDARY_COMPONENT_TOO_LARGE",
-        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
       ]
     },
     {
@@ -5644,18 +8589,81 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 6,
       "mainComponent": {
-        "area": 162121,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 84812,
+        "left": 25,
+        "top": 44,
+        "right": 405,
+        "bottom": 429
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.991721,
+      "secondaryComponents": [
+        {
+          "area": 468,
+          "left": 339,
+          "top": 311,
+          "right": 372,
+          "bottom": 345,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 133,
+          "left": 84,
+          "top": 313,
+          "right": 100,
+          "bottom": 325,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 64,
+          "left": 108,
+          "top": 311,
+          "right": 117,
+          "bottom": 322,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 394,
+          "top": 331,
+          "right": 398,
+          "bottom": 336,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 373,
+          "top": 302,
+          "right": 377,
+          "bottom": 306,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6003,18 +9011,112 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 96749,
-        "left": 80,
-        "top": 24,
-        "right": 431,
-        "bottom": 491
+        "area": 73132,
+        "left": 96,
+        "top": 142,
+        "right": 447,
+        "bottom": 502
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.993898,
+      "secondaryComponents": [
+        {
+          "area": 129,
+          "left": 381,
+          "top": 407,
+          "right": 399,
+          "bottom": 424,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 99,
+          "left": 146,
+          "top": 398,
+          "right": 159,
+          "bottom": 408,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 80,
+          "left": 411,
+          "top": 402,
+          "right": 424,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 40,
+          "left": 168,
+          "top": 396,
+          "right": 174,
+          "bottom": 402,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 34,
+          "left": 185,
+          "top": 405,
+          "right": 191,
+          "bottom": 411,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 34,
+          "left": 99,
+          "top": 445,
+          "right": 105,
+          "bottom": 451,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 31,
+          "left": 431,
+          "top": 422,
+          "right": 437,
+          "bottom": 427,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 2,
+          "left": 411,
+          "top": 442,
+          "right": 411,
+          "bottom": 443,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -6023,18 +9125,127 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame1.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 10,
       "mainComponent": {
-        "area": 124571,
-        "left": 33,
-        "top": 25,
-        "right": 478,
-        "bottom": 491
+        "area": 71116,
+        "left": 95,
+        "top": 166,
+        "right": 438,
+        "bottom": 501
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.995395,
+      "secondaryComponents": [
+        {
+          "area": 60,
+          "left": 160,
+          "top": 393,
+          "right": 170,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 57,
+          "left": 110,
+          "top": 439,
+          "right": 117,
+          "bottom": 448,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 52,
+          "left": 113,
+          "top": 401,
+          "right": 121,
+          "bottom": 407,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 40,
+          "left": 103,
+          "top": 419,
+          "right": 110,
+          "bottom": 424,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 39,
+          "left": 181,
+          "top": 395,
+          "right": 187,
+          "bottom": 402,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 33,
+          "left": 195,
+          "top": 406,
+          "right": 200,
+          "bottom": 412,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 23,
+          "left": 390,
+          "top": 439,
+          "right": 394,
+          "bottom": 444,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 425,
+          "top": 434,
+          "right": 429,
+          "bottom": 438,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 4,
+          "left": 64,
+          "top": 479,
+          "right": 65,
+          "bottom": 481,
+          "distanceToMainPx": 29,
+          "issues": [
+            "CORNER_CONTAMINATION"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION"
+      ]
     },
     {
       "location": "runtime",
@@ -6043,18 +9254,153 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame2.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 12,
       "mainComponent": {
-        "area": 120085,
-        "left": 45,
-        "top": 24,
-        "right": 466,
-        "bottom": 491
+        "area": 69172,
+        "left": 80,
+        "top": 164,
+        "right": 413,
+        "bottom": 501
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.992581,
+      "secondaryComponents": [
+        {
+          "area": 175,
+          "left": 435,
+          "top": 426,
+          "right": 447,
+          "bottom": 443,
+          "distanceToMainPx": 21,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 112,
+          "left": 429,
+          "top": 474,
+          "right": 447,
+          "bottom": 483,
+          "distanceToMainPx": 15,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 62,
+          "left": 113,
+          "top": 408,
+          "right": 123,
+          "bottom": 415,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 40,
+          "left": 84,
+          "top": 456,
+          "right": 90,
+          "bottom": 462,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 31,
+          "left": 137,
+          "top": 406,
+          "right": 143,
+          "bottom": 411,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 440,
+          "top": 486,
+          "right": 447,
+          "bottom": 490,
+          "distanceToMainPx": 26,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 161,
+          "top": 415,
+          "right": 165,
+          "bottom": 419,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 435,
+          "top": 453,
+          "right": 439,
+          "bottom": 456,
+          "distanceToMainPx": 21,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 407,
+          "top": 435,
+          "right": 410,
+          "bottom": 438,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 11,
+          "left": 446,
+          "top": 460,
+          "right": 447,
+          "bottom": 465,
+          "distanceToMainPx": 32,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 8,
+          "left": 368,
+          "top": 442,
+          "right": 370,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "CORNER_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "EDGE_CONTAMINATION",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6063,18 +9409,115 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame3.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 123184,
-        "left": 24,
-        "top": 31,
-        "right": 487,
-        "bottom": 484
+        "area": 70880,
+        "left": 64,
+        "top": 151,
+        "right": 412,
+        "bottom": 502
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.99524,
+      "secondaryComponents": [
+        {
+          "area": 67,
+          "left": 81,
+          "top": 402,
+          "right": 92,
+          "bottom": 409,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 62,
+          "left": 316,
+          "top": 419,
+          "right": 327,
+          "bottom": 427,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 58,
+          "left": 355,
+          "top": 410,
+          "right": 366,
+          "bottom": 415,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 43,
+          "left": 392,
+          "top": 461,
+          "right": 401,
+          "bottom": 466,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 386,
+          "top": 428,
+          "right": 392,
+          "bottom": 433,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 33,
+          "left": 101,
+          "top": 397,
+          "right": 107,
+          "bottom": 402,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 24,
+          "left": 356,
+          "top": 445,
+          "right": 361,
+          "bottom": 449,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 331,
+          "top": 415,
+          "right": 334,
+          "bottom": 419,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6083,18 +9526,115 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 114476,
-        "left": 44,
-        "top": 24,
-        "right": 466,
-        "bottom": 490
+        "area": 73099,
+        "left": 99,
+        "top": 138,
+        "right": 447,
+        "bottom": 500
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.994165,
+      "secondaryComponents": [
+        {
+          "area": 169,
+          "left": 378,
+          "top": 408,
+          "right": 399,
+          "bottom": 432,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 80,
+          "left": 137,
+          "top": 398,
+          "right": 150,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 38,
+          "left": 164,
+          "top": 395,
+          "right": 170,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 37,
+          "left": 416,
+          "top": 442,
+          "right": 424,
+          "bottom": 447,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 30,
+          "left": 438,
+          "top": 409,
+          "right": 444,
+          "bottom": 413,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 30,
+          "left": 106,
+          "top": 461,
+          "right": 111,
+          "bottom": 466,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 185,
+          "top": 405,
+          "right": 189,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 444,
+          "top": 433,
+          "right": 447,
+          "bottom": 437,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6103,18 +9643,117 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 137492,
-        "left": 24,
-        "top": 34,
-        "right": 487,
-        "bottom": 481
+        "area": 68181,
+        "left": 106,
+        "top": 162,
+        "right": 440,
+        "bottom": 500
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.995547,
+      "secondaryComponents": [
+        {
+          "area": 100,
+          "left": 64,
+          "top": 473,
+          "right": 79,
+          "bottom": 482,
+          "distanceToMainPx": 26,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 52,
+          "left": 151,
+          "top": 396,
+          "right": 160,
+          "bottom": 402,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 38,
+          "left": 64,
+          "top": 463,
+          "right": 71,
+          "bottom": 467,
+          "distanceToMainPx": 34,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 29,
+          "left": 185,
+          "top": 406,
+          "right": 190,
+          "bottom": 411,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 428,
+          "top": 449,
+          "right": 432,
+          "bottom": 454,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 111,
+          "top": 454,
+          "right": 116,
+          "bottom": 459,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 175,
+          "top": 399,
+          "right": 179,
+          "bottom": 403,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 64,
+          "top": 433,
+          "right": 66,
+          "bottom": 437,
+          "distanceToMainPx": 39,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "CORNER_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6123,18 +9762,121 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 9,
       "mainComponent": {
-        "area": 120595,
-        "left": 25,
-        "top": 39,
-        "right": 487,
-        "bottom": 475
+        "area": 67522,
+        "left": 79,
+        "top": 163,
+        "right": 403,
+        "bottom": 500
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.9658,
+      "secondaryComponents": [
+        {
+          "area": 2098,
+          "left": 404,
+          "top": 409,
+          "right": 447,
+          "bottom": 493,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "EDGE_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 92,
+          "left": 130,
+          "top": 399,
+          "right": 143,
+          "bottom": 408,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 50,
+          "left": 81,
+          "top": 444,
+          "right": 88,
+          "bottom": 451,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 48,
+          "left": 81,
+          "top": 418,
+          "right": 89,
+          "bottom": 424,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 34,
+          "left": 153,
+          "top": 396,
+          "right": 158,
+          "bottom": 403,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 29,
+          "left": 171,
+          "top": 409,
+          "right": 176,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 393,
+          "top": 434,
+          "right": 397,
+          "bottom": 439,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 375,
+          "top": 425,
+          "right": 379,
+          "bottom": 429,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "CORNER_CONTAMINATION",
+        "EDGE_CONTAMINATION",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6143,18 +9885,92 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 123171,
-        "left": 46,
-        "top": 24,
-        "right": 465,
-        "bottom": 491
+        "area": 72220,
+        "left": 64,
+        "top": 144,
+        "right": 415,
+        "bottom": 502
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.991461,
+      "secondaryComponents": [
+        {
+          "area": 382,
+          "left": 307,
+          "top": 396,
+          "right": 337,
+          "bottom": 425,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 95,
+          "left": 74,
+          "top": 397,
+          "right": 88,
+          "bottom": 407,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 45,
+          "left": 391,
+          "top": 454,
+          "right": 400,
+          "bottom": 459,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 42,
+          "left": 95,
+          "top": 394,
+          "right": 102,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 30,
+          "left": 356,
+          "top": 412,
+          "right": 361,
+          "bottom": 417,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 28,
+          "left": 113,
+          "top": 405,
+          "right": 118,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -6163,18 +9979,98 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame0.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 8,
       "mainComponent": {
-        "area": 125506,
-        "left": 25,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 74538,
+        "left": 71,
+        "top": 134,
+        "right": 410,
+        "bottom": 499
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.992451,
+      "secondaryComponents": [
+        {
+          "area": 377,
+          "left": 358,
+          "top": 391,
+          "right": 388,
+          "bottom": 420,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 90,
+          "left": 124,
+          "top": 392,
+          "right": 137,
+          "bottom": 402,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 39,
+          "left": 145,
+          "top": 390,
+          "right": 151,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 163,
+          "top": 401,
+          "right": 168,
+          "bottom": 406,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 22,
+          "left": 407,
+          "top": 407,
+          "right": 410,
+          "bottom": 412,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 8,
+          "left": 390,
+          "top": 382,
+          "right": 393,
+          "bottom": 384,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 4,
+          "left": 401,
+          "top": 434,
+          "right": 402,
+          "bottom": 435,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+      ]
     },
     {
       "location": "runtime",
@@ -6183,18 +10079,89 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame1.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 133126,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 73364,
+        "left": 71,
+        "top": 135,
+        "right": 402,
+        "bottom": 498
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.992801,
+      "secondaryComponents": [
+        {
+          "area": 374,
+          "left": 350,
+          "top": 391,
+          "right": 379,
+          "bottom": 419,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 83,
+          "left": 123,
+          "top": 392,
+          "right": 135,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 143,
+          "top": 390,
+          "right": 149,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 18,
+          "left": 161,
+          "top": 401,
+          "right": 164,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 399,
+          "top": 407,
+          "right": 402,
+          "bottom": 411,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 6,
+          "left": 383,
+          "top": 382,
+          "right": 384,
+          "bottom": 384,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6203,18 +10170,166 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame2.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 14,
       "mainComponent": {
-        "area": 142391,
-        "left": 25,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 75035,
+        "left": 70,
+        "top": 133,
+        "right": 412,
+        "bottom": 495
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.988903,
+      "secondaryComponents": [
+        {
+          "area": 297,
+          "left": 364,
+          "top": 321,
+          "right": 391,
+          "bottom": 341,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 174,
+          "left": 394,
+          "top": 384,
+          "right": 415,
+          "bottom": 398,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 137,
+          "left": 126,
+          "top": 396,
+          "right": 141,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 55,
+          "left": 397,
+          "top": 342,
+          "right": 407,
+          "bottom": 348,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 50,
+          "left": 106,
+          "top": 413,
+          "right": 113,
+          "bottom": 422,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 46,
+          "left": 393,
+          "top": 454,
+          "right": 399,
+          "bottom": 461,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 413,
+          "top": 413,
+          "right": 418,
+          "bottom": 418,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 152,
+          "top": 398,
+          "right": 156,
+          "bottom": 401,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 417,
+          "top": 425,
+          "right": 420,
+          "bottom": 429,
+          "distanceToMainPx": 4,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 11,
+          "left": 365,
+          "top": 347,
+          "right": 368,
+          "bottom": 350,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 6,
+          "left": 391,
+          "top": 377,
+          "right": 393,
+          "bottom": 379,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 4,
+          "left": 354,
+          "top": 340,
+          "right": 356,
+          "bottom": 341,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 4,
+          "left": 411,
+          "top": 454,
+          "right": 412,
+          "bottom": 455,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6223,18 +10338,235 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame3.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 21,
       "mainComponent": {
-        "area": 144043,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 71529,
+        "left": 69,
+        "top": 137,
+        "right": 409,
+        "bottom": 494
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.984285,
+      "secondaryComponents": [
+        {
+          "area": 271,
+          "left": 397,
+          "top": 369,
+          "right": 423,
+          "bottom": 386,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 269,
+          "left": 335,
+          "top": 315,
+          "right": 362,
+          "bottom": 335,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 191,
+          "left": 113,
+          "top": 405,
+          "right": 128,
+          "bottom": 426,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 132,
+          "left": 391,
+          "top": 430,
+          "right": 403,
+          "bottom": 446,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 71,
+          "left": 377,
+          "top": 451,
+          "right": 391,
+          "bottom": 459,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 50,
+          "left": 417,
+          "top": 416,
+          "right": 423,
+          "bottom": 425,
+          "distanceToMainPx": 7,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 25,
+          "left": 385,
+          "top": 317,
+          "right": 390,
+          "bottom": 321,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 24,
+          "left": 89,
+          "top": 429,
+          "right": 93,
+          "bottom": 434,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 137,
+          "top": 405,
+          "right": 142,
+          "bottom": 409,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 17,
+          "left": 421,
+          "top": 399,
+          "right": 424,
+          "bottom": 403,
+          "distanceToMainPx": 11,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 16,
+          "left": 408,
+          "top": 323,
+          "right": 412,
+          "bottom": 326,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 13,
+          "left": 396,
+          "top": 359,
+          "right": 400,
+          "bottom": 362,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 9,
+          "left": 94,
+          "top": 424,
+          "right": 97,
+          "bottom": 426,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 8,
+          "left": 321,
+          "top": 345,
+          "right": 323,
+          "bottom": 347,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 6,
+          "left": 352,
+          "top": 336,
+          "right": 355,
+          "bottom": 337,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 6,
+          "left": 385,
+          "top": 426,
+          "right": 387,
+          "bottom": 428,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 5,
+          "left": 388,
+          "top": 375,
+          "right": 390,
+          "bottom": 376,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 4,
+          "left": 371,
+          "top": 327,
+          "right": 372,
+          "bottom": 328,
+          "distanceToMainPx": 0,
+          "issues": []
+        },
+        {
+          "area": 4,
+          "left": 419,
+          "top": 357,
+          "right": 420,
+          "bottom": 358,
+          "distanceToMainPx": 9,
+          "issues": []
+        },
+        {
+          "area": 1,
+          "left": 359,
+          "top": 334,
+          "right": 359,
+          "bottom": 334,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6243,18 +10575,204 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame4.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 17,
       "mainComponent": {
-        "area": 129088,
-        "left": 26,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 68099,
+        "left": 89,
+        "top": 154,
+        "right": 438,
+        "bottom": 494
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.981084,
+      "secondaryComponents": [
+        {
+          "area": 548,
+          "left": 400,
+          "top": 313,
+          "right": 442,
+          "bottom": 333,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 213,
+          "left": 381,
+          "top": 344,
+          "right": 407,
+          "bottom": 359,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 152,
+          "left": 121,
+          "top": 408,
+          "right": 134,
+          "bottom": 425,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 84,
+          "left": 435,
+          "top": 352,
+          "right": 447,
+          "bottom": 361,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 58,
+          "left": 426,
+          "top": 448,
+          "right": 434,
+          "bottom": 458,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 42,
+          "left": 378,
+          "top": 335,
+          "right": 386,
+          "bottom": 343,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 41,
+          "left": 442,
+          "top": 293,
+          "right": 447,
+          "bottom": 301,
+          "distanceToMainPx": 3,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 181,
+          "top": 403,
+          "right": 188,
+          "bottom": 408,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 427,
+          "top": 404,
+          "right": 434,
+          "bottom": 410,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 441,
+          "top": 396,
+          "right": 447,
+          "bottom": 401,
+          "distanceToMainPx": 2,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 26,
+          "left": 158,
+          "top": 397,
+          "right": 164,
+          "bottom": 402,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 14,
+          "left": 188,
+          "top": 413,
+          "right": 191,
+          "bottom": 416,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 13,
+          "left": 96,
+          "top": 458,
+          "right": 99,
+          "bottom": 461,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 12,
+          "left": 439,
+          "top": 418,
+          "right": 442,
+          "bottom": 421,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 7,
+          "left": 446,
+          "top": 430,
+          "right": 447,
+          "bottom": 433,
+          "distanceToMainPx": 7,
+          "issues": []
+        },
+        {
+          "area": 6,
+          "left": 424,
+          "top": 356,
+          "right": 425,
+          "bottom": 358,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6263,18 +10781,249 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame5.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 20,
       "mainComponent": {
-        "area": 125889,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 73930,
+        "left": 68,
+        "top": 151,
+        "right": 420,
+        "bottom": 495
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.973942,
+      "secondaryComponents": [
+        {
+          "area": 435,
+          "left": 373,
+          "top": 250,
+          "right": 396,
+          "bottom": 288,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 251,
+          "left": 64,
+          "top": 396,
+          "right": 81,
+          "bottom": 416,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 178,
+          "left": 64,
+          "top": 431,
+          "right": 77,
+          "bottom": 449,
+          "distanceToMainPx": 0,
+          "issues": [
+            "CORNER_CONTAMINATION",
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 171,
+          "left": 401,
+          "top": 297,
+          "right": 411,
+          "bottom": 320,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 147,
+          "left": 64,
+          "top": 352,
+          "right": 76,
+          "bottom": 365,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 139,
+          "left": 416,
+          "top": 323,
+          "right": 426,
+          "bottom": 339,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 120,
+          "left": 336,
+          "top": 275,
+          "right": 349,
+          "bottom": 287,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 102,
+          "left": 348,
+          "top": 252,
+          "right": 359,
+          "bottom": 263,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 77,
+          "left": 136,
+          "top": 396,
+          "right": 148,
+          "bottom": 405,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 68,
+          "left": 76,
+          "top": 335,
+          "right": 86,
+          "bottom": 342,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 53,
+          "left": 94,
+          "top": 428,
+          "right": 103,
+          "bottom": 437,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 51,
+          "left": 64,
+          "top": 293,
+          "right": 70,
+          "bottom": 301,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 44,
+          "left": 168,
+          "top": 402,
+          "right": 176,
+          "bottom": 408,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 38,
+          "left": 344,
+          "top": 327,
+          "right": 349,
+          "bottom": 334,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 29,
+          "left": 417,
+          "top": 387,
+          "right": 421,
+          "bottom": 393,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 23,
+          "left": 116,
+          "top": 413,
+          "right": 121,
+          "bottom": 417,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 21,
+          "left": 359,
+          "top": 327,
+          "right": 362,
+          "bottom": 332,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 20,
+          "left": 88,
+          "top": 377,
+          "right": 92,
+          "bottom": 382,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 11,
+          "left": 362,
+          "top": 275,
+          "right": 365,
+          "bottom": 277,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "CORNER_CONTAMINATION",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6283,18 +11032,151 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame6.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 12,
       "mainComponent": {
-        "area": 142548,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 65638,
+        "left": 80,
+        "top": 154,
+        "right": 421,
+        "bottom": 496
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.979847,
+      "secondaryComponents": [
+        {
+          "area": 481,
+          "left": 120,
+          "top": 378,
+          "right": 149,
+          "bottom": 414,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 313,
+          "left": 374,
+          "top": 353,
+          "right": 403,
+          "bottom": 371,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 156,
+          "left": 100,
+          "top": 419,
+          "right": 110,
+          "bottom": 439,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 119,
+          "left": 407,
+          "top": 376,
+          "right": 422,
+          "bottom": 385,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 103,
+          "left": 154,
+          "top": 399,
+          "right": 167,
+          "bottom": 409,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 50,
+          "left": 415,
+          "top": 436,
+          "right": 421,
+          "bottom": 445,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 46,
+          "left": 356,
+          "top": 371,
+          "right": 363,
+          "bottom": 379,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 35,
+          "left": 342,
+          "top": 389,
+          "right": 348,
+          "bottom": 396,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 27,
+          "left": 405,
+          "top": 454,
+          "right": 411,
+          "bottom": 458,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 401,
+          "top": 390,
+          "right": 405,
+          "bottom": 393,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 1,
+          "left": 91,
+          "top": 441,
+          "right": 91,
+          "bottom": 441,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "MAIN_COMPONENT_TOO_SMALL",
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",
@@ -6303,18 +11185,90 @@
       "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame7.png",
       "width": 512,
       "height": 512,
-      "componentCount": 1,
+      "componentCount": 7,
       "mainComponent": {
-        "area": 127241,
-        "left": 24,
-        "top": 24,
-        "right": 487,
-        "bottom": 491
+        "area": 62683,
+        "left": 80,
+        "top": 158,
+        "right": 401,
+        "bottom": 497
       },
-      "mainComponentRatio": 1,
-      "secondaryComponents": [],
-      "severity": "PASS",
-      "issues": []
+      "mainComponentRatio": 0.992746,
+      "secondaryComponents": [
+        {
+          "area": 289,
+          "left": 343,
+          "top": 399,
+          "right": 366,
+          "bottom": 426,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 100,
+          "left": 122,
+          "top": 402,
+          "right": 136,
+          "bottom": 412,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 36,
+          "left": 144,
+          "top": 400,
+          "right": 150,
+          "bottom": 407,
+          "distanceToMainPx": 0,
+          "issues": [
+            "SECONDARY_COMPONENT_TOO_LARGE",
+            "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT"
+          ]
+        },
+        {
+          "area": 19,
+          "left": 161,
+          "top": 412,
+          "right": 165,
+          "bottom": 416,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 10,
+          "left": 369,
+          "top": 390,
+          "right": 372,
+          "bottom": 393,
+          "distanceToMainPx": 0,
+          "issues": [
+            "ISOLATED_PIXEL_ISLAND"
+          ]
+        },
+        {
+          "area": 4,
+          "left": 394,
+          "top": 416,
+          "right": 395,
+          "bottom": 417,
+          "distanceToMainPx": 0,
+          "issues": []
+        }
+      ],
+      "severity": "REDRAW_REQUIRED",
+      "issues": [
+        "SECONDARY_COMPONENT_TOO_LARGE",
+        "POSSIBLE_NEIGHBOR_FRAME_FRAGMENT",
+        "ISOLATED_PIXEL_ISLAND"
+      ]
     },
     {
       "location": "runtime",

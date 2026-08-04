@@ -32,6 +32,7 @@ import {
   selectIcaroBurstRetarget,
   updateInterceptadorIcaro,
 } from "./interceptadorIcaro.js";
+import { updateFuzileiroVoltaico } from "./fuzileiroVoltaico.js";
 import {
   createWindCurrentState,
   endWindCurrent,
@@ -434,7 +435,14 @@ export function canPlaceTroop(session, troopId, row, col) {
   if (!troop || !session.loadout.includes(troopId)) return "Tropa fora do loadout.";
   if (col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) return "Posição reservada para a defesa da base.";
   if (row < 0 || row >= FIELD.rows || col < 0 || col >= FIELD.cols - 1) return "Posição fora da zona de combate.";
-  const tidePlacementReason = getTidePlacementBlockReason(session, row, col);
+  const tideCell = getTideCellState(session, row, col);
+  const canBypassTidePlacement = tideCell.status !== "drying" && (
+    (tideCell.type === "deepWater" && troop.canDeployInDeepWater)
+    || (tideCell.flooded && troop.canDeployInFloodedCells)
+  );
+  const tidePlacementReason = canBypassTidePlacement
+    ? null
+    : getTidePlacementBlockReason(session, row, col);
   if (tidePlacementReason) return tidePlacementReason;
   const occupant = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col);
   const droneStack = troopId === "droneSentinela" && occupant?.type === "droneSentinela" ? occupant : null;
@@ -507,6 +515,11 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     maxHp, baseMaxHp, fortificationBonusMaxHp,
     energyCost: Number(options.energyCost) || 0,
     supplyCost: Number.isFinite(options.supplyCost) ? Number(options.supplyCost) : config.supply,
+    amphibious: Boolean(config.amphibious),
+    canDeployInFloodedCells: Boolean(config.canDeployInFloodedCells),
+    canDeployInDeepWater: Boolean(config.canDeployInDeepWater),
+    ignoreTidePressure: Boolean(config.ignoreTidePressure),
+    ignoreTideAttackSpeedPenalty: Boolean(config.ignoreTideAttackSpeedPenalty),
     droneCount: troopId === "droneSentinela" ? 1 : undefined,
     droneState: troopId === "operadorJano" ? "idle" : undefined,
     droneStateStartedAt: troopId === "operadorJano" ? session.elapsed : undefined,
@@ -3210,6 +3223,20 @@ function updateTroops(session, events, dt) {
       updateInterceptadorIcaro(session, troop, config, events, {
         createId: id,
         getMuzzleWorldPosition,
+        nextEffectSeed: () => nextEffectSeed(session),
+        recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+      });
+      continue;
+    }
+    if (config.id === "fuzileiroVoltaico") {
+      updateFuzileiroVoltaico(session, troop, config, events, {
+        occupiesTargetRow: enemyOccupiesTargetRow,
+        damageEnemy: (target, amount, context) =>
+          damageEnemy(session, target, amount, events, context),
+        damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
+        getMuzzlePosition: (frame) => getMuzzleWorldPosition(troop, config, 0, frame),
+        getTargetPoint: (target, targetRow) =>
+          enemyHitPointForRow(target, targetRow, session.elapsed),
         nextEffectSeed: () => nextEffectSeed(session),
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
       });

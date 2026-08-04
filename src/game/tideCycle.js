@@ -730,6 +730,11 @@ function syncSubmergedTroops(session, config, events, hooks = {}) {
       });
     }
 
+    if (troop.ignoreTidePressure) {
+      troop.tidePressureDamageApplied = 0;
+      continue;
+    }
+
     const pressureStart = troop.submergedStartedAt + config.pressureGraceMs;
     const pressureProgress = clamp(
       (session.elapsed - pressureStart) / Math.max(1, config.pressureDurationMs),
@@ -992,6 +997,7 @@ export function getTideAdjustedEnemySlowFactor(session, enemy, slowFactor = 1) {
 export function getTideTroopAttackSpeedFactor(session, troop) {
   const config = tideConfig(session);
   if (!config || !troop || troop.dead || troop.type === "reator"
+    || troop.ignoreTideAttackSpeedPenalty
     || !isTideCellFlooded(session, troop.row, troop.col)) return 1;
   return clamp(config.submergedAttackSpeedFactor || 1, 0.1, 1);
 }

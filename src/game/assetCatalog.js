@@ -282,9 +282,16 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
     result.troops[troopId] = {};
     for (const state of states) {
       const task = async () => {
-        result.troops[troopId][state] = await loadFrameSet(
+        let frames = await loadFrameSet(
           troopFrameModules, troop.spriteKey, state, loadOptions,
         );
+        const fallbackState = troop.assetStateFallbacks?.[state];
+        if (!frames.some(Boolean) && fallbackState) {
+          frames = await loadFrameSet(
+            troopFrameModules, troop.spriteKey, fallbackState, loadOptions,
+          );
+        }
+        result.troops[troopId][state] = frames;
       };
       const rareState = /death|dead|special|transition/i.test(state);
       const bucket = options.deferRareStates && rareState

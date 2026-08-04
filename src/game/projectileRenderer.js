@@ -33,6 +33,7 @@ export function isEssentialParticleEvent(event = {}) {
   return event.type === "hit" || event.type === "troopHit" || event.type === "shieldHit"
     || event.type === "shieldBreak" || event.type === "glassEchoShatter" || event.type === "bossPhase" || event.type === "bossDeath"
     || event.type === "prismaticPulse" || event.type === "iceImpact"
+    || event.type === "voltaicDischarge"
     || event.type === "scarabTransitionStart" || event.type === "scarabTransitionComplete"
     || event.type === "capsuleLanded" || event.type === "capsuleOpened" || event.type === "fortuneOrbitalStrike"
     || (event.type === "repulsorImpact" && event.stunned);
@@ -348,6 +349,50 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#ecfeff", born: now, life: 300, size: 34 });
       addSparks(particles, event, now, Math.max(12, Math.round(30 * quality.density)), random, {
         color: "#7fffd4", minSpeed: 35, speed: 130, life: 620, size: 2.2,
+      });
+      continue;
+    }
+
+    if (event.type === "voltaicDischarge") {
+      const primaryLife = settings.reduceMotion ? 150 : 190;
+      particles.push({
+        kind: "voltaicArc",
+        x0: event.x0, y0: event.y0, x1: event.x1, y1: event.y1,
+        color: event.color || "#22d3ee", seed: event.seed,
+        width: 7, born: now, life: primaryLife, primary: true, essential: true,
+      });
+      particles.push({
+        kind: "muzzle", x: event.x0, y: event.y0,
+        color: "#cffafe", born: now, life: 150, size: 18, essential: true,
+      });
+      particles.push({
+        kind: "ring", x: event.x1, y: event.y1,
+        color: event.color || "#22d3ee", born: now, life: 260,
+        maxRadius: event.primaryInWater ? 42 : 28, essential: true,
+      });
+      addSparks(particles, { ...event, x: event.x1, y: event.y1 }, now,
+        settings.reduceMotion ? 5 : Math.max(9, Math.round(18 * quality.density)), random, {
+          color: "#a5f3fc", minSpeed: 22, speed: 98, life: 360, size: 1.8,
+        });
+      (event.chains || []).forEach((chain, index) => {
+        particles.push({
+          kind: "voltaicArc",
+          x0: chain.x0, y0: chain.y0, x1: chain.x1, y1: chain.y1,
+          color: event.color || "#22d3ee", seed: chain.seed || event.seed + index + 1,
+          width: 4.2, born: now + (settings.reduceMotion ? 0 : 40),
+          life: settings.reduceMotion ? 130 : 160, primary: false, essential: true,
+        });
+        particles.push({
+          kind: "ring", x: chain.x1, y: chain.y1,
+          color: chain.inWater ? "#67e8f9" : event.color || "#22d3ee",
+          born: now + (settings.reduceMotion ? 0 : 40), life: 220,
+          maxRadius: chain.inWater ? 34 : 20, essential: true,
+        });
+        addSparks(particles, { ...event, x: chain.x1, y: chain.y1 }, now,
+          settings.reduceMotion ? 3 : Math.max(5, Math.round(10 * quality.density)), random, {
+            color: chain.inWater ? "#ecfeff" : "#67e8f9",
+            minSpeed: 16, speed: 72, life: 300, size: 1.5,
+          });
       });
       continue;
     }
@@ -1415,6 +1460,53 @@ export function drawProjectileCollection(
   projectileScratchState.entity = null;
 }
 
+function drawVoltaicArc(ctx, particle, progress, settings) {
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const alpha = Math.pow(1 - clampedProgress, 0.72);
+  const dx = particle.x1 - particle.x0;
+  const dy = particle.y1 - particle.y0;
+  const distance = Math.max(1, Math.hypot(dx, dy));
+  const normalX = -dy / distance;
+  const normalY = dx / distance;
+  const segmentCount = settings.reduceMotion
+    ? 1
+    : Math.max(5, Math.min(10, Math.round(distance / 58)));
+  const phase = settings.reduceMotion ? 0 : Math.floor(clampedProgress * 4);
+  const random = seeded((particle.seed || 1) + phase * 7919);
+  const points = [{ x: particle.x0, y: particle.y0 }];
+  for (let index = 1; index < segmentCount; index += 1) {
+    const ratio = index / segmentCount;
+    const envelope = Math.sin(ratio * Math.PI);
+    const jitter = (random() - 0.5) * (particle.primary ? 18 : 12) * envelope;
+    points.push({
+      x: particle.x0 + dx * ratio + normalX * jitter,
+      y: particle.y0 + dy * ratio + normalY * jitter,
+    });
+  }
+  points.push({ x: particle.x1, y: particle.y1 });
+
+  const stroke = (color, width, shadowBlur = 0) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(0.5, width);
+    ctx.shadowBlur = shadowBlur;
+    ctx.shadowColor = particle.color;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let index = 1; index < points.length; index += 1) {
+      ctx.lineTo(points[index].x, points[index].y);
+    }
+    ctx.stroke();
+  };
+
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha *= alpha;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  stroke("rgba(8,47,73,.72)", particle.width * 1.9, 12);
+  stroke(particle.color || "#22d3ee", particle.width, 18);
+  stroke("rgba(236,254,255," + (0.96 * alpha) + ")", particle.width * 0.3, 6);
+}
+
 function drawLaser(ctx, particle, progress, settings) {
   const alpha = 1 - progress;
   ctx.lineCap = "round";
@@ -1559,6 +1651,7 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
     if (progress >= 1) continue;
     particles[write] = particle;
     write += 1;
+    if (progress < 0) continue;
     if (emissiveOnly && NON_EMISSIVE_PARTICLE_KINDS.has(particle.kind)) continue;
     const seconds = (now - particle.born) / 1000;
     ctx.save();
@@ -1687,7 +1780,8 @@ export function drawParticles(ctx, particles, now, settings = {}, emissiveOnly =
       ctx.shadowBlur = 8;
       ctx.fillStyle = particle.color;
       ctx.fillText(particle.text, x, y);
-    } else if (particle.kind === "laser") drawLaser(ctx, particle, progress, settings);
+    } else if (particle.kind === "voltaicArc") drawVoltaicArc(ctx, particle, progress, settings);
+    else if (particle.kind === "laser") drawLaser(ctx, particle, progress, settings);
     else if (particle.kind === "shotgun") drawShotgun(ctx, particle, progress);
     else if (particle.kind === "repulsorWake") drawRepulsorWake(ctx, particle, progress);
     else if (particle.kind === "flameJet") drawFlameJet(ctx, particle, progress, settings);
