@@ -33,7 +33,7 @@ export function isEssentialParticleEvent(event = {}) {
   return event.type === "hit" || event.type === "troopHit" || event.type === "shieldHit"
     || event.type === "shieldBreak" || event.type === "glassEchoShatter" || event.type === "bossPhase" || event.type === "bossDeath"
     || event.type === "prismaticPulse" || event.type === "iceImpact"
-    || event.type === "voltaicDischarge"
+    || event.type === "voltaicDischarge" || event.type === "bastiaoOverload"
     || event.type === "scarabTransitionStart" || event.type === "scarabTransitionComplete"
     || event.type === "capsuleLanded" || event.type === "capsuleOpened" || event.type === "fortuneOrbitalStrike"
     || (event.type === "repulsorImpact" && event.stunned);
@@ -349,6 +349,85 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#ecfeff", born: now, life: 300, size: 34 });
       addSparks(particles, event, now, Math.max(12, Math.round(30 * quality.density)), random, {
         color: "#7fffd4", minSpeed: 35, speed: 130, life: 620, size: 2.2,
+      });
+      continue;
+    }
+
+    if (event.type === "bastiaoOverload") {
+      const delayMs = Math.max(0, Number(event.delayMs) || 0);
+      const born = now + delayMs;
+      const durationMs = Math.max(180, Number(event.durationMs) || 420);
+      const originX = Number(event.x) || 0;
+      const originY = Number(event.y) || 0;
+      const centerX = Number(event.centerX ?? event.x) || 0;
+      const centerY = Number(event.centerY ?? event.y) || 0;
+      const radius = Math.max(44, Number(event.radiusX) || 100);
+      const effectColor = event.color || "#22d3ee";
+      const coreColor = event.coreColor || "#ecfeff";
+
+      particles.push({
+        kind: "ring", x: centerX, y: centerY, color: effectColor,
+        born, life: durationMs, maxRadius: radius, essential: true,
+      });
+      particles.push({
+        kind: "muzzle", x: originX, y: originY, color: coreColor,
+        born, life: Math.min(220, durationMs), size: settings.quality === "low" ? 24 : 34,
+        essential: true,
+      });
+
+      const localArcCount = settings.reduceMotion
+        ? 2
+        : settings.quality === "low" ? 3 : settings.quality === "medium" ? 5 : 8;
+      for (let index = 0; index < localArcCount; index += 1) {
+        const angle = random() * Math.PI * 2;
+        const nextAngle = angle + (0.35 + random() * 0.75) * (random() < 0.5 ? -1 : 1);
+        const innerRadius = 18 + random() * 18;
+        const outerRadius = 32 + random() * 32;
+        particles.push({
+          kind: "voltaicArc",
+          x0: originX + Math.cos(angle) * innerRadius,
+          y0: originY + Math.sin(angle) * innerRadius * 0.72,
+          x1: originX + Math.cos(nextAngle) * outerRadius,
+          y1: originY + Math.sin(nextAngle) * outerRadius * 0.72,
+          color: effectColor,
+          seed: (event.seed || 1) + index + 1,
+          width: settings.quality === "low" ? 2.4 : 3.2,
+          born,
+          life: settings.reduceMotion ? 150 : 210,
+          primary: false,
+          essential: index < 2,
+        });
+      }
+
+      addSparks(particles, { ...event, x: originX, y: originY }, born,
+        settings.reduceMotion ? 4 : Math.max(7, Math.round(16 * quality.density)), random, {
+          color: "#a5f3fc", minSpeed: 20, speed: 100, life: 380, size: 1.8,
+        });
+
+      (event.targets || []).forEach((target, index) => {
+        const targetBorn = born + (settings.reduceMotion ? 0 : 28);
+        particles.push({
+          kind: "voltaicArc",
+          x0: originX, y0: originY,
+          x1: target.x, y1: target.y,
+          color: effectColor,
+          seed: (event.seed || 1) + 100 + index,
+          width: settings.quality === "low" ? 3 : 4,
+          born: targetBorn,
+          life: settings.reduceMotion ? 140 : 190,
+          primary: false,
+          essential: true,
+        });
+        particles.push({
+          kind: "ring", x: target.x, y: target.y,
+          color: target.boss ? "#bae6fd" : effectColor,
+          born: targetBorn, life: 230,
+          maxRadius: target.boss ? 24 : 30, essential: true,
+        });
+        addSparks(particles, { ...event, x: target.x, y: target.y }, targetBorn,
+          settings.reduceMotion ? 2 : Math.max(3, Math.round(7 * quality.density)), random, {
+            color: coreColor, minSpeed: 14, speed: 66, life: 280, size: 1.4,
+          });
       });
       continue;
     }

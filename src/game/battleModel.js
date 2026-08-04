@@ -2303,6 +2303,15 @@ function damageTroop(session, troop, amount, events, context = {}) {
       config,
       flooded,
       spawnEnergyPickup,
+      enemies: session.enemies,
+      isEnemyTargetable,
+      isEnemySubmerged: isRasgamarSubmerged,
+      damageEnemy: (enemy, damage, damageContext) =>
+        damageEnemy(session, enemy, damage, events, damageContext),
+      configForEnemy: (enemy) => ENEMIES[enemy.type],
+      nextEffectSeed: () => nextEffectSeed(session),
+      cellWidth: CELL.width,
+      cellHeight: CELL.height,
     });
   }
   if (troop.hp <= 0) {
