@@ -33,6 +33,7 @@ import {
   updateInterceptadorIcaro,
 } from "./interceptadorIcaro.js";
 import { updateFuzileiroVoltaico } from "./fuzileiroVoltaico.js";
+import { getBastiaoFloodedDamageFactor, recordBastiaoDamage, updateBastiaoMare } from "./bastiaoMare.js";
 import {
   createWindCurrentState,
   endWindCurrent,
@@ -495,7 +496,7 @@ export function isDroneStackFull(troop, config = TROOPS.droneSentinela) {
 function calculateTroopBaseMaxHp(session, troopId) {
   const config = TROOPS[troopId];
   const frontline = session.modifiers.frontlineDoctrine
-    && ["colono", "lumiUrsa7", "muralhaReforcada", "colossoImpacto"].includes(troopId) ? 1.2 : 1;
+    && ["colono", "lumiUrsa7", "muralhaReforcada", "colossoImpacto", "bastiaoMare"].includes(troopId) ? 1.2 : 1;
   return config.hp * (isOffensiveConfig(config) && !isNaniteMedic(config) ? session.modifiers.aggressiveHp : 1)
     * frontline;
 }
@@ -520,6 +521,10 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     canDeployInDeepWater: Boolean(config.canDeployInDeepWater),
     ignoreTidePressure: Boolean(config.ignoreTidePressure),
     ignoreTideAttackSpeedPenalty: Boolean(config.ignoreTideAttackSpeedPenalty),
+    ignoreTideReactorPause: Boolean(config.ignoreTideReactorPause),
+    anchoredWhenFlooded: Boolean(config.anchoredWhenFlooded),
+    floodedDamageTakenFactor: Number(config.floodedDamageTakenFactor) || 1,
+    blockDistancePx: Number(config.blockDistancePx) || undefined,
     droneCount: troopId === "droneSentinela" ? 1 : undefined,
     droneState: troopId === "operadorJano" ? "idle" : undefined,
     droneStateStartedAt: troopId === "operadorJano" ? session.elapsed : undefined,
@@ -533,7 +538,8 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
       ? session.elapsed + config.interceptionCooldownMs
       : Infinity,
     icaroLockedTargetIds: [],
-    energyAccumulator: 0, lastAttackAt: -Infinity, attackStartedAt: -Infinity,
+    energyAccumulator: 0, energyChargeProgress: 0, energyPickupSpawnTimes: [],
+    lastAttackAt: -Infinity, attackStartedAt: -Infinity,
     channelingAttack: false, channelTickAccumulator: 0, lastAttackMode: null,
     pendingImpact: null, pendingComboImpact: null, pendingRepulsorShot: null,
     attackTargetId: null, specialRequested: false, attackBusyUntil: 0,
@@ -1300,24 +1306,40 @@ export function trySpawnGlassEcho(session, source, events = []) {
   return echo;
 }
 
+export function spawnEnergyPickup(session, options = {}, events = []) {
+  const pickup = {
+    id: id("energy_pickup"),
+    x: Number(options.x) || 0,
+    y: Number(options.y) || 0,
+    vx: 0,
+    vy: 0,
+    amount: Math.max(1, Number(options.amount) || 1),
+    ageMs: 0,
+    phase: Number.isFinite(options.phase) ? options.phase : session.rng() * Math.PI * 2,
+    sourceTroopId: options.sourceTroopId || null,
+    sourceEnemyId: options.sourceEnemyId || null,
+  };
+  session.energyPickups.push(pickup);
+  events.push({
+    type: "energyDropSpawned", x: pickup.x, y: pickup.y,
+    amount: pickup.amount, color: "#fbbf24",
+    sourceTroopId: pickup.sourceTroopId, sourceEnemyId: pickup.sourceEnemyId,
+  });
+  return pickup;
+}
+
 export function trySpawnEnergyPickup(session, source, events = []) {
   const chance = ENEMIES[source?.type]?.energyDropChance;
   if (!chance || source?.variant === "alpha") return null;
   const roll = session.rng();
   if (roll >= chance) return null;
-  const pickup = {
-    id: id("energy_pickup"),
+  return spawnEnergyPickup(session, {
     x: source.x,
     y: source.y - 28,
-    vx: 0,
-    vy: 0,
     amount: 1,
-    ageMs: 0,
     phase: roll * Math.PI * 2,
-  };
-  session.energyPickups.push(pickup);
-  events.push({ type: "energyDropSpawned", x: pickup.x, y: pickup.y, amount: pickup.amount, color: "#fbbf24" });
-  return pickup;
+    sourceEnemyId: source.id,
+  }, events);
 }
 
 export function setEnergyPickupPointer(session, point) {
@@ -2231,15 +2253,20 @@ export function eliminateTroop(session, troop, events, reason = "enemy", options
   return true;
 }
 
-function damageTroop(session, troop, amount, events) {
-  if (!troop || troop.dead) return;
+function damageTroop(session, troop, amount, events, context = {}) {
+  if (!troop || troop.dead) return 0;
   const config = TROOPS[troop.type];
   const defenseFactor = isLumiUrsa7(config) && troop.defenseActive ? config.defenseDamageFactor : 1;
   const lastLineFactor = troop.col <= 1 ? session.modifiers.lastLineDamageTaken : 1;
   const advancedFormationFactor = session.modifiers.advancedFormation
     && session.advancedFormationColumns.includes(troop.col) ? 1.1 : 1;
   const finalFortressFactor = session.activeTemporaryDecisions.includes("final_fortress") ? 0.75 : 1;
-  let incoming = amount * defenseFactor * lastLineFactor * advancedFormationFactor * finalFortressFactor
+  const flooded = isTideCellFlooded(session, troop.row, troop.col);
+  const bastiaoFactor = config.id === "bastiaoMare"
+    ? getBastiaoFloodedDamageFactor(config, flooded)
+    : 1;
+  let incoming = amount * defenseFactor * lastLineFactor * advancedFormationFactor
+    * finalFortressFactor * bastiaoFactor
     * electricDamageTakenFactor(troop, session.elapsed)
     * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
   if (troop.reactiveShield > 0 && session.elapsed < troop.reactiveShieldUntil) {
@@ -2247,7 +2274,9 @@ function damageTroop(session, troop, amount, events) {
     troop.reactiveShield -= absorbed;
     incoming -= absorbed;
   }
-  troop.hp -= incoming;
+  const hpBefore = Math.max(0, troop.hp);
+  const actualHpDamage = Math.min(hpBefore, Math.max(0, incoming));
+  troop.hp = hpBefore - actualHpDamage;
   if (session.modifiers.reactiveBarrier && troop.hp > 0 && troop.hp / troop.maxHp < 0.3
     && !session.reactiveBarrierRows.includes(troop.row)) {
     session.reactiveBarrierRows.push(troop.row);
@@ -2255,7 +2284,7 @@ function damageTroop(session, troop, amount, events) {
     troop.reactiveShieldUntil = session.elapsed + 6000;
     events.push({ type: "shieldHit", targetId: troop.id, x: troop.x, y: troop.y, reactive: true });
   }
-  if (defenseFactor < 1) {
+  if (defenseFactor < 1 || bastiaoFactor < 1) {
     events.push({
       type: "shieldHit",
       targetId: troop.id,
@@ -2265,10 +2294,21 @@ function damageTroop(session, troop, amount, events) {
       seed: nextEffectSeed(session),
     });
   }
-  events.push({ type: "troopHit", targetId: troop.id, x: troop.x, y: troop.y });
+  events.push({
+    type: "troopHit", targetId: troop.id, x: troop.x, y: troop.y,
+    amount: Math.round(actualHpDamage),
+  });
+  if (config.id === "bastiaoMare" && context.generateEnergy !== false && actualHpDamage > 0) {
+    recordBastiaoDamage(session, troop, actualHpDamage, events, {
+      config,
+      flooded,
+      spawnEnergyPickup,
+    });
+  }
   if (troop.hp <= 0) {
     eliminateTroop(session, troop, events, session.sandbox ? "sandbox" : "enemy");
   }
+  return actualHpDamage;
 }
 
 function updateFlameChannel(session, troop, config, events, dt) {
@@ -3239,6 +3279,19 @@ function updateTroops(session, events, dt) {
           enemyHitPointForRow(target, targetRow, session.elapsed),
         nextEffectSeed: () => nextEffectSeed(session),
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+      });
+      continue;
+    }
+    if (config.id === "bastiaoMare") {
+      updateBastiaoMare(session, troop, config, events, {
+        cellWidth: CELL.width,
+        enemiesForRow: (row) => enemiesForRow(session, row),
+        occupiesTargetRow: enemyOccupiesTargetRow,
+        damageEnemy: (target, damage, context) =>
+          damageEnemy(session, target, damage, events, context),
+        damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
+        recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+        nextEffectSeed: () => nextEffectSeed(session),
       });
       continue;
     }
@@ -4268,7 +4321,8 @@ function closestTroopForEnemy(session, enemy, range = Infinity) {
 }
 
 function troopBlockDistance(troop) {
-  return troop?.type === "colossoImpacto" ? 48 : 54;
+  return Number(troop?.blockDistancePx || TROOPS[troop?.type]?.blockDistancePx)
+    || (troop?.type === "colossoImpacto" ? 48 : 54);
 }
 
 function gorjalContactDistance(troop, config) {
@@ -5117,7 +5171,8 @@ export function tryGorjalFormationPush(session, enemy, events = []) {
     .filter((troop) => !troop.dead && !troop.windRecovery && troop.row === enemy.row)
     .sort((left, right) => left.col - right.col);
   if (!rowTroops.length) return false;
-  const blocked = rowTroops.some((troop) => GORJAL_ANCHORS.has(troop.type))
+  const blocked = rowTroops.some((troop) => GORJAL_ANCHORS.has(troop.type)
+      || (troop.anchoredWhenFlooded && isTideCellFlooded(session, troop.row, troop.col)))
     || rowTroops.some((troop) => troop.col - 1 < FIELD.firstTroopCol)
     || rowTroops.some((troop) => session.troops.some((other) => (
       !other.dead && other.row === troop.row && other.col === troop.col - 1

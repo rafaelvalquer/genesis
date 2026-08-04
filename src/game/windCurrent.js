@@ -239,7 +239,7 @@ function permanentlyEjectTroop(session, troop, direction, dependencies, events) 
 
 function applyWindCollisionDamage(session, troop, blocker, config, dependencies, events) {
   const damage = troop.maxHp * config.collisionDamageRatio;
-  dependencies.damageTroop?.(session, troop, damage, events);
+  dependencies.damageTroop?.(session, troop, damage, events, { generateEnergy: false, environmental: true });
   session.windCurrent.collisionTroopIds.push(troop.id);
   events.push({
     type: "windTroopCollision",
