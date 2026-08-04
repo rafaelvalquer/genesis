@@ -340,6 +340,11 @@ const PHASE_BLUEPRINTS = [
         { type: "fuzileiroVoltaico", row: 2, col: 5 },
         { type: "fuzileiroVoltaico", row: 3, col: 5 },
         { type: "fuzileiroVoltaico", row: 4, col: 5 },
+        { type: "medicaNanites", row: 0, col: 3 },
+        { type: "medicaNanites", row: 1, col: 3 },
+        { type: "medicaNanites", row: 2, col: 3 },
+        { type: "medicaNanites", row: 3, col: 3 },
+        { type: "medicaNanites", row: 4, col: 3 },
       ],
       startingTroopRules: {
         consumeEnergy: false,

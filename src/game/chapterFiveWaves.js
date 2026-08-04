@@ -11,6 +11,17 @@ const PHASE_PACKET_SEQUENCES = Object.freeze([
   [["N10","N13","N8","N12","N11","N14","N9"],["N13","N10","N14","N8","N12","N11","N13","N14"],["N10","N13","N8","N12","N11","N14","N9","N13","N14"],["N13","N10","N14","N8","N12","N11","N13","N14"],["N10","N13","N8","N12","N11","N14","N9","N13","N14"],["N10","N11","N8","N12","N13","N10","N14"]],
 ]);
 
+export const PHASE_40_BALANCED_PACKET_SEQUENCES = Object.freeze([
+  ["N3", "N5", "N10", "N8", "N11"],
+  ["N7", "N10", "N8", "N12", "N11"],
+  ["N10", "N13", "N8", "N12", "N11"],
+  ["N13", "N10", "N14", "N8", "N12", "N11"],
+  ["N10", "N13", "N8", "N12", "N11", "N14", "N13"],
+  ["N10", "N11", "N8", "N12", "N13", "N14"],
+].map((wave) => Object.freeze(wave)));
+export const PHASE_40_PACKET_GAPS = Object.freeze([9000, 8500, 7500, 6800, 6200, 5500]);
+export const PHASE_40_MAXIMUM_LIVING = 48;
+
 export const PHASE_PACKET_GAPS = Object.freeze([
   [14000, 13000, 12000, 11500, 10500, 10000],
   [12000, 11500, 10500, 10000, 9500, 9000],
@@ -33,12 +44,18 @@ function unitCount(unit) { return unit.rows?.length ? unit.rows.length * (unit.c
 function aggregateEnemies(packets) { const totals = new Map(); for (const unit of packets.flatMap((packet) => packet.units)) { const current = totals.get(unit.type) || { type: unit.type, count: 0 }; current.count += unitCount(unit); totals.set(unit.type, current); } return [...totals.values()]; }
 
 export function createChapterFiveWaves(phaseIndex) {
-  const sequences = PHASE_PACKET_SEQUENCES[phaseIndex] || [];
+  const sequences = phaseIndex === 7
+    ? PHASE_40_BALANCED_PACKET_SEQUENCES
+    : PHASE_PACKET_SEQUENCES[phaseIndex] || [];
   return sequences.map((sequence, waveIndex) => {
-    const gap = PHASE_PACKET_GAPS[phaseIndex]?.[waveIndex] || 10000;
+    const gap = phaseIndex === 7
+      ? PHASE_40_PACKET_GAPS[waveIndex]
+      : PHASE_PACKET_GAPS[phaseIndex]?.[waveIndex] || 10000;
     const packets = sequence.map((key, index) => instantiateChapterFivePacket(key, index, index * gap, BLOCKS[Math.min(index, BLOCKS.length - 1)]));
     const spawnWindowMs = packets.at(-1)?.spawnAtMs || 0;
-    return { enemies: aggregateEnemies(packets), spawnBlocks: [...new Set(BLOCKS)].map((id) => ({ id, packets: packets.filter((packet) => packet.block === id) })).filter((block) => block.packets.length), spawnWindowMs, packetGapMs: gap, maximumLivingEnemies: PHASE_MAXIMUM_LIVING[phaseIndex], coordinated: true, chapterFive: true, packetThreat: packets.reduce((sum, packet) => sum + CHAPTER_FIVE_PACKETS[packet.key].threat, 0), ...(phaseIndex === 7 && waveIndex === 5 ? { bossEncounter: BOSS_ENCOUNTER } : {}) };
+    return { enemies: aggregateEnemies(packets), spawnBlocks: [...new Set(BLOCKS)].map((id) => ({ id, packets: packets.filter((packet) => packet.block === id) })).filter((block) => block.packets.length), spawnWindowMs, packetGapMs: gap, maximumLivingEnemies: phaseIndex === 7
+      ? PHASE_40_MAXIMUM_LIVING
+      : PHASE_MAXIMUM_LIVING[phaseIndex], coordinated: true, chapterFive: true, packetThreat: packets.reduce((sum, packet) => sum + CHAPTER_FIVE_PACKETS[packet.key].threat, 0), ...(phaseIndex === 7 && waveIndex === 5 ? { bossEncounter: BOSS_ENCOUNTER } : {}) };
   });
 }
 
