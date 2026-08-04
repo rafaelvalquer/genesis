@@ -169,7 +169,7 @@ const TIDE_TERRITORIES = [
   },
 ];
 
-export const CHAPTER_FIVE_PHASE_BLUEPRINTS = [
+export const CHAPTER_FIVE_PHASE_BLUEPRINTS = Object.freeze([
   phase(
     "fase_33",
     "Costa dos Naufrágios",
@@ -283,7 +283,7 @@ export const CHAPTER_FIVE_PHASE_BLUEPRINTS = [
     TIDE_TERRITORIES[7],
     PHASE_40_SCENARIO.phaseExtra,
   ),
-];
+].map((blueprint) => Object.freeze(blueprint)));
 
 function createChapterFivePhase(blueprint, chapterIndex) {
   const { tide, ...rest } = blueprint;

@@ -103,7 +103,7 @@ describe("Enguia Rasgamar", () => {
     expect(isRasgamarShadowOnly({ type: "enguiaRasgamar", rasgamarSubmerged: false })).toBe(false);
   });
 
-  it("exibe os trÃªs primeiros frames do mergulho antes da sombra submersa", () => {
+  it("exibe os três primeiros frames do mergulho antes da sombra submersa", () => {
     const enemy = {
       type: "enguiaRasgamar",
       rasgamarSubmerged: true,

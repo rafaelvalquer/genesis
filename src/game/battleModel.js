@@ -2,6 +2,13 @@ import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "./content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "./domain.js";
 import { CHAPTER_FIVE_PACKETS } from "./chapterFivePackets.js";
 import {
+  enqueueBossReinforcement as enqueueBossReinforcementSystem,
+  initializeBossEncounterForWave,
+  markBossEncounterSpawned,
+  shouldDeferBossAwareSpawn,
+  updateBossEncounter as updateBossEncounterSystem,
+} from "./systems/bossEncounterSystem.js";
+import {
   adaptiveAidBlocksIntermission,
   adaptiveAidCinematicFactor,
   adaptiveAidPausesSimulation,
@@ -133,8 +140,16 @@ function troopsForRow(session, row) {
 const mortarTargetCounts = new Uint16Array(FIELD.cols);
 const mortarTargetEntities = Array(FIELD.cols).fill(null);
 
-export function getTroopDeploymentLimit(troopId) {
-  return Number.isFinite(TROOPS[troopId]?.maxDeployed) ? TROOPS[troopId].maxDeployed : DEFAULT_MAX_DEPLOYED_PER_TROOP;
+export function getTroopDeploymentLimit(troopId, phaseOrSession = null) {
+  const phase = phaseOrSession?.phase || phaseOrSession;
+  const missionLimit = Number(
+    phase?.startingTroopRules?.deploymentLimits?.[troopId]
+      ?? phase?.troopDeploymentLimits?.[troopId],
+  );
+  if (Number.isFinite(missionLimit) && missionLimit >= 0) return Math.floor(missionLimit);
+  return Number.isFinite(TROOPS[troopId]?.maxDeployed)
+    ? TROOPS[troopId].maxDeployed
+    : DEFAULT_MAX_DEPLOYED_PER_TROOP;
 }
 
 export function getActiveTroopCount(session, troopId) {
@@ -152,8 +167,8 @@ export function getActiveTroopCount(session, troopId) {
 export function validateLoadoutForPhase(phase, loadout) {
   const uniqueLoadout = [...new Set(loadout || [])];
   if (!uniqueLoadout.length) return { ok: false, reason: "Selecione pelo menos uma tropa." };
-  if (uniqueLoadout.length > (phase.loadoutLimit ?? 6)) return { ok: false, reason: `Este capÃ­tulo permite no mÃ¡ximo ${phase.loadoutLimit} tropas.` };
-  if (uniqueLoadout.some((troopId) => !TROOPS[troopId])) return { ok: false, reason: "Loadout contÃ©m uma tropa invÃ¡lida." };
+  if (uniqueLoadout.length > (phase.loadoutLimit ?? 6)) return { ok: false, reason: `Este capítulo permite no máximo ${phase.loadoutLimit} tropas.` };
+  if (uniqueLoadout.some((troopId) => !TROOPS[troopId])) return { ok: false, reason: "Loadout contém uma tropa inválida." };
   return { ok: true, loadout: uniqueLoadout };
 }
 
@@ -458,7 +473,7 @@ export function canPlaceTroop(session, troopId, row, col) {
   if (session.mines.some((entry) => entry.active && entry.row === row && entry.col === col)
     || session.projectiles.some((entry) => entry.active && entry.kind === "mine" && entry.targetRow === row && entry.targetCol === col)) return "Célula reservada por uma mina.";
   if (capsuleReservesCell(session, row, col)) return "Célula ocupada pela Cápsula da Colônia.";
-  const deploymentLimit = getTroopDeploymentLimit(troopId);
+  const deploymentLimit = getTroopDeploymentLimit(troopId, session);
   if (troopId === "droneSentinela") {
     if (!droneStack && getDroneSentinelaTileCount(session) >= deploymentLimit) {
       return `Limite de ${deploymentLimit} células com Drone Sentinela no campo.`;
@@ -703,7 +718,7 @@ export function placeTroop(session, troopId, row, col) {
   return {
     ok: true, troop, upgraded: Boolean(existingDroneStack), events,
     activeCount: getActiveTroopCount(session, troopId),
-    maxDeployed: getTroopDeploymentLimit(troopId),
+    maxDeployed: getTroopDeploymentLimit(troopId, session),
     event: events[0] || { type: "deploy", x: troop.x, y: troop.y },
   };
 }
@@ -988,15 +1003,7 @@ export function startWave(session) {
   session.nextWaveBaseDamageFactor = 1;
   const wave = session.phase.waves[session.waveIndex];
   session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
-  session.bossEncounter = wave?.bossEncounter ? {
-    ...wave.bossEncounter,
-    spawned: false,
-    reinforcementPackets: new Set(),
-  } : null;
-  if (session.bossEncounter) {
-    session.queue.push({ type: session.bossEncounter.type, variant: null, sourceIndex: 0, row: 2, packetId: "boss_encounter", block: "boss", spawnAtMs: session.bossEncounter.spawnAtMs });
-    session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs || String(left.packetId || "").localeCompare(String(right.packetId || "")));
-  }
+  initializeBossEncounterForWave(session, wave, session.queue, { row: 2 });
   session.waveActive = true;
   session.waveKillStart = session.killed;
   session.lastEnemyKillCandidate = null;
@@ -1295,36 +1302,10 @@ function createEnemy(session, queued) {
 }
 
 function enqueueBossReinforcement(session, packetKey) {
-  const encounter = session.bossEncounter;
-  const packet = CHAPTER_FIVE_PACKETS[packetKey];
-  if (!encounter || !packet || encounter.reinforcementPackets.has(packetKey)) return;
-  encounter.reinforcementPackets.add(packetKey);
-  const livingByType = new Map();
-  session.enemies.filter((enemy) => !enemy.dead).forEach((enemy) => livingByType.set(enemy.type, (livingByType.get(enemy.type) || 0) + 1));
-  const row = Math.floor(session.rng() * FIELD.rows);
-  const at = Math.max(0, session.elapsed - session.waveStartedAt);
-  const packetId = `boss_${packet.id}_${encounter.reinforcementPackets.size}`;
-  const entries = [];
-  for (const unit of packet.units) {
-    const maximum = encounter.maximumLivingByType?.[unit.type] ?? Infinity;
-    const available = Math.max(0, maximum - (livingByType.get(unit.type) || 0));
-    const rows = unit.rows?.length ? unit.rows : [row];
-    const countPerRow = unit.rows?.length ? unit.countPerRow || 1 : unit.count;
-    const count = Math.min(rows.length * countPerRow, available);
-    livingByType.set(unit.type, (livingByType.get(unit.type) || 0) + count);
-    let remaining = count;
-    rows.forEach((unitRow, rowIndex) => {
-      for (let index = 0; index < countPerRow && remaining > 0; index += 1, remaining -= 1) entries.push({
-        type: unit.type, variant: null, sourceIndex: rowIndex * countPerRow + index, row: unitRow, packetId, block: "boss_reinforcement",
-        spawnAtMs: at + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
-        xOffsetTiles: unit.xOffsetTiles || 0,
-        formationOffsetPx: unit.spawnIntervalMs ? 0 : (index - (countPerRow - 1) / 2) * 10,
-      });
-    });
-  }
-  session.queue.push(...entries);
-  session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs || String(left.packetId || "").localeCompare(String(right.packetId || "")) || left.sourceIndex - right.sourceIndex);
-  session.nextSpawnAt = session.waveStartedAt + (session.queue[0]?.spawnAtMs ?? Infinity);
+  return enqueueBossReinforcementSystem(session, packetKey, {
+    packets: CHAPTER_FIVE_PACKETS,
+    fieldRows: FIELD.rows,
+  });
 }
 
 function livingEnemyCount(session) {
@@ -1343,20 +1324,18 @@ function deferChapterFivePacket(session, packetId, delayMs = 750) {
 
 function shouldDeferChapterFiveSpawn(session, queued) {
   const maximum = session.phase.waves[session.waveIndex]?.maximumLivingEnemies;
-  if (!Number.isFinite(maximum) || queued.packetId === "boss_encounter") return false;
-  const bossPending = session.bossEncounter && !session.bossEncounter.spawned && session.elapsed < session.waveStartedAt + session.bossEncounter.spawnAtMs;
-  const reserve = bossPending ? 1 : 0;
-  return livingEnemyCount(session) >= maximum - reserve;
+  return shouldDeferBossAwareSpawn(
+    session,
+    queued,
+    maximum,
+    livingEnemyCount(session),
+  );
 }
 
 function updateBossEncounter(session) {
-  const encounter = session.bossEncounter;
-  if (!encounter?.spawned) return;
-  const boss = session.enemies.find((enemy) => !enemy.dead && enemy.type === encounter.type);
-  if (!boss) return;
-  for (const reinforcement of encounter.reinforcements || []) {
-    if (boss.hp <= boss.maxHp * reinforcement.hpFactor) enqueueBossReinforcement(session, reinforcement.packet);
-  }
+  return updateBossEncounterSystem(session, {
+    enqueueReinforcement: (packetKey) => enqueueBossReinforcement(session, packetKey),
+  });
 }
 
 export function trySpawnGlassEcho(session, source, events = []) {
@@ -6650,7 +6629,7 @@ export function stepBattle(session, dt = 32) {
         ? session.waveStartedAt + session.queue[0].spawnAtMs
         : Infinity;
       if (!enemy) continue;
-      if (queued.type === session.bossEncounter?.type && queued.packetId === "boss_encounter") session.bossEncounter.spawned = true;
+      markBossEncounterSpawned(session, queued);
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
     updateDematerializationPulses(session, events);

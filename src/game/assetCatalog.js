@@ -189,89 +189,180 @@ export function getEnemyPreviewUrl(enemyId) {
   return match?.[1] || getEnemyConceptUrl(enemyId);
 }
 
-function enemyAssetDependencies(enemyIds) {
-  const expanded = new Set(enemyIds);
-  if (expanded.has("workerQueen")) {
-    expanded.add("workerQueenEgg");
-    expanded.add("silicaDigger");
-  }
-  return [...expanded];
-}
-
 export function getEnemyConceptUrl(enemyId) {
   const match = Object.entries(enemyConceptUrls).find(([key]) => key.endsWith(`/concepts/${enemyId}.webp`));
   return match?.[1] || "";
 }
 
-const TROOP_ASSET_REFERENCE_KEYS = Object.freeze([
-  "type",
-  "troopId",
-  "assetTroopId",
-  "sourceType",
-  "targetType",
-  "from",
-  "to",
-  "resultType",
-  "transformsInto",
-]);
-
-const TROOP_ASSET_COLLECTION_KEYS = Object.freeze([
-  "required",
-  "requiredTroopAssetIds",
-  "alliedSummons",
-  "temporaryTroops",
-  "transformations",
-  "troopTransformations",
-  "dependencies",
-  "entries",
-]);
-
-function appendTroopAssetReferences(value, destination, visited = new WeakSet()) {
-  if (typeof value === "string") {
-    destination.push(value);
-    return;
+export class AssetDependencyError extends Error {
+  constructor(message, dependencies = []) {
+    super(message);
+    this.name = "AssetDependencyError";
+    this.dependencies = dependencies;
   }
+}
+
+const ASSET_REFERENCE_KEYS = Object.freeze([
+  "type", "troopId", "assetTroopId", "enemyId", "assetEnemyId",
+  "sourceType", "targetType", "from", "to", "resultType", "transformsInto",
+]);
+const ASSET_COLLECTION_KEYS = Object.freeze([
+  "required", "requiredTroopAssetIds", "alliedSummons", "temporaryTroops",
+  "transformations", "troopTransformations", "dependencies", "entries",
+]);
+
+function appendAssetReferences(value, destination, origin, visited = new WeakSet()) {
+  if (typeof value === "string") { destination.push({ id: value, origin }); return; }
   if (Array.isArray(value)) {
-    value.forEach((entry) => appendTroopAssetReferences(entry, destination, visited));
+    value.forEach((entry, index) => appendAssetReferences(entry, destination, `${origin}[${index}]`, visited));
     return;
   }
   if (!value || typeof value !== "object" || visited.has(value)) return;
-
   visited.add(value);
-  TROOP_ASSET_REFERENCE_KEYS.forEach((key) => {
-    if (typeof value[key] === "string") destination.push(value[key]);
+  ASSET_REFERENCE_KEYS.forEach((key) => {
+    if (typeof value[key] === "string") destination.push({ id: value[key], origin: `${origin}.${key}` });
   });
-  TROOP_ASSET_COLLECTION_KEYS.forEach((key) => {
-    if (value[key] != null) {
-      appendTroopAssetReferences(value[key], destination, visited);
+  ASSET_COLLECTION_KEYS.forEach((key) => {
+    if (value[key] != null) appendAssetReferences(value[key], destination, `${origin}.${key}`, visited);
+  });
+}
+
+function strictDependencyMode(options = {}) {
+  if (typeof options.strict === "boolean") return options.strict;
+  return Boolean(import.meta.env?.DEV || import.meta.env?.MODE === "test");
+}
+
+function reportUnknownDependencies(kind, phase, records, options = {}) {
+  if (!records.length) return;
+  const unique = [...new Map(records.map((record) => [`${record.id}:${record.origin}`, record])).values()];
+  const label = kind === "troop" ? "tropa" : "inimigo";
+  const message = unique.map((record) => (
+    `Dependência de asset de ${label} desconhecida: ${record.id}\n`
+    + `Fase: ${phase?.id || "<sem fase>"}\n`
+    + `Origem: ${record.origin}`
+  )).join("\n\n");
+  if (strictDependencyMode(options)) throw new AssetDependencyError(message, unique);
+  (options.onWarning || console.warn)(message);
+}
+
+function resolveRegistryRecords(records, registry, kind, phase, options = {}) {
+  const known = [];
+  const unknown = [];
+  const seen = new Set();
+  for (const record of records) {
+    if (!record?.id || seen.has(record.id)) continue;
+    seen.add(record.id);
+    if (registry[record.id]) known.push(record.id);
+    else unknown.push(record);
+  }
+  reportUnknownDependencies(kind, phase, unknown, options);
+  return known;
+}
+
+export function resolvePhaseTroopAssetDependencies(phase, loadout = [], options = {}) {
+  const records = [];
+  appendAssetReferences(Array.isArray(loadout) ? loadout : [], records, "loadout");
+  appendAssetReferences(phase?.startingTroops, records, "startingTroops");
+  appendAssetReferences(phase?.requiredTroopAssetIds, records, "requiredTroopAssetIds");
+  appendAssetReferences(phase?.alliedSummons, records, "alliedSummons");
+  appendAssetReferences(phase?.temporaryTroops, records, "temporaryTroops");
+  appendAssetReferences(phase?.troopTransformations, records, "troopTransformations");
+  appendAssetReferences(phase?.troopAssetDependencies, records, "troopAssetDependencies");
+  return resolveRegistryRecords(records, TROOPS, "troop", phase, options);
+}
+
+export function resolveBattleTroopAssetIds(phase, loadout = [], options = {}) {
+  return resolvePhaseTroopAssetDependencies(phase, loadout, options);
+}
+
+function phaseEnemyRecords(phase, enemyIds) {
+  const records = [];
+  appendAssetReferences(enemyIds, records, "enemyIds");
+  for (const [waveIndex, wave] of (phase?.waves || []).entries()) {
+    appendAssetReferences(wave?.enemies, records, `waves[${waveIndex}].enemies`);
+    appendAssetReferences(wave?.bossEncounter?.type, records, `waves[${waveIndex}].bossEncounter.type`);
+  }
+  appendAssetReferences(phase?.enemyAssetDependencies, records, "enemyAssetDependencies");
+  return records;
+}
+
+export function resolvePhaseEnemyAssetDependencies(phase, enemyIds = [], options = {}) {
+  const queue = phaseEnemyRecords(phase, enemyIds);
+  const resolved = [];
+  const unknown = [];
+  const seen = new Set();
+  for (let index = 0; index < queue.length; index += 1) {
+    const record = queue[index];
+    if (!record?.id || seen.has(record.id)) continue;
+    seen.add(record.id);
+    const config = ENEMIES[record.id];
+    if (!config) { unknown.push(record); continue; }
+    resolved.push(record.id);
+    appendAssetReferences(config.assetDependencies, queue, `ENEMIES.${record.id}.assetDependencies`);
+  }
+  reportUnknownDependencies("enemy", phase, unknown, options);
+  return resolved;
+}
+
+export function resolvePhaseEnemyEffectDependencies(phase, enemyIds = [], options = {}) {
+  const resolvedEnemies = resolvePhaseEnemyAssetDependencies(phase, enemyIds, options);
+  const effects = [];
+  appendAssetReferences(phase?.effectAssetDependencies, effects, "effectAssetDependencies");
+  resolvedEnemies.forEach((enemyId) => {
+    appendAssetReferences(ENEMIES[enemyId]?.effectDependencies, effects, `ENEMIES.${enemyId}.effectDependencies`);
+  });
+  return [...new Set(effects.map((entry) => entry.id).filter(Boolean))];
+}
+
+function statesForFolder(modules, folder) {
+  const states = new Set();
+  for (const key of Object.keys(modules)) {
+    const marker = `/${folder}/`;
+    const start = key.indexOf(marker);
+    if (start < 0) continue;
+    const remainder = key.slice(start + marker.length);
+    const state = remainder.split("/")[0];
+    if (state) states.add(state);
+  }
+  return [...states];
+}
+
+export async function runWithConcurrency(tasks, options = {}) {
+  if (!tasks.length) return;
+  const concurrency = Math.max(1, Math.min(8, Math.floor(Number(options.concurrency) || 4)));
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+    while (cursor < tasks.length) {
+      if (options.signal?.aborted) throw abortError();
+      const taskIndex = cursor;
+      cursor += 1;
+      await tasks[taskIndex]();
+      options.onTaskComplete?.(taskIndex);
     }
   });
-}
-
-export function resolvePhaseTroopAssetDependencies(phase, loadout = []) {
-  const troopIds = [];
-  appendTroopAssetReferences(Array.isArray(loadout) ? loadout : [], troopIds);
-  appendTroopAssetReferences(phase?.startingTroops, troopIds);
-  appendTroopAssetReferences(phase?.requiredTroopAssetIds, troopIds);
-  appendTroopAssetReferences(phase?.alliedSummons, troopIds);
-  appendTroopAssetReferences(phase?.temporaryTroops, troopIds);
-  appendTroopAssetReferences(phase?.troopTransformations, troopIds);
-  appendTroopAssetReferences(phase?.troopAssetDependencies, troopIds);
-
-  return [...new Set(troopIds)]
-    .filter((troopId) => typeof troopId === "string" && TROOPS[troopId]);
-}
-
-export function resolveBattleTroopAssetIds(phase, loadout = []) {
-  return resolvePhaseTroopAssetDependencies(phase, loadout);
+  await Promise.all(workers);
 }
 
 export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {
   if (options.signal?.aborted) throw abortError();
-  const troopIds = resolvePhaseTroopAssetDependencies(phase, loadout);
-  const enemyIds = enemyAssetDependencies([
-    ...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))),
-  ]);
+  const dependencyOptions = {
+    strict: options.strictDependencies,
+    onWarning: options.onDependencyWarning,
+  };
+  const troopIds = resolvePhaseTroopAssetDependencies(phase, loadout, dependencyOptions);
+  const hasExplicitEnemyIds = Array.isArray(options.enemyIds);
+  const enemyPhase = hasExplicitEnemyIds ? null : phase;
+  const explicitEnemyIds = hasExplicitEnemyIds ? options.enemyIds : [];
+  const enemyIds = resolvePhaseEnemyAssetDependencies(
+    enemyPhase,
+    explicitEnemyIds,
+    dependencyOptions,
+  );
+  const effectDependencies = resolvePhaseEnemyEffectDependencies(
+    enemyPhase,
+    enemyIds,
+    dependencyOptions,
+  );
   const tasks = [];
   const priorityTasks = [];
   const deferredTasks = [];
@@ -281,6 +372,20 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
     troops: {}, enemies: {}, defenses: {}, effects: {}, audio: {},
     _assetCacheKeys: retainedKeys,
   };
+
+  result.effectDependencies = effectDependencies;
+  for (const effectId of effectDependencies) {
+    const states = statesForFolder(effectFrameModules, effectId);
+    if (!states.length) continue;
+    result.effects[effectId] ||= {};
+    for (const state of states) {
+      tasks.push(async () => {
+        result.effects[effectId][state] = await loadFrameSet(
+          effectFrameModules, effectId, state, loadOptions,
+        );
+      });
+    }
+  }
 
   result.effects.colonyCapsule = {};
   for (const state of ["falling", "idle", "opening"]) {
@@ -377,14 +482,18 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
   }
 
   let done = 0;
-  const orderedTasks = [...priorityTasks, ...tasks];
-  try {
-    for (const task of orderedTasks) {
-      if (options.signal?.aborted) throw abortError();
-      await task();
+  const total = priorityTasks.length + tasks.length;
+  const taskOptions = {
+    concurrency: options.assetConcurrency ?? 4,
+    signal: options.signal,
+    onTaskComplete: () => {
       done += 1;
-      onProgress({ done, total: orderedTasks.length, percent: Math.round((done / orderedTasks.length) * 100) });
-    }
+      onProgress({ done, total, percent: Math.round((done / Math.max(1, total)) * 100) });
+    },
+  };
+  try {
+    await runWithConcurrency(priorityTasks, taskOptions);
+    await runWithConcurrency(tasks, taskOptions);
   } catch (error) {
     releaseBattleAssets(result);
     throw error;
@@ -395,17 +504,19 @@ export async function loadBattleAssets(phase, loadout, onProgress = () => {}, op
   }
   result.loadDeferred = async () => {
     let deferredDone = 0;
-    for (const task of deferredTasks) {
-      if (options.signal?.aborted) throw abortError();
-      await task();
-      deferredDone += 1;
-      onProgress({
-        done: deferredDone,
-        total: deferredTasks.length,
-        percent: Math.round((deferredDone / Math.max(1, deferredTasks.length)) * 100),
-        phase: "deferred",
-      });
-    }
+    await runWithConcurrency(deferredTasks, {
+      concurrency: options.assetConcurrency ?? 4,
+      signal: options.signal,
+      onTaskComplete: () => {
+        deferredDone += 1;
+        onProgress({
+          done: deferredDone,
+          total: deferredTasks.length,
+          percent: Math.round((deferredDone / Math.max(1, deferredTasks.length)) * 100),
+          phase: "deferred",
+        });
+      },
+    });
     return result;
   };
   result.deferredStates = deferredTasks.length;

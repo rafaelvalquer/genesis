@@ -2119,7 +2119,7 @@ export const ENEMIES = {
       phase3Idle: 100,
     },
     description:
-      "Soberano das Dunas de Quitina que abandona a prÃ³pria carapaÃ§a para se tornar mais veloz, vulnerÃ¡vel e agressivo conforme perde vida.",
+      "Soberano das Dunas de Quitina que abandona a própria carapaça para se tornar mais veloz, vulnerável e agressivo conforme perde vida.",
   },
   workerQueen: {
     id: "workerQueen",
@@ -2135,6 +2135,7 @@ export const ENEMIES = {
     scale: 1.52,
     chapterId: "chapter_03",
     encyclopediaUnlockAt: 16,
+    assetDependencies: Object.freeze(["workerQueenEgg", "silicaDigger"]),
     assetStates: [
       "spawn",
       "walking",
@@ -2267,6 +2268,10 @@ export const ENEMIES = {
     role: "Chefe aquático / controle territorial / destruidor de formação",
     boss: true, chapterId: "chapter_05", debugOnly: false, testOnly: false,
     previewState: "idleSurface",
+    assetDependencies: Object.freeze([]),
+    effectDependencies: Object.freeze([
+      "leviathanBrine", "leviathanVortex", "leviathanDeluge",
+    ]),
     allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false,
     hp: 6000, maxHp: 6000, damage: 0, attackEveryMs: 0, baseDamage: 0, speed: 0, threat: 1000,
     color: "#22d3ee", scale: 2.15, spriteOffsetX: 30, spriteOffsetY: -18,
