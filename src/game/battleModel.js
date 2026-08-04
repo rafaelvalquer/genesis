@@ -313,7 +313,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
   const sandboxSettings = sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null;
   const sessionPhase = sandbox ? applySandboxMechanic(phase, sandboxSettings) : phase;
   const supplyLimit = sessionPhase.supplyLimit ?? 20;
-  return {
+  const session = {
     phase: sessionPhase,
     loadout: [...loadout],
     seed,
@@ -418,6 +418,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     decisions: [],
     killed: 0,
     deployed: {},
+    providedTroops: {},
     outcome: null,
     pendingOutcome: null,
     result: null,
@@ -425,6 +426,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     sandboxSettings,
   };
   initializeSandboxHazard(session);
+  deployStartingTroops(session);
   return session;
 }
 
@@ -566,6 +568,74 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
   };
 }
 
+export function deployStartingTroops(session) {
+  const entries = Array.isArray(session?.phase?.startingTroops)
+    ? session.phase.startingTroops
+    : [];
+  if (!entries.length) return [];
+
+  const rules = {
+    consumeEnergy: false,
+    consumeSupply: false,
+    requireLoadout: false,
+    removable: false,
+    refundable: false,
+    countTowardDeploymentLimit: true,
+    ...(session.phase.startingTroopRules || {}),
+  };
+  const occupiedCells = new Set(
+    session.troops
+      .filter((troop) => !troop.dead)
+      .map((troop) => String(troop.row) + ":" + String(troop.col)),
+  );
+  const provided = [];
+
+  for (const entry of entries) {
+    const troopType = String(entry?.type || "");
+    const row = Number(entry?.row);
+    const col = Number(entry?.col);
+    if (!TROOPS[troopType]) {
+      throw new Error("Tropa inicial desconhecida na fase " + session.phase.id + ": " + (troopType || "<vazia>") + ".");
+    }
+    if (!Number.isInteger(row) || row < 0 || row >= FIELD.rows
+      || !Number.isInteger(col) || col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) {
+      throw new Error("Posição inválida para a tropa inicial " + troopType + ": linha " + row + ", coluna " + col + ".");
+    }
+    const cellKey = String(row) + ":" + String(col);
+    if (occupiedCells.has(cellKey)) {
+      throw new Error("Célula inicial duplicada ou ocupada na fase " + session.phase.id + ": " + cellKey + ".");
+    }
+
+    const config = TROOPS[troopType];
+    const energyCost = rules.consumeEnergy ? Number(config.price) || 0 : 0;
+    const supplyCost = rules.consumeSupply ? Number(config.supply) || 0 : 0;
+    const troop = createTroopEntity(session, troopType, row, col, {
+      energyCost,
+      supplyCost,
+    });
+    if (!troop) continue;
+
+    troop.missionProvided = true;
+    troop.providedByPhaseId = session.phase.id;
+    troop.providedAtStart = true;
+    troop.lockedPlacement = rules.removable === false;
+    troop.refundable = rules.refundable !== false;
+    troop.countTowardDeploymentLimit = rules.countTowardDeploymentLimit !== false;
+    troop.requiresLoadout = rules.requireLoadout === true;
+
+    session.troops.push(troop);
+    session.providedTroops[troopType] = (session.providedTroops[troopType] || 0) + 1;
+    occupiedCells.add(cellKey);
+    provided.push(troop);
+
+    if (rules.consumeEnergy) session.energy = Math.max(0, session.energy - energyCost);
+    if (rules.consumeSupply) session.supply = Math.max(0, session.supply - supplyCost);
+  }
+
+  if (provided.length) rebuildBattleIndex(session);
+  return provided;
+}
+
 export function addDroneToStack(session, troop, config, effective, events = []) {
   if (!troop || troop.dead) return { ok: false, reason: "Formação inválida." };
   if (isDroneStackFull(troop, config)) {
@@ -644,6 +714,10 @@ export function removeTroop(session, row, col) {
   }
   const index = session.troops.findIndex((troop) => !troop.dead && troop.row === row && troop.col === col);
   if (index < 0) return { ok: false, reason: "Nenhuma unidade nessa célula." };
+  const selectedTroop = session.troops[index];
+  if (selectedTroop.missionProvided && selectedTroop.lockedPlacement) {
+    return { ok: false, reason: "Esta tropa faz parte da defesa inicial da missão e não pode ser removida." };
+  }
   const [troop] = session.troops.splice(index, 1);
   recordTroopLoss(session, troop, "manualRemoval");
   releaseParasiteFromTroop(session, troop);

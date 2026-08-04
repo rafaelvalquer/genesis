@@ -326,7 +326,30 @@ const PHASE_BLUEPRINTS = [
         { type: "oculis", count: 14 }, { type: "krulax", count: 24 }, { type: "crix", count: 24 },
       ],
     ],
-    { boss: true },
+    {
+      boss: true,
+      providedByMission: "fase_40",
+      startingTroops: [
+        { type: "bastiaoMare", row: 0, col: 6 },
+        { type: "bastiaoMare", row: 1, col: 6 },
+        { type: "bastiaoMare", row: 2, col: 6 },
+        { type: "bastiaoMare", row: 3, col: 6 },
+        { type: "bastiaoMare", row: 4, col: 6 },
+        { type: "fuzileiroVoltaico", row: 0, col: 5 },
+        { type: "fuzileiroVoltaico", row: 1, col: 5 },
+        { type: "fuzileiroVoltaico", row: 2, col: 5 },
+        { type: "fuzileiroVoltaico", row: 3, col: 5 },
+        { type: "fuzileiroVoltaico", row: 4, col: 5 },
+      ],
+      startingTroopRules: {
+        consumeEnergy: false,
+        consumeSupply: false,
+        requireLoadout: false,
+        removable: false,
+        refundable: false,
+        countTowardDeploymentLimit: true,
+      },
+    },
   ),
 ];
 
