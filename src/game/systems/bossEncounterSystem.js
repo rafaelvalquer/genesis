@@ -1,13 +1,31 @@
+import {
+  enqueueSpawnEntries,
+  sortSpawnQueue,
+  syncSessionNextSpawnAt,
+} from "./spawnQueueSystem.js";
+
 export const BOSS_ENCOUNTER_PACKET_ID = "boss_encounter";
 export const BOSS_REINFORCEMENT_BLOCK = "boss_reinforcement";
+export const REINFORCEMENT_PENDING = "pending";
+export const REINFORCEMENT_QUEUED = "queued";
+export const REINFORCEMENT_COMPLETED = "completed";
 
-export function sortBossSpawnQueue(queue = []) {
-  queue.sort((left, right) => (
-    Number(left.spawnAtMs || 0) - Number(right.spawnAtMs || 0)
-    || String(left.packetId || "").localeCompare(String(right.packetId || ""))
-    || Number(left.sourceIndex || 0) - Number(right.sourceIndex || 0)
-  ));
-  return queue;
+export const sortBossSpawnQueue = sortSpawnQueue;
+
+function createReinforcementStates(reinforcements = []) {
+  return new Map(
+    reinforcements
+      .filter((entry) => entry?.packet)
+      .map((entry) => [entry.packet, REINFORCEMENT_PENDING]),
+  );
+}
+
+function ensureReinforcementState(encounter, packetKey) {
+  encounter.reinforcementStates ||= createReinforcementStates(encounter.reinforcements);
+  if (!encounter.reinforcementStates.has(packetKey)) {
+    encounter.reinforcementStates.set(packetKey, REINFORCEMENT_PENDING);
+  }
+  return encounter.reinforcementStates.get(packetKey);
 }
 
 export function createBossEncounterState(wave) {
@@ -16,6 +34,8 @@ export function createBossEncounterState(wave) {
     ...wave.bossEncounter,
     spawned: false,
     reinforcementPackets: new Set(),
+    reinforcementStates: createReinforcementStates(wave.bossEncounter.reinforcements),
+    nextReinforcementAt: 0,
   };
 }
 
@@ -30,8 +50,7 @@ export function enqueueBoss(queue, encounter, options = {}) {
     block: "boss",
     spawnAtMs: Number(encounter.spawnAtMs) || 0,
   };
-  queue.push(entry);
-  sortBossSpawnQueue(queue);
+  enqueueSpawnEntries(queue, entry);
   return entry;
 }
 
@@ -47,6 +66,20 @@ export function markBossEncounterSpawned(session, queued) {
   if (!encounter || queued?.packetId !== BOSS_ENCOUNTER_PACKET_ID
     || queued?.type !== encounter.type) return false;
   encounter.spawned = true;
+  return true;
+}
+
+export function markBossReinforcementSpawned(session, queued) {
+  const encounter = session?.bossEncounter;
+  const packetKey = queued?.reinforcementPacketKey;
+  if (!encounter || queued?.block !== BOSS_REINFORCEMENT_BLOCK || !packetKey) return false;
+  const stillQueued = session.queue.some((entry) => (
+    entry?.block === BOSS_REINFORCEMENT_BLOCK
+    && entry.reinforcementPacketKey === packetKey
+  ));
+  if (stillQueued) return false;
+  ensureReinforcementState(encounter, packetKey);
+  encounter.reinforcementStates.set(packetKey, REINFORCEMENT_COMPLETED);
   return true;
 }
 
@@ -71,9 +104,12 @@ export function enqueueBossReinforcement(
 ) {
   const encounter = session?.bossEncounter;
   const packet = packets?.[packetKey];
-  if (!encounter || !packet || encounter.reinforcementPackets.has(packetKey)) return [];
+  if (!encounter || !packet) return [];
 
-  encounter.reinforcementPackets.add(packetKey);
+  const state = ensureReinforcementState(encounter, packetKey);
+  if (state === REINFORCEMENT_QUEUED || state === REINFORCEMENT_COMPLETED
+    || encounter.reinforcementPackets.has(packetKey)) return [];
+
   const livingByType = new Map();
   session.enemies
     .filter((enemy) => !enemy.dead)
@@ -84,7 +120,7 @@ export function enqueueBossReinforcement(
   const rowCount = Math.max(1, Math.floor(Number(fieldRows) || 1));
   const row = Math.floor(session.rng() * rowCount);
   const at = Math.max(0, session.elapsed - session.waveStartedAt);
-  const packetId = `boss_${packet.id}_${encounter.reinforcementPackets.size}`;
+  const packetId = `boss_${packet.id}_${encounter.reinforcementStates.size}`;
   const entries = [];
 
   for (const unit of packet.units || []) {
@@ -104,6 +140,7 @@ export function enqueueBossReinforcement(
           sourceIndex: rowIndex * countPerRow + index,
           row: unitRow,
           packetId,
+          reinforcementPacketKey: packetKey,
           block: BOSS_REINFORCEMENT_BLOCK,
           spawnAtMs: at + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
           xOffsetTiles: unit.xOffsetTiles || 0,
@@ -115,10 +152,15 @@ export function enqueueBossReinforcement(
     });
   }
 
-  session.queue.push(...entries);
-  sortBossSpawnQueue(session.queue);
-  session.nextSpawnAt = session.waveStartedAt
-    + (session.queue[0]?.spawnAtMs ?? Infinity);
+  if (!entries.length) {
+    encounter.reinforcementStates.set(packetKey, REINFORCEMENT_PENDING);
+    return [];
+  }
+
+  encounter.reinforcementStates.set(packetKey, REINFORCEMENT_QUEUED);
+  encounter.reinforcementPackets.add(packetKey);
+  enqueueSpawnEntries(session.queue, entries);
+  syncSessionNextSpawnAt(session);
   return entries;
 }
 
@@ -128,14 +170,25 @@ export function updateBossEncounter(session, options = {}) {
   const boss = session.enemies.find(
     (enemy) => !enemy.dead && enemy.type === encounter.type,
   );
-  if (!boss) return [];
-
-  const triggered = [];
-  for (const reinforcement of encounter.reinforcements || []) {
-    if (boss.hp > boss.maxHp * reinforcement.hpFactor
-      || encounter.reinforcementPackets.has(reinforcement.packet)) continue;
-    options.enqueueReinforcement?.(reinforcement.packet);
-    triggered.push(reinforcement.packet);
+  if (!boss || Number(session.elapsed || 0) < Number(encounter.nextReinforcementAt || 0)) {
+    return [];
   }
-  return triggered;
+
+  for (const reinforcement of encounter.reinforcements || []) {
+    if (boss.hp > boss.maxHp * reinforcement.hpFactor) continue;
+    const state = ensureReinforcementState(encounter, reinforcement.packet);
+    if (state !== REINFORCEMENT_PENDING) continue;
+
+    const entries = options.enqueueReinforcement?.(reinforcement.packet) || [];
+    if (!entries.length) return [];
+
+    const interval = Math.max(0, Number(
+      encounter.reinforcementIntervalMs
+        ?? options.minimumIntervalMs
+        ?? 900,
+    ));
+    encounter.nextReinforcementAt = Number(session.elapsed || 0) + interval;
+    return [reinforcement.packet];
+  }
+  return [];
 }

@@ -5,6 +5,7 @@ import {
   enqueueBossReinforcement as enqueueBossReinforcementSystem,
   initializeBossEncounterForWave,
   markBossEncounterSpawned,
+  markBossReinforcementSpawned,
   shouldDeferBossAwareSpawn,
   updateBossEncounter as updateBossEncounterSystem,
 } from "./systems/bossEncounterSystem.js";
@@ -6630,6 +6631,7 @@ export function stepBattle(session, dt = 32) {
         : Infinity;
       if (!enemy) continue;
       markBossEncounterSpawned(session, queued);
+      markBossReinforcementSpawned(session, queued);
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
     updateDematerializationPulses(session, events);

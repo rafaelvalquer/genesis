@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DECISION_STAGE_RULES, ENEMIES, getEnemyCatalogEntries, TROOPS } from "./content.js";
 import {
-  getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets, releaseBattleAssets,
-  resolveTroopFrame,
+  getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, resolveTroopFrame,
 } from "./assetCatalog.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
 import { waveSpawnCount } from "./domain.js";
@@ -23,7 +22,7 @@ import {
   drawPulseScorches,
 } from "./pulseRenderer.js";
 import {
-  getAnchoredSpriteRect, getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect, getLeviathanBrineMouthPosition,
+  getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect, getLeviathanBrineMouthPosition,
   getEnemyDeathVisualY,
   getJanoDroneAnimation, getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
   buildBattleRenderRows, createBattleRowBuffers, getDroneSentinelaLayout, isEnemyFrozen,
@@ -83,6 +82,10 @@ import { drawWindEffects } from "./windCurrentRenderer.js";
 import { drawTideOverlay, drawTideUnderlay } from "./tideRenderer.js";
 import { loadSettings } from "../campaign/storage.js";
 import { positionalTargetInstruction, positionalTargetMessage } from "./positionalTargeting.js";
+import { useBattleAssets } from "./hooks/useBattleAssets.js";
+import { useBattleAudio } from "./hooks/useBattleAudio.js";
+import { useBattleLoopControls } from "./hooks/useBattleLoop.js";
+import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
 
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
   if (!fieldPoint) return null;
@@ -216,37 +219,6 @@ export function ColossusSpecialButtons({ session, onActivate }) {
       <span>◆</span> ATIVAR ESMAGAMENTO
     </button>
   ));
-}
-
-function drawSprite(ctx, image, entity, targetHeight, opacity = 1, filter = "none", anchor = null, flipX = false) {
-  if (!image?.width || !image?.height) return false;
-  const rect = getAnchoredSpriteRect(entity, targetHeight, image.width / image.height, anchor);
-  ctx.save();
-  ctx.globalAlpha = opacity;
-  ctx.filter = filter;
-  if (flipX) {
-    ctx.translate(rect.x + rect.width / 2, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(image, -rect.width / 2, rect.y, rect.width, rect.height);
-  } else {
-    ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
-  }
-  ctx.restore();
-  return true;
-}
-
-function drawSpriteInRect(ctx, image, rect, opacity = 1, filter = "none") {
-  if (!image?.width || !image?.height) return false;
-  ctx.save();
-  ctx.globalAlpha = opacity;
-  ctx.filter = filter;
-  ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
-  ctx.restore();
-  return true;
-}
-
-function getTroopVisualEntity(entity, config) {
-  return config.spriteOffsetY ? { ...entity, y: entity.y + config.spriteOffsetY } : entity;
 }
 
 function drawAbyssCharge(ctx, enemy, config, elapsed, settings) {
@@ -1728,18 +1700,16 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const battleRowsRef = useRef(createBattleRowBuffers());
   const adaptiveSettingsRef = useRef({});
   const hoveredCellRef = useRef(null);
-  const pausedRef = useRef(false);
-  const speedRef = useRef(1);
   const finishSentRef = useRef(false);
   const audioRef = useRef({});
   const lastCriticalBeepRef = useRef(0);
   const notificationIdRef = useRef(1);
   if (!sessionRef.current) sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox });
 
-  const [loading, setLoading] = useState({ ready: false, percent: 0 });
   const [snapshot, setSnapshot] = useState(() => getSnapshot(sessionRef.current));
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const { pausedRef, speedRef } = useBattleLoopControls(paused, speed);
   const [sandboxSettingsState, setSandboxSettingsState] = useState(() => ({ ...sessionRef.current.sandboxSettings }));
   const [selectedEnemy, setSelectedEnemy] = useState(() => Object.keys(ENEMIES)[0]);
   const [spawnRow, setSpawnRow] = useState(0);
@@ -1776,13 +1746,21 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       ? `◇ ECOS DE VIDRO ${Math.round(phase.chapterMechanic.chance * 100)}% · FASE ${Number(phase.id.slice(-2))}`
       : `FASE ${Number(phase.id.slice(-2))} · ${phase.name}`);
   const settings = useMemo(loadSettings, []);
+  const { configureAudio, play, stopAudio } = useBattleAudio({
+    audioRef,
+    settings,
+    paused,
+    windActive: sessionRef.current.windCurrent?.state === "active",
+  });
+  const loading = useBattleAssets({
+    phase,
+    loadout,
+    sandbox,
+    assetsRef,
+    onAssetsReady: configureAudio,
+    onCleanup: stopAudio,
+  });
 
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-  useEffect(() => {
-    speedRef.current = speed;
-  }, [speed]);
   useEffect(() => {
     if (!notification?.text || notification.persistent) return undefined;
     const timeout = window.setTimeout(() => {
@@ -1807,105 +1785,6 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     window.addEventListener("keydown", cancel);
     return () => window.removeEventListener("keydown", cancel);
   }, [targetingDecision, snapshot.adaptiveAid.status]);
-
-  const configureAudio = useCallback((assets) => {
-    const build = (name, loop = false) => {
-      const url = assets.audio[name];
-      if (!url) return null;
-      const audio = new Audio(url);
-      audio.preload = "auto";
-      audio.loop = loop;
-      return audio;
-    };
-    const buildFirst = (base) => build(`${base}.ogg`) || build(`${base}.wav`);
-    audioRef.current = {
-      theme: build("wave_theme.ogg", true),
-      alert: build("wave_alert.ogg"),
-      deploy: build("deploy.ogg"),
-      shoot: [1, 2, 3, 4].map((index) => build(`shoot_ball_${index}.wav`)).filter(Boolean),
-      melee: [1, 2, 3, 4].map((index) => build(`melee_${index}.wav`)).filter(Boolean),
-      executorSlash1: buildFirst("executor_slash_1"),
-      executorSlash2: buildFirst("executor_slash_2"),
-      executorFinisher: buildFirst("executor_finisher"),
-      executorComboReset: buildFirst("executor_combo_reset"),
-      icaroBurstShot: buildFirst("icaro_burst_shot"),
-      icaroInterceptionLock: buildFirst("icaro_interception_lock"),
-      icaroInterceptionFire: buildFirst("icaro_interception_fire"),
-      icaroDeath: buildFirst("icaro_death"),
-      leviathanCharge: buildFirst("leviathan_charge"),
-      leviathanFire: buildFirst("leviathan_fire"),
-      leviathanImpact: buildFirst("leviathan_impact"),
-      leviathanRupture: buildFirst("leviathan_rupture"),
-      leviathanCooldown: buildFirst("leviathan_cooldown"),
-      windWarning: build("wind_warning.ogg"),
-      windActiveLoop: build("wind_active_loop.ogg", true),
-      windPrimaryGust: build("wind_primary_gust.ogg"),
-      windTroopShift: build("wind_troop_shift.ogg"),
-      windEjection: build("wind_ejection.ogg"),
-      windRecovery: build("wind_recovery.ogg"),
-      thunder: [build("thunder_distant_1.ogg"), build("thunder_distant_2.ogg")].filter(Boolean),
-    };
-  }, []);
-
-  const play = useCallback((channel, intensity = 1) => {
-    const source = Array.isArray(audioRef.current[channel])
-      ? audioRef.current[channel][Math.floor(Math.random() * audioRef.current[channel].length)]
-      : audioRef.current[channel];
-    if (!source) return;
-    const instance = channel === "theme" ? source : source.cloneNode();
-    const group = channel === "theme" ? settings.musicVolume : settings.effectsVolume;
-    instance.volume = Math.max(0, Math.min(1, settings.masterVolume * group * intensity));
-    instance.play().catch(() => {});
-  }, [settings]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    setLoading({ ready: false, percent: 0 });
-    loadBattleAssets(
-      phase,
-      loadout,
-      ({ percent }) => !cancelled && setLoading({ ready: false, percent }),
-      sandbox
-        ? { enemyIds: Object.keys(ENEMIES), signal: controller.signal }
-        : { signal: controller.signal },
-    )
-      .then((assets) => {
-        if (cancelled) {
-          releaseBattleAssets(assets);
-          return;
-        }
-        releaseBattleAssets(assetsRef.current);
-        assetsRef.current = assets;
-        configureAudio(assets);
-        setLoading({ ready: true, percent: 100 });
-      })
-      .catch((error) => {
-        if (error?.name !== "AbortError" && !cancelled) {
-          setLoading({ ready: false, percent: 0, error: error?.message || "Falha ao carregar recursos." });
-        }
-      });
-    return () => {
-      cancelled = true;
-      controller.abort();
-      releaseBattleAssets(assetsRef.current);
-      assetsRef.current = null;
-      audioRef.current.theme?.pause();
-      audioRef.current.windActiveLoop?.pause();
-    };
-  }, [configureAudio, loadout, phase]);
-
-  useEffect(() => {
-    const loopAudio = audioRef.current.windActiveLoop;
-    if (!loopAudio) return;
-    if (paused || sessionRef.current.windCurrent?.state !== "active") {
-      loopAudio.pause();
-      return;
-    }
-    loopAudio.volume = Math.max(0, Math.min(1,
-      settings.masterVolume * settings.effectsVolume * 0.42));
-    loopAudio.play().catch(() => {});
-  }, [paused, settings.effectsVolume, settings.masterVolume]);
 
   useEffect(() => {
     if (!loading.ready) return undefined;

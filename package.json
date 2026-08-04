@@ -26,7 +26,7 @@
     "assets:cacador-leviatas": "node scripts/process-cacador-leviatas-sheet.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run src/game",
     "test:watch": "vitest",
     "sprites:audit": "node tools/auditSprites.mjs",
     "assets:leviathan:process": "node scripts/process-leviathan-nereida-sprites.mjs",
@@ -38,27 +38,28 @@
     "verify:crisalio": "node scripts/check-crisalio-frames.mjs",
     "audit:leviathan": "node scripts/audit-leviathan-sprite-components.mjs",
     "ci": "npm run verify:encoding && npm run test && npm run build",
-    "release:check": "npm run ci && npm run verify:assets && npm run verify:crisalio"
+    "release:check": "npm run ci && npm run verify:asset-manifest && npm run verify:assets && npm run verify:crisalio",
+    "verify:asset-manifest": "node scripts/validate-asset-manifest.mjs --json=reports/asset-manifest.json"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.2.7",
     "@fontsource/inter": "^5.2.8",
     "@gsap/react": "^2.1.2",
-    "@vitejs/plugin-react": "^4.5.2",
     "animejs": "^4.5.0",
     "gsap": "^3.15.0",
     "motion": "^12.43.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.7.0",
-    "three": "^0.185.1",
-    "vite": "^7.0.0"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "jsdom": "^26.1.0",
     "sharp": "^0.35.3",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "vite": "^7.0.0",
+    "@vitejs/plugin-react": "^4.5.2"
   }
 }

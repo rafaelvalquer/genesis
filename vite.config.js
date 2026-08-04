@@ -12,5 +12,14 @@ export default defineConfig({
   build: {
     target: "es2022",
     assetsInlineLimit: 2048,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ["react", "react-dom", "react-router-dom"],
+          three: ["three"],
+          animation: ["@gsap/react", "gsap", "animejs", "motion"],
+        },
+      },
+    },
   },
 });

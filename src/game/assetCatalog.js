@@ -328,19 +328,42 @@ function statesForFolder(modules, folder) {
 }
 
 export async function runWithConcurrency(tasks, options = {}) {
-  if (!tasks.length) return;
+  if (!tasks.length) return Promise.resolve([]);
   const concurrency = Math.max(1, Math.min(8, Math.floor(Number(options.concurrency) || 4)));
+  const results = new Array(tasks.length);
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
-    while (cursor < tasks.length) {
-      if (options.signal?.aborted) throw abortError();
+  let firstError = null;
+
+  const recordError = (error) => {
+    if (!firstError) firstError = error;
+  };
+  const abort = () => recordError(abortError());
+  options.signal?.addEventListener("abort", abort, { once: true });
+  if (options.signal?.aborted) abort();
+
+  const worker = async () => {
+    while (!firstError) {
       const taskIndex = cursor;
+      if (taskIndex >= tasks.length) return;
       cursor += 1;
-      await tasks[taskIndex]();
-      options.onTaskComplete?.(taskIndex);
+      try {
+        results[taskIndex] = await tasks[taskIndex]();
+        options.onTaskComplete?.(taskIndex, results[taskIndex]);
+      } catch (error) {
+        options.onTaskError?.(taskIndex, error);
+        recordError(error);
+      }
     }
+  };
+
+  return Promise.all(
+    Array.from({ length: Math.min(concurrency, tasks.length) }, () => worker()),
+  ).then(() => {
+    if (firstError) throw firstError;
+    return results;
+  }).finally(() => {
+    options.signal?.removeEventListener("abort", abort);
   });
-  await Promise.all(workers);
 }
 
 export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {

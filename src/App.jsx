@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-import GameCanvas from "./game/GameCanvas.jsx";
-import CampaignPage from "./campaign/CampaignPage.jsx";
-import LoadoutPicker from "./loadout/LoadoutPage.jsx";
-import CommandPage from "./home/CommandPage.jsx";
-import MaintenancePanel from "./settings/MaintenancePanel.jsx";
+const GameCanvas = lazy(() => import("./game/GameCanvas.jsx"));
+const CampaignPage = lazy(() => import("./campaign/CampaignPage.jsx"));
+const LoadoutPicker = lazy(() => import("./loadout/LoadoutPage.jsx"));
+const CommandPage = lazy(() => import("./home/CommandPage.jsx"));
+const MaintenancePanel = lazy(() => import("./settings/MaintenancePanel.jsx"));
 import { getEnemyPreviewUrl, getTroopPreviewUrl } from "./game/assetCatalog.js";
 import { ENEMIES, getEnemyCatalogEntries, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
 import { getEnemyInfo, getEnemyUnlockAt } from "./game/enemyInfo.js";
@@ -274,6 +274,13 @@ export function SettingsPage({ onReset }) {
   </main>;
 }
 
+function RouteFallback() {
+  return <main className="page-content route-loading" role="status" aria-live="polite">
+    <span className="eyebrow">CARREGANDO MÓDULO</span>
+    <p>Sincronizando sistemas da operação...</p>
+  </main>;
+}
+
 export default function App() {
   const [campaign, setCampaign] = useState(loadCampaign);
   const handleReset = () => {
@@ -281,5 +288,5 @@ export default function App() {
     setCampaign(resetCampaign());
     return true;
   };
-  return <BrowserRouter><AppLayout><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></AppLayout></BrowserRouter>;
+  return <BrowserRouter><AppLayout><Suspense fallback={<RouteFallback />}><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense></AppLayout></BrowserRouter>;
 }

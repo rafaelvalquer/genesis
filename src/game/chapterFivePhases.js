@@ -1,6 +1,7 @@
 import { createTideCycleHazard } from "./tideCycle.js";
 import { createChapterFiveWaves } from "./chapterFiveWaves.js";
 import { PHASE_40_SCENARIO } from "./chapter05/phase40Scenario.js";
+import { deepFreeze } from "./deepFreeze.js";
 
 const phase = (
   id, name, subtitle, energy, arenaId, palette, battlefieldTheme, tide, extra = {},
@@ -169,7 +170,7 @@ const TIDE_TERRITORIES = [
   },
 ];
 
-export const CHAPTER_FIVE_PHASE_BLUEPRINTS = Object.freeze([
+export const CHAPTER_FIVE_PHASE_BLUEPRINTS = deepFreeze([
   phase(
     "fase_33",
     "Costa dos Naufrágios",
@@ -312,5 +313,5 @@ function createChapterFivePhase(blueprint, chapterIndex) {
   };
 }
 
-export const CHAPTER_FIVE_PHASES = CHAPTER_FIVE_PHASE_BLUEPRINTS.map(createChapterFivePhase);
+export const CHAPTER_FIVE_PHASES = deepFreeze(CHAPTER_FIVE_PHASE_BLUEPRINTS.map(createChapterFivePhase));
 export const CHAPTER_FIVE_PHASE_IDS = Object.freeze(CHAPTER_FIVE_PHASES.map((entry) => entry.id));

@@ -64,6 +64,7 @@ const packetGaps = Object.freeze([
 const bossEncounter = Object.freeze({
   type: "leviathanNereida",
   spawnAtMs: 18000,
+  reinforcementIntervalMs: 900,
   reinforcements: freezeEntries([
     { hpFactor: 0.85, packet: "N6" },
     { hpFactor: 0.70, packet: "N10" },
