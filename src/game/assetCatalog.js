@@ -203,19 +203,72 @@ export function getEnemyConceptUrl(enemyId) {
   return match?.[1] || "";
 }
 
-export function resolveBattleTroopAssetIds(phase, loadout = []) {
-  const selectedTroopIds = Array.isArray(loadout) ? loadout : [];
-  const missionTroopIds = Array.isArray(phase?.startingTroops)
-    ? phase.startingTroops.map((entry) => entry?.type)
-    : [];
+const TROOP_ASSET_REFERENCE_KEYS = Object.freeze([
+  "type",
+  "troopId",
+  "assetTroopId",
+  "sourceType",
+  "targetType",
+  "from",
+  "to",
+  "resultType",
+  "transformsInto",
+]);
 
-  return [...new Set([...selectedTroopIds, ...missionTroopIds])]
+const TROOP_ASSET_COLLECTION_KEYS = Object.freeze([
+  "required",
+  "requiredTroopAssetIds",
+  "alliedSummons",
+  "temporaryTroops",
+  "transformations",
+  "troopTransformations",
+  "dependencies",
+  "entries",
+]);
+
+function appendTroopAssetReferences(value, destination, visited = new WeakSet()) {
+  if (typeof value === "string") {
+    destination.push(value);
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((entry) => appendTroopAssetReferences(entry, destination, visited));
+    return;
+  }
+  if (!value || typeof value !== "object" || visited.has(value)) return;
+
+  visited.add(value);
+  TROOP_ASSET_REFERENCE_KEYS.forEach((key) => {
+    if (typeof value[key] === "string") destination.push(value[key]);
+  });
+  TROOP_ASSET_COLLECTION_KEYS.forEach((key) => {
+    if (value[key] != null) {
+      appendTroopAssetReferences(value[key], destination, visited);
+    }
+  });
+}
+
+export function resolvePhaseTroopAssetDependencies(phase, loadout = []) {
+  const troopIds = [];
+  appendTroopAssetReferences(Array.isArray(loadout) ? loadout : [], troopIds);
+  appendTroopAssetReferences(phase?.startingTroops, troopIds);
+  appendTroopAssetReferences(phase?.requiredTroopAssetIds, troopIds);
+  appendTroopAssetReferences(phase?.alliedSummons, troopIds);
+  appendTroopAssetReferences(phase?.temporaryTroops, troopIds);
+  appendTroopAssetReferences(phase?.troopTransformations, troopIds);
+  appendTroopAssetReferences(phase?.troopAssetDependencies, troopIds);
+
+  return [...new Set(troopIds)]
     .filter((troopId) => typeof troopId === "string" && TROOPS[troopId]);
+}
+
+export function resolveBattleTroopAssetIds(phase, loadout = []) {
+  return resolvePhaseTroopAssetDependencies(phase, loadout);
 }
 
 export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {
   if (options.signal?.aborted) throw abortError();
-  const troopIds = resolveBattleTroopAssetIds(phase, loadout);
+  const troopIds = resolvePhaseTroopAssetDependencies(phase, loadout);
   const enemyIds = enemyAssetDependencies([
     ...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))),
   ]);
