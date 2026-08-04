@@ -203,9 +203,19 @@ export function getEnemyConceptUrl(enemyId) {
   return match?.[1] || "";
 }
 
+export function resolveBattleTroopAssetIds(phase, loadout = []) {
+  const selectedTroopIds = Array.isArray(loadout) ? loadout : [];
+  const missionTroopIds = Array.isArray(phase?.startingTroops)
+    ? phase.startingTroops.map((entry) => entry?.type)
+    : [];
+
+  return [...new Set([...selectedTroopIds, ...missionTroopIds])]
+    .filter((troopId) => typeof troopId === "string" && TROOPS[troopId]);
+}
+
 export async function loadBattleAssets(phase, loadout, onProgress = () => {}, options = {}) {
   if (options.signal?.aborted) throw abortError();
-  const troopIds = [...new Set(loadout)];
+  const troopIds = resolveBattleTroopAssetIds(phase, loadout);
   const enemyIds = enemyAssetDependencies([
     ...new Set(options.enemyIds || phase.waves.flatMap((wave) => wave.enemies.map((entry) => entry.type))),
   ]);

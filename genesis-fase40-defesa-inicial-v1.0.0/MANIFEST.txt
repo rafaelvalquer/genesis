@@ -1,7 +1,0 @@
-CHANGELOG.md	509
-README.md	1601
-apply_changes.mjs	10100
-install.ps1	1798
-payload/src/game/phase40StartingDefense.test.js	4183
-validate.ps1	444
-verify_changes.mjs	1715
