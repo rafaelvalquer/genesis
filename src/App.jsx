@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
-const GameCanvas = lazy(() => import("./game/GameCanvas.jsx"));
+import { createRetryableLazyModule } from "./routing/retryableLazyModule.js";
+export const loadGameCanvasModule = createRetryableLazyModule(() => import("./game/GameCanvas.jsx"));
+const GameCanvas = lazy(loadGameCanvasModule);
 const CampaignPage = lazy(() => import("./campaign/CampaignPage.jsx"));
 const LoadoutPicker = lazy(() => import("./loadout/LoadoutPage.jsx"));
 const CommandPage = lazy(() => import("./home/CommandPage.jsx"));
@@ -211,6 +213,30 @@ function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
   </section></div>;
 }
 
+export function BattleModuleFallback({ phase }) {
+  return (
+    <section
+      className="battle-loader battle-module-loader"
+      role="status"
+      aria-live="polite"
+      style={{
+        "--arena-primary": phase?.palette?.primary || "#22d3ee",
+      }}
+    >
+      <div className="loader-scrim" />
+      <div className="loader-content">
+        <div className="loader-mark">GD</div>
+        <span className="eyebrow">{phase?.name || "Missão"}</span>
+        <h2>Inicializando motor de batalha</h2>
+        <div className="progress-track">
+          <span style={{ width: "12%" }} />
+        </div>
+        <p>Carregando o módulo de combate pela primeira vez...</p>
+      </div>
+    </section>
+  );
+}
+
 export function PlayPage({ campaign, setCampaign }) {
   const { phaseId } = useParams();
   const navigate = useNavigate();
@@ -222,12 +248,18 @@ export function PlayPage({ campaign, setCampaign }) {
   const [result, setResult] = useState(null);
 
   useEffect(() => {
+    loadGameCanvasModule.preload().catch(() => {
+      // React.lazy fará uma nova tentativa quando a batalha for aberta.
+    });
+  }, [phaseId]);
+
+  useEffect(() => {
     if (!phase) return;
     setSelected(getUnlockedTroops(phaseIndex).slice(0, 3).map((troop) => troop.id));
     setStarted(false);
     setAttempt(0);
     setResult(null);
-  }, [phaseId, phase, phaseIndex]);
+  }, [phaseId, phaseIndex]);
 
   const handleFinish = useCallback((battleResult) => {
     setResult(battleResult);
@@ -236,14 +268,54 @@ export function PlayPage({ campaign, setCampaign }) {
 
   const chapterNumber = getChapterForPhase(phase)?.number || getChapterForPhase(PHASES[campaign.unlockedPhaseIndex])?.number || 1;
   if (!phase || phaseIndex > campaign.unlockedPhaseIndex) return <Navigate to={`/fases?capitulo=${chapterNumber}`} replace />;
-  if (!started) return <LoadoutPicker phase={phase} selected={selected} onToggle={(troopId) => setSelected((current) => current.includes(troopId) ? current.filter((id) => id !== troopId) : current.length < (phase.loadoutLimit ?? 5) ? [...current, troopId] : current)} onStart={() => setStarted(true)} onBack={() => navigate(`/fases?capitulo=${chapterNumber}`)} />;
+  if (!started) {
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <LoadoutPicker
+          phase={phase}
+          selected={selected}
+          onToggle={(troopId) => setSelected((current) => (
+            current.includes(troopId)
+              ? current.filter((id) => id !== troopId)
+              : current.length < (phase.loadoutLimit ?? 5)
+                ? [...current, troopId]
+                : current
+          ))}
+          onStart={() => setStarted(true)}
+          onBack={() => navigate(`/fases?capitulo=${chapterNumber}`)}
+        />
+      </Suspense>
+    );
+  }
 
   const retry = () => { setResult(null); setAttempt((value) => value + 1); };
   const next = PHASES[Math.min(PHASES.length - 1, phaseIndex + 1)];
-  return <main className="play-page">
-    <GameCanvas key={`${phase.id}:${attempt}`} phase={phase} unlockedTroops={selected} onFinish={handleFinish} onExit={() => navigate(`/fases?capitulo=${chapterNumber}`)} />
-    {result && <ResultScreen result={result} phase={phase} onRetry={retry} onNext={() => navigate(phaseIndex === PHASES.length - 1 ? `/fases?capitulo=${chapterNumber}` : `/jogar/${next.id}`)} onPhases={() => navigate(`/fases?capitulo=${chapterNumber}`)} />}
-  </main>;
+  return (
+    <main className="play-page">
+      <Suspense fallback={<BattleModuleFallback phase={phase} />}>
+        <GameCanvas
+          key={`${phase.id}:${attempt}`}
+          phase={phase}
+          unlockedTroops={selected}
+          onFinish={handleFinish}
+          onExit={() => navigate(`/fases?capitulo=${chapterNumber}`)}
+        />
+      </Suspense>
+      {result && (
+        <ResultScreen
+          result={result}
+          phase={phase}
+          onRetry={retry}
+          onNext={() => navigate(
+            phaseIndex === PHASES.length - 1
+              ? `/fases?capitulo=${chapterNumber}`
+              : `/jogar/${next.id}`
+          )}
+          onPhases={() => navigate(`/fases?capitulo=${chapterNumber}`)}
+        />
+      )}
+    </main>
+  );
 }
 
 function TestLabPage() {
