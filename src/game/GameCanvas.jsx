@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DECISION_STAGE_RULES, ENEMIES, getEnemyCatalogEntries, TROOPS } from "./content.js";
+import {
+  getAnchoredSpriteRect,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState } from "react";
+import { DECISION_STAGE_RULES,
+  ENEMIES,
+  getEnemyCatalogEntries,
+  TROOPS } from "./content.js";
 import { getArenaUrl } from "./assets/arenaCatalog.js";
 import { getEnemyPreviewUrl } from "./assets/enemyPreviewCatalog.js";
 import { getTroopPreviewUrl } from "./assets/troopPreviewCatalog.js";
@@ -14,20 +23,36 @@ import {
   drawPlacementRange,
   drawTacticalGrid,
   getPlacementPreviewGeometry,
-} from "./arenaRenderer.js";
-import { drawFrozenEnemyEffect, drawMines, drawParticles, drawProjectileCollection, drawStunnedEnemyEffect, pushEventParticles } from "./projectileRenderer.js";
+  } from "./arenaRenderer.js";
+import { drawFrozenEnemyEffect,
+  drawMines,
+  drawParticles,
+  drawProjectileCollection,
+  drawStunnedEnemyEffect,
+  pushEventParticles } from "./projectileRenderer.js";
 import {
   drawDematerializationPulses,
   drawPulseBeams,
   drawPulseDisintegrations,
   drawPulseScorches,
-} from "./pulseRenderer.js";
+  } from "./pulseRenderer.js";
 import {
-  getEnemyAnimation, getEnemyMuzzleWorldPosition, getEnemySpriteRect, getLeviathanBrineMouthPosition,
+  getEnemyAnimation,
+  getEnemyMuzzleWorldPosition,
+  getEnemySpriteRect,
+  getLeviathanBrineMouthPosition,
   getEnemyDeathVisualY,
-  getJanoDroneAnimation, getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor,
-  buildBattleRenderRows, createBattleRowBuffers, getDroneSentinelaLayout, isEnemyFrozen,
-  viewportPointToFieldPoint, writeEnemyVisualPosition,
+  getJanoDroneAnimation,
+  getMuzzleWorldPosition,
+  getTroopAnimation,
+  getTroopAttackVisual,
+  getTroopFrameAnchor,
+  buildBattleRenderRows,
+  createBattleRowBuffers,
+  getDroneSentinelaLayout,
+  isEnemyFrozen,
+  viewportPointToFieldPoint,
+  writeEnemyVisualPosition,
 } from "./visualGeometry.js";
 import {
   clearRenderLayer, configureHiDPICanvas, configureRenderLayers, consumeGraphicsEvents,
