@@ -1,10 +1,10 @@
 import {
-  getAnchoredSpriteRect,
   useCallback,
   useEffect,
   useMemo,
   useRef,
-  useState } from "react";
+  useState,
+} from "react";
 import { DECISION_STAGE_RULES,
   ENEMIES,
   getEnemyCatalogEntries,
@@ -37,6 +37,7 @@ import {
   drawPulseScorches,
   } from "./pulseRenderer.js";
 import {
+  getAnchoredSpriteRect,
   getEnemyAnimation,
   getEnemyMuzzleWorldPosition,
   getEnemySpriteRect,
