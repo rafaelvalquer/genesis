@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DECISION_STAGE_RULES, ENEMIES, getEnemyCatalogEntries, TROOPS } from "./content.js";
-import {
-  getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, resolveTroopFrame,
-} from "./assetCatalog.js";
+import { getArenaUrl } from "./assets/arenaCatalog.js";
+import { getEnemyPreviewUrl } from "./assets/enemyPreviewCatalog.js";
+import { getTroopPreviewUrl } from "./assets/troopPreviewCatalog.js";
+import { resolveTroopFrame } from "./assets/battleAssetLoader.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
 import { waveSpawnCount } from "./domain.js";
 import {

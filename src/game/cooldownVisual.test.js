@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { TROOPS } from "./content.js";
-import { getTroopPreviewUrl } from "./assetCatalog.js";
+import { getTroopPreviewUrl } from "./assets/troopPreviewCatalog.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
 
 describe("cooldown visual das tropas", () => {

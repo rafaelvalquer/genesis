@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
-import { getArenaUrl } from "../game/assetCatalog.js";
+import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 import { getChapterForPhase, getPhaseIndex, getUnlockedTroops } from "../game/content.js";
 import { loadSettings } from "../campaign/storage.js";
 import LoadoutHeader from "./LoadoutHeader.jsx";

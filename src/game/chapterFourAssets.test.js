@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { CHAPTER_FOUR_PHASE_BLUEPRINTS } from "./content.js";
-import { getArenaUrl, loadBattleAssets } from "./assetCatalog.js";
+import { getArenaUrl } from "./assets/arenaCatalog.js";
+import { loadBattleAssets } from "./assets/battleAssetLoader.js";
 
 const assetPath = (relative) => fileURLToPath(new URL(relative, import.meta.url));
 

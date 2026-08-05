@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveTroopFrame } from "./assetCatalog.js";
+import { resolveTroopFrame } from "./assets/battleAssetLoader.js";
 import {
   CELL, createBattleSession, forceExecutorCombo, placeTroop, spawnEnemy, stepBattle,
 } from "./battleModel.js";

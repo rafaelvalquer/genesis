@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ARENAS, PHASES, TROOPS } from "./content.js";
-import { getArenaUrl, getEnemyPreviewUrl, getTroopPreviewUrl, loadBattleAssets } from "./assetCatalog.js";
+import { getArenaUrl } from "./assets/arenaCatalog.js";
+import { getEnemyPreviewUrl } from "./assets/enemyPreviewCatalog.js";
+import { getTroopPreviewUrl } from "./assets/troopPreviewCatalog.js";
+import { loadBattleAssets } from "./assets/battleAssetLoader.js";
 import { createBattleSession, placeTroop } from "./battleModel.js";
 import {
   getArenaIntensity,

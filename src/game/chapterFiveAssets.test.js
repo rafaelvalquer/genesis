@@ -2,7 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { getArenaUrl } from "./assetCatalog.js";
+import { getArenaUrl } from "./assets/arenaCatalog.js";
 
 const assetPath = (relative) => fileURLToPath(new URL(relative, import.meta.url));
 

@@ -4,7 +4,7 @@ import {
   loadBattleAssets,
   releaseBattleAssets,
   resolveTroopFrame,
-} from "./assetCatalog.js";
+} from "./assets/battleAssetLoader.js";
 
 const phase40 = () => CHAPTER_FIVE_PHASES.find((phase) => phase.id === "fase_40");
 

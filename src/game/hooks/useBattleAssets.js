@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { ENEMIES } from "../content.js";
-import { loadBattleAssets, releaseBattleAssets } from "../assetCatalog.js";
+import {
+  loadBattleAssets,
+  releaseBattleAssets,
+} from "../assets/battleAssetLoader.js";
 
 function scheduleDeferredLoad(callback) {
   if (typeof window.requestIdleCallback === "function") {

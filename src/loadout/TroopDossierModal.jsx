@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
 import { getTroopInfo } from "../game/troopInfo.js";
-import { getTroopPreviewUrl } from "../game/assetCatalog.js";
+import { getTroopPreviewUrl } from "../game/assets/troopPreviewCatalog.js";
 
 const FOCUSABLE = "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
 

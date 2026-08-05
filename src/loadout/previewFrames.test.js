@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   clearTroopPreviewFrameCache,
-  getTroopPreviewUrl,
   loadTroopPreviewFrameUrls,
-} from "../game/assetCatalog.js";
+} from "../game/assets/troopPreviewAnimationCatalog.js";
+import { getTroopPreviewUrl } from "../game/assets/troopPreviewCatalog.js";
 
 afterEach(() => clearTroopPreviewFrameCache());
 

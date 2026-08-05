@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ENEMIES } from "../game/content.js";
-import { getArenaUrl } from "../game/assetCatalog.js";
+import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 
 const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";

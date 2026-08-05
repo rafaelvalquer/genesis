@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  getTroopPreviewUrl,
-  loadTroopPreviewFrameUrls,
-} from "../game/assetCatalog.js";
+import { getTroopPreviewUrl } from "../game/assets/troopPreviewCatalog.js";
+import { loadTroopPreviewFrameUrls } from "../game/assets/troopPreviewAnimationCatalog.js";
 import { getLoadoutTroopVisual } from "./loadoutVisualCatalog.js";
 
 export function useTroopPreviewFrames(troop, reduceMotion) {

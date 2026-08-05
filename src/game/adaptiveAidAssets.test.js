@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { loadBattleAssets } from "./assetCatalog.js";
+import { loadBattleAssets } from "./assets/battleAssetLoader.js";
 import { PHASES } from "./content.js";
 
 const ASSET_ROOT = path.join(process.cwd(), "src", "game", "assets", "effects", "colonyCapsule");

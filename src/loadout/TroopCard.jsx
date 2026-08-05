@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { getTroopPreviewUrl } from "../game/assetCatalog.js";
+import { getTroopPreviewUrl } from "../game/assets/troopPreviewCatalog.js";
 import { getLoadoutTroopVisual } from "./loadoutVisualCatalog.js";
 
 export default function TroopCard({

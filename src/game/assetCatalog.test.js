@@ -4,7 +4,7 @@ import {
   getAssetCacheMetrics,
   loadBattleAssets,
   releaseBattleAssets,
-} from "./assetCatalog.js";
+} from "./assets/battleAssetLoader.js";
 import { PHASES } from "./content.js";
 
 describe("catálogo de assets de batalha", () => {

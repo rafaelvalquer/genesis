@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { Link } from "react-router-dom";
-import { getArenaUrl, getEnemyPreviewUrl } from "../game/assetCatalog.js";
+import { getArenaUrl } from "../game/assets/arenaCatalog.js";
+import { getEnemyPreviewUrl } from "../game/assets/enemyPreviewCatalog.js";
 
 function mechanicFor(phase, chapter) {
   if (phase.chapterMechanic) return chapter.mechanic?.label || "Ecos de Vidro";

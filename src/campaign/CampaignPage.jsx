@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CHAPTERS, getChapterForPhase, getPhase, getPhaseIndex, PHASES } from "../game/content.js";
-import { getArenaUrl } from "../game/assetCatalog.js";
+import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 import { loadSettings } from "./storage.js";
 import CampaignHeader from "./CampaignHeader.jsx";
 import ChapterRail from "./ChapterRail.jsx";

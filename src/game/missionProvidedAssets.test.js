@@ -6,7 +6,7 @@ import {
   resolvePhaseEnemyAssetDependencies,
   resolvePhaseEnemyEffectDependencies,
   resolvePhaseTroopAssetDependencies,
-} from "./assetCatalog.js";
+} from "./assets/assetDependencyResolver.js";
 
 const phase40 = () => CHAPTER_FIVE_PHASES.find((phase) => phase.id === "fase_40");
 

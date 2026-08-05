@@ -1,5 +1,5 @@
 import { ENEMIES } from "../game/content.js";
-import { getEnemyPreviewUrl } from "../game/assetCatalog.js";
+import { getEnemyPreviewUrl } from "../game/assets/enemyPreviewCatalog.js";
 
 export function deriveEnemyIntel(phase) {
   const records = new Map();

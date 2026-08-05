@@ -1,4 +1,4 @@
-import { getArenaUrl } from "../game/assetCatalog.js";
+import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 
 export default function CommandWebGLFallback({ chapter, phase }) {
   return <div className="command-globe-fallback">

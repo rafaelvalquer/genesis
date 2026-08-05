@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { getTroopPreviewUrl } from "../game/assetCatalog.js";
+import { getTroopPreviewUrl } from "../game/assets/troopPreviewCatalog.js";
 
 export default function SquadSlot({ troop, index, onRemove, reduceMotion }) {
   if (!troop) return <motion.li layout className="squad-slot empty" aria-label={`Slot ${index + 1} vazio`}>

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTERS, ENEMIES, PHASES, TROOPS } from "./content.js";
+import { getArenaUrl } from "./assets/arenaCatalog.js";
 import {
-  getArenaUrl,
   resolvePhaseEnemyAssetDependencies,
   resolvePhaseTroopAssetDependencies,
-} from "./assetCatalog.js";
+} from "./assets/assetDependencyResolver.js";
 
 function waveEnemyEntries(wave) {
   const entries = [];

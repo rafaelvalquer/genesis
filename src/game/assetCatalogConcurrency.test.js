@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { runWithConcurrency } from "./assetCatalog.js";
+import { runWithConcurrency } from "./assets/battleAssetLoader.js";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 

@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
 import { CELL, createBattleSession, enemyOccupiesTargetRow, placeTroop, spawnEnemy, stepBattle } from "./battleModel.js";
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
-import { getEnemyPreviewUrl } from "./assetCatalog.js";
+import { getEnemyPreviewUrl } from "./assets/enemyPreviewCatalog.js";
 import { getEnemyAnimation } from "./visualGeometry.js";
 import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
 import { isEnemyTargetable } from "./enemyTargeting.js";
