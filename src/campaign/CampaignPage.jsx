@@ -1,8 +1,14 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { CHAPTERS, getChapterForPhase, getPhase, getPhaseIndex, PHASES } from "../game/content.js";
 import { getArenaUrl } from "../game/assets/arenaCatalog.js";
+import { preloadLoadoutRoute } from "../routing/routeModules.js";
+import { useRouteTransition } from "../routing/RouteTransitionProvider.jsx";
+import {
+  getCampaignTransitionOrigin,
+  playCampaignToLoadoutTransition,
+} from "./campaignDepartureTransition.js";
 import { loadSettings } from "./storage.js";
 import CampaignHeader from "./CampaignHeader.jsx";
 import ChapterRail from "./ChapterRail.jsx";
@@ -21,7 +27,11 @@ const CampaignPlanet = lazy(() => import("./CampaignPlanet.jsx"));
 export default function CampaignPage({ campaign }) {
   const rootRef = useRef(null);
   const scanlineRef = useRef(null);
-  const navigate = useNavigate();
+  const {
+    isTransitioning,
+    transition,
+    transitionTo,
+  } = useRouteTransition();
   const [searchParams, setSearchParams] = useSearchParams();
   const settings = useMemo(() => loadSettings(), []);
   const quality = useCampaignQuality(settings);
@@ -76,6 +86,26 @@ export default function CampaignPage({ campaign }) {
     sceneReady,
   });
 
+  useEffect(() => {
+    if (!selectedPhase) return undefined;
+
+    const controller = new AbortController();
+
+    preloadLoadoutRoute({
+      arenaUrl: getArenaUrl(selectedPhase.arenaId),
+      signal: controller.signal,
+    }).catch((error) => {
+      if (error?.name !== "AbortError") {
+        console.warn(
+          "Preload do loadout não foi concluído.",
+          error,
+        );
+      }
+    });
+
+    return () => controller.abort();
+  }, [selectedPhase?.arenaId]);
+
   const selectChapter = (chapter) => {
     if (!chapterUnlocked(chapter)) return;
     const chapterPhases = chapter.phaseIds.map(getPhase).filter(Boolean);
@@ -93,13 +123,78 @@ export default function CampaignPage({ campaign }) {
     next.set("fase", phase.id);
     setSearchParams(next, { replace: true });
   };
+  const campaignTransitioning = (
+    isTransitioning
+    && transition.type === "campaign-to-loadout"
+  );
+
+  const prepareMission = () => {
+    if (
+      !selectedPhase
+      || campaignTransitioning
+    ) {
+      return;
+    }
+
+    const arenaUrl = getArenaUrl(
+      selectedPhase.arenaId,
+    );
+
+    const origin = (
+      getCampaignTransitionOrigin(
+        rootRef.current,
+      )
+    );
+
+    transitionTo({
+      type: "campaign-to-loadout",
+      to: `/jogar/${selectedPhase.id}`,
+      reduceMotion: quality.reduceMotion,
+      payload: {
+        phaseId: selectedPhase.id,
+        chapterId: activeChapter.id,
+        label: selectedPhase.name,
+        arenaUrl,
+        primary: (
+          selectedPhase.palette?.primary
+          || activeChapter.palette.primary
+        ),
+        accent: (
+          selectedPhase.palette?.accent
+          || activeChapter.palette.accent
+        ),
+        ...origin,
+      },
+      preload: ({ signal }) => (
+        preloadLoadoutRoute({
+          arenaUrl,
+          signal,
+        })
+      ),
+      exit: ({
+        signal,
+        updateProgress,
+      }) => (
+        playCampaignToLoadoutTransition({
+          runtime,
+          root: rootRef.current,
+          phase: selectedPhase,
+          reduceMotion: quality.reduceMotion,
+          signal,
+          updateProgress,
+        })
+      ),
+    });
+  };
+
   const biome = getCampaignBiome(activeChapter.id);
 
   return <main
     ref={rootRef}
-    className={`campaign-map campaign-biome-${biome.key}`}
+    className={`campaign-map campaign-biome-${biome.key} ${campaignTransitioning ? "is-route-transitioning" : ""}`}
     data-world-theme={biome.key}
     data-world-signature={biome.planetEffects.signature}
+    aria-busy={campaignTransitioning}
     style={{
       "--campaign-primary": biome.ui.primary,
       "--campaign-secondary": biome.ui.secondary,
@@ -147,7 +242,8 @@ export default function CampaignPage({ campaign }) {
           chapter={activeChapter}
           stats={campaign.phaseStats[selectedPhase.id] || {}}
           reduceMotion={quality.reduceMotion}
-          onPrepare={() => navigate(`/jogar/${selectedPhase.id}`)}
+          onPrepare={prepareMission}
+          transitioning={campaignTransitioning}
         />}
       </div>
       <ChapterRail

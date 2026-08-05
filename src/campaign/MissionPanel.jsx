@@ -16,7 +16,7 @@ function mechanicFor(phase, chapter) {
   return chapter.mechanic?.label || `Ambiente ${phase.environment}`;
 }
 
-export default function MissionPanel({ phase, chapter, stats, onPrepare, reduceMotion }) {
+export default function MissionPanel({ phase, chapter, stats, onPrepare, reduceMotion, transitioning = false }) {
   const enemyTypes = [...new Set(phase.waves.flatMap((wave) => wave.enemies.map((enemy) => enemy.type)))];
   const stars = Number(stats.bestStars || 0);
   return <AnimatePresence>
@@ -52,11 +52,13 @@ export default function MissionPanel({ phase, chapter, stats, onPrepare, reduceM
         <div className="mission-mechanic"><span>◇ MECÂNICA AMBIENTAL</span><b>{mechanicFor(phase, chapter)}</b></div>
         <motion.button
           type="button"
-          className="prepare-operation"
+          className={`prepare-operation ${transitioning ? "is-transitioning" : ""}`}
           onClick={onPrepare}
+          disabled={transitioning}
+          aria-busy={transitioning}
           whileHover={reduceMotion ? undefined : { scale: 1.015 }}
           whileTap={reduceMotion ? undefined : { scale: .97 }}
-        >PREPARAR OPERAÇÃO <span>→</span></motion.button>
+        >{transitioning ? "ABRINDO BAIA TÁTICA" : "PREPARAR OPERAÇÃO"} <span>→</span></motion.button>
       </div>
     </motion.article>
   </AnimatePresence>;

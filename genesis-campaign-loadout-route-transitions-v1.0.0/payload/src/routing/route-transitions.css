@@ -1,0 +1,431 @@
+.route-transition-layer {
+  --route-transition-primary: #22d3ee;
+  --route-transition-accent: #38bdf8;
+  --route-transition-origin-x: 50%;
+  --route-transition-origin-y: 48%;
+  --route-transition-image: none;
+  --route-transition-progress: 0%;
+
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+  clip-path: circle(
+    0 at
+    var(--route-transition-origin-x)
+    var(--route-transition-origin-y)
+  );
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(
+        in srgb,
+        var(--route-transition-primary) 16%,
+        #02050b
+      ),
+      #02050b 52%,
+      color-mix(
+        in srgb,
+        var(--route-transition-accent) 12%,
+        #02050b
+      )
+    );
+  transition:
+    clip-path 230ms cubic-bezier(.22, 1, .36, 1),
+    opacity 420ms ease,
+    visibility 0s linear 420ms;
+}
+
+.route-transition-layer:not(.is-idle) {
+  visibility: visible;
+  pointer-events: all;
+  transition-delay: 0s;
+}
+
+.route-transition-layer.is-exiting {
+  opacity: 1;
+  clip-path: circle(
+    0 at
+    var(--route-transition-origin-x)
+    var(--route-transition-origin-y)
+  );
+}
+
+.route-transition-layer.is-covering,
+.route-transition-layer.is-navigating,
+.route-transition-layer.is-waiting {
+  opacity: 1;
+  clip-path: circle(
+    155vmax at
+    var(--route-transition-origin-x)
+    var(--route-transition-origin-y)
+  );
+}
+
+.route-transition-layer.is-entering {
+  opacity: 0;
+  clip-path: circle(
+    155vmax at
+    var(--route-transition-origin-x)
+    var(--route-transition-origin-y)
+  );
+}
+
+.route-transition-layer.is-error {
+  opacity: 1;
+  clip-path: circle(
+    155vmax at
+    var(--route-transition-origin-x)
+    var(--route-transition-origin-y)
+  );
+}
+
+.route-transition-atmosphere,
+.route-transition-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.route-transition-atmosphere {
+  background:
+    radial-gradient(
+      circle at
+      var(--route-transition-origin-x)
+      var(--route-transition-origin-y),
+      color-mix(
+        in srgb,
+        var(--route-transition-primary) 48%,
+        transparent
+      ) 0,
+      color-mix(
+        in srgb,
+        var(--route-transition-accent) 18%,
+        transparent
+      ) 22%,
+      transparent 58%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(2, 6, 12, .42),
+      rgba(2, 6, 12, .92)
+    ),
+    var(--route-transition-image)
+      center / cover no-repeat;
+  opacity: .78;
+  filter:
+    saturate(1.15)
+    contrast(1.06);
+}
+
+.route-transition-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  background:
+    conic-gradient(
+      from 90deg,
+      transparent,
+      color-mix(
+        in srgb,
+        var(--route-transition-primary) 22%,
+        transparent
+      ),
+      transparent 28%,
+      color-mix(
+        in srgb,
+        var(--route-transition-accent) 18%,
+        transparent
+      ),
+      transparent 58%
+    );
+  opacity: .6;
+  animation:
+    route-transition-orbit 4.2s linear infinite;
+}
+
+.route-transition-grid {
+  background-image:
+    linear-gradient(
+      rgba(255, 255, 255, .028) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, .028) 1px,
+      transparent 1px
+    );
+  background-size: 42px 42px;
+  mask-image:
+    radial-gradient(
+      circle at center,
+      black,
+      transparent 82%
+    );
+}
+
+.route-transition-content {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: min(560px, calc(100vw - 40px));
+  gap: 10px;
+  padding: 26px 30px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--route-transition-primary) 48%,
+      transparent
+    );
+  background:
+    linear-gradient(
+      135deg,
+      rgba(5, 12, 22, .9),
+      rgba(2, 7, 14, .7)
+    );
+  box-shadow:
+    0 0 80px
+      color-mix(
+        in srgb,
+        var(--route-transition-primary) 18%,
+        transparent
+      ),
+    inset 0 0 30px rgba(255, 255, 255, .025);
+  backdrop-filter: blur(16px);
+  transform:
+    translateY(10px)
+    scale(.985);
+  opacity: 0;
+  transition:
+    opacity 180ms ease,
+    transform 260ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.route-transition-layer.is-covering
+  .route-transition-content,
+.route-transition-layer.is-navigating
+  .route-transition-content,
+.route-transition-layer.is-waiting
+  .route-transition-content {
+  opacity: 1;
+  transform:
+    translateY(0)
+    scale(1);
+}
+
+.route-transition-layer.is-entering
+  .route-transition-content {
+  opacity: 0;
+  transform:
+    translateY(-8px)
+    scale(1.01);
+}
+
+.route-transition-kicker {
+  color: var(--route-transition-primary);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+
+.route-transition-content strong {
+  color: #f8fbff;
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.route-transition-content small {
+  color: rgba(224, 240, 255, .72);
+  letter-spacing: .05em;
+}
+
+.route-transition-progress {
+  height: 3px;
+  margin-top: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .09);
+}
+
+.route-transition-progress i {
+  display: block;
+  width: var(--route-transition-progress);
+  height: 100%;
+  background:
+    linear-gradient(
+      90deg,
+      var(--route-transition-primary),
+      var(--route-transition-accent)
+    );
+  box-shadow:
+    0 0 16px
+      var(--route-transition-primary);
+  transition:
+    width 260ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.campaign-map.is-route-transitioning {
+  cursor: progress;
+}
+
+.campaign-map.is-route-transitioning
+  .campaign-world {
+  overflow: hidden;
+}
+
+.campaign-map.is-route-transitioning
+  .campaign-world canvas {
+  filter:
+    saturate(1.15)
+    brightness(1.08);
+}
+
+.loadout-page.route-arrival-campaign
+  .loadout-bay-backdrop {
+  animation:
+    loadout-route-backdrop 900ms
+    cubic-bezier(.22, 1, .36, 1)
+    both;
+}
+
+.loadout-page.route-arrival-campaign
+  .loadout-header,
+.loadout-page.route-arrival-campaign
+  .troop-roster,
+.loadout-page.route-arrival-campaign
+  .tactical-brief,
+.loadout-page.route-arrival-campaign
+  .squad-dock {
+  animation:
+    loadout-route-panel 620ms
+    cubic-bezier(.22, 1, .36, 1)
+    both;
+}
+
+.loadout-page.route-arrival-campaign
+  .troop-roster {
+  animation-delay: 80ms;
+}
+
+.loadout-page.route-arrival-campaign
+  .tactical-brief {
+  animation-delay: 130ms;
+}
+
+.loadout-page.route-arrival-campaign
+  .squad-dock {
+  animation-delay: 180ms;
+}
+
+.loadout-page.route-arrival-campaign
+  .troop-stage {
+  animation:
+    loadout-route-stage 780ms
+    cubic-bezier(.16, 1, .3, 1)
+    both;
+}
+
+@keyframes route-transition-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loadout-route-backdrop {
+  from {
+    opacity: .35;
+    filter:
+      blur(10px)
+      saturate(.7);
+    transform: scale(1.04);
+  }
+
+  to {
+    opacity: 1;
+    filter:
+      blur(0)
+      saturate(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes loadout-route-panel {
+  from {
+    opacity: 0;
+    transform:
+      translateY(16px)
+      scale(.985);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateY(0)
+      scale(1);
+  }
+}
+
+@keyframes loadout-route-stage {
+  from {
+    opacity: 0;
+    transform:
+      translateY(20px)
+      scale(.9);
+    filter: brightness(.6);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateY(0)
+      scale(1);
+    filter: brightness(1);
+  }
+}
+
+.route-transition-layer.reduce-motion {
+  transition:
+    opacity 100ms linear,
+    visibility 0s linear 100ms;
+}
+
+.route-transition-layer.reduce-motion
+  .route-transition-atmosphere::after {
+  animation: none;
+}
+
+.route-transition-layer.reduce-motion
+  .route-transition-content,
+.route-transition-layer.reduce-motion
+  .route-transition-progress i {
+  transition-duration: 80ms;
+}
+
+.reduce-motion
+  .loadout-page.route-arrival-campaign *,
+html.reduce-motion
+  .loadout-page.route-arrival-campaign *,
+.loadout-page.loadout-reduce-motion.route-arrival-campaign * {
+  animation-duration: 1ms !important;
+  animation-delay: 0ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-transition-layer {
+    transition-duration: 100ms;
+  }
+
+  .route-transition-atmosphere::after {
+    animation: none;
+  }
+
+  .loadout-page.route-arrival-campaign * {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}

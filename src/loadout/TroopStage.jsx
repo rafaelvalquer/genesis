@@ -31,6 +31,7 @@ export default function TroopStage({
   quality,
   arenaUrl,
   onRuntimeReady,
+  onStageReady,
 }) {
   const stageRef = useRef(null);
   const mountRef = useRef(null);
@@ -106,6 +107,11 @@ export default function TroopStage({
         );
         onRuntimeReady?.(nextRuntime);
       }
+
+      onStageReady?.({
+        runtime: nextRuntime,
+        failed: !nextRuntime,
+      });
     });
 
     return () => {

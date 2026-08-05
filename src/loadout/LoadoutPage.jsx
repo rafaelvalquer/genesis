@@ -3,6 +3,7 @@ import { AnimatePresence } from "motion/react";
 import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 import { getChapterForPhase, getPhaseIndex, getUnlockedTroops } from "../game/content.js";
 import { loadSettings } from "../campaign/storage.js";
+import { useRouteTransition } from "../routing/RouteTransitionProvider.jsx";
 import LoadoutHeader from "./LoadoutHeader.jsx";
 import TroopRoster from "./TroopRoster.jsx";
 import TroopStage from "./TroopStage.jsx";
@@ -32,6 +33,16 @@ export default function LoadoutPage({ phase, selected, onToggle, onStart, onBack
   const [confirming, setConfirming] = useState(false);
   const settings = useMemo(() => loadSettings(), []);
   const quality = useLoadoutQuality(settings);
+  const {
+    completeTransition,
+    matchesTransition,
+  } = useRouteTransition();
+  const arrivingFromCampaign = (
+    matchesTransition({
+      type: "campaign-to-loadout",
+      phaseId: phase.id,
+    })
+  );
   const focusedTroop = available.find((troop) => troop.id === (hoverTroopId || focusedTroopId)) || available[0];
   const { runConfirm } = useLoadoutAnimations({
     scope: rootRef,
@@ -69,6 +80,27 @@ export default function LoadoutPage({ phase, selected, onToggle, onStart, onBack
     setInfoTroop(troop);
   };
   const closeInfo = useCallback(() => setInfoTroop(null), []);
+
+  const handleStageReady = useCallback(() => {
+    if (
+      !matchesTransition({
+        type: "campaign-to-loadout",
+        phaseId: phase.id,
+      })
+    ) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        completeTransition();
+      });
+    });
+  }, [
+    completeTransition,
+    matchesTransition,
+    phase.id,
+  ]);
   const confirm = () => {
     if (startedRef.current || confirming || selected.length < 1 || selected.length > loadoutLimit) return;
     startedRef.current = true;
@@ -78,7 +110,7 @@ export default function LoadoutPage({ phase, selected, onToggle, onStart, onBack
 
   return <main
     ref={rootRef}
-    className={`loadout-page loadout-bay chapter-${chapter.number} ${quality.reduceMotion ? "loadout-reduce-motion" : ""}`}
+    className={`loadout-page loadout-bay chapter-${chapter.number} ${quality.reduceMotion ? "loadout-reduce-motion" : ""} ${arrivingFromCampaign ? "route-arrival-campaign" : ""}`}
     style={{
       "--arena-image": `url(${getArenaUrl(phase.arenaId)})`,
       "--loadout-primary": phase.palette?.primary || chapter.palette.primary,
@@ -108,6 +140,7 @@ export default function LoadoutPage({ phase, selected, onToggle, onStart, onBack
         quality={quality}
         arenaUrl={getArenaUrl(phase.arenaId)}
         onRuntimeReady={setRuntime}
+        onStageReady={handleStageReady}
       />
       <TacticalBrief
         phase={phase}
