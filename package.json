@@ -37,11 +37,12 @@
     "verify:assets": "node scripts/check-assets.js",
     "verify:crisalio": "node scripts/check-crisalio-frames.mjs",
     "audit:leviathan": "node scripts/audit-leviathan-sprite-components.mjs",
-    "ci": "npm run verify:encoding && npm run verify:asset-boundaries && npm run verify:gamecanvas-render-dependencies && npm run test && npm run build",
+    "ci": "npm run verify:encoding && npm run verify:asset-boundaries && npm run verify:gamecanvas-render-dependencies && npm run verify:battle-loading && npm run test && npm run build",
     "release:check": "npm run ci && npm run verify:asset-manifest && npm run verify:assets && npm run verify:crisalio",
     "verify:asset-manifest": "node scripts/validate-asset-manifest.mjs --json=reports/asset-manifest.json",
     "verify:asset-boundaries": "node scripts/check-asset-module-boundaries.mjs",
-    "verify:gamecanvas-render-dependencies": "node scripts/check-gamecanvas-render-dependencies.mjs"
+    "verify:gamecanvas-render-dependencies": "node scripts/check-gamecanvas-render-dependencies.mjs",
+    "verify:battle-loading": "node scripts/check-battle-loading-contract.mjs"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.2.7",

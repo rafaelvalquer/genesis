@@ -112,6 +112,7 @@ import { positionalTargetInstruction, positionalTargetMessage } from "./position
 import { useBattleAssets } from "./hooks/useBattleAssets.js";
 import { useBattleAudio } from "./hooks/useBattleAudio.js";
 import { useBattleLoopControls } from "./hooks/useBattleLoop.js";
+import { installNonPassiveContextMenuGuard } from "./hooks/battleCanvasEvents.js";
 import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
 
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
@@ -1789,6 +1790,14 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   });
 
   useEffect(() => {
+    if (!loading.ready) return undefined;
+
+    return installNonPassiveContextMenuGuard(
+      canvasRef.current,
+    );
+  }, [loading.ready]);
+
+  useEffect(() => {
     if (!notification?.text || notification.persistent) return undefined;
     const timeout = window.setTimeout(() => {
       setNotification((current) => current?.id === notification.id ? null : current);
@@ -2029,7 +2038,6 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   };
 
   const handleCanvasContextMenu = (event) => {
-    event.preventDefault();
     if (targetingDecision || sessionRef.current.adaptiveAid?.status === "targeting") {
       setTargetingDecision(null);
       sessionRef.current.pendingPositionalDecision = null;
@@ -2337,7 +2345,49 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const positionalTargeting = fortuneTargeting || Boolean(targetingDecision) || waveOutroActive;
 
   if (!loading.ready) {
-    return <div className="battle-loader" style={{ "--arena-image": `url(${getArenaUrl(phase.arenaId)})`, "--arena-primary": phase.palette.primary }}><div className="loader-scrim" /><div className="loader-content"><div className="loader-mark">GD</div><span className="eyebrow">{phase.name}</span><h2>Preparando campo tático</h2><div className="progress-track"><span style={{ width: `${loading.percent}%` }} /></div><p>{loading.percent}% · sincronizando arena, loadout e hostis</p></div></div>;
+    const loadingFailed = loading.stage === "error";
+
+    return (
+      <div
+        className="battle-loader"
+        style={{
+          "--arena-image": `url(${getArenaUrl(phase.arenaId)})`,
+          "--arena-primary": phase.palette.primary,
+        }}
+      >
+        <div className="loader-scrim" />
+        <div className="loader-content">
+          <div className="loader-mark">GD</div>
+          <span className="eyebrow">{phase.name}</span>
+          <h2>
+            {loadingFailed
+              ? "Falha ao preparar campo tático"
+              : "Preparando campo tático"}
+          </h2>
+          <div className="progress-track">
+            <span
+              style={{
+                width: `${loading.percent}%`,
+              }}
+            />
+          </div>
+          <p>
+            {loadingFailed
+              ? loading.error
+              : `${loading.percent}% · sincronizando arena, loadout e hostis`}
+          </p>
+          {loadingFailed && (
+            <button
+              type="button"
+              className="battle-loader-exit"
+              onClick={onExit}
+            >
+              VOLTAR À CAMPANHA
+            </button>
+          )}
+        </div>
+      </div>
+    );
   }
 
   const tide = snapshot.tideCycle;

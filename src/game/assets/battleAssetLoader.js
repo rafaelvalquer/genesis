@@ -505,6 +505,7 @@ export async function loadBattleAssets(
       done += 1;
 
       onProgress({
+        phase: "critical",
         done,
         total,
         percent: Math.round(
