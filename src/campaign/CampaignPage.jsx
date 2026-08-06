@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { animate } from "animejs";
 import { useSearchParams } from "react-router-dom";
-import { CHAPTERS, getChapterForPhase, getPhase, getPhaseIndex, PHASES } from "../game/content.js";
+import { CHAPTERS, getPhaseIndex } from "../game/content.js";
 import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 import { preloadLoadoutRoute } from "../routing/routeModules.js";
 import { useRouteTransition } from "../routing/RouteTransitionProvider.jsx";
@@ -9,6 +9,12 @@ import {
   getCampaignTransitionOrigin,
   playCampaignToLoadoutTransition,
 } from "./campaignDepartureTransition.js";
+import {
+  createPhaseSelectionParams,
+  isCampaignChapterUnlocked,
+  resolveCampaignSelection,
+  resolveChapterSelectionPhase,
+} from "./campaignSelection.js";
 import { loadSettings } from "./storage.js";
 import CampaignHeader from "./CampaignHeader.jsx";
 import ChapterRail from "./ChapterRail.jsx";
@@ -27,6 +33,9 @@ const CampaignPlanet = lazy(() => import("./CampaignPlanet.jsx"));
 export default function CampaignPage({ campaign }) {
   const rootRef = useRef(null);
   const scanlineRef = useRef(null);
+  const lastSelectedPhaseByChapterRef = useRef(
+    new Map(),
+  );
   const {
     isTransitioning,
     transition,
@@ -40,20 +49,22 @@ export default function CampaignPage({ campaign }) {
   const [webglFailed, setWebglFailed] = useState(false);
   const { registerMarker, projectMarkers } = useProjectedMarkers();
 
-  const currentPhase = PHASES[Math.min(campaign.unlockedPhaseIndex, PHASES.length - 1)] || PHASES[0];
-  const currentChapter = getChapterForPhase(currentPhase) || CHAPTERS[0];
-  const requestedNumber = Number(searchParams.get("capitulo"));
-  const requestedChapter = CHAPTERS.find((entry) => entry.number === requestedNumber);
-  const chapterUnlocked = (chapter) => getPhaseIndex(chapter.phaseIds[0]) <= campaign.unlockedPhaseIndex;
-  const activeChapter = requestedChapter && chapterUnlocked(requestedChapter) ? requestedChapter : currentChapter;
-  const phases = useMemo(() => activeChapter.phaseIds.map(getPhase).filter(Boolean), [activeChapter]);
-  const requestedPhase = getPhase(searchParams.get("fase"));
-  const requestedPhaseValid = requestedPhase
-    && activeChapter.phaseIds.includes(requestedPhase.id)
-    && getPhaseIndex(requestedPhase.id) <= campaign.unlockedPhaseIndex;
-  const selectedPhase = (requestedPhaseValid && requestedPhase)
-    || [...phases].reverse().find((phase) => getPhaseIndex(phase.id) <= campaign.unlockedPhaseIndex)
-    || phases[0];
+  const {
+    activeChapter,
+    selectedPhase,
+    phases,
+  } = resolveCampaignSelection({
+    searchParams,
+    unlockedPhaseIndex:
+      campaign.unlockedPhaseIndex,
+  });
+
+  const chapterUnlocked = (chapter) => (
+    isCampaignChapterUnlocked(
+      chapter,
+      campaign.unlockedPhaseIndex,
+    )
+  );
 
   useEffect(() => {
     if (!selectedPhase) return;
@@ -64,6 +75,15 @@ export default function CampaignPage({ campaign }) {
     next.set("fase", selectedPhase.id);
     setSearchParams(next, { replace: true });
   }, [activeChapter.number, selectedPhase?.id, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!selectedPhase || !activeChapter) return;
+
+    lastSelectedPhaseByChapterRef.current.set(
+      activeChapter.id,
+      selectedPhase.id,
+    );
+  }, [activeChapter?.id, selectedPhase?.id]);
 
   useEffect(() => {
     if (quality.reduceMotion || !scanlineRef.current) return undefined;
@@ -108,21 +128,52 @@ export default function CampaignPage({ campaign }) {
 
   const selectChapter = (chapter) => {
     if (!chapterUnlocked(chapter)) return;
-    const chapterPhases = chapter.phaseIds.map(getPhase).filter(Boolean);
-    const latestAccessible = [...chapterPhases].reverse()
-      .find((phase) => getPhaseIndex(phase.id) <= campaign.unlockedPhaseIndex);
-    const next = new URLSearchParams(searchParams);
-    next.set("capitulo", String(chapter.number));
-    if (latestAccessible) next.set("fase", latestAccessible.id);
-    setSearchParams(next);
+
+    const nextPhase = (
+      resolveChapterSelectionPhase({
+        chapter,
+        unlockedPhaseIndex:
+          campaign.unlockedPhaseIndex,
+        rememberedPhaseId:
+          lastSelectedPhaseByChapterRef
+            .current
+            .get(chapter.id),
+      })
+    );
+
+    if (!nextPhase) return;
+
+    const next = createPhaseSelectionParams(
+      searchParams,
+      nextPhase,
+    );
+
+    if (next) {
+      setSearchParams(next);
+    }
   };
+
   const selectPhase = (phase) => {
-    if (getPhaseIndex(phase.id) > campaign.unlockedPhaseIndex) return;
-    const next = new URLSearchParams(searchParams);
-    next.set("capitulo", String(activeChapter.number));
-    next.set("fase", phase.id);
-    setSearchParams(next, { replace: true });
+    if (
+      getPhaseIndex(phase.id)
+      > campaign.unlockedPhaseIndex
+    ) {
+      return;
+    }
+
+    const next = createPhaseSelectionParams(
+      searchParams,
+      phase,
+    );
+
+    if (next) {
+      setSearchParams(
+        next,
+        { replace: true },
+      );
+    }
   };
+
   const campaignTransitioning = (
     isTransitioning
     && transition.type === "campaign-to-loadout"
@@ -194,6 +245,7 @@ export default function CampaignPage({ campaign }) {
     className={`campaign-map campaign-biome-${biome.key} ${campaignTransitioning ? "is-route-transitioning" : ""}`}
     data-world-theme={biome.key}
     data-world-signature={biome.planetEffects.signature}
+    data-all-chapters-visible="true"
     aria-busy={campaignTransitioning}
     style={{
       "--campaign-primary": biome.ui.primary,
@@ -215,6 +267,7 @@ export default function CampaignPage({ campaign }) {
       <div className="campaign-world">
         {webglFailed ? <CampaignWebGLFallback
           chapter={activeChapter}
+          chapters={CHAPTERS}
           phases={phases}
           campaign={campaign}
           selectedPhase={selectedPhase}
@@ -222,6 +275,7 @@ export default function CampaignPage({ campaign }) {
         /> : <Suspense fallback={<CampaignLoading imageUrl={getArenaUrl(activeChapter.coverArenaId)} />}>
           <CampaignPlanet
             chapter={activeChapter}
+            chapters={CHAPTERS}
             phases={phases}
             campaign={campaign}
             selectedPhase={selectedPhase}

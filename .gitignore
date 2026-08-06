@@ -7,3 +7,16 @@ dist/
 
 # Backups locais dos instaladores Genesis
 .genesis-backups/
+
+# Genesis AI campaign simulator
+reports/campaign-simulation.json
+reports/campaign-simulation.csv
+reports/campaign-simulation.md
+reports/simulation-failures.json
+reports/phase-strategies.json
+reports/phase-strategies.partial.json
+reports/*-simulation.json
+reports/*-simulation.csv
+reports/*-simulation.md
+reports/*-optimized-strategy.json
+!reports/.gitkeep

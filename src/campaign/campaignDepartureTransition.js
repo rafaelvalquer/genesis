@@ -5,6 +5,9 @@ import {
 import {
   getTargetRotationForPhase,
 } from "../visual/campaignPlanetCoordinates.js";
+import {
+  getCampaignRouteMaterials,
+} from "./campaignChapterVisuals.js";
 
 export function getCampaignDepartureCameraDistance(
   cameraDistance,
@@ -171,10 +174,7 @@ export function playCampaignToLoadoutTransition({
     );
 
     const routeMaterials = (
-      runtime.routeGroup?.children
-        ?.map((route) => route.material)
-        .filter(Boolean)
-      || []
+      getCampaignRouteMaterials(runtime)
     );
 
     const atmosphere = (

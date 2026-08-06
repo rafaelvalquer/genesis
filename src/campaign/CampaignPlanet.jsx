@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  getChapterForPhase,
+  getPhaseIndex,
+} from "../game/content.js";
 import { getCampaignBiome } from "./campaignBiomes.js";
 import { CAMPAIGN_PHASE_LOCATIONS, latLonToCartesian } from "./campaignSceneData.js";
+import {
+  initializeCampaignChapterVisuals,
+  setCampaignActiveChapter,
+  updateCampaignChapterVisuals,
+} from "./campaignChapterVisuals.js";
 import CampaignLoading from "./CampaignLoading.jsx";
 import PhaseMarker from "./PhaseMarker.jsx";
 import { consumeOrbitalTransition } from "../home/orbitalTransition.js";
@@ -75,80 +84,131 @@ const fragmentShader = `
 `;
 
 export default function CampaignPlanet({
-  chapter, phases, campaign, selectedPhase, quality, registerMarker, projectMarkers,
+  chapter, chapters, phases, campaign, selectedPhase, quality, registerMarker, projectMarkers,
   onSelectPhase, onRuntimeReady, onWebGLFailure,
 }) {
   const mountRef = useRef(null);
   const runtimeRef = useRef(null);
   const [loading, setLoading] = useState(true);
 
-  const updateChapterData = useCallback((runtime, nextChapter) => {
-    const { THREE, planetGroup, routeGroup, detailMesh, markerVectors } = runtime;
-    markerVectors.clear();
-    while (routeGroup.children.length) {
-      const child = routeGroup.children.pop();
-      child.geometry?.dispose();
-      child.material?.dispose();
-    }
-    const points = nextChapter.phaseIds.map((phaseId) => {
-      const location = CAMPAIGN_PHASE_LOCATIONS[phaseId];
-      const point = latLonToCartesian(location.latitude, location.longitude, 1.02 + location.elevation);
-      const vector = new THREE.Vector3(point.x, point.y, point.z);
-      markerVectors.set(phaseId, vector);
-      return vector;
-    });
-    for (let index = 1; index < points.length; index += 1) {
-      const curvePoints = [];
-      for (let step = 0; step <= 16; step += 1) {
-        curvePoints.push(points[index - 1].clone().lerp(points[index], step / 16).normalize().multiplyScalar(1.045));
+  const updateChapterData = useCallback(
+    (runtime, nextChapter) => {
+      const {
+        THREE,
+        detailMesh,
+      } = runtime;
+
+      const biome = getCampaignBiome(
+        nextChapter.id,
+      );
+
+      runtime.currentChapter = (
+        nextChapter
+      );
+
+      detailMesh.material.color.set(
+        biome.accent,
+      );
+
+      const dummy = runtime.dummy;
+      const detailCount = (
+        quality.detailCount
+      );
+
+      for (
+        let index = 0;
+        index < detailMesh.count;
+        index += 1
+      ) {
+        const seed = (
+          index * 12.9898
+          + nextChapter.number * 7.31
+        );
+
+        const y = (
+          1
+          - (
+            index
+            / Math.max(1, detailCount - 1)
+          ) * 2
+        );
+
+        const radius = Math.sqrt(
+          Math.max(0, 1 - y * y),
+        );
+
+        const angle = seed * 2.39996;
+
+        const normal = new THREE.Vector3(
+          Math.cos(angle) * radius,
+          y,
+          Math.sin(angle) * radius,
+        );
+
+        dummy.position
+          .copy(normal)
+          .multiplyScalar(1.015);
+
+        dummy.quaternion
+          .setFromUnitVectors(
+            new THREE.Vector3(0, 1, 0),
+            normal,
+          );
+
+        const scale = (
+          .018
+          + (index % 7) * .004
+        );
+
+        dummy.scale.set(
+          scale,
+          scale * (
+            biome.key === "glass"
+              ? 4.5
+              : 2.7
+          ),
+          scale,
+        );
+
+        dummy.updateMatrix();
+
+        detailMesh.setMatrixAt(
+          index,
+          dummy.matrix,
+        );
       }
-      const geometry = new THREE.BufferGeometry().setFromPoints(curvePoints);
-      const phaseIndex = campaign.unlockedPhaseIndex;
-      const destinationIndex = nextChapter.phaseIds.indexOf(nextChapter.phaseIds[index]);
-      const globalIndex = nextChapter.number * 8 - 8 + destinationIndex;
-      const reached = globalIndex <= phaseIndex;
-      const material = new THREE.LineBasicMaterial({
-        color: reached ? nextChapter.palette.primary : "#334155",
-        transparent: true,
-        opacity: reached ? .86 : .28,
+
+      detailMesh.count = detailCount;
+      detailMesh.instanceMatrix.needsUpdate = true;
+
+      applyGenesisWorldTheme({
+        THREE,
+        runtime,
+        chapter: nextChapter,
+        biome,
+        mode: "campaign",
+        immediate:
+          !runtime.initializedTheme,
       });
-      const route = new THREE.Line(geometry, material);
-      route.renderOrder = 4;
-      routeGroup.add(route);
-    }
 
-    const biome = getCampaignBiome(nextChapter.id);
-    runtime.currentChapter = nextChapter;
-    detailMesh.material.color.set(biome.accent);
-    const dummy = runtime.dummy;
-    const detailCount = quality.detailCount;
-    for (let index = 0; index < detailMesh.count; index += 1) {
-      const seed = index * 12.9898 + nextChapter.number * 7.31;
-      const y = 1 - (index / Math.max(1, detailCount - 1)) * 2;
-      const radius = Math.sqrt(Math.max(0, 1 - y * y));
-      const angle = seed * 2.39996;
-      const normal = new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
-      dummy.position.copy(normal).multiplyScalar(1.015);
-      dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
-      const scale = .018 + (index % 7) * .004;
-      dummy.scale.set(scale, scale * (biome.key === "glass" ? 4.5 : 2.7), scale);
-      dummy.updateMatrix();
-      detailMesh.setMatrixAt(index, dummy.matrix);
-    }
-    detailMesh.count = detailCount;
-    detailMesh.instanceMatrix.needsUpdate = true;
+      setCampaignActiveChapter(
+        runtime,
+        nextChapter.id,
+        campaign.unlockedPhaseIndex,
+        {
+          immediate:
+            !runtime.initializedChapterVisuals,
+        },
+      );
 
-    applyGenesisWorldTheme({
-      THREE,
-      runtime,
-      chapter: nextChapter,
-      biome,
-      mode: "campaign",
-      immediate: !runtime.initializedTheme,
-    });
-    runtime.initializedTheme = true;
-    planetGroup.rotation.set(biome.rotation.x, biome.rotation.y, biome.rotation.z);
-  }, [campaign.unlockedPhaseIndex, quality.detailCount]);
+      runtime.initializedTheme = true;
+      runtime.initializedChapterVisuals = true;
+    },
+    [
+      campaign.unlockedPhaseIndex,
+      quality.detailCount,
+    ],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -246,6 +306,17 @@ export default function CampaignPlanet({
           parent: planetModelRoot,
           quality,
           chapterId: chapter.id,
+          persistentChapters: true,
+          inactiveOpacity: quality.quality === "low"
+            ? .14
+            : .2,
+          lockedOpacity: .055,
+          unlockedChapterIds: chapters
+            .filter((entry) => (
+              getPhaseIndex(entry.phaseIds[0])
+              <= campaign.unlockedPhaseIndex
+            ))
+            .map((entry) => entry.id),
         });
 
         const runtime = {
@@ -261,7 +332,16 @@ export default function CampaignPlanet({
           width: 1, height: 1, velocityX: 0, velocityY: 0, dragging: false, disposed: false,
           killAuto: null, glbPlanet: null, planetParts: null, planetLayout: null, glbFade: 0,
         };
+        runtime.campaignChapters = chapters;
         runtimeRef.current = runtime;
+
+        initializeCampaignChapterVisuals({
+          runtime,
+          chapters,
+          unlockedPhaseIndex:
+            campaign.unlockedPhaseIndex,
+        });
+
         updateChapterData(runtime, chapter);
         const orbitalTransition = consumeOrbitalTransition(chapter.id, selectedPhase?.id);
         if (orbitalTransition) {
@@ -337,6 +417,7 @@ export default function CampaignPlanet({
           uniforms.uTime.value += delta;
           updateGenesisLightTransition(runtime, delta, renderer);
           updateGenesisChapterEffects(chapterEffects, delta, elapsed, quality.reduceMotion);
+          updateCampaignChapterVisuals(runtime, delta, quality.reduceMotion);
 
           if (runtime.glbPlanet && runtime.glbFade < 1) {
             runtime.glbFade = Math.min(1, runtime.glbFade + delta * 1.8);
@@ -380,6 +461,8 @@ export default function CampaignPlanet({
           document.removeEventListener("visibilitychange", onVisibility);
           resizeObserver?.disconnect();
           runtime.killAuto?.();
+          runtime.killTransition?.();
+          runtime.killChapterTransition?.();
           disposeThreeObject(scene);
           renderer.dispose();
           renderer.forceContextLoss();
@@ -462,22 +545,61 @@ export default function CampaignPlanet({
     <div ref={mountRef} className="campaign-canvas-mount" aria-hidden="true" />
     {loading && <CampaignLoading />}
     <div className="campaign-marker-layer">
-      {phases.map((phase) => {
-        const index = Number(phase.id.slice(-2)) - 1;
-        const stats = campaign.phaseStats[phase.id] || {};
-        return <PhaseMarker
-          key={phase.id}
-          phase={phase}
-          index={index}
-          locked={index > campaign.unlockedPhaseIndex}
-          selected={selectedPhase?.id === phase.id}
-          completed={Number(stats.victories || 0) > 0}
-          stars={Number(stats.bestStars || 0)}
-          current={campaign.currentPhaseId === phase.id}
-          registerMarker={registerMarker}
-          onSelect={onSelectPhase}
-          reduceMotion={quality.reduceMotion}
-        />;
+            {phases.map((phase) => {
+        const index = getPhaseIndex(
+          phase.id,
+        );
+
+        const stats = (
+          campaign.phaseStats[phase.id]
+          || {}
+        );
+
+        const phaseChapter = (
+          getChapterForPhase(phase)
+        );
+
+        const chapterActive = (
+          phaseChapter?.id === chapter.id
+        );
+
+        const chapterUnlocked = Boolean(
+          phaseChapter
+          && getPhaseIndex(
+            phaseChapter.phaseIds[0],
+          ) <= campaign.unlockedPhaseIndex
+        );
+
+        return (
+          <PhaseMarker
+            key={phase.id}
+            phase={phase}
+            chapter={phaseChapter}
+            index={index}
+            locked={
+              index
+              > campaign.unlockedPhaseIndex
+            }
+            selected={
+              selectedPhase?.id === phase.id
+            }
+            completed={
+              Number(stats.victories || 0) > 0
+            }
+            stars={
+              Number(stats.bestStars || 0)
+            }
+            current={
+              campaign.currentPhaseId
+              === phase.id
+            }
+            chapterActive={chapterActive}
+            chapterUnlocked={chapterUnlocked}
+            registerMarker={registerMarker}
+            onSelect={onSelectPhase}
+            reduceMotion={quality.reduceMotion}
+          />
+        );
       })}
     </div>
     <div className={`campaign-environment environment-${getCampaignBiome(chapter.id).key}`} aria-hidden="true">

@@ -464,3 +464,204 @@ html[data-quality="low"] .campaign-environment i:nth-child(n+4) { display: none;
   .campaign-loading-orbit,
   .phase-marker.is-selected .marker-core::after { animation: none !important; }
 }
+
+/* GENESIS_ALL_CHAPTERS_VISIBLE_V1 */
+.phase-marker-anchor[data-chapter-active="false"] {
+  opacity: .46;
+  transition:
+    opacity 280ms ease,
+    filter 280ms ease;
+}
+
+.phase-marker-anchor[data-chapter-active="false"]
+  .phase-marker {
+  filter:
+    grayscale(.68)
+    saturate(.48)
+    brightness(.58);
+  transform: scale(.82);
+  transition:
+    filter 220ms ease,
+    opacity 220ms ease,
+    transform 220ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.phase-marker-anchor[data-chapter-active="false"]
+  .marker-core {
+  border-color:
+    color-mix(
+      in srgb,
+      var(--marker-chapter-color) 48%,
+      #334155
+    );
+  box-shadow:
+    0 0 5px rgba(15, 23, 42, .8);
+}
+
+.phase-marker-anchor[data-chapter-active="false"]
+  .marker-beam,
+.phase-marker-anchor[data-chapter-active="false"]
+  .marker-pulse {
+  opacity: .08;
+}
+
+.phase-marker-anchor[data-chapter-active="false"]
+  .marker-label {
+  display: none;
+}
+
+.phase-marker-anchor[data-chapter-active="false"]:hover,
+.phase-marker-anchor[data-chapter-active="false"]:focus-within {
+  z-index: 20;
+  opacity: .92;
+}
+
+.phase-marker-anchor[data-chapter-active="false"]:hover
+  .phase-marker,
+.phase-marker-anchor[data-chapter-active="false"]:focus-within
+  .phase-marker {
+  filter:
+    grayscale(.25)
+    saturate(.82)
+    brightness(.88);
+  transform: scale(1);
+}
+
+.phase-marker-anchor[data-chapter-unlocked="false"] {
+  opacity: .24;
+}
+
+.phase-marker-anchor[data-chapter-unlocked="false"]
+  .phase-marker {
+  filter:
+    grayscale(1)
+    saturate(.1)
+    brightness(.42);
+}
+
+.phase-marker-anchor[data-marker-selected="true"] {
+  z-index: 24;
+  opacity: 1;
+}
+
+.phase-marker-anchor[data-marker-selected="true"]
+  .phase-marker {
+  filter: none;
+  transform: scale(1);
+}
+
+.campaign-fallback-all-chapters
+  .fallback-markers button {
+  border-color:
+    var(
+      --fallback-marker-color,
+      var(--campaign-primary)
+    );
+  color:
+    var(
+      --fallback-marker-color,
+      #dffaff
+    );
+  transition:
+    opacity 220ms ease,
+    filter 220ms ease,
+    transform 220ms ease;
+}
+
+.campaign-fallback-all-chapters
+  .fallback-markers button.is-chapter-inactive {
+  opacity: .38;
+  filter:
+    grayscale(.72)
+    brightness(.56);
+  transform:
+    translate(-50%, -50%)
+    scale(.78);
+}
+
+.campaign-fallback-all-chapters
+  .fallback-markers button.is-chapter-inactive:hover,
+.campaign-fallback-all-chapters
+  .fallback-markers button.is-chapter-inactive:focus-visible {
+  opacity: .9;
+  filter:
+    grayscale(.2)
+    brightness(.88);
+  transform:
+    translate(-50%, -50%)
+    scale(.96);
+}
+
+.campaign-fallback-all-chapters
+  .fallback-markers button.is-selected {
+  z-index: 4;
+  opacity: 1;
+  filter: none;
+  transform:
+    translate(-50%, -50%)
+    scale(1.15);
+}
+
+.fallback-chapter-legend {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 22px;
+  display: flex;
+  gap: 8px;
+  transform: translateX(-50%);
+}
+
+.fallback-chapter-legend span {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--legend-color) 44%,
+      #334155
+    );
+  border-radius: 50%;
+  background: rgba(2, 8, 15, .86);
+  color: #7890a2;
+  font:
+    700 8px
+    "Chakra Petch";
+  opacity: .44;
+}
+
+.fallback-chapter-legend span.active {
+  border-color: var(--legend-color);
+  color: #fff;
+  opacity: 1;
+  box-shadow:
+    0 0 12px
+      color-mix(
+        in srgb,
+        var(--legend-color) 65%,
+        transparent
+      );
+}
+
+.campaign-map[data-all-chapters-visible="true"]
+  .campaign-marker-layer {
+  opacity: 1;
+}
+
+.campaign-map[data-all-chapters-visible="true"]
+  .campaign-biome-label {
+  transition:
+    border-color 320ms ease,
+    opacity 320ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase-marker-anchor,
+  .phase-marker-anchor .phase-marker,
+  .campaign-fallback-all-chapters
+    .fallback-markers button {
+    transition-duration: 1ms !important;
+  }
+}
