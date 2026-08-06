@@ -92,9 +92,11 @@ import { forceLeviathanAttack as forceLeviathanAttackDomain, updateLeviathan } f
 import { createEnemyEntity } from "./enemies/enemyFactory.js";
 import { getEnemyBehavior } from "./enemies/enemyRegistry.js";
 import {
+  getLivingRasgamarTroopsInRow,
   getRasgamarRelocationDuration,
   hasLivingTroopsForRasgamar,
   hasLivingTroopsInRasgamarRow,
+  selectRasgamarRangedTarget,
   selectRasgamarRelocationRow,
 } from "./enemies/chapter05/enguiaRasgamarTactics.js";
 
@@ -6331,21 +6333,46 @@ function selectRasgamarAmbushTarget(session, enemy) {
 }
 
 function selectRasgamarRangedPlan(session, enemy, config) {
-  const targets = session.troops.filter((troop) => !troop.dead && troop.row === enemy.row
-    && !isTideCellFlooded(session, troop.row, troop.col));
-  const columns = rasgamarFloodedColumns(session, enemy.row);
-  const plans = targets.flatMap((troop) => columns.map((col) => ({ troop, col, x: col * CELL.width + CELL.width / 2 })))
-    .filter((plan) => plan.x > plan.troop.x && plan.x - plan.troop.x <= config.rangedRange * CELL.width);
-  plans.sort((left, right) => {
-    const edge = right.troop.col - left.troop.col;
-    if (edge) return edge;
-    const reator = Number(right.troop.type === "reator") - Number(left.troop.type === "reator");
-    if (reator) return reator;
-    const support = Number(/suporte/i.test(TROOPS[right.troop.type]?.role || "")) - Number(/suporte/i.test(TROOPS[left.troop.type]?.role || ""));
-    if (support) return support;
-    return left.troop.hp / left.troop.maxHp - right.troop.hp / right.troop.maxHp || left.troop.col - right.troop.col;
-  });
-  return plans[0] || null;
+  const targets = getLivingRasgamarTroopsInRow(session, enemy.row)
+    .filter((troop) => !isTideCellFlooded(session, troop.row, troop.col));
+  if (!targets.length) return null;
+
+  const maximumRangePx = config.fullLaneRangedAttack
+    ? FIELD.width
+    : config.rangedRange * CELL.width;
+  const legacyRangePx = config.rangedRange * CELL.width;
+  const currentCol = rasgamarColumn(enemy);
+  const remainingTargets = [...targets];
+
+  while (remainingTargets.length) {
+    const troop = selectRasgamarRangedTarget(remainingTargets);
+    if (!troop) return null;
+    const targetIndex = remainingTargets.findIndex((candidate) => candidate.id === troop.id);
+    if (targetIndex >= 0) remainingTargets.splice(targetIndex, 1);
+
+    const positions = rasgamarFloodedColumns(session, enemy.row)
+      .map((col) => ({ col, x: col * CELL.width + CELL.width / 2 }))
+      .filter((position) => (
+        position.x > troop.x
+        && position.x - troop.x <= maximumRangePx
+      ))
+      .sort((left, right) => (
+        Math.abs(left.col - currentCol) - Math.abs(right.col - currentCol)
+        || right.col - left.col
+      ));
+
+    const position = positions[0];
+    if (!position) continue;
+    const distancePx = position.x - troop.x;
+    return {
+      troop,
+      ...position,
+      distancePx,
+      fullLaneAttack: Boolean(config.fullLaneRangedAttack && distancePx > legacyRangePx),
+    };
+  }
+
+  return null;
 }
 
 function launchRasgamarDart(session, enemy, config, troop, events) {
@@ -6478,6 +6505,12 @@ function updateRasgamar(session, enemy, config, dt, events) {
     return true;
   }
   if (enemy.rasgamarState === "rangedCharge") {
+    if (enemy.rasgamarBaseAssault && hasLivingTroopsForRasgamar(session)) {
+      enemy.rasgamarBaseAssault = false;
+      clearRasgamarTarget(enemy);
+      setRasgamarState(session, enemy, "dive", config.laneRetargetDiveMs);
+      return true;
+    }
     if (session.elapsed >= enemy.rasgamarStateEndsAt) {
       if (enemy.rasgamarBaseAssault) {
         applyRasgamarBaseAttack(session, enemy, config, events);
@@ -6520,6 +6553,18 @@ function updateRasgamar(session, enemy, config, dt, events) {
     enemy.rasgamarTargetId = ranged.troop.id;
     enemy.rasgamarTargetX = ranged.x;
     enemy.rasgamarNextActionAt = session.elapsed + config.rangedCooldownMs;
+    if (ranged.fullLaneAttack) {
+      events.push({
+        type: "rasgamarFullLaneTargeted",
+        enemyId: enemy.id,
+        targetTroopId: ranged.troop.id,
+        row: enemy.row,
+        targetCol: ranged.troop.col,
+        distanceTiles: ranged.distancePx / CELL.width,
+        x: enemy.x,
+        y: enemy.y,
+      });
+    }
     setRasgamarState(session, enemy, "rangedPositioning");
     return true;
   }

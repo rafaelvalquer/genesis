@@ -2260,6 +2260,7 @@ export const ENEMIES = {
     baseAttackDamage: 4,
     baseAttackCooldownMs: 2200,
     idleSurfaceExposureEveryMs: 6000,
+    fullLaneRangedAttack: true,
     rangedRange: 5,
     projectileSpeed: 280,
     coilAttackSlowFactor: 0.8,

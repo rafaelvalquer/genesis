@@ -9,8 +9,12 @@ export function hasLivingTroopsForRasgamar(session) {
   return livingTroops(session).length > 0;
 }
 
+export function getLivingRasgamarTroopsInRow(session, row) {
+  return livingTroops(session).filter((troop) => troop.row === row);
+}
+
 export function hasLivingTroopsInRasgamarRow(session, row) {
-  return livingTroops(session).some((troop) => troop.row === row);
+  return getLivingRasgamarTroopsInRow(session, row).length > 0;
 }
 
 export function getRasgamarOccupiedRows(session, ignoredEnemyId = null) {
@@ -52,6 +56,38 @@ function isPriorityTroop(troop) {
   return troop.type === "reator"
     || /suporte|economia|cura/i.test(config.role || "")
     || Boolean(config.attack && config.attack !== "none" && config.attack !== "energy");
+}
+
+function rangedTargetRank(troop) {
+  const config = TROOPS[troop.type] || {};
+  const hpRatio = Number(troop.maxHp) > 0
+    ? Number(troop.hp) / Number(troop.maxHp)
+    : 1;
+
+  return [
+    troop.type === "reator" ? 0 : 1,
+    /suporte|economia|cura/i.test(config.role || "") ? 0 : 1,
+    Number(config.range || 0) > 1 ? 0 : 1,
+    hpRatio,
+    Number(troop.col) || 0,
+    String(troop.id || ""),
+  ];
+}
+
+function compareRank(left, right) {
+  const leftRank = rangedTargetRank(left);
+  const rightRank = rangedTargetRank(right);
+  for (let index = 0; index < leftRank.length; index += 1) {
+    if (leftRank[index] === rightRank[index]) continue;
+    return leftRank[index] < rightRank[index] ? -1 : 1;
+  }
+  return 0;
+}
+
+export function selectRasgamarRangedTarget(troops = []) {
+  return troops
+    .filter((troop) => !troop.dead && troop.hp > 0)
+    .sort(compareRank)[0] || null;
 }
 
 export function buildRasgamarRowStats(

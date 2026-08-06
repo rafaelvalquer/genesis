@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { isRasgamarSubmerged } from "../../enemyTargeting.js";
 import {
+  getLivingRasgamarTroopsInRow,
   getRasgamarOccupiedRows,
   getRasgamarRelocationDuration,
   hasLivingTroopsForRasgamar,
   hasLivingTroopsInRasgamarRow,
+  selectRasgamarRangedTarget,
   selectRasgamarRelocationRow,
 } from "./enguiaRasgamarTactics.js";
 
@@ -31,27 +33,40 @@ const eel = (id, row, overrides = {}) => ({
   ...overrides,
 });
 
-describe("tática de mudança de rota da Enguia Rasgamar", () => {
+describe("tática da Enguia Rasgamar", () => {
   it("detecta tropas vivas no campo e na rota atual", () => {
     const session = { troops: [troop("t1", 2)], enemies: [] };
     expect(hasLivingTroopsForRasgamar(session)).toBe(true);
     expect(hasLivingTroopsInRasgamarRow(session, 2)).toBe(true);
     expect(hasLivingTroopsInRasgamarRow(session, 1)).toBe(false);
+    expect(getLivingRasgamarTroopsInRow(session, 2)).toHaveLength(1);
+  });
+
+  it("prioriza Reator distante como alvo de disparo", () => {
+    const target = selectRasgamarRangedTarget([
+      troop("marine_near", 2, "marine", { col: 8 }),
+      troop("reactor_far", 2, "reator", { col: 1 }),
+    ]);
+    expect(target?.id).toBe("reactor_far");
+  });
+
+  it("ignora alvos mortos na seleção de longo alcance", () => {
+    const target = selectRasgamarRangedTarget([
+      troop("reactor_dead", 2, "reator", { col: 1, hp: 0, dead: true }),
+      troop("marine_alive", 2, "marine", { col: 2 }),
+    ]);
+    expect(target?.id).toBe("marine_alive");
   });
 
   it("prioriza a rota sem Enguia que possui mais tropas", () => {
     const current = eel("eel_current", 0);
     const session = {
       troops: [
-        troop("a1", 1),
-        troop("a2", 1),
-        troop("a3", 1),
-        troop("b1", 3),
-        troop("b2", 3),
+        troop("a1", 1), troop("a2", 1), troop("a3", 1),
+        troop("b1", 3), troop("b2", 3),
       ],
       enemies: [current],
     };
-
     expect(selectRasgamarRelocationRow(session, current, [1, 2, 3, 4])).toBe(1);
   });
 
@@ -64,7 +79,6 @@ describe("tática de mudança de rota da Enguia Rasgamar", () => {
       ],
       enemies: [current, eel("eel_other", 1)],
     };
-
     expect(selectRasgamarRelocationRow(session, current, [1, 3])).toBe(3);
   });
 
@@ -75,7 +89,6 @@ describe("tática de mudança de rota da Enguia Rasgamar", () => {
       troops: [troop("a1", 2), troop("a2", 2), troop("b1", 3)],
       enemies: [current, relocating],
     };
-
     expect(getRasgamarOccupiedRows(session, current.id)).toEqual(new Set([4, 2]));
     expect(selectRasgamarRelocationRow(session, current, [2, 3])).toBe(3);
   });
@@ -89,7 +102,6 @@ describe("tática de mudança de rota da Enguia Rasgamar", () => {
       ],
       enemies: [current, eel("eel_1", 1), eel("eel_3", 3)],
     };
-
     expect(selectRasgamarRelocationRow(session, current, [1, 3])).toBe(1);
   });
 
@@ -102,7 +114,6 @@ describe("tática de mudança de rota da Enguia Rasgamar", () => {
       ],
       enemies: [current],
     };
-
     expect(selectRasgamarRelocationRow(session, current, [1, 3])).toBe(3);
   });
 
