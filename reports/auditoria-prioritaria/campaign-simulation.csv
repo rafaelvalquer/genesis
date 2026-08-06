@@ -1,0 +1,8 @@
+phaseId;phaseName;chapterId;runs;victories;defeats;victoryRate;averageStars;medianDurationMs;medianIntegrity;averageTroopDeaths;averageDeployments;averageReplacements;medianPeakEntities;assistanceUsedRate;invalidStates;deadlocks;timeouts;classification;recommendedLoadout
+fase_03;Cratera Norte;chapter_01;12;3;9;25;2;339424;46;16.42;35.58;11.67;31.5;100;0;0;0;MUITO SEVERA;reator,colono,marine,droneSentinela
+fase_05;Estação Silenciosa;chapter_01;12;0;12;0;0;0;0;9.75;25.5;3.5;33;100;0;0;0;SEM VITÓRIA;reator,colono,marine,droneSentinela
+fase_10;Dunas Cantantes;chapter_02;12;0;11;0;0;0;0;18.58;40.42;11;36.5;25;0;1;0;ERRO TÉCNICO;reator,colossoImpacto,droneSentinela,marine,krio
+fase_25;Passo dos Ventos;chapter_04;12;1;11;8.33;1;456416;15;39.42;59.92;19.67;37.5;100;0;0;0;MUITO SEVERA;reator,lumiUrsa7,droneSentinela,interceptadorIcaro,medicaNanites,marine,bombardeiro
+fase_33;Costa dos Naufrágios;chapter_05;12;7;0;58.33;2.43;1053856;100;15.33;48.83;9.17;52;8.33;0;5;0;ERRO TÉCNICO;bastiaoMare,cacadorLeviatas,marine,lumiUrsa7,droneSentinela,fuzileiroVoltaico,operadorJano,bombardeiro
+fase_38;Jardins Predadores;chapter_05;12;0;1;0;0;0;0;59.67;94.75;46.83;74.5;100;0;11;0;ERRO TÉCNICO;bastiaoMare,cacadorLeviatas,marine,lumiUrsa7,droneSentinela,bombardeiro,colossoImpacto,colono
+fase_40;Trono Abissal;chapter_05;12;0;0;0;0;0;0;9.17;33;4.58;79;8.33;0;1;11;ERRO TÉCNICO;bastiaoMare,cacadorLeviatas,marine,lumiUrsa7,droneSentinela,bombardeiro,colossoImpacto,colono

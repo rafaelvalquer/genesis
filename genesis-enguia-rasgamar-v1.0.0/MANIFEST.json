@@ -1,0 +1,19 @@
+{
+  "name": "genesis-enguia-rasgamar",
+  "version": "1.0.0",
+  "repository": "rafaelvalquer/genesis",
+  "baseCommit": "842c9baaad8c6f7f1ce8b75129e32135300aeb40",
+  "feature": "Nova mecânica da Enguia Rasgamar",
+  "modifiedFiles": [
+    "src/game/battleModel.js",
+    "src/game/content.js",
+    "src/game/enemyTargeting.js",
+    "src/game/visualGeometry.js",
+    "src/game/enemies/chapter05/enguiaRasgamar.js"
+  ],
+  "addedFiles": [
+    "src/game/enemies/chapter05/enguiaRasgamarTactics.js",
+    "src/game/enemies/chapter05/enguiaRasgamarTactics.test.js",
+    "scripts/check-rasgamar-relocation-contract.mjs"
+  ]
+}

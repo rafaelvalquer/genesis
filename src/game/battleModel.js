@@ -91,6 +91,12 @@ import { createProjectileTrail, pushProjectileTrail } from "./projectileTrail.js
 import { forceLeviathanAttack as forceLeviathanAttackDomain, updateLeviathan } from "./leviathanNereida.js";
 import { createEnemyEntity } from "./enemies/enemyFactory.js";
 import { getEnemyBehavior } from "./enemies/enemyRegistry.js";
+import {
+  getRasgamarRelocationDuration,
+  hasLivingTroopsForRasgamar,
+  hasLivingTroopsInRasgamarRow,
+  selectRasgamarRelocationRow,
+} from "./enemies/chapter05/enguiaRasgamarTactics.js";
 
 export {
   createWindCurrentState,
@@ -6153,7 +6159,7 @@ function setRasgamarState(session, enemy, state, durationMs = Infinity) {
   enemy.rasgamarStateStartedAt = session.elapsed;
   enemy.rasgamarStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
   enemy.rasgamarSubmerged = RASGAMAR_SUBMERGED_STATES.has(state);
-  enemy.moving = ["submergedPatrol", "submergedApproach", "rangedPositioning", "tideEscape", "dive"].includes(state);
+  enemy.moving = ["submergedPatrol", "submergedApproach", "rangedPositioning", "tideEscape", "dive", "laneRelocation"].includes(state);
 }
 
 function rasgamarFloodedColumns(session, row) {
@@ -6178,6 +6184,132 @@ function moveRasgamarTo(session, enemy, targetX, dt, speedFactor = 1) {
   enemy.x += Math.sign(distance) * enemy.speed * speedFactor * dt / 1000;
   enemy.moving = true;
   return false;
+}
+
+function clearRasgamarTarget(enemy) {
+  enemy.rasgamarTargetId = null;
+  enemy.rasgamarTargetX = null;
+  enemy.rasgamarPatrolCol = null;
+}
+
+function startRasgamarRelocation(session, enemy, config, targetRow, events) {
+  clearRasgamarCoil(session, enemy);
+  clearRasgamarTarget(enemy);
+  enemy.rasgamarBaseAssault = false;
+  enemy.rasgamarTargetRow = targetRow;
+  enemy.rasgamarRelocationSourceRow = enemy.row;
+  enemy.rasgamarRelocationSourceY = enemy.y;
+  enemy.rasgamarRelocationDurationMs = getRasgamarRelocationDuration(config, enemy.row, targetRow);
+  enemy.rasgamarNextRelocationAt = session.elapsed
+    + config.laneRetargetDiveMs
+    + enemy.rasgamarRelocationDurationMs
+    + config.laneRelocationCooldownMs;
+  setRasgamarState(session, enemy, "dive", config.laneRetargetDiveMs);
+  events.push({
+    type: "rasgamarRelocationStarted",
+    enemyId: enemy.id,
+    fromRow: enemy.row,
+    toRow: targetRow,
+    troopCountAtDestination: session.troops.filter((troop) => !troop.dead && troop.row === targetRow).length,
+    x: enemy.x,
+    y: enemy.y,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
+}
+
+function updateRasgamarLaneRelocation(session, enemy, dt, events) {
+  const targetRow = enemy.rasgamarTargetRow;
+  if (!Number.isInteger(targetRow)) {
+    setRasgamarState(session, enemy, "submergedPatrol");
+    return true;
+  }
+  const duration = Math.max(1, Number(enemy.rasgamarRelocationDurationMs) || 1);
+  const progress = clamp((session.elapsed - enemy.rasgamarStateStartedAt) / duration, 0, 1);
+  const eased = progress * progress * (3 - 2 * progress);
+  const fromY = Number.isFinite(enemy.rasgamarRelocationSourceY)
+    ? enemy.rasgamarRelocationSourceY
+    : enemy.y;
+  const targetY = targetRow * CELL.height + CELL.height / 2;
+  enemy.y = fromY + (targetY - fromY) * eased;
+  enemy.moving = true;
+  if (progress < 1) return true;
+
+  const fromRow = enemy.rasgamarRelocationSourceRow;
+  enemy.row = targetRow;
+  enemy.y = targetY;
+  enemy.rasgamarTargetRow = null;
+  enemy.rasgamarRelocationSourceRow = null;
+  enemy.rasgamarRelocationSourceY = null;
+  enemy.rasgamarRelocationDurationMs = 0;
+  rebuildBattleIndex(session);
+  setRasgamarState(session, enemy, "submergedPatrol");
+  events.push({
+    type: "rasgamarRelocationCompleted",
+    enemyId: enemy.id,
+    fromRow,
+    toRow: enemy.row,
+    x: enemy.x,
+    y: enemy.y,
+  });
+  return true;
+}
+
+function startRasgamarBaseAssault(session, enemy, config, events) {
+  const columns = rasgamarFloodedColumns(session, enemy.row).sort((left, right) => left - right);
+  if (!columns.length) return false;
+  clearRasgamarCoil(session, enemy);
+  clearRasgamarTarget(enemy);
+  enemy.rasgamarBaseAssault = true;
+  enemy.rasgamarTargetX = columns[0] * CELL.width + CELL.width / 2;
+  setRasgamarState(session, enemy, "rangedPositioning");
+  events.push({
+    type: "rasgamarBaseAssaultStarted",
+    enemyId: enemy.id,
+    row: enemy.row,
+    x: enemy.x,
+    y: enemy.y,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
+  return true;
+}
+
+function applyRasgamarBaseAttack(session, enemy, config, events) {
+  const integrityBefore = session.integrity;
+  const invulnerable = Boolean(session.sandboxSettings?.invulnerableBase);
+  const shielded = !session.sandbox && session.shieldCharges > 0;
+  if (shielded) session.shieldCharges -= 1;
+  const damageMultiplier = Number(session.currentWaveBaseDamageFactor) || 1;
+  const sandboxMultiplier = session.sandboxSettings?.enemyDamageMultiplier ?? 1;
+  const requestedDamage = Math.max(1, Math.round(config.baseAttackDamage * damageMultiplier * sandboxMultiplier));
+  const damage = shielded || invulnerable ? 0 : requestedDamage;
+  if (damage > 0) session.integrity = Math.max(0, session.integrity - damage);
+  if (shielded) {
+    events.push({
+      type: "shieldBlock",
+      x: FIELD.baseX,
+      y: enemy.y,
+      remaining: session.shieldCharges,
+    });
+  }
+  if (damage > 0) events.push({ type: "breach", damage, x: FIELD.baseX, y: enemy.y });
+  enemy.rasgamarBaseAttackCount = Number(enemy.rasgamarBaseAttackCount || 0) + 1;
+  enemy.rasgamarNextBaseAttackAt = session.elapsed + config.baseAttackCooldownMs;
+  events.push({
+    type: "rasgamarBaseAttack",
+    enemyId: enemy.id,
+    row: enemy.row,
+    damage,
+    requestedDamage,
+    shielded,
+    integrityBefore,
+    integrityAfter: session.integrity,
+    x: FIELD.baseX,
+    y: enemy.y,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
 }
 
 function selectRasgamarAmbushTarget(session, enemy) {
@@ -6250,6 +6382,20 @@ function launchVeuSalinoProjectile(session, enemy, troop, config, events) {
 }
 
 function updateRasgamar(session, enemy, config, dt, events) {
+  if (enemy.rasgamarState === "laneRelocation") {
+    return updateRasgamarLaneRelocation(session, enemy, dt, events);
+  }
+  if (enemy.rasgamarState === "dive" && Number.isInteger(enemy.rasgamarTargetRow)) {
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) {
+      setRasgamarState(
+        session,
+        enemy,
+        "laneRelocation",
+        Math.max(1, Number(enemy.rasgamarRelocationDurationMs) || 1),
+      );
+    }
+    return true;
+  }
   const currentCellFlooded = isTideCellFlooded(session, enemy.row, rasgamarColumn(enemy));
   if (!currentCellFlooded) {
     clearRasgamarCoil(session, enemy);
@@ -6305,8 +6451,26 @@ function updateRasgamar(session, enemy, config, dt, events) {
     return true;
   }
   if (enemy.rasgamarState === "rangedPositioning") {
-    if (!target || isTideCellFlooded(session, target.row, target.col)) { setRasgamarState(session, enemy, "submergedPatrol"); return true; }
-    if (moveRasgamarTo(session, enemy, enemy.rasgamarTargetX, dt)) setRasgamarState(session, enemy, "rangedEmerge", config.rangedEmergeMs);
+    if (enemy.rasgamarBaseAssault) {
+      if (hasLivingTroopsForRasgamar(session)) {
+        enemy.rasgamarBaseAssault = false;
+        clearRasgamarTarget(enemy);
+        setRasgamarState(session, enemy, "dive", config.laneRetargetDiveMs);
+        return true;
+      }
+      if (moveRasgamarTo(session, enemy, enemy.rasgamarTargetX, dt)) {
+        setRasgamarState(session, enemy, "rangedEmerge", config.rangedEmergeMs);
+      }
+      return true;
+    }
+    if (!target || isTideCellFlooded(session, target.row, target.col)) {
+      clearRasgamarTarget(enemy);
+      setRasgamarState(session, enemy, "submergedPatrol");
+      return true;
+    }
+    if (moveRasgamarTo(session, enemy, enemy.rasgamarTargetX, dt)) {
+      setRasgamarState(session, enemy, "rangedEmerge", config.rangedEmergeMs);
+    }
     return true;
   }
   if (enemy.rasgamarState === "rangedEmerge") {
@@ -6315,7 +6479,15 @@ function updateRasgamar(session, enemy, config, dt, events) {
   }
   if (enemy.rasgamarState === "rangedCharge") {
     if (session.elapsed >= enemy.rasgamarStateEndsAt) {
-      launchRasgamarDart(session, enemy, config, target, events);
+      if (enemy.rasgamarBaseAssault) {
+        applyRasgamarBaseAttack(session, enemy, config, events);
+      } else if (target) {
+        launchRasgamarDart(session, enemy, config, target, events);
+      } else {
+        clearRasgamarTarget(enemy);
+        setRasgamarState(session, enemy, "dive", config.laneRetargetDiveMs);
+        return true;
+      }
       setRasgamarState(session, enemy, "rangedAttack", config.rangedAttackMs);
     }
     return true;
@@ -6329,7 +6501,11 @@ function updateRasgamar(session, enemy, config, dt, events) {
     return true;
   }
   if (enemy.rasgamarState === "dive") {
-    if (session.elapsed >= enemy.rasgamarStateEndsAt) setRasgamarState(session, enemy, "submergedPatrol");
+    if (session.elapsed >= enemy.rasgamarStateEndsAt) {
+      enemy.rasgamarBaseAssault = false;
+      clearRasgamarTarget(enemy);
+      setRasgamarState(session, enemy, "submergedPatrol");
+    }
     return true;
   }
   const ambush = selectRasgamarAmbushTarget(session, enemy);
@@ -6346,6 +6522,22 @@ function updateRasgamar(session, enemy, config, dt, events) {
     enemy.rasgamarNextActionAt = session.elapsed + config.rangedCooldownMs;
     setRasgamarState(session, enemy, "rangedPositioning");
     return true;
+  }
+  const currentRowHasTroops = hasLivingTroopsInRasgamarRow(session, enemy.row);
+  if (!currentRowHasTroops) {
+    const hasAnyTroops = hasLivingTroopsForRasgamar(session);
+    if (hasAnyTroops && session.elapsed >= Number(enemy.rasgamarNextRelocationAt || 0)) {
+      const eligibleRows = Array.from({ length: FIELD.rows }, (_, row) => row)
+        .filter((row) => row !== enemy.row && rasgamarFloodedColumns(session, row).length > 0);
+      const relocationRow = selectRasgamarRelocationRow(session, enemy, eligibleRows);
+      if (Number.isInteger(relocationRow)) {
+        startRasgamarRelocation(session, enemy, config, relocationRow, events);
+        return true;
+      }
+    }
+    if (!hasAnyTroops && session.elapsed >= Number(enemy.rasgamarNextBaseAttackAt || 0)) {
+      if (startRasgamarBaseAssault(session, enemy, config, events)) return true;
+    }
   }
   if (session.elapsed >= enemy.rasgamarNextExposureAt) {
     enemy.rasgamarNextExposureAt = session.elapsed + config.idleSurfaceExposureEveryMs;

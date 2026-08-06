@@ -255,6 +255,7 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
         submergedPatrol: "swimSubmerged",
         submergedApproach: "swimSubmerged",
         rangedPositioning: "swimSubmerged",
+        laneRelocation: "swimSubmerged",
       }[logicalState] || logicalState);
     const count = Math.max(1, frameCounts[state] || frameCounts.swimSubmerged || 1);
     const age = Math.max(0, elapsed - (enemy.rasgamarStateStartedAt || enemy.spawnedAt || 0));

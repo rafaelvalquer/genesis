@@ -1,0 +1,1197 @@
+{
+  "schemaVersion": 1,
+  "metadata": {
+    "command": "simulate-campaign",
+    "quick": false,
+    "strict": false,
+    "strategies": [
+      "balanced"
+    ],
+    "seeds": [
+      1001
+    ],
+    "workers": 1,
+    "tasks": 1,
+    "workerFailures": 0,
+    "wallDurationMs": 2414,
+    "generatedAt": "2026-08-06T14:32:08.114Z"
+  },
+  "campaign": {
+    "phases": 1,
+    "totalRuns": 1,
+    "victories": 0,
+    "victoryRate": 0,
+    "technicalFailures": 0,
+    "phasesWithTechnicalFailure": 0,
+    "phasesWithoutVictory": 1,
+    "medianVictoryDurationMs": 0,
+    "medianVictoryIntegrity": 0,
+    "generatedAt": "2026-08-06T14:32:08.119Z"
+  },
+  "phases": [
+    {
+      "phaseId": "fase_03",
+      "phaseName": "Cratera Norte",
+      "chapterId": "chapter_01",
+      "runs": 1,
+      "validRuns": 1,
+      "victories": 0,
+      "defeats": 1,
+      "victoryRate": 0,
+      "averageStars": 0,
+      "medianStars": 0,
+      "medianDurationMs": 0,
+      "p25DurationMs": 0,
+      "p75DurationMs": 0,
+      "medianIntegrity": 0,
+      "averageTroopDeaths": 13,
+      "averageDeployments": 30,
+      "averageReplacements": 8,
+      "medianPeakEntities": 31,
+      "assistanceTriggeredRate": 1,
+      "assistanceUsedRate": 1,
+      "invalidStates": 0,
+      "deadlocks": 0,
+      "timeouts": 0,
+      "recommendedLoadout": [
+        "reator",
+        "colono",
+        "marine",
+        "droneSentinela"
+      ],
+      "strategyIds": [
+        "balanced"
+      ],
+      "classification": "SEM VITÓRIA"
+    }
+  ],
+  "runs": [
+    {
+      "simulationVersion": 1,
+      "phaseId": "fase_03",
+      "chapterId": "chapter_01",
+      "seed": 1001,
+      "strategyId": "balanced",
+      "loadout": [
+        "reator",
+        "colono",
+        "marine",
+        "droneSentinela"
+      ],
+      "outcome": "defeat",
+      "stars": 0,
+      "durationMs": 390016,
+      "integrity": 0,
+      "integrityCurrent": 0,
+      "integrityMax": 100,
+      "resources": {
+        "energy": 3,
+        "energyMax": 100,
+        "supply": 20,
+        "supplyMax": 20
+      },
+      "enemiesDefeated": 43,
+      "troopDeaths": 13,
+      "deployments": 30,
+      "removals": 0,
+      "replacements": 8,
+      "specialsUsed": 0,
+      "decisionsSelected": 3,
+      "adaptiveAidSelections": 1,
+      "assistanceTriggered": true,
+      "assistanceUsed": true,
+      "peaks": {
+        "enemies": 10,
+        "troops": 10,
+        "projectiles": 15,
+        "enemyProjectiles": 0,
+        "mines": 0,
+        "activeEntities": 31
+      },
+      "energy": {
+        "final": 3,
+        "generated": 128,
+        "collected": 0
+      },
+      "waveCompletionTimes": [
+        {
+          "wave": 1,
+          "elapsedMs": 84768
+        },
+        {
+          "wave": 2,
+          "elapsedMs": 190944
+        },
+        {
+          "wave": 3,
+          "elapsedMs": 293216
+        }
+      ],
+      "events": {
+        "droneStackCreated": 5,
+        "spawn": 58,
+        "droneStackAdded": 10,
+        "energyGenerated": 71,
+        "hit": 504,
+        "melee": 61,
+        "troopHit": 61,
+        "enemyDeath": 36,
+        "droneVolley": 167,
+        "shoot": 489,
+        "projectileImpact": 443,
+        "troopDeath": 13,
+        "pulseCharging": 3,
+        "pulseFired": 3,
+        "enemyDisintegrated": 7,
+        "lastEnemyKilled": 3,
+        "waveOutroStarted": 3,
+        "waveComplete": 3,
+        "waveOutroCleanup": 3,
+        "waveCompleteBanner": 3,
+        "decisionIntro": 3,
+        "waveDecisionReady": 3,
+        "breach": 10,
+        "adaptiveAidTriggered": 1,
+        "capsuleIncoming": 1,
+        "capsuleLanded": 1,
+        "capsuleOpening": 1,
+        "capsuleOpened": 1,
+        "adaptiveAidSelected": 1,
+        "fortuneContingencyRepairs": 1
+      },
+      "eventDamage": {
+        "energyGenerated": 128,
+        "hit": 1440,
+        "troopHit": 337,
+        "breach": 151
+      },
+      "steps": 12188,
+      "agentTicks": 2438,
+      "validationChecks": 382,
+      "wallDurationMs": 2291,
+      "timeout": false,
+      "deadlock": null,
+      "invalidState": null,
+      "failureReason": null,
+      "agent": {
+        "placements": 30,
+        "removals": 0,
+        "specials": 0,
+        "decisions": 3,
+        "waveStarts": 4,
+        "adaptiveAidActions": 2,
+        "failedActionKeys": [
+          {
+            "key": "place:droneSentinela:3:3",
+            "count": 1,
+            "reason": "Limite de 5 células com Drone Sentinela no campo."
+          },
+          {
+            "key": "place:colono:4:9",
+            "count": 1,
+            "reason": "Supply insuficiente: requer 3."
+          },
+          {
+            "key": "place:colono:4:7",
+            "count": 1,
+            "reason": "Supply insuficiente: requer 3."
+          },
+          {
+            "key": "place:colono:3:8",
+            "count": 1,
+            "reason": "Supply insuficiente: requer 3."
+          },
+          {
+            "key": "place:colono:2:9",
+            "count": 2,
+            "reason": "Energia insuficiente: requer 10."
+          },
+          {
+            "key": "place:colono:2:7",
+            "count": 2,
+            "reason": "Energia insuficiente: requer 10."
+          },
+          {
+            "key": "place:colono:1:8",
+            "count": 2,
+            "reason": "Energia insuficiente: requer 10."
+          },
+          {
+            "key": "place:colono:1:9",
+            "count": 1,
+            "reason": "Energia insuficiente: requer 10."
+          },
+          {
+            "key": "place:colono:1:7",
+            "count": 1,
+            "reason": "Energia insuficiente: requer 10."
+          },
+          {
+            "key": "place:colono:0:7",
+            "count": 1,
+            "reason": "Energia insuficiente: requer 10."
+          }
+        ]
+      },
+      "actions": [
+        {
+          "elapsed": 0,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "reator",
+          "row": 0,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 0,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "reator",
+          "row": 0,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 0,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "reator",
+          "row": 1,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 160,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 160,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 160,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 320,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 320,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 320,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 480,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 4,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 480,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 4,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 480,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 4,
+          "col": 7,
+          "optionId": null
+        },
+        {
+          "elapsed": 18080,
+          "type": "startWave",
+          "ok": true,
+          "reason": "preparationTimeout",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": null
+        },
+        {
+          "elapsed": 19200,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 19200,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 19200,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 21120,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 21120,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 21120,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 23040,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 23040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 23040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 24160,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 24160,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 24160,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 3,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 25120,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 3,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 25120,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 25120,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 27040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 27040,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 27040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 30240,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 30240,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 30240,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 42240,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 42240,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 42240,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 48160,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 48160,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 66240,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 88960,
+          "type": "selectDecision",
+          "ok": true,
+          "reason": "tacticalDecision",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": "first_impact"
+        },
+        {
+          "elapsed": 89120,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "reator",
+          "row": 0,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 89120,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "reator",
+          "row": 0,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 89120,
+          "type": "place",
+          "ok": false,
+          "reason": "replacement",
+          "troopId": "colono",
+          "row": 0,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 89120,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "reator",
+          "row": 0,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 96800,
+          "type": "startWave",
+          "ok": true,
+          "reason": "preparationTimeout",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": null
+        },
+        {
+          "elapsed": 102880,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "droneSentinela",
+          "row": 2,
+          "col": 3,
+          "optionId": null
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "colono",
+          "row": 4,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 2,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 2,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 2,
+          "col": 7,
+          "optionId": null
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "colono",
+          "row": 4,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 1,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 1,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 1,
+          "col": 7,
+          "optionId": null
+        },
+        {
+          "elapsed": 195040,
+          "type": "selectDecision",
+          "ok": true,
+          "reason": "tacticalDecision",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": "repair_core"
+        },
+        {
+          "elapsed": 195200,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "reator",
+          "row": 0,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 195200,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "reator",
+          "row": 0,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 195200,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "reator",
+          "row": 0,
+          "col": 1,
+          "optionId": null
+        },
+        {
+          "elapsed": 195200,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "reator",
+          "row": 0,
+          "col": 2,
+          "optionId": null
+        },
+        {
+          "elapsed": 203040,
+          "type": "startWave",
+          "ok": true,
+          "reason": "preparationTimeout",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": null
+        },
+        {
+          "elapsed": 215200,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 2,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 215200,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 2,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 215200,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 2,
+          "col": 7,
+          "optionId": null
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "ok": true,
+          "reason": "replacement",
+          "troopId": "colono",
+          "row": 2,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 7,
+          "optionId": null
+        },
+        {
+          "elapsed": 297440,
+          "type": "selectDecision",
+          "ok": true,
+          "reason": "tacticalDecision",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": "human_swarm_doctrine"
+        },
+        {
+          "elapsed": 297600,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 297600,
+          "type": "place",
+          "ok": true,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 0,
+          "col": 9,
+          "optionId": null
+        },
+        {
+          "elapsed": 297600,
+          "type": "place",
+          "ok": false,
+          "reason": "emergency",
+          "troopId": "colono",
+          "row": 1,
+          "col": 8,
+          "optionId": null
+        },
+        {
+          "elapsed": 305280,
+          "type": "startWave",
+          "ok": true,
+          "reason": "preparationTimeout",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": null
+        },
+        {
+          "elapsed": 368800,
+          "type": "openAdaptiveAid",
+          "ok": true,
+          "reason": "adaptiveAidAvailable",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": null
+        },
+        {
+          "elapsed": 369600,
+          "type": "selectAdaptiveAid",
+          "ok": true,
+          "reason": "adaptiveAidChoice",
+          "troopId": null,
+          "row": null,
+          "col": null,
+          "optionId": "contingency_repairs"
+        }
+      ],
+      "actionFailures": [
+        {
+          "elapsed": 320,
+          "type": "place",
+          "reason": "Limite de 5 células com Drone Sentinela no campo."
+        },
+        {
+          "elapsed": 480,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 3."
+        },
+        {
+          "elapsed": 480,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 3."
+        },
+        {
+          "elapsed": 19200,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 1."
+        },
+        {
+          "elapsed": 19200,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 1."
+        },
+        {
+          "elapsed": 21120,
+          "type": "place",
+          "reason": "Implantação recarregando."
+        },
+        {
+          "elapsed": 21120,
+          "type": "place",
+          "reason": "Implantação recarregando."
+        },
+        {
+          "elapsed": 23040,
+          "type": "place",
+          "reason": "Implantação recarregando."
+        },
+        {
+          "elapsed": 23040,
+          "type": "place",
+          "reason": "Implantação recarregando."
+        },
+        {
+          "elapsed": 24160,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 3."
+        },
+        {
+          "elapsed": 24160,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 3."
+        },
+        {
+          "elapsed": 25120,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 1."
+        },
+        {
+          "elapsed": 25120,
+          "type": "place",
+          "reason": "Supply insuficiente: requer 1."
+        },
+        {
+          "elapsed": 27040,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 5."
+        },
+        {
+          "elapsed": 30240,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 5."
+        },
+        {
+          "elapsed": 30240,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 5."
+        },
+        {
+          "elapsed": 42240,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 5."
+        },
+        {
+          "elapsed": 42240,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 5."
+        },
+        {
+          "elapsed": 48160,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 5."
+        },
+        {
+          "elapsed": 89120,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 132960,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 163040,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 215200,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 215200,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 245280,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        },
+        {
+          "elapsed": 297600,
+          "type": "place",
+          "reason": "Energia insuficiente: requer 10."
+        }
+      ],
+      "result": {
+        "phaseId": "fase_03",
+        "outcome": "defeat",
+        "stars": 0,
+        "durationMs": 390016,
+        "integrity": 0,
+        "integrityCurrent": 0,
+        "integrityMax": 100,
+        "energy": 3,
+        "enemiesDefeated": 43,
+        "composition": {
+          "reator": 7,
+          "droneSentinela": 15,
+          "colono": 8
+        },
+        "decisions": [
+          {
+            "wave": 1,
+            "level": "preparation",
+            "id": "first_impact"
+          },
+          {
+            "wave": 2,
+            "level": "direction",
+            "id": "repair_core"
+          },
+          {
+            "wave": 3,
+            "level": "final",
+            "id": "human_swarm_doctrine"
+          }
+        ],
+        "assistanceTriggered": true,
+        "assistanceUsed": true,
+        "adaptiveAid": {
+          "hardshipScore": 4,
+          "triggerWave": 4,
+          "triggerTier": "difficult",
+          "offeredOptions": [
+            "energy_reserve",
+            "contingency_repairs"
+          ],
+          "selectedOption": "contingency_repairs"
+        }
+      }
+    }
+  ]
+}
