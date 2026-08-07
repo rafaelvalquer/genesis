@@ -842,3 +842,155 @@ body:has(.test-page) {
   .topbar-tool-button { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
 }
 
+
+
+/* Genesis battle hotkeys v1.0.0 */
+.troop-slot {
+  position: relative;
+}
+
+.troop-hotkey {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  min-width: 23px;
+  height: 23px;
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, var(--troop-color) 72%, #e2e8f0);
+  border-radius: 6px;
+  background: rgba(2, 6, 23, .9);
+  color: #f8fafc;
+  font: 700 12px/1 "Chakra Petch", Inter, sans-serif;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--troop-color) 28%, transparent);
+  pointer-events: none;
+}
+
+.troop-slot.selected .troop-hotkey {
+  background: color-mix(in srgb, var(--troop-color) 32%, rgba(2, 6, 23, .94));
+  border-color: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.troop-slot:disabled .troop-hotkey {
+  opacity: .52;
+  filter: grayscale(.35);
+}
+
+.remove-button kbd,
+.battle-hotkey-help kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  min-height: 20px;
+  padding: 1px 5px;
+  border: 1px solid rgba(148, 163, 184, .48);
+  border-bottom-color: rgba(226, 232, 240, .72);
+  border-radius: 5px;
+  background: rgba(15, 23, 42, .84);
+  color: #e2e8f0;
+  font: 700 10px/1 "Chakra Petch", Inter, sans-serif;
+  box-shadow: inset 0 -2px 0 rgba(255, 255, 255, .08);
+}
+
+.battle-hotkey-help {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 9px;
+  margin-top: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(56, 189, 248, .16);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, .44);
+  color: rgba(203, 213, 225, .78);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.battle-hotkey-help span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.pause-overlay small {
+  color: rgba(226, 232, 240, .72);
+  font: 600 12px/1.4 Inter, sans-serif;
+  letter-spacing: .02em;
+}
+
+@media (max-width: 900px), (pointer: coarse) {
+  .battle-hotkey-help {
+    display: none;
+  }
+
+  .troop-hotkey {
+    opacity: .68;
+  }
+}
+
+
+/* Genesis battle controls fullscreen v1.1.0 */
+.battle-control-button {
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.battle-control-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
+
+.battle-control-button:active:not(:disabled) .battle-control-icon {
+  transform: scale(.92);
+}
+
+.fullscreen-button[aria-pressed="true"] {
+  color: #67e8f9;
+  border-color: rgba(34, 211, 238, .66);
+  background: rgba(8, 47, 73, .76);
+  box-shadow: 0 0 14px rgba(34, 211, 238, .18);
+}
+
+.battle-shell:fullscreen,
+.battle-shell:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  min-height: 100vh;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  background: #020617;
+}
+
+.battle-shell:fullscreen .battle-main,
+.battle-shell:-webkit-full-screen .battle-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.battle-shell:fullscreen .canvas-wrap,
+.battle-shell:-webkit-full-screen .canvas-wrap,
+.battle-shell:fullscreen .battle-canvas-stage,
+.battle-shell:-webkit-full-screen .battle-canvas-stage {
+  min-width: 0;
+  min-height: 0;
+}
+
+.battle-shell:fullscreen canvas,
+.battle-shell:-webkit-full-screen canvas {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+@media (max-width: 760px) {
+  .fullscreen-button {
+    display: none;
+  }
+}

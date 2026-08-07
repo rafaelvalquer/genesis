@@ -112,6 +112,19 @@ import { positionalTargetInstruction, positionalTargetMessage } from "./position
 import { useBattleAssets } from "./hooks/useBattleAssets.js";
 import { useBattleAudio } from "./hooks/useBattleAudio.js";
 import { useBattleLoopControls } from "./hooks/useBattleLoop.js";
+import {
+  getNextBattleSpeed,
+  getTroopSlotAvailability,
+  resolveBattleHotkey,
+  useBattleHotkeys,
+} from "./battleHotkeys.js";
+import {
+  EnterFullscreenIcon,
+  ExitFullscreenIcon,
+  PauseIcon,
+  PlayIcon,
+} from "./components/BattleControlIcons.jsx";
+import { useBattleFullscreen } from "./hooks/useBattleFullscreen.js";
 import { installNonPassiveContextMenuGuard } from "./hooks/battleCanvasEvents.js";
 import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
 
@@ -1720,6 +1733,7 @@ function playCriticalAlarmBeep(volume = 0.5) {
 
 export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sandbox = false }) {
   const loadout = useMemo(() => unlockedTroops.map((entry) => typeof entry === "string" ? entry : entry.id), [unlockedTroops]);
+  const battleShellRef = useRef(null);
   const canvasRef = useRef(null);
   const assetsRef = useRef(null);
   const sessionRef = useRef(null);
@@ -1738,6 +1752,12 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const { pausedRef, speedRef } = useBattleLoopControls(paused, speed);
+  const {
+    isFullscreen,
+    fullscreenSupported,
+    toggleFullscreen,
+    exitFullscreen,
+  } = useBattleFullscreen(battleShellRef);
   const [sandboxSettingsState, setSandboxSettingsState] = useState(() => ({ ...sessionRef.current.sandboxSettings }));
   const [selectedEnemy, setSelectedEnemy] = useState(() => Object.keys(ENEMIES)[0]);
   const [spawnRow, setSpawnRow] = useState(0);
@@ -1768,6 +1788,23 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const setActionMessage = useCallback((text) => {
     setMessage(text, { persistent: true, tone: "action" });
   }, [setMessage]);
+  const handleToggleFullscreen = useCallback(async () => {
+    const entering = !isFullscreen;
+    const result = await toggleFullscreen();
+    if (!result.ok) {
+      setMessage(result.reason);
+      return;
+    }
+    setMessage(
+      entering
+        ? "Modo tela cheia ativado · pressione Esc para sair."
+        : "Modo tela cheia encerrado.",
+    );
+  }, [isFullscreen, setMessage, toggleFullscreen]);
+  const handleBattleExit = useCallback(async () => {
+    await exitFullscreen();
+    onExit();
+  }, [exitFullscreen, onExit]);
   const [banner, setBanner] = useState(sandbox
     ? "LABORATÓRIO · CAMPO DE PROVAS"
     : phase.chapterMechanic?.id === "glass_echoes"
@@ -2344,6 +2381,105 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const waveOutroActive = Boolean(snapshot.waveOutro?.status && !["idle", "completed"].includes(snapshot.waveOutro.status));
   const positionalTargeting = fortuneTargeting || Boolean(targetingDecision) || waveOutroActive;
 
+  useBattleHotkeys((event) => {
+    const action = resolveBattleHotkey(event);
+    if (!action || snapshot.outcome) return;
+
+    // Deixa o navegador consumir Esc para sair da tela cheia sem cancelar a ferramenta.
+    if (action.type === "cancelTool" && isFullscreen) return;
+
+    event.preventDefault();
+
+    if (action.type === "togglePause") {
+      if (!fortuneTargeting) setPaused((current) => !current);
+      return;
+    }
+
+    if (action.type === "selectTroop") {
+      const troopId = loadout[action.loadoutIndex];
+      const troop = TROOPS[troopId];
+      if (!troopId || !troop) return;
+
+      const availability = getTroopSlotAvailability({
+        troopId,
+        troop,
+        snapshot,
+        sandbox,
+        sandboxSettings: sandboxSettingsState,
+        positionalTargeting,
+      });
+
+      if (!availability.available) {
+        setMessage(availability.message);
+        return;
+      }
+
+      if (selectedTroop === troopId && !removeMode) {
+        setSelectedTroop(null);
+        setMessage("Mão livre ativada.");
+        return;
+      }
+
+      setRemoveMode(false);
+      setSelectedTroop(troopId);
+      setMessage(
+        troop.label + " selecionado · tecla " + (action.loadoutIndex + 1) + ".",
+      );
+      return;
+    }
+
+    if (action.type === "cancelTool") {
+      if (targetingDecision || sessionRef.current.adaptiveAid?.status === "targeting") return;
+      setSelectedTroop(null);
+      setRemoveMode(false);
+      setMessage("Ferramenta cancelada · mão livre ativada.");
+      return;
+    }
+
+    if (action.type === "toggleFullscreen") {
+      if (!fullscreenSupported) {
+        setMessage("Tela cheia não é suportada neste navegador.");
+        return;
+      }
+      handleToggleFullscreen();
+      return;
+    }
+
+    if (action.type === "toggleRemove") {
+      if (positionalTargeting) return;
+      setSelectedTroop(null);
+      setRemoveMode((current) => {
+        const next = !current;
+        setMessage(next ? "Modo de remoção ativado · tecla R." : "Modo de remoção desativado.");
+        return next;
+      });
+      return;
+    }
+
+    if (action.type === "startWave") {
+      const hotkeyCanStartWave = !sandbox
+        && snapshot.preparing
+        && !snapshot.pendingDecision
+        && !waveOutroActive
+        && !targetingDecision
+        && !snapshot.outcome
+        && !fortuneBlocksIntermission;
+
+      if (hotkeyCanStartWave) handleStartWave();
+      else setMessage("A onda não pode ser iniciada agora.");
+      return;
+    }
+
+    if (action.type === "adjustSpeed") {
+      if (paused || fortuneTargeting) return;
+      const nextSpeed = getNextBattleSpeed(speed, sandbox, action.direction);
+      if (nextSpeed !== speed) {
+        setSpeed(nextSpeed);
+        setMessage("Velocidade alterada para " + nextSpeed + "×.");
+      }
+    }
+  }, loading.ready);
+
   if (!loading.ready) {
     const loadingFailed = loading.stage === "error";
 
@@ -2466,7 +2602,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
 
   return (
-    <section className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
+    <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
         <div className="battle-operation"><span>OPERAÇÃO</span><h1>{sandbox ? "CAMPO DE PROVAS" : phase.name}</h1></div>
         <div className="battle-stats">
@@ -2476,13 +2612,25 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         </div>
         
         <div className="battle-actions">
-          <button className="icon-button" disabled={fortuneTargeting} onClick={() => setPaused((value) => !value)}>{paused ? "▶" : "Ⅱ"}</button>
-          <button className="speed-button" disabled={paused || fortuneTargeting} onClick={() => setSpeed((value) => {
+          <button type="button" className="icon-button battle-control-button" disabled={fortuneTargeting} aria-label={paused ? "Continuar batalha" : "Pausar batalha"} aria-pressed={paused} aria-keyshortcuts="Space" title={paused ? "Continuar · Espaço" : "Pausar · Espaço"} onClick={() => setPaused((value) => !value)}>{paused ? <PlayIcon /> : <PauseIcon />}</button>
+          <button type="button" className="speed-button" aria-label="Alterar velocidade da batalha" aria-keyshortcuts="+ -" title="Velocidade · teclas + e -" disabled={paused || fortuneTargeting} onClick={() => setSpeed((value) => {
             const speeds = sandbox ? [0.5, 1, 2, 4] : [1, 2];
             return speeds[(speeds.indexOf(value) + 1) % speeds.length];
           })}>{speed}×</button>
-          <button type="button" className="release-tool-button topbar-tool-button" disabled={positionalTargeting} onClick={releaseMouseTool} title="Também disponível com o botão direito no campo">✥ Mão livre</button>
-          <button className="ghost-button" onClick={onExit}>Sair</button>
+          <button
+            type="button"
+            className="icon-button battle-control-button fullscreen-button"
+            disabled={!fullscreenSupported}
+            aria-label={isFullscreen ? "Sair da tela cheia" : "Abrir em tela cheia"}
+            aria-pressed={isFullscreen}
+            aria-keyshortcuts="F"
+            title={isFullscreen ? "Sair da tela cheia · F ou Esc" : "Tela cheia · F"}
+            onClick={handleToggleFullscreen}
+          >
+            {isFullscreen ? <ExitFullscreenIcon /> : <EnterFullscreenIcon />}
+          </button>
+          <button type="button" className="release-tool-button topbar-tool-button" disabled={positionalTargeting} aria-keyshortcuts="Escape" onClick={releaseMouseTool} title="Mão livre · Esc ou botão direito no campo">✥ Mão livre</button>
+          <button type="button" className="ghost-button" onClick={handleBattleExit}>Sair</button>
         </div>
       </header>
 
@@ -2490,7 +2638,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         <aside className={`troop-rail ${positionalTargeting ? "interaction-locked" : ""}`} aria-disabled={positionalTargeting} inert={positionalTargeting ? true : undefined}>
           <div className="rail-heading"><span>LOADOUT</span><small>{sandboxSettingsState?.rulesMode === "free" ? "∞ ⚡ · ∞ SUP" : `${snapshot.energy} ⚡ · ${snapshot.supply} SUP`}</small></div>
           <div className="troop-grid">
-            {loadout.map((troopId) => {
+            {loadout.map((troopId, index) => {
             const troop = TROOPS[troopId];
             const deployment = snapshot.deploymentStats[troopId];
             const cooldown = snapshot.cooldowns[troopId] || 0;
@@ -2508,7 +2656,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               ? `${troop.label}, recarregando, ${cooldownSeconds} segundos restantes`
               : unavailableReason ? `${troop.label}, ${unavailableReason}` : `${troop.label}, disponível para implantação`;
             const previewUrl = getTroopPreviewUrl(troopId);
-            return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} aria-describedby={inspectedTroopId === troopId ? `troop-help-${troopId}` : undefined} onMouseEnter={() => setHoveredTroop(troopId)} onMouseLeave={() => setHoveredTroop(null)} onClick={() => { setRemoveMode(false); setSelectedTroop(troopId); }}>
+            return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} aria-keyshortcuts={String(index + 1)} aria-describedby={inspectedTroopId === troopId ? `troop-help-${troopId}` : undefined} onMouseEnter={() => setHoveredTroop(troopId)} onMouseLeave={() => setHoveredTroop(null)} onClick={() => { setRemoveMode(false); setSelectedTroop(troopId); }}>
+              <span className="troop-hotkey" aria-hidden="true">{index + 1}</span>
               <span className="troop-portrait" style={{ "--cooldown-progress": `${cooldownProgress * 360}deg` }}>
                 {previewUrl && <img src={previewUrl} alt="" aria-hidden="true" />}
                 {coolingDown && <span className="cooldown-sweep" aria-hidden="true" />}
@@ -2518,7 +2667,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             </button>;
             })}
           </div>
-          <button type="button" disabled={positionalTargeting} className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}%</button>
+          <button type="button" disabled={positionalTargeting} aria-keyshortcuts="R" className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}% <kbd>R</kbd></button>
+          <div className="battle-hotkey-help" aria-label="Atalhos da batalha">
+            <span><kbd>1–8</kbd> Tropas</span><span><kbd>Espaço</kbd> Pausa</span><span><kbd>F</kbd> Tela cheia</span><span><kbd>R</kbd> Remover</span><span><kbd>Esc</kbd> Cancelar</span><span><kbd>Enter</kbd> Onda</span>
+          </div>
           {inspectedTroop && <div id={`troop-help-${inspectedTroopId}`} className="troop-tooltip" role="tooltip" style={{ "--troop-color": inspectedTroop.color }}>
             <b>{inspectedTroop.label}</b>
             <span>{inspectedTroop.role}</span>
@@ -2530,7 +2682,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           <div className="battle-canvas-stage">
             <div className={`containment-summary ${windBanner ? "wind-current-banner" : sandstormBanner ? "sandstorm-banner" : ""}`}>
               {canStartWave
-                ? <button className="start-wave containment-start-wave" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>
+                ? <button type="button" className="start-wave containment-start-wave" aria-keyshortcuts="Enter" title="Iniciar onda · Enter" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>
                 : <span>{containmentSummary}</span>}
             </div>
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={(event) => {
@@ -2562,7 +2714,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             <span>Dec {graphicsMetrics.decals}</span>
             <span>V {graphicsMetrics.visualEntities}</span>
           </div>}
-          {paused && <div className="pause-overlay"><span>SIMULAÇÃO PAUSADA</span><button onClick={() => setPaused(false)}>Continuar</button></div>}
+          {paused && <div className="pause-overlay"><span>SIMULAÇÃO PAUSADA</span><small>Pressione Espaço para continuar</small><button type="button" onClick={() => setPaused(false)}>Continuar</button></div>}
         </div>
 
         {sandbox && <SandboxPanel
