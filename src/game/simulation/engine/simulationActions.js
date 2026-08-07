@@ -1,5 +1,6 @@
 import {
   activateTroopSpecial,
+  activateDematerializationPulse,
   isCapsuleClickable,
   openAdaptiveAidCapsule,
   placeTroop,
@@ -36,6 +37,9 @@ function actionKey(action) {
         "special",
         action.troopId,
       ].join(":");
+
+    case "activateDematerializationPulse":
+      return ["pulse", action.row].join(":");
 
     case "selectDecision":
       return [
@@ -215,6 +219,14 @@ export function executeSimulationAction({
       result = activateTroopSpecial(
         session,
         action.troopId,
+      );
+      break;
+
+    case "activateDematerializationPulse":
+      result = activateDematerializationPulse(
+        session,
+        action.row,
+        { source: "ai", reason: action.reason || "aiTactical" },
       );
       break;
 

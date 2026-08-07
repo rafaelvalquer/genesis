@@ -53,6 +53,12 @@ export class SimulationMetrics {
     this.specialsUsed = 0;
     this.decisionsSelected = 0;
     this.adaptiveAidSelections = 0;
+    this.pulseActivations = 0;
+    this.pulseAiActivations = 0;
+    this.pulseAutomaticActivations = 0;
+    this.pulseDamage = 0;
+    this.pulseKills = 0;
+    this.pulseDamageByRow = {};
 
     this.enemyDeaths = 0;
     this.troopDeaths = 0;
@@ -164,6 +170,18 @@ export class SimulationMetrics {
         this.baseBreaches += 1;
       }
 
+      if (type === "pulseCharging") {
+        this.pulseActivations += 1;
+        if (event.source === "ai") this.pulseAiActivations += 1;
+        if (event.source === "automatic") this.pulseAutomaticActivations += 1;
+      }
+
+      if (type === "pulseHit") {
+        this.pulseDamage += amount;
+        increment(this.pulseDamageByRow, String(event.row), amount);
+        if (event.killed) this.pulseKills += 1;
+      }
+
       if (type === "energyGenerated") {
         this.energyGenerated += amount;
       }
@@ -227,6 +245,8 @@ export class SimulationMetrics {
           break;
         case "activateSpecial":
           this.specialsUsed += 1;
+          break;
+        case "activateDematerializationPulse":
           break;
         case "selectDecision":
           this.decisionsSelected += 1;
@@ -347,6 +367,14 @@ export class SimulationMetrics {
         this.decisionsSelected,
       adaptiveAidSelections:
         this.adaptiveAidSelections,
+      dematerializationPulse: {
+        activations: this.pulseActivations,
+        aiActivations: this.pulseAiActivations,
+        automaticActivations: this.pulseAutomaticActivations,
+        damage: this.pulseDamage,
+        kills: this.pulseKills,
+        damageByRow: { ...this.pulseDamageByRow },
+      },
       assistanceTriggered: Boolean(
         session.result
           ?.assistanceTriggered

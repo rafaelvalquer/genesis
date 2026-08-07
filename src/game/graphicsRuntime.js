@@ -159,7 +159,7 @@ export function updateAdaptiveLevel(runtime, clockNow, frameMs, activeEntities) 
 function eventShake(type) {
   return ({ hit: 0.5, shieldHit: 0.35, shieldBreak: 1.4, troopHit: 1.2, projectileImpact: 1, fireImpact: 1.8, iceImpact: 1.5,
     explosion: 5, breach: 7, enemyDeath: 2, troopDeath: 3.5, bossPhase: 8, bossDeath: 12, tileImpact: 4,
-    pulseFired: 9, enemyDisintegrated: 1.5, duneRipperRoar: 2.2,
+    pulseFired: 9, pulseHit: 1.1, enemyDisintegrated: 1.5, duneRipperRoar: 2.2,
     inhibitorWebImpact: 0.8, workerQueenEggHatched: 1.6, workerQueenGuardSummoned: 1.1,
     windPrimaryGust: 4.5, windTroopEjected: 2.5, windEnemyEjected: 1.8 })[type] || 0;
 }
@@ -182,7 +182,7 @@ function lightFor(event, now) {
     workerQueenGuardSummoned: { radius: 96, life: 480 },
     executorSlash: { radius: 56, life: 150 },
     executorFinisher: { radius: event.lightRadius || 92, life: 380 },
-    pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 },
+    pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 }, pulseHit: { radius: 68, life: 220 },
   }[event.type];
   if (!values) return null;
   return { x: event.x ?? event.x0 ?? 0, y: event.y ?? event.y0 ?? 0, color: event.color || "#f8fafc", born: now, ...values };
@@ -203,7 +203,7 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
       runtime.camera.seed = (event.seed || runtime.camera.seed + 97) >>> 0;
       runtime.camera.startedAt = now;
     }
-    if (["hit", "shieldHit", "shieldBreak", "troopHit"].includes(event.type) && event.targetId) {
+    if (["hit", "shieldHit", "shieldBreak", "troopHit", "pulseHit"].includes(event.type) && event.targetId) {
       runtime.hits.set(event.targetId, { born: now, life: 170, direction: event.type === "hit" ? -1 : 1 });
     }
     if ((event.type === "enemyDeath" || event.type === "bossDeath") && event.entity) {

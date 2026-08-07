@@ -10,6 +10,7 @@ import {
 import {
   planSpecialActions,
 } from "../planners/AbilityPlanner.js";
+import { planDematerializationPulseActions } from "../planners/DematerializationPulsePlanner.js";
 import {
   planPlacementActions,
 } from "../planners/PlacementPlanner.js";
@@ -276,6 +277,14 @@ export class StrategicAgent {
         ),
       };
     }
+
+    actions.push(
+      ...planDematerializationPulseActions(
+        session,
+        observation,
+        this.profile,
+      ),
+    );
 
     actions.push(
       ...planSpecialActions(

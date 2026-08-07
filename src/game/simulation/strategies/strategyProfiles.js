@@ -9,6 +9,9 @@ const BASE_PROFILE = Object.freeze({
   reinforcementRiskThreshold: 13,
   replacementHpThreshold: 0.32,
   specialRiskThreshold: 15,
+  pulseRiskThreshold: 16,
+  pulseEmergencyTimeMs: 6000,
+  pulseMinimumValue: 900,
   startReadinessThreshold: 0.72,
   minimumCoverageRatio: 0.5,
   timePressureWeight: 0.7,
@@ -41,6 +44,9 @@ export const STRATEGY_PROFILES = Object.freeze({
     reinforcementRiskThreshold: 9,
     replacementHpThreshold: 0.45,
     specialRiskThreshold: 11,
+    pulseRiskThreshold: 12,
+    pulseEmergencyTimeMs: 7500,
+    pulseMinimumValue: 650,
     startReadinessThreshold: 0.84,
     minimumCoverageRatio: 0.66,
     timePressureWeight: 0.35,
@@ -63,6 +69,9 @@ export const STRATEGY_PROFILES = Object.freeze({
     reinforcementRiskThreshold: 16,
     replacementHpThreshold: 0.28,
     specialRiskThreshold: 18,
+    pulseRiskThreshold: 20,
+    pulseEmergencyTimeMs: 4500,
+    pulseMinimumValue: 1200,
     startReadinessThreshold: 0.7,
     minimumCoverageRatio: 0.45,
     timePressureWeight: 0.55,
@@ -85,6 +94,9 @@ export const STRATEGY_PROFILES = Object.freeze({
     reinforcementRiskThreshold: 17,
     replacementHpThreshold: 0.22,
     specialRiskThreshold: 9,
+    pulseRiskThreshold: 14,
+    pulseEmergencyTimeMs: 5000,
+    pulseMinimumValue: 1000,
     startReadinessThreshold: 0.55,
     minimumCoverageRatio: 0.38,
     timePressureWeight: 1.4,
@@ -137,6 +149,12 @@ export function createPolicyGenome(
       profile.replacementHpThreshold,
     specialRiskThreshold:
       profile.specialRiskThreshold,
+    pulseRiskThreshold:
+      profile.pulseRiskThreshold,
+    pulseEmergencyTimeMs:
+      profile.pulseEmergencyTimeMs,
+    pulseMinimumValue:
+      profile.pulseMinimumValue,
     startReadinessThreshold:
       profile.startReadinessThreshold,
     minimumCoverageRatio:

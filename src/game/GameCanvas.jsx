@@ -74,6 +74,7 @@ import {
   accelerateWaveOutro,
   advanceWaveOutro,
   activateTroopSpecial,
+  activateDematerializationPulse,
   cellFromPoint,
   clearSandboxEntities,
   createBattleSession,
@@ -101,6 +102,7 @@ import {
   stepBattle,
   simulateAdaptiveAid,
   WAVE_OUTRO_TIMINGS,
+  DEMATERIALIZATION_PULSE,
 } from "./battleModel.js";
 import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
@@ -128,6 +130,7 @@ import { useBattleFullscreen } from "./hooks/useBattleFullscreen.js";
 import { installNonPassiveContextMenuGuard } from "./hooks/battleCanvasEvents.js";
 import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
 import { WaveOutroCinematicOverlay } from "./waveOutro/WaveOutroCinematicOverlay.jsx";
+import { DematerializationPulseControls } from "./components/DematerializationPulseControls.jsx";
 import { getWaveOutroCueState, getWaveOutroMusicVolumeFactor } from "./waveOutro/waveOutroAudio.js";
 import { getCinematicWaveOutroCameraTransform } from "./waveOutro/waveOutroCamera.js";
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
@@ -2025,6 +2028,22 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setActionMessage("Mão livre: clique em um Colosso carregado para usar o Esmagamento Total.");
   };
 
+  const handleActivateDematerializationPulse = (row) => {
+    const result = activateDematerializationPulse(sessionRef.current, row, {
+      source: "player",
+      reason: "manualTactical",
+    });
+    if (!result.ok) {
+      setMessage(result.reason || "Não foi possível disparar o canhão.");
+      return;
+    }
+    pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    play("alert", 0.55);
+    setMessage(`Pulso da rota ${row + 1} carregando · ${DEMATERIALIZATION_PULSE.damage} de dano por inimigo.`);
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
   const handleCanvasContextMenu = (event) => {
     if (targetingDecision || sessionRef.current.adaptiveAid?.status === "targeting") {
       setTargetingDecision(null);
@@ -2643,6 +2662,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               event.currentTarget.style.cursor = "default";
             }} aria-label="Campo de batalha em cinco rotas" />
             {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
+            {!fortuneBlocksIntermission && <DematerializationPulseControls
+              session={sessionRef.current}
+              onActivate={handleActivateDematerializationPulse}
+            />}
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}
             {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
             {notification?.text && <div className={`battle-notification tone-${notification.tone} ${notification.persistent ? "persistent" : ""}`} role={notification.tone === "action" ? "status" : "alert"}>

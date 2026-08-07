@@ -1,0 +1,30 @@
+{
+  "name": "genesis-dematerialization-pulse",
+  "version": "1.0.1",
+  "repository": "rafaelvalquer/genesis",
+  "baseCommit": "ea680da7fb3aea143ec19b8842d5d362ec86c0f7",
+  "feature": "Ativação manual e inteligente do Pulso de Desmaterialização com 500 HP de dano por alvo",
+  "automaticRollback": false,
+  "compatibleInstalledVersions": ["1.0.0", "1.0.1"],
+  "validatorFix": "PowerShell variable interpolation before colon (${Name}: OK)",
+  "newFiles": [
+    "src/game/dematerializationPulse.js",
+    "src/game/dematerializationPulse.test.js",
+    "src/game/components/DematerializationPulseControls.jsx",
+    "src/game/components/dematerializationPulseControls.css",
+    "src/game/components/DematerializationPulseControls.test.jsx",
+    "src/game/simulation/planners/DematerializationPulsePlanner.js",
+    "src/game/simulation/planners/DematerializationPulsePlanner.test.js"
+  ],
+  "modifiedFiles": [
+    "src/game/battleModel.js",
+    "src/game/GameCanvas.jsx",
+    "src/game/graphicsRuntime.js",
+    "src/game/simulation/observation/createBattleObservation.js",
+    "src/game/simulation/ai/StrategicAgent.js",
+    "src/game/simulation/engine/simulationActions.js",
+    "src/game/simulation/strategies/strategyProfiles.js",
+    "src/game/simulation/optimization/PolicyOptimizer.js",
+    "src/game/simulation/metrics/SimulationMetrics.js"
+  ]
+}

@@ -78,6 +78,11 @@ import {
   validatePositionalTarget,
 } from "./positionalTargeting.js";
 import { compactActive } from "./battleCollections.js";
+import {
+  DEMATERIALIZATION_PULSE,
+  beginDematerializationPulse,
+  createDematerializationPulseState,
+} from "./dematerializationPulse.js";
 import { isEnemyTargetable, isRasgamarSubmerged, RASGAMAR_SUBMERGED_STATES } from "./enemyTargeting.js";
 import {
   getBattleIndex,
@@ -202,12 +207,7 @@ const MINIMUM_BANNER_VISIBLE_BEFORE_SKIP_MS = 1000;
 const ENERGY_PICKUP_LIFETIME_MS = 10000;
 const ENERGY_PICKUP_MAGNET_RADIUS = 140;
 const ENERGY_PICKUP_COLLECT_RADIUS = 24;
-export const DEMATERIALIZATION_PULSE = {
-  chargeDurationMs: 2000,
-  beamDurationMs: 360,
-  disintegrationDurationMs: 420,
-  scorchMarkDurationMs: 6000,
-};
+export { DEMATERIALIZATION_PULSE };
 
 const DEFAULT_SANDBOX_SETTINGS = {
   rulesMode: "free",
@@ -383,13 +383,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     enemyProjectiles: [],
     energyPickups: [],
     energyPickupPointer: null,
-    dematerializationPulses: Array.from({ length: FIELD.rows }, (_, row) => ({
-      id: `dematerialization_pulse_${row}`,
-      row,
-      state: "ready",
-      chargeStartedAt: null,
-      fireAt: null,
-    })),
+    dematerializationPulses: Array.from({ length: FIELD.rows }, (_, row) => createDematerializationPulseState(row)),
     effects: [],
     effectSequence: 0,
     prismaticMantle: { rows: Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }])) },
@@ -3842,32 +3836,27 @@ function pulseForRow(session, row) {
   return session.dematerializationPulses?.find((pulse) => pulse.row === row) || null;
 }
 
-function canActivateDematerializationPulse(session, pulse, enemy) {
-  return Boolean(
-    enemy
-    && !enemy.dead
-    && pulse
-    && pulse.row === enemy.row
-    && pulse.state === "ready"
-    && !session.outcome
-    && (session.waveActive || session.sandbox),
-  );
+function hasDematerializationPulseTargets(session, row) {
+  return session.enemies.some((enemy) => !enemy.dead && enemy.hp > 0 && enemyOccupiesTargetRow(enemy, row));
 }
 
-function activateDematerializationPulse(session, pulse, events) {
-  pulse.state = "charging";
-  pulse.chargeStartedAt = session.elapsed;
-  pulse.fireAt = session.elapsed + DEMATERIALIZATION_PULSE.chargeDurationMs;
-  events.push({
-    type: "pulseCharging",
-    row: pulse.row,
-    cannonId: pulse.id,
-    startedAt: pulse.chargeStartedAt,
-    fireAt: pulse.fireAt,
-    x: FIELD.combatOffsetX - 4,
-    y: pulse.row * CELL.height + CELL.height / 2,
-    color: "#22d3ee",
+export function activateDematerializationPulse(session, row, options = {}) {
+  const source = options.source || "player";
+  const targetRow = clamp(Math.floor(Number(row)), 0, FIELD.rows - 1);
+  const externalEvents = Array.isArray(options.events) ? options.events : [];
+  const before = externalEvents.length;
+  const result = beginDematerializationPulse(session, targetRow, {
+    source,
+    reason: options.reason || null,
+    events: externalEvents,
+    requireTargets: options.requireTargets ?? source !== "automatic",
+    hasTargets: hasDematerializationPulseTargets(session, targetRow),
   });
+  return {
+    ...result,
+    row: targetRow,
+    events: externalEvents.slice(before),
+  };
 }
 
 function disintegrateEnemy(session, enemy, events) {
@@ -3889,15 +3878,53 @@ function disintegrateEnemy(session, enemy, events) {
   });
 }
 
+function applyDematerializationPulseDamage(session, pulse, enemy, events) {
+  if (!enemy || enemy.dead || enemy.hp <= 0 || !enemyOccupiesTargetRow(enemy, pulse.row)) return;
+  const hpBefore = Math.max(0, Number(enemy.hp) || 0);
+  const damage = Math.min(DEMATERIALIZATION_PULSE.damage, hpBefore);
+  enemy.hp = Math.max(0, hpBefore - damage);
+  const killed = enemy.hp <= 0;
+  events.push({
+    type: "pulseHit",
+    row: pulse.row,
+    cannonId: pulse.id,
+    source: pulse.activationSource || "automatic",
+    reason: pulse.activationReason || null,
+    enemyId: enemy.id,
+    targetId: enemy.id,
+    damage,
+    hpBefore,
+    hpAfter: enemy.hp,
+    killed,
+    x: enemy.x,
+    y: enemy.y,
+    color: "#22d3ee",
+  });
+  if (killed) {
+    events.push({
+      type: "pulseKill", row: pulse.row, cannonId: pulse.id, enemyId: enemy.id, damage,
+      source: pulse.activationSource || "automatic", reason: pulse.activationReason || null,
+      x: enemy.x, y: enemy.y, color: "#22d3ee",
+    });
+    disintegrateEnemy(session, enemy, events);
+  }
+}
+
 function updateDematerializationPulses(session, events) {
   for (const pulse of session.dematerializationPulses || []) {
     if (pulse.state !== "charging" || session.elapsed < pulse.fireAt) continue;
     pulse.state = "spent";
     const y = pulse.row * CELL.height + CELL.height / 2;
+    const targets = session.enemies.filter((enemy) => !enemy.dead && enemy.hp > 0 && enemyOccupiesTargetRow(enemy, pulse.row));
+    const hpBefore = targets.reduce((total, enemy) => total + Math.max(0, Number(enemy.hp) || 0), 0);
     events.push({
       type: "pulseFired",
       row: pulse.row,
       cannonId: pulse.id,
+      source: pulse.activationSource || "automatic",
+      reason: pulse.activationReason || null,
+      damagePerTarget: DEMATERIALIZATION_PULSE.damage,
+      targetCount: targets.length,
       x0: FIELD.combatOffsetX - 4,
       y0: y,
       x1: FIELD.width + 24,
@@ -3906,9 +3933,18 @@ function updateDematerializationPulses(session, events) {
       color: "#22d3ee",
       seed: nextEffectSeed(session),
     });
-    session.enemies
-      .filter((enemy) => enemyOccupiesTargetRow(enemy, pulse.row))
-      .forEach((enemy) => disintegrateEnemy(session, enemy, events));
+    targets.forEach((enemy) => applyDematerializationPulseDamage(session, pulse, enemy, events));
+    const hpAfter = targets.reduce((total, enemy) => total + Math.max(0, Number(enemy.hp) || 0), 0);
+    events.push({
+      type: "pulseResolved",
+      row: pulse.row,
+      cannonId: pulse.id,
+      source: pulse.activationSource || "automatic",
+      reason: pulse.activationReason || null,
+      damage: Math.max(0, hpBefore - hpAfter),
+      kills: targets.filter((enemy) => enemy.dead).length,
+      targetCount: targets.length,
+    });
   }
   compactActive(session.enemies, (enemy) => !enemy.dead);
 }
@@ -3932,11 +3968,18 @@ export function getSilicaDiggerSwarmSpeedFactor(session, enemy) {
 
 function resolveEnemyBreach(session, enemy, events) {
   const pulse = pulseForRow(session, enemy.row);
-  if (canActivateDematerializationPulse(session, pulse, enemy)) {
-    enemy.x = FIELD.baseX;
-    enemy.moving = false;
-    activateDematerializationPulse(session, pulse, events);
-    return false;
+  if (pulse?.state === "ready") {
+    const activation = activateDematerializationPulse(session, enemy.row, {
+      source: "automatic",
+      reason: "barrierBreach",
+      requireTargets: false,
+      events,
+    });
+    if (activation.ok) {
+      enemy.x = FIELD.baseX;
+      enemy.moving = false;
+      return false;
+    }
   }
   if (pulse?.state === "charging") {
     enemy.x = FIELD.baseX;

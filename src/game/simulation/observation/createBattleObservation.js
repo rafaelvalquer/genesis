@@ -230,6 +230,17 @@ export function createBattleObservation(
         session.tideCycle?.state || null,
     },
 
+    defenses: {
+      dematerializationPulses: (session.dematerializationPulses || []).map((pulse) => ({
+        id: pulse.id,
+        row: pulse.row,
+        state: pulse.state,
+        chargeStartedAt: pulse.chargeStartedAt,
+        fireAt: pulse.fireAt,
+        activationSource: pulse.activationSource || null,
+      })),
+    },
+
     adaptiveAid: {
       status:
         session.adaptiveAid?.status

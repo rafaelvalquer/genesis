@@ -1,0 +1,73 @@
+.dematerialization-pulse-control {
+  position: absolute;
+  z-index: 12;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid rgba(103, 232, 249, .58);
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(8, 47, 73, .94), rgba(2, 12, 23, .94));
+  color: #e0f2fe;
+  box-shadow: 0 0 14px rgba(34, 211, 238, .18), inset 0 0 12px rgba(34, 211, 238, .08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  transition: transform .14s ease, border-color .14s ease, box-shadow .14s ease, opacity .14s ease;
+}
+
+.dematerialization-pulse-control:not(:disabled):hover,
+.dematerialization-pulse-control:not(:disabled):focus-visible {
+  transform: translate(-50%, -50%) scale(1.08);
+  border-color: #67e8f9;
+  box-shadow: 0 0 22px rgba(34, 211, 238, .42), inset 0 0 14px rgba(34, 211, 238, .16);
+  outline: none;
+}
+
+.dematerialization-pulse-control.state-ready:not(:disabled) {
+  animation: pulse-control-ready 1.5s ease-in-out infinite;
+}
+
+.dematerialization-pulse-control:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.dematerialization-pulse-control.state-spent:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.dematerialization-pulse-control.state-charging {
+  border-color: rgba(251, 191, 36, .72);
+  color: #fde68a;
+  box-shadow: 0 0 18px rgba(251, 191, 36, .22);
+}
+
+.dematerialization-pulse-control.state-spent {
+  filter: none;
+  opacity: 1;
+}
+
+.pulse-control-icon {
+  font-size: 12px;
+  color: #67e8f9;
+}
+
+.pulse-control-value,
+.pulse-control-label {
+  display: none;
+}
+
+@keyframes pulse-control-ready {
+  0%, 100% { box-shadow: 0 0 12px rgba(34, 211, 238, .16), inset 0 0 10px rgba(34, 211, 238, .08); }
+  50% { box-shadow: 0 0 20px rgba(34, 211, 238, .34), inset 0 0 14px rgba(34, 211, 238, .14); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dematerialization-pulse-control { transition: none; }
+  .dematerialization-pulse-control.state-ready:not(:disabled) { animation: none; }
+}
