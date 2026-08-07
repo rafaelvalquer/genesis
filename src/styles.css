@@ -1067,26 +1067,4 @@ body:has(.test-page) {
     display: none;
   }
 }
-
-
-/* wave-outro-cinematic-safe-v2.1 */
-.wave-outro.safe-cinematic { overflow: hidden; }
-.wave-outro.safe-cinematic.final-kill, .wave-outro.safe-cinematic.cleanup { background: transparent; }
-.safe-wave-impact { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
-.safe-wave-impact i { position: absolute; left: var(--safe-outro-x); top: var(--safe-outro-y); translate: -50% -50%; border-radius: 50%; opacity: 0; animation-delay: var(--safe-outro-delay); animation-fill-mode: both; }
-.safe-wave-flash { width: 140px; height: 140px; background: radial-gradient(circle, #fff 0 4%, var(--safe-outro-accent) 12%, color-mix(in srgb, var(--safe-outro-primary) 40%, transparent) 36%, transparent 72%); animation: safe-wave-flash .36s ease-out 1; }
-.safe-wave-ring { width: 24px; height: 24px; border: 2px solid var(--safe-outro-accent); box-shadow: 0 0 18px var(--safe-outro-primary); animation: safe-wave-ring .52s ease-out 1; }
-.profile-missionFinale .safe-wave-ring, .profile-bossFinale .safe-wave-ring { animation-duration: .66s; }
-.profile-bossFinale .safe-wave-ring { border-width: 3px; }
-.damage-explosive .safe-wave-flash { filter: sepia(.25) saturate(1.35); }
-.damage-electric .safe-wave-flash { filter: hue-rotate(170deg) saturate(1.45); }
-.damage-ice .safe-wave-flash { filter: hue-rotate(145deg) brightness(1.15); }
-.safe-wave-letterbox { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
-.safe-wave-letterbox i { position: absolute; left: 0; right: 0; height: 7%; background: rgba(0,0,0,.94); animation: safe-letterbox .24s ease-out both; }
-.safe-wave-letterbox i:first-child { top: 0; transform-origin: top; }
-.safe-wave-letterbox i:last-child { bottom: 0; transform-origin: bottom; }
-.safe-wave-last-target { position: relative; z-index: 4; margin-bottom: 12%; color: #fde68a !important; letter-spacing: .18em !important; text-shadow: 0 0 14px rgba(251,191,36,.78); }
-.reduce-motion .safe-wave-impact, .reduce-motion .safe-wave-letterbox { display: none; }
-@keyframes safe-wave-flash { 0%,35% { opacity:0; scale:.35; } 45% { opacity:.9; scale:.72; } 100% { opacity:0; scale:1.5; } }
-@keyframes safe-wave-ring { 0%,38% { opacity:0; width:24px; height:24px; } 45% { opacity:.9; } 100% { opacity:0; width:260px; height:260px; } }
-@keyframes safe-letterbox { from { scale:1 0; } to { scale:1 1; } }
+to { scale:1 1; } }

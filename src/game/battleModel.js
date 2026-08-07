@@ -7016,6 +7016,12 @@ export function getSnapshot(session) {
         row: session.waveOutro.lastKill.row,
         sourceTroopId: session.waveOutro.lastKill.sourceTroopId,
         cinematic: session.waveOutro.lastKill.cinematic,
+        enemy: session.waveOutro.lastKill.enemy ? {
+          type: session.waveOutro.lastKill.enemy.type,
+          x: session.waveOutro.lastKill.enemy.x,
+          y: session.waveOutro.lastKill.enemy.y,
+          variant: session.waveOutro.lastKill.enemy.variant,
+        } : null,
       } : null,
     } : null,
     outcome: session.outcome, elapsed: session.elapsed,
