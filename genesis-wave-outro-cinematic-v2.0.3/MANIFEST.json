@@ -1,0 +1,33 @@
+{
+  "name": "genesis-wave-outro-cinematic",
+  "version": "2.0.3",
+  "repository": "rafaelvalquer/genesis",
+  "baseBranch": "main",
+  "baseCommit": "558980a12c07394db3a1f4fe7e17224b7c269938",
+  "feature": "Final de onda cinematografico",
+  "rollbackPolicy": "never-automatic",
+  "validationFailurePolicy": "keep-installed-files",
+  "modifiedFiles": [
+    "src/game/battleModel.js",
+    "src/game/GameCanvas.jsx",
+    "src/game/graphicsRuntime.js",
+    "src/styles.css"
+  ],
+  "addedFiles": [
+    "src/game/waveOutro/waveOutroProfiles.js",
+    "src/game/waveOutro/waveOutroCamera.js",
+    "src/game/waveOutro/waveOutroAudio.js",
+    "src/game/waveOutro/waveOutroEffects.js",
+    "src/game/waveOutro/waveOutroRenderer.js",
+    "src/game/waveOutro/waveOutroProfiles.test.js",
+    "src/game/waveOutro/waveOutroCamera.test.js",
+    "scripts/check-wave-outro-contract.mjs"
+  ],
+  "patcher": "canonical-import-repair-structural-idempotent-crlf-safe",
+  "retryAfterPartialInstall": true,
+  "compatiblePartialVersions": [
+    "2.0.0",
+    "2.0.1",
+    "2.0.2"
+  ]
+}

@@ -7009,10 +7009,9 @@ export function getSnapshot(session) {
       survivors: session.waveOutro.survivors,
       integrityPercent: session.waveOutro.integrityPercent,
       energyGained: session.waveOutro.energyGained,
-      decisionOptions: (session.waveOutro.decisionOptions || []).map((option) => ({
-        id: option.id,
-        label: option.label,
-      })),
+      decisionOptions: Array.isArray(session.waveOutro.decisionOptions)
+        ? session.waveOutro.decisionOptions.map((option) => ({ id: option.id, label: option.label }))
+        : [],
       lastKill: session.waveOutro.lastKill ? {
         row: session.waveOutro.lastKill.row,
         sourceTroopId: session.waveOutro.lastKill.sourceTroopId,

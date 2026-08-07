@@ -1,0 +1,17 @@
+      const outroEvents = advanceWaveOutro(sessionRef.current, frameDelta);
+      if (outroEvents.length) {
+        pushEventParticles(particlesRef.current, outroEvents, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+        consumeGraphicsEvents(graphicsRef.current, outroEvents, sessionRef.current.elapsed, settings);
+        if (outroEvents.some((event) => event.type === "waveCompleteBanner")) {
+          audioRef.current.theme?.pause();
+          setBanner(sessionRef.current.waveOutro.finalWave
+            ? "PERÍMETRO ASSEGURADO"
+            : `ONDA ${sessionRef.current.waveOutro.completedWave} CONCLUÍDA`);
+          play("alert", 0.38);
+        }
+        if (outroEvents.some((event) => event.type === "decisionIntro")) setBanner("NOVA VANTAGEM TÁTICA");
+        if (outroEvents.some((event) => event.type === "victoryIntro")) {
+          setBanner("MISSÃO CONCLUÍDA");
+          play("alert", 0.62);
+        }
+      }

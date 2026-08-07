@@ -1,0 +1,14 @@
+{
+  "name": "genesis-wave-outro-cinematic-safe-repair",
+  "version": "2.1.0",
+  "repository": "rafaelvalquer/genesis",
+  "purpose": "repair runtime battle mount after v2.0.x and keep safe cinematic presentation",
+  "modifiedFiles": [
+    "src/game/battleModel.js",
+    "src/game/GameCanvas.jsx",
+    "src/game/graphicsRuntime.js",
+    "src/styles.css"
+  ],
+  "removesGeneratedV2Files": true,
+  "rollbackOnValidationFailure": false
+}
