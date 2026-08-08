@@ -2,7 +2,7 @@ export default function SquadAnalysis({ troops }) {
   const roles = new Set(troops.map((troop) => troop.role));
   const has = (predicate) => troops.some(predicate);
   const entries = [
-    ["LINHA DE FRENTE", has((troop) => /linha|bloqueio|tanque/i.test(troop.role))],
+    ["LINHA DE FRENTE", has((troop) => troop.tags?.includes("frontline"))],
     ["GERAÇÃO DE ENERGIA", has((troop) => troop.attack === "energy")],
     ["LONGO ALCANCE", has((troop) => troop.range >= 6)],
     ["CAPACIDADE ANTIAÉREA", has((troop) => /aéreo|antiaérea/i.test(troop.role) || troop.airborneDamageFactor)],

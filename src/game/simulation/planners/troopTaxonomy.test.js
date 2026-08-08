@@ -13,7 +13,7 @@ describe("taxonomia do simulador", () => {
     expect(
       getTroopTags({
         attack: "energy",
-        role: "Economia",
+        tags: ["economy"],
         hp: 18,
       }).has("economy"),
     ).toBe(true);
@@ -21,7 +21,7 @@ describe("taxonomia do simulador", () => {
     expect(
       getTroopTags({
         attack: "melee",
-        role: "Linha de frente",
+        tags: ["frontline"],
         hp: 80,
         range: .8,
       }).has("frontline"),
@@ -31,6 +31,7 @@ describe("taxonomia do simulador", () => {
   it("classifica resposta antiaérea e área", () => {
     const tags = getTroopTags({
       attack: "bullet",
+      tags: ["antiAir", "area", "ranged"],
       canTargetAir: true,
       burstCount: 4,
       range: 6,

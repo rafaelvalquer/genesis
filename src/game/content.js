@@ -1594,9 +1594,37 @@ const TROOP_WIND_ANCHORS = Object.freeze({
   colossoImpacto: true,
 });
 
+const TROOP_TAXONOMY = Object.freeze({
+  colono: { tags: ["frontline", "offense"], counters: ["light"] },
+  reator: { tags: ["economy"], counters: [] },
+  marine: { tags: ["offense", "ranged", "area"], counters: ["light"] },
+  droneSentinela: { tags: ["offense", "ranged", "antiAir", "support"], counters: ["airborne"] },
+  interceptadorIcaro: { tags: ["offense", "ranged", "antiAir", "control"], counters: ["airborne"] },
+  medicaNanites: { tags: ["support", "ranged"], counters: [] },
+  lumiUrsa7: { tags: ["frontline", "offense", "control"], counters: ["heavy"] },
+  muralhaReforcada: { tags: ["frontline", "windResistant"], counters: [] },
+  cacadorLeviatas: { tags: ["offense", "ranged", "windResistant"], counters: ["heavy", "boss"] },
+  demolidora: { tags: ["trap", "area", "control"], counters: ["light"] },
+  caçador: { tags: ["offense", "ranged"], counters: ["heavy"] },
+  sniper: { tags: ["offense", "ranged"], counters: ["heavy"] },
+  incinerador: { tags: ["offense", "ranged", "area"], counters: ["light"] },
+  krio: { tags: ["offense", "ranged", "control"], counters: ["light"] },
+  ranger: { tags: ["offense", "ranged"], counters: ["light"] },
+  bombardeiro: { tags: ["offense", "ranged", "area"], counters: ["light"] },
+  artilheiraMorteiro: { tags: ["offense", "ranged", "area"], counters: ["heavy"] },
+  executorArco: { tags: ["offense", "ranged", "area"], counters: ["heavy"] },
+  colossoImpacto: { tags: ["frontline", "offense", "control", "special", "windResistant"], counters: ["heavy"] },
+  guarda: { tags: ["offense", "ranged"], counters: ["light"] },
+  bastiaoMare: { tags: ["frontline", "economy", "amphibious", "windResistant"], counters: ["aquatic"] },
+  fuzileiroVoltaico: { tags: ["offense", "ranged", "amphibious"], counters: ["aquatic"] },
+  operadorJano: { tags: ["offense", "ranged", "support"], counters: ["light"] },
+});
+
 Object.values(TROOPS).forEach((troop) => {
   troop.windClass = TROOP_WIND_CLASSES[troop.id] || "medium";
   troop.windAnchor = TROOP_WIND_ANCHORS[troop.id] === true;
+  troop.tags = Object.freeze([...(TROOP_TAXONOMY[troop.id]?.tags || ["utility"])]);
+  troop.counters = Object.freeze([...(TROOP_TAXONOMY[troop.id]?.counters || [])]);
 });
 
 export const ENEMIES = {

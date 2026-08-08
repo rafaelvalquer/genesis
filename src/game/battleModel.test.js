@@ -126,7 +126,7 @@ describe("Pulso de Desmaterializacao", () => {
     expect(session.dematerializationPulses.every((pulse) => pulse.state === "ready")).toBe(true);
   });
 
-  it("bloqueia a rota durante a carga e desintegra todos os tipos somente nela", () => {
+  it("bloqueia a rota durante a carga e causa 500 de dano somente nela", () => {
     const session = createBattleSession(PHASES[5], [], 1207, {
       sandbox: true,
       sandboxSettings: { invulnerableBase: false, enemySpeedMultiplier: 0 },
@@ -162,8 +162,10 @@ describe("Pulso de Desmaterializacao", () => {
 
     const firedEvents = stepBattle(session, 1);
     expect(firedEvents).toContainEqual(expect.objectContaining({ type: "pulseFired", row: 2 }));
-    expect(firedEvents.filter((event) => event.type === "enemyDisintegrated")).toHaveLength(4);
-    expect(session.enemies).toEqual([otherLane]);
+    expect(firedEvents.filter((event) => event.type === "enemyDisintegrated")).toHaveLength(3);
+    expect(alpha.hp).toBe(alpha.maxHp - DEMATERIALIZATION_PULSE.damage);
+    expect(alpha.shield).toBe(999);
+    expect(session.enemies).toEqual([alpha, otherLane]);
     expect(session.energyPickups).toHaveLength(0);
     expect(session.dematerializationPulses[2].state).toBe("spent");
   });
@@ -342,7 +344,7 @@ describe("Artilheira de Morteiro", () => {
 });
 
 describe("Colosso de Impacto", () => {
-  const phase = { ...PHASES[9], id: "teste_colosso", waves: [], energy: 200, supplyLimit: 30 };
+  const phase = { ...PHASES[9], id: "teste_colosso", waves: [], energy: 200, supplyLimit: 40 };
   const tileEnemy = (id, x = 190, row = 0) => ({ ...meleeTarget(x, row), id, hp: 50, maxHp: 50, scale: 1, stunnedUntil: 0 });
 
   function createColossusSession(enemies = []) {
@@ -353,11 +355,14 @@ describe("Colosso de Impacto", () => {
   }
 
   it("tem estatisticas, recarga de implantacao e limite simultaneo previstos", () => {
-    expect(TROOPS.colossoImpacto).toMatchObject({ hp: 180, price: 22, supply: 8, deployCooldownMs: 10000, maxDeployed: 2, range: 0.9, unlockAt: 9 });
+    expect(TROOPS.colossoImpacto).toMatchObject({ hp: 180, price: 22, supply: 8, deployCooldownMs: 10000, maxDeployed: 5, range: 0.9, unlockAt: 9 });
     const session = createBattleSession(phase, ["colossoImpacto"], 882);
     expect(placeTroop(session, "colossoImpacto", 0, 1).ok).toBe(true);
     expect(placeTroop(session, "colossoImpacto", 1, 1).ok).toBe(true);
-    expect(placeTroop(session, "colossoImpacto", 2, 1)).toMatchObject({ ok: false });
+    expect(placeTroop(session, "colossoImpacto", 2, 1).ok).toBe(true);
+    expect(placeTroop(session, "colossoImpacto", 3, 1).ok).toBe(true);
+    expect(placeTroop(session, "colossoImpacto", 4, 1).ok).toBe(true);
+    expect(placeTroop(session, "colossoImpacto", 0, 2)).toMatchObject({ ok: false });
     const cooldownSession = createBattleSession(phase, ["colossoImpacto"], 883);
     cooldownSession.waveActive = true;
     const deployed = placeTroop(cooldownSession, "colossoImpacto", 0, 1);

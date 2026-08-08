@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { useState } from "react";
 import { PHASES, getUnlockedTroops } from "../game/content.js";
 import LoadoutPage from "./LoadoutPage.jsx";
-import { deriveEnemyIntel } from "./EnemyIntel.jsx";
+import EnemyIntel, { deriveEnemyIntel } from "./EnemyIntel.jsx";
 
 afterEach(() => {
   cleanup();
@@ -140,7 +140,22 @@ describe("baia de preparação tática", () => {
     const medu = intel.find((entry) => entry.id === "medu");
     expect(medu.firstWave).toBe(1);
     expect(medu.count).toBe(20);
+    render(<EnemyIntel phase={PHASES[0]} />);
+    expect(screen.getByLabelText("20 hostis projetados")).toBeInTheDocument();
     expect(intel.map((entry) => entry.id)).toEqual(expect.arrayContaining(["medu", "crix", "krulax"]));
+
+    const priorityIntel = deriveEnemyIntel({
+      environmentHazard: { id: "tide_cycle" },
+      waves: [{ enemies: [
+        { type: "mordelume", count: 20 },
+        { type: "carapacaNereida", count: 1 },
+        { type: "leviathanNereida", count: 1 },
+        { type: "medu", count: 50, variant: "alpha" },
+      ] }],
+    });
+    expect(priorityIntel.map((entry) => entry.id)).toEqual([
+      "leviathanNereida", "medu", "mordelume", "carapacaNereida",
+    ]);
   });
 
   it("não cria botões aninhados nem mais de um canvas", () => {

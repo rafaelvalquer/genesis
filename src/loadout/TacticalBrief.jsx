@@ -8,6 +8,7 @@ const formatTime = (milliseconds) => {
 };
 
 const mechanic = (phase) => {
+  if (phase.environmentHazard?.id === "tide_cycle") return ["MARÉ DE NEREIDA", "A água avança durante a batalha."];
   if (phase.chapterMechanic) return ["ECOS DE VIDRO", `${Math.round(phase.chapterMechanic.chance * 100)}% de chance de retorno hostil.`];
   if (phase.environmentHazard?.id === "sandstorm") return ["TEMPESTADE DE AREIA", "Soterramento e redução temporária de alcance e cadência."];
   if (phase.environmentHazard?.id === "wind_current") return ["CORRENTES DE VENTO", "Rajadas podem deslocar formações numerosas."];
@@ -29,6 +30,15 @@ export default function TacticalBrief({ phase, chapter, arenaUrl, troops, canCon
       <div><dt>Chefe</dt><dd>{phase.boss ? "CONFIRMADO" : "NÃO"}</dd></div>
     </dl>
     <div className={`environment-note ${phase.chapterMechanic || phase.environmentHazard ? "mechanic-warning" : ""}`}><b>{mechanicLabel}</b><span>{mechanicDescription}</span></div>
+    {phase.environmentHazard?.id === "tide_cycle" && <div className="tide-brief-details">
+      <ul>
+        <li>Células alagadas bloqueiam novas implantações.</li>
+        <li>Minas podem ser desativadas.</li>
+        <li>Reatores podem parar em fases avançadas.</li>
+        <li>Inimigos aquáticos ficam mais perigosos.</li>
+      </ul>
+      <strong>UNIDADES ANFÍBIAS RECOMENDADAS</strong>
+    </div>}
     <EnemyIntel phase={phase} />
     <SquadAnalysis troops={troops} />
     <button type="button" className="primary-button full loadout-confirm" disabled={!canConfirm || confirming} onClick={onConfirm}>

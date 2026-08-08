@@ -15,7 +15,7 @@ const hasAny = (
   );
 };
 
-export function getTroopTags(
+function legacyGetTroopTags(
   config = {},
 ) {
   const role = text(config.role);
@@ -200,6 +200,12 @@ export function getTroopTags(
     tags.add("utility");
   }
 
+  return tags;
+}
+
+export function getTroopTags(config = {}) {
+  const tags = new Set(Array.isArray(config.tags) ? config.tags : []);
+  if (!tags.size) tags.add("utility");
   return tags;
 }
 
