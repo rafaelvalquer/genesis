@@ -228,9 +228,12 @@ export function createBattleObservation(
         session.windCurrent?.state || null,
       tideState:
         session.tideCycle?.state || null,
+      magmaCells: session.phase.magmaTerrain?.cells || [],
+      thermal: { state: session.thermalCycle?.state || null, nextStateAt: session.thermalCycle?.stateEndsAt || null, heatRate: session.thermalCycle?.heatRatePerSecond || 0 },
     },
 
     defenses: {
+      thermalPlatforms: (session.supportStructures || []).map((platform) => ({ row: platform.row, col: platform.col, hp: platform.hp, heat: platform.heat, overheated: platform.overheated })),
       dematerializationPulses: (session.dematerializationPulses || []).map((pulse) => ({
         id: pulse.id,
         row: pulse.row,

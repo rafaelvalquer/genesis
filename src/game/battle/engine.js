@@ -64,6 +64,15 @@ import {
   resetTideCycleForWave,
   updateTideCycle,
 } from "../tideCycle.js";
+import {
+  createThermalCycleState,
+  createThermalPlatform,
+  getThermalPlatformAt,
+  isMagmaCell,
+  isTroopThermalCompatible,
+  getThermalSnapshot,
+  updateThermalTerrain,
+} from "../thermalTerrain.js";
 import { chapterFourAlphaMultipliers } from "../chapterFourEnemies.js";
 import {
   applyConductivity,
@@ -390,6 +399,10 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     },
     windCurrent: createWindCurrentState(),
     tideCycle: createTideCycleState(),
+    thermalCycle: createThermalCycleState(sessionPhase.environmentHazard, 0),
+    supportStructures: [],
+    thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0 },
+    troopConfigs: TROOPS,
     deployCooldowns: {},
     modifiers: { ...DEFAULT_MODIFIERS },
     shieldCharges: 0,
@@ -448,9 +461,15 @@ export function canPlaceTroop(session, troopId, row, col) {
     ? null
     : getTidePlacementBlockReason(session, row, col);
   if (tidePlacementReason) return tidePlacementReason;
+  const magma = isMagmaCell(session.phase, row, col);
+  const thermalPlatform = troopId === "thermalPlatform";
+  const existingPlatform = getThermalPlatformAt(session, row, col);
+  if (thermalPlatform && !magma) return "Plataformas Térmicas só podem ser instaladas sobre magma.";
+  if (thermalPlatform && existingPlatform) return "Já existe uma Plataforma Térmica nesta célula.";
+  if (magma && !thermalPlatform && !existingPlatform && !isTroopThermalCompatible(troop)) return "Magma exige uma Plataforma Térmica; apenas o Drone Sentinela pode operar diretamente.";
   const occupant = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col);
   const droneStack = troopId === "droneSentinela" && occupant?.type === "droneSentinela" ? occupant : null;
-  if (occupant && !droneStack) {
+  if (occupant && !droneStack && !thermalPlatform) {
     return troopId === "droneSentinela" ? "Célula ocupada por outra tropa." : "Célula ocupada.";
   }
   if (droneStack && isDroneStackFull(droneStack, troop)) {
@@ -467,7 +486,9 @@ export function canPlaceTroop(session, troopId, row, col) {
     if (getTotalDroneSentinelaCount(session) >= troop.maxTotalDrones) {
       return `Limite total de ${troop.maxTotalDrones} drones no campo.`;
     }
-  } else if (!freePlacement && getActiveTroopCount(session, troopId) >= deploymentLimit) {
+  } else if (thermalPlatform && !freePlacement && (session.supportStructures || []).filter((entry) => !entry.destroyed && entry.type === troopId).length >= deploymentLimit) {
+    return `Limite de ${deploymentLimit} ${troop.label} no campo.`;
+  } else if (!thermalPlatform && !freePlacement && getActiveTroopCount(session, troopId) >= deploymentLimit) {
     return `Limite de ${deploymentLimit} ${troop.label} no campo.`;
   }
   if (!freePlacement && session.energy < effective.price) return `Energia insuficiente: requer ${effective.price}.`;
@@ -668,6 +689,15 @@ export function placeTroop(session, troopId, row, col) {
   if (reason) return { ok: false, reason };
   const config = TROOPS[troopId];
   const effective = getEffectiveTroopStats(session, troopId);
+  if (troopId === "thermalPlatform") {
+    const burningTroop = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col && entry.thermalBurning);
+    const platform = createThermalPlatform(session, row, col, config, () => id("support"));
+    const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
+    if (!freePlacement) { session.energy -= effective.price; session.supply -= effective.supply; }
+    session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
+    if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
+    return { ok: true, support: platform, events: [{ type: "thermalPlatformDeployed", row, col, supportId: platform.id, rescuedTroopId: burningTroop?.id || null }], activeCount: (session.supportStructures || []).length, maxDeployed: getTroopDeploymentLimit(troopId, session), event: { type: "deploy", x: col * CELL.width + CELL.width / 2, y: row * CELL.height + CELL.height / 2 } };
+  }
   const existingDroneStack = troopId === "droneSentinela" ? getDroneStackAt(session, row, col) : null;
   const events = [];
   const troop = existingDroneStack || createTroopEntity(session, troopId, row, col, {
@@ -1619,7 +1649,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const tideFactor = getTideTroopAttackSpeedFactor(session, troop);
   setTroopAttackSpeedFactor(
     troop,
-    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, leviathanFactor, sandFactor, tideFactor),
+    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, leviathanFactor, sandFactor, tideFactor, troop.thermalAttackSpeedFactor || 1),
     session.elapsed,
   );
 }
@@ -6855,6 +6885,7 @@ export function stepBattle(session, dt = 32) {
   }
   updateEnergyPickups(session, dt, events);
   updateTideCycle(session, events, { eliminateTroop });
+  updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor });
   updateWindCurrent(session, events, {
     troops: TROOPS,
     enemies: ENEMIES,
@@ -7167,6 +7198,7 @@ export function getSnapshot(session) {
         : 0,
     },
     tideCycle: getTideSnapshot(session),
+    thermal: getThermalSnapshot(session),
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,
   };

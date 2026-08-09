@@ -44,6 +44,7 @@ const TEST_PHASE = {
     sandstorm: { label: "Tempestade de areia", environmentHazard: PHASES[16].environmentHazard, chapterMechanic: null },
     wind_current: { label: "Ventania", environmentHazard: PHASES[24].environmentHazard, chapterMechanic: null },
     tide_cycle: { label: "Maré", environmentHazard: PHASES[32].environmentHazard, chapterMechanic: null },
+    thermal_cycle: { label: "Magma / Gestão Térmica", environmentHazard: PHASES[40].environmentHazard, chapterMechanic: null },
     glass_echoes: { label: "Ecos de vidro", environmentHazard: null, chapterMechanic: PHASES[8].chapterMechanic },
     electric_charge: { label: "Carga iônica", environmentHazard: null, chapterMechanic: getChapterForPhase("fase_25")?.mechanic },
   },

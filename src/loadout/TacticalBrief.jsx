@@ -9,6 +9,7 @@ const formatTime = (milliseconds) => {
 
 const mechanic = (phase) => {
   if (phase.environmentHazard?.id === "tide_cycle") return ["MARÉ DE NEREIDA", "A água avança durante a batalha."];
+  if (phase.environmentHazard?.id === "thermal_cycle") return ["TERRENO MAGMÁTICO", "Sem Plataforma Térmica, apenas o Drone Sentinela pode ser implantado no magma."];
   if (phase.chapterMechanic) return ["ECOS DE VIDRO", `${Math.round(phase.chapterMechanic.chance * 100)}% de chance de retorno hostil.`];
   if (phase.environmentHazard?.id === "sandstorm") return ["TEMPESTADE DE AREIA", "Soterramento e redução temporária de alcance e cadência."];
   if (phase.environmentHazard?.id === "wind_current") return ["CORRENTES DE VENTO", "Rajadas podem deslocar formações numerosas."];
@@ -39,6 +40,7 @@ export default function TacticalBrief({ phase, chapter, arenaUrl, troops, unlock
       </ul>
       <strong>UNIDADES ANFÍBIAS RECOMENDADAS</strong>
     </div>}
+    {phase.environmentHazard?.id === "thermal_cycle" && <div className="tide-brief-details"><ul><li>Plataformas acumulam calor durante a atividade vulcânica.</li><li>A 100%, elas perdem HP e reduzem a cadência da tropa para 75%.</li><li>Se o suporte quebrar, instale outro sob a tropa para apagar o fogo.</li></ul><strong>PLATAFORMA TÉRMICA RECOMENDADA</strong></div>}
     <EnemyIntel phase={phase} unlockedPhaseIndex={unlockedPhaseIndex} />
     <SquadAnalysis troops={troops} />
     <button type="button" className="primary-button full loadout-confirm" disabled={!canConfirm || confirming} onClick={onConfirm}>

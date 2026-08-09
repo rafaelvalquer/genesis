@@ -2,6 +2,7 @@ import { canPlaceTroop, CELL, FIELD, getDroneStackAt } from "./battleModel.js";
 import { TROOPS } from "./content.js";
 import { drawWindCurrent, drawWindWarning } from "./windCurrentRenderer.js";
 import { drawCachedRadialGlow } from "./effectTextureCache.js";
+import { drawMagmaTerrain } from "./magmaTerrainRenderer.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -1150,6 +1151,7 @@ export function drawArenaForeground(ctx, phase, settings, session, time, adaptiv
   const atmosphereScale = adaptive.atmosphereScale ?? 1;
   const particleScale = adaptive.level === "stress" ? 0.55 : adaptive.level === "busy" ? 0.82 : 1;
   ctx.save();
+  drawMagmaTerrain(ctx, session, time, settings);
   ctx.globalAlpha = profile.atmosphere * atmosphereScale;
 
   if (adaptive.heavyAtmosphere !== false && effects.includes("fog")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity);

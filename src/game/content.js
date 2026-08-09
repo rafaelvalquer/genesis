@@ -2,9 +2,10 @@ import { createWindCurrentHazard } from "./windCurrent.js";
 import { CHAPTER_FOUR_ENEMIES } from "./chapterFourEnemies.js";
 import { createChapterFourWaves } from "./chapterFourWaves.js";
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
+import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
 export { createWindCurrentHazard } from "./windCurrent.js";
 
-export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8});
+export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9});
 export const DEFAULT_MAX_DEPLOYED_PER_TROOP = 5;
 
 export const TROOPS = {
@@ -165,6 +166,7 @@ export const TROOPS = {
     maxDronesPerTile: 3,
     maxTotalDrones: 15,
     floatingVisual: true,
+    thermalTerrainCompatible: true,
     unlockAt: 0,
     color: "#38bdf8",
     assetStates: ["idle", "attack", "death"],
@@ -185,6 +187,12 @@ export const TROOPS = {
     deathVisual: { state: "death", height: 100, aspectRatio: 4 / 3, durationMs: 640, loop: false },
     description:
       "Drone flutuante barato que pode receber até dois drones adicionais na mesma célula. Cada unidade acrescenta vida e um disparo à formação.",
+  },
+  thermalPlatform: {
+    id: "thermalPlatform", label: "Plataforma Térmica", role: "Suporte / Infraestrutura",
+    unitKind: "support", spriteKey: "thermalPlatform", price: 8, supply: 0,
+    deployCooldownMs: 3000, hp: 100, maxHeat: 100, maxDeployed: 20, unlockAt: 40,
+    assetStates: ["idle"], color: "#f97316", description: "Permite posicionar tropas convencionais sobre magma.",
   },
   interceptadorIcaro: {
     id: "interceptadorIcaro",
@@ -4465,6 +4473,7 @@ export const PHASES = [
     };
   }),
   ...CHAPTER_FIVE_PHASES,
+  ...CHAPTER_SIX_PHASES,
 ];
 
 export const CHAPTERS = [
@@ -4546,6 +4555,13 @@ export const CHAPTERS = [
       description:
         "Água profunda ocupa parte do campo permanentemente. Faixas intermaré avançam quando a defesa cresce e podem recuar após perdas reais, alterando posições disponíveis e acelerando hostis dentro da água.",
     },
+  },
+  {
+    id: "chapter_06", number: 6, name: "Caldeira Primordial",
+    subtitle: "A própria superfície se tornou inimiga",
+    phaseIds: PHASES.slice(40, 48).map((entry) => entry.id), coverArenaId: "chapter_06",
+    palette: { primary: "#f97316", accent: "#fbbf24", shadow: "#090402" },
+    mechanic: { id: "thermal_cycle", label: "Gestão Térmica", description: "Terrenos de magma exigem Plataformas Térmicas e submetem a defesa a ciclos progressivos de calor." },
   },
 ];
 

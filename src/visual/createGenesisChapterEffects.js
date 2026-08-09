@@ -13,6 +13,8 @@ import {
 import {
   createOceanPlanetEffects,
 } from "./effects/createOceanPlanetEffects.js";
+import { createMagmaPlanetEffects } from "./effects/createMagmaPlanetEffects.js";
+import { createGenesisMicroEvents } from "./createGenesisMicroEvents.js";
 
 const QUALITY_PROFILES = Object.freeze({
   low: Object.freeze({
@@ -174,10 +176,18 @@ export function createGenesisChapterEffects({
       THREE,
       profile,
     }),
+    chapter_06: createMagmaPlanetEffects({ THREE, profile }),
   };
 
   Object.entries(groups).forEach(
     ([id, group]) => {
+      const microEvents = createGenesisMicroEvents({ THREE, chapterId: id, profile });
+      const updateChapterEffects = group.userData.update;
+      group.add(microEvents);
+      group.userData.update = (delta, elapsed, reduceMotion) => {
+        updateChapterEffects?.(delta, elapsed, reduceMotion);
+        microEvents.userData.update?.(elapsed, reduceMotion);
+      };
       group.userData.chapterId = id;
       group.userData.effectMaterials = (
         collectMaterials(group)

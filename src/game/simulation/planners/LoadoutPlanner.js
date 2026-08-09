@@ -197,6 +197,12 @@ export function planLoadoutForPhase({
 
   const selected = new Set();
 
+  // Magma is a deployment constraint, not merely a combat preference: reserve
+  // one Chapter 6 slot for the support that makes conventional placement legal.
+  if (phase.environmentHazard?.id === "thermal_cycle") {
+    addIfPresent(selected, scored.find((entry) => entry.id === "thermalPlatform"), limit);
+  }
+
   const needsEconomy = (
     phase.waves.length >= 3
     && profile.economyTarget > 0

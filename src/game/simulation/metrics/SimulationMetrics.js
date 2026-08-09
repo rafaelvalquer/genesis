@@ -65,6 +65,15 @@ export class SimulationMetrics {
     this.baseBreaches = 0;
     this.energyGenerated = 0;
     this.energyCollected = 0;
+    this.thermalPlatformDeployments = 0;
+    this.thermalPlatformDestroyed = 0;
+    this.thermalBurnEvents = 0;
+    this.thermalPlatformRescues = 0;
+    this.maximumPlatformHeat = 0;
+    this.averagePlatformHeat = 0;
+    this.thermalBurnDamage = 0;
+    this.thermalTroopsLost = 0;
+    this.eruptionCount = 0;
 
     this.peakEnemies = 0;
     this.peakTroops = 0;
@@ -117,6 +126,11 @@ export class SimulationMetrics {
       + session.enemyProjectiles.length
       + session.mines.length,
     );
+    const thermalPlatforms = session.supportStructures || [];
+    if (thermalPlatforms.length) this.maximumPlatformHeat = Math.max(this.maximumPlatformHeat, ...thermalPlatforms.map((platform) => platform.heat || 0));
+    this.averagePlatformHeat = (session.thermalMetrics?.heatSampleTotal || 0) / Math.max(1, session.thermalMetrics?.heatSampleCount || 0);
+    this.thermalBurnDamage = session.thermalMetrics?.burnDamage || 0;
+    this.thermalTroopsLost = session.thermalMetrics?.troopsLost || 0;
   }
 
   recordEvents(
@@ -129,6 +143,11 @@ export class SimulationMetrics {
       );
 
       increment(this.events, type);
+      if (type === "thermalPlatformDeployed") this.thermalPlatformDeployments += 1;
+      if (type === "thermalPlatformDeployed" && event.rescuedTroopId) this.thermalPlatformRescues += 1;
+      if (type === "thermalPlatformDestroyed") this.thermalPlatformDestroyed += 1;
+      if (type === "thermalBurnStarted") this.thermalBurnEvents += 1;
+      if (type === "thermalCycleChanged" && event.state === "eruption") this.eruptionCount += 1;
 
       const amount = eventAmount(event);
 
@@ -399,6 +418,17 @@ export class SimulationMetrics {
         final: Number(session.energy),
         generated: this.energyGenerated,
         collected: this.energyCollected,
+      },
+      thermal: {
+        platformDeployments: this.thermalPlatformDeployments,
+        platformDestroyed: this.thermalPlatformDestroyed,
+        burnEvents: this.thermalBurnEvents,
+        platformRescues: this.thermalPlatformRescues,
+        maximumPlatformHeat: this.maximumPlatformHeat,
+        averagePlatformHeat: this.averagePlatformHeat,
+        burnDamage: this.thermalBurnDamage,
+        troopsLost: this.thermalTroopsLost,
+        eruptionCount: this.eruptionCount,
       },
       waveCompletionTimes: [
         ...this.waveCompletionTimes,

@@ -309,6 +309,14 @@ chapter_05: freezeTheme({
     motion: .88,
   },
   }),
+  chapter_06: freezeTheme({
+    key: "magma", label: "Caldeira Primordial", surface: ["#090403", "#431407", "#160603"], atmosphere: "#f97316", accent: "#fbbf24", light: "#fff7ed", ambient: "#210804", fog: "#090402", particle: "#fb923c", cameraDistance: 4.55,
+    rotation: { x: -.42, y: -.65, z: .07 }, detail: "Vulcões, fissuras e rios de lava",
+    ui: { primary: "#f97316", secondary: "#fb923c", accent: "#fbbf24", warning: "#ef4444", panel: "rgba(18, 5, 2, .94)", panelAlt: "rgba(50, 15, 5, .9)", line: "#9a3412", grid: "#7c2d12", glow: "rgba(249, 115, 22, .31)", patternOpacity: .25, shape: "volcanic" },
+    lighting: { keyColor: "#fff7ed", keyIntensity: 1.65, keyPosition: [3.4, 2.6, 4.3], fillColor: "#fb923c", fillGroundColor: "#090403", fillIntensity: .35, rimColor: "#f97316", rimIntensity: .65, rimPosition: [-3.2, 1, -3.2], ambientColor: "#ffedd5", ambientIntensity: .04, exposure: .98, transitionSpeed: 4.7 },
+    world: { fogColor: "#090402", fogDensityCommand: .05, fogDensityCampaign: .06, atmosphereOpacityCommand: .13, atmosphereOpacityCampaign: .12, particleOpacity: .62, particleSize: .018 },
+    planetEffects: { kit: "magma", signature: "Lava, vulcões e brasas junto à rota", motion: .9 },
+  }),
 });
 
 export const getCampaignBiome = (chapterId) =>

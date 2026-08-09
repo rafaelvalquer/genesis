@@ -5,13 +5,14 @@ import {
 } from "./campaignBiomes.js";
 
 describe("identidade visual dos mundos", () => {
-  it("define tema completo para os cinco capítulos", () => {
+  it("define tema completo para os seis capítulos", () => {
     expect(Object.keys(CAMPAIGN_BIOMES)).toEqual([
       "chapter_01",
       "chapter_02",
       "chapter_03",
       "chapter_04",
       "chapter_05",
+      "chapter_06",
     ]);
 
     Object.values(CAMPAIGN_BIOMES).forEach((theme) => {

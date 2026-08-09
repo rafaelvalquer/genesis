@@ -12,7 +12,7 @@ describe("efeitos 3D próximos às rotas", () => {
   it("cria cinco kits e ativa somente o capítulo selecionado", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({ THREE, parent, quality: { quality: "medium" }, chapterId: "chapter_01" });
-    expect(Object.keys(runtime.groups)).toHaveLength(5);
+    expect(Object.keys(runtime.groups)).toHaveLength(6);
     expect(runtime.groups.chapter_01.visible).toBe(true);
     expect(runtime.groups.chapter_05.visible).toBe(false);
   });
@@ -27,6 +27,7 @@ describe("efeitos 3D próximos às rotas", () => {
     expect(countNamed(parent, "StormRouteWinds")).toBe(1);
     expect(countNamed(parent, "OceanRouteCurrent")).toBe(1);
     expect(countNamed(parent, "OceanRouteRipples")).toBe(1);
+    expect(countNamed(parent, "Chapter06_MagmaEffects")).toBe(1);
   });
 
   it("troca para o oceano por crossfade", () => {

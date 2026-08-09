@@ -2583,6 +2583,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       : wind?.state === "recovering"
         ? `CORRENTE DISSIPANDO · ${(wind.remainingMs / 1000).toFixed(1)}s`
         : null;
+  const thermal = snapshot.thermal;
+  const thermalBanner = thermal?.state
+    ? `${thermal.state === "stable" ? "🔥 ESTÁVEL" : thermal.state === "active" ? "🔥🔥 ATIVA" : thermal.state === "eruption" ? "⚠ ERUPÇÃO" : "RESFRIAMENTO"} · ${Math.max(0, (thermal.nextStateAt - snapshot.elapsed) / 1000).toFixed(0)}s`
+    : null;
   const canStartWave = !sandbox
     && snapshot.preparing
     && !snapshot.pendingDecision
@@ -2610,7 +2614,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           ? "FORMAÇÃO AVANÇADA · PASSE O MOUSE E CLIQUE EM TRÊS COLUNAS"
           : targetingDecision
             ? "SELEÇÃO DE ROTA · CLIQUE PARA FORTIFICAR"
-            : tideBanner || windBanner || sandstormBanner || defaultContainmentSummary;
+            : tideBanner || windBanner || sandstormBanner || thermalBanner || defaultContainmentSummary;
   const inspectedTroopId = resolveInspectedTroopId({ hoveredTroop, selectedTroop });
   const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
 

@@ -338,6 +338,13 @@ function candidateCells(
   troopId,
   observation,
 ) {
+  if (troopId === "thermalPlatform") {
+    return (observation.environment?.magmaCells || []).map(([row, col]) => ({
+      row,
+      col,
+      lane: observation.lanes.find((lane) => lane.row === row) || { row, risk: 0 },
+    }));
+  }
   const tags = getTroopTags(
     TROOPS[troopId],
   );
@@ -379,6 +386,10 @@ function placementScore(
   observation,
   profile,
 ) {
+  if (troopId === "thermalPlatform") {
+    const occupied = observation.troops.living.some((troop) => troop.row === candidate.row && troop.col === candidate.col);
+    return 120 + (occupied ? 90 : 0) + Number(candidate.lane?.risk || 0) * 20;
+  }
   const config = TROOPS[troopId];
   const tags = getTroopTags(config);
 
