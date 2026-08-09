@@ -70,6 +70,9 @@ export const LOADOUT_TROOP_VISUALS = {
   reator: {
     stageScale: .76,
   },
+  thermalPlatform: {
+    stageScale: .62,
+  },
 };
 
 const DEFAULT_VISUAL = Object.freeze({

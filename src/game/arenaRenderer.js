@@ -2,7 +2,8 @@ import { canPlaceTroop, CELL, FIELD, getDroneStackAt } from "./battleModel.js";
 import { TROOPS } from "./content.js";
 import { drawWindCurrent, drawWindWarning } from "./windCurrentRenderer.js";
 import { drawCachedRadialGlow } from "./effectTextureCache.js";
-import { drawMagmaTerrain } from "./magmaTerrainRenderer.js";
+import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRenderer.js";
+import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -634,11 +635,12 @@ export function getRouteFortificationPulseVisual(session, settings = {}) {
   };
 }
 
-export function drawArenaUnderlay(ctx, phase, settings, session, time) {
+export function drawArenaUnderlay(ctx, phase, settings, session, time, adaptive = {}, runtime) {
   const profile = getQualityProfile(settings);
   const intensity = getArenaIntensity(phase, session.waveIndex);
   const motionTime = settings.reduceMotion ? 0 : time;
   const theme = phase.battlefieldTheme;
+  drawMagmaTerrainBase(ctx, session, time, settings, adaptive, runtime);
   drawDamageMarks(ctx, phase, intensity);
   drawWindWarning(ctx, session, time, settings);
   drawPositionalSelectionOverlay(ctx, session);
@@ -1143,7 +1145,7 @@ function drawSandstorm(ctx, session, time, settings, profile, adaptive) {
   ctx.restore();
 }
 
-export function drawArenaForeground(ctx, phase, settings, session, time, adaptive = {}) {
+export function drawArenaForeground(ctx, phase, settings, session, time, adaptive = {}, runtime) {
   const profile = getQualityProfile(settings);
   const effects = phase.ambientEffects || [];
   const intensity = getArenaIntensity(phase, session.waveIndex);
@@ -1151,11 +1153,12 @@ export function drawArenaForeground(ctx, phase, settings, session, time, adaptiv
   const atmosphereScale = adaptive.atmosphereScale ?? 1;
   const particleScale = adaptive.level === "stress" ? 0.55 : adaptive.level === "busy" ? 0.82 : 1;
   ctx.save();
-  drawMagmaTerrain(ctx, session, time, settings);
+  drawMagmaTerrainEffects(ctx, session, time, settings, adaptive, runtime);
+  drawThermalPlatformIndicators(ctx, session);
   ctx.globalAlpha = profile.atmosphere * atmosphereScale;
 
   if (adaptive.heavyAtmosphere !== false && effects.includes("fog")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity);
-  if (adaptive.heavyAtmosphere !== false && effects.includes("smoke")) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity, true);
+  if (adaptive.heavyAtmosphere !== false && effects.includes("smoke") && !phase.magmaTerrain) drawFogOrSmoke(ctx, Math.round(2 + 3 * profile.particles), motionTime, intensity, true);
   if (effects.includes("spores")) drawDriftingPoints(ctx, phase, Math.round((12 + 30 * profile.particles) * particleScale), motionTime, intensity, "spores");
   if (effects.includes("dust") || effects.includes("debris")) drawDriftingPoints(ctx, phase, Math.round((10 + 22 * profile.particles) * particleScale), motionTime, intensity, "dust");
   if (effects.includes("glassDust")) drawDriftingPoints(ctx, phase, Math.round((14 + 34 * profile.particles) * particleScale), motionTime * 0.72, intensity, "spores");

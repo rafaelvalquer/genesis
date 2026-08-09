@@ -1,0 +1,2 @@
+import { CELL } from "./visualGeometry.js";
+export function drawThermalPlatformIndicators(ctx,session){for(const p of session.supportStructures||[]){if(p.heat<60)continue;const x=p.col*CELL.width+CELL.width/2,y=p.row*CELL.height+CELL.height*.18;ctx.save();ctx.fillStyle=p.heat>=80?"#ef4444":"#f59e0b";ctx.fillRect(x-22,y,44*Math.min(1,p.heat/p.maxHeat),4);if(p.overheated){ctx.fillStyle="#fef08a";ctx.font="bold 13px sans-serif";ctx.fillText("⚠",x-6,y-4)}ctx.restore()}}

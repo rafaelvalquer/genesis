@@ -1389,7 +1389,21 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
   }
 }
 
+function drawThermalPlatforms(ctx, session, assets) {
+  const frames = assets.troops.thermalPlatform || {};
+  for (const platform of session.supportStructures || []) {
+    const state = platform.destroyed ? "destroyed" : platform.overheated ? "overheat" : platform.heat >= 80 ? "critical" : platform.heat >= 60 ? "heated" : "idle";
+    const image = resolveTroopFrame(frames, state, 0);
+    if (!image) continue;
+    const x = platform.col * CELL.width + CELL.width / 2;
+    const y = platform.row * CELL.height + CELL.height / 2
+      + (TROOPS.thermalPlatform.spriteOffsetY || 0);
+    ctx.drawImage(image, x - 46, y - 46, 92, 92);
+  }
+}
+
 export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers) {
+  drawThermalPlatforms(ctx, session, assets);
   buildBattleRenderRows(session.troops, session.enemies, interpolation, session.elapsed, settings.reduceMotion, buffers);
   drawWetReflections(ctx, session.phase, buffers.rows, settings, adaptive);
   const bossEntries = [];
@@ -1488,7 +1502,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   arenaCtx.save();
   arenaCtx.translate(0, VIEWPORT.fieldOffsetY);
   drawArenaBackground(arenaCtx, session.phase, settings);
-  drawArenaUnderlay(arenaCtx, session.phase, settings, session, now);
+  drawArenaUnderlay(arenaCtx, session.phase, settings, session, now, adaptive, runtime);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);
   drawTacticalGrid(arenaCtx, session, selectedTroop, removeMode, hoveredCell);
   drawPlacementRange(arenaCtx, placementPreview);
@@ -1557,7 +1571,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   drawPulseDisintegrations(overlayCtx, runtime, assets, now, settings);
   drawDeploymentEffects(overlayCtx, runtime, now, settings);
   drawDynamicLights(overlayCtx, runtime, now, settings, adaptive);
-  drawArenaForeground(overlayCtx, session.phase, settings, session, now, adaptive);
+  drawArenaForeground(overlayCtx, session.phase, settings, session, now, adaptive, runtime);
   drawPulseBeams(overlayCtx, runtime, now, settings);
   drawEnergyPickups(overlayCtx, session.energyPickups, session.elapsed, settings);
   particlesRef.current = drawParticles(overlayCtx, particlesRef.current, now, settings);
@@ -1617,11 +1631,16 @@ export function SandboxPanel({
   grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo, onForceLeviathan = () => {}, onDebugLeviathan = () => {},
   onInjure, onClear, onReset, fortuneTier, onFortuneTier, onSimulateFortune,
   fortuneDisabled, fortuneReason, mechanicOptions = [], onMechanic, disabled = false,
+  magmaEnabled = false,
 }) {
   const selected = ENEMIES[selectedEnemy];
   const slider = (key, label, min, max) => <label className="sandbox-slider" key={key}>
     <span><b>{label}</b><output>{Math.round(settings[key] * 100)}%</output></span>
     <input type="range" min={min} max={max} step="0.25" value={settings[key]} onChange={(event) => onSetting(key, Number(event.target.value))} />
+  </label>;
+  const magmaSlider = (key, label, min, max, step, format) => <label className="sandbox-slider" key={key}>
+    <span><b>{label}</b><output>{format(settings[key])}</output></span>
+    <input type="range" min={min} max={max} step={step} value={settings[key]} onChange={(event) => onSetting(key, Number(event.target.value))} />
   </label>;
   return <aside className={`sandbox-panel ${disabled ? "interaction-locked" : ""}`} aria-label="Controles do laboratório" aria-disabled={disabled} inert={disabled ? true : undefined}>
     <div className="sandbox-panel-heading"><div><span className="eyebrow">LABORATÓRIO</span><h2>Gerador de hostis</h2></div><button className="sandbox-reset" onClick={onReset}>Reiniciar</button></div>
@@ -1657,6 +1676,25 @@ export function SandboxPanel({
       <header><div><span>VÓRTICE</span><b>Controle de combo</b></div></header>
       <div className="sandbox-choice"><span>Próximo golpe</span><div>{[1, 2, 3].map((step) => <button key={step} onClick={() => onForceCombo(step)}>Combo {step}</button>)}</div></div>
     </section>
+    {magmaEnabled && <section className="sandbox-spawn-card magma-lab-card">
+      <header><div><span>MAGMA</span><b>Superfície procedural V4</b></div></header>
+      <div className="sandbox-mode-toggle magma-state-toggle" role="group" aria-label="Estado térmico do magma">
+        {[["auto", "Auto"], ["stable", "Stable"], ["active", "Active"], ["eruption", "Eruption"], ["cooldown", "Cooldown"]].map(([id, label]) => <button
+          key={id}
+          type="button"
+          className={settings.magmaThermalState === id ? "active" : ""}
+          onClick={() => onSetting("magmaThermalState", id)}
+        >{label}</button>)}
+      </div>
+      {magmaSlider("magmaCrustCoverage", "Crosta", 0.25, 0.7, 0.01, (value) => `${Math.round(value * 100)}%`)}
+      {magmaSlider("magmaFlowMultiplier", "Fluxo", 0, 2, 0.05, (value) => `${value.toFixed(2)}×`)}
+      {magmaSlider("magmaWarpMultiplier", "Warp", 0, 2, 0.05, (value) => `${value.toFixed(2)}×`)}
+      {magmaSlider("magmaVentLimit", "Vents", 0, 10, 1, (value) => String(Math.round(value)))}
+      {magmaSlider("magmaParticleLimit", "Partículas", 0, 80, 1, (value) => String(Math.round(value)))}
+      <label className="sandbox-check"><span><b>Pausar magma</b><small>Congela somente a simulação visual</small></span><input type="checkbox" checked={settings.magmaPaused} onChange={(event) => onSetting("magmaPaused", event.target.checked)} /></label>
+      <label className="sandbox-check"><span><b>Mostrar heatmap</b><small>Preto: crosta · amarelo/branco: calor</small></span><input type="checkbox" checked={settings.magmaShowHeatmap} onChange={(event) => onSetting("magmaShowHeatmap", event.target.checked)} /></label>
+      <label className="sandbox-check"><span><b>Mostrar máscara</b><small>Exibe regiões conectadas e seus limites</small></span><input type="checkbox" checked={settings.magmaShowRegionMask} onChange={(event) => onSetting("magmaShowRegionMask", event.target.checked)} /></label>
+    </section>}
     <section className="sandbox-spawn-card">
       <header><div><span>CHEFE AQUÁTICO</span><b>Leviatã de Nereida</b></div></header>
       <button className="sandbox-spawn-button" onClick={() => onSelectEnemy("leviathanNereida")}>SELECIONAR LEVIATÃ</button>
@@ -2771,6 +2809,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           fortuneDisabled={fortuneDisabled}
           fortuneReason={fortuneReason}
           disabled={fortuneTargeting}
+          magmaEnabled={Boolean(sessionRef.current.phase.magmaTerrain)}
         />}
       </div>
 

@@ -73,4 +73,11 @@ describe("enquadramento de corpo inteiro no loadout", () => {
     expect(troop).toBeTruthy();
     expect(getLoadoutStageVisual(troop).scale).toBeLessThan(.9);
   });
+
+  it("reduz o enquadramento da Plataforma Térmica no palco", () => {
+    const troop = TROOPS.thermalPlatform;
+
+    expect(troop).toBeTruthy();
+    expect(getLoadoutStageVisual(troop).scale).toBeCloseTo(.62, 4);
+  });
 });

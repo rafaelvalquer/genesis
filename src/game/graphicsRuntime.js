@@ -94,7 +94,7 @@ export function clearRenderLayer(context, canvas, scale) {
 export function createGraphicsRuntime() {
   return {
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
-    pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [],
+    pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [], magma: null,
     containmentArcs: [], containmentInterferenceUntil: 0,
     camera: { amplitude: 0, seed: 1, startedAt: 0 },
     health: new Map(),

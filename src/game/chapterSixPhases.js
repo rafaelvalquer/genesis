@@ -20,7 +20,7 @@ export const CHAPTER_SIX_PHASES = deepFreeze(Array.from({ length: 8 }, (_, index
     energy: 930 + index * 30, arenaId: `fase_${41 + index}`, chapterId: "chapter_06", chapterIndex: index,
     supplyLimit: 40, loadoutLimit: 9, baseIntegrity: 100, cadenceMs: 900, targetDurationMs: 1080000,
     waves, waveCompletionEnergy: 20, waveIntensity: waves.map((_, wave) => .4 + .6 * wave / Math.max(1, waves.length - 1)),
-    environment: "volcanic", ambientEffects: ["embers", "smoke", "heat", "magma"], magmaTerrain: { cells: cells[index] }, thermalCycle,
+    environment: "volcanic", ambientEffects: ["embers", "smoke", "heat", "magma"], magmaTerrain: { cells: cells[index], visual: { seed: 4141 + index * 101, flow: { x: -1, y: .025 }, speed: 26, viscosity: .82, turbulence: .16, crustDensity: .48 } }, thermalCycle,
     environmentHazard: createThermalHazard(cells[index], { cycle: thermalCycle, thermalOverheatDamagePerSecond: 4 + Math.max(0, index - 4), thermalBurnDamagePerSecond: 6 }),
     battlefieldTheme: { id: arenaIds[index], seed: 4141 + index * 101, material: "volcanic", base: "basalt", entrance: "magma-rift", lane: "#2a1713", laneAlt: "#392019", edge: "#f97316", detail: "#fbbf24" },
     palette: { primary: "#f97316", accent: "#fbbf24", shadow: "#090402", haze: "#ef4444" }, boss: false,

@@ -70,6 +70,7 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
       platform.hp -= platform.maxHp * (config.thermalOverheatDamagePerSecond / 100) * seconds;
       if (platform.hp <= 0) {
         platform.destroyed = true;
+        platform.destroyedAt = session.elapsed;
         const troop = session.troops.find((entry) => !entry.dead && entry.row === platform.row && entry.col === platform.col);
         if (troop && !isTroopThermalCompatible(session.troopConfigs?.[troop.type] || null)) troop.thermalBurning = true;
         events.push({ type: "thermalPlatformDestroyed", row: platform.row, col: platform.col, troopId: troop?.id || null });
@@ -77,7 +78,9 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
       }
     }
   }
-  session.supportStructures = (session.supportStructures || []).filter((entry) => !entry.destroyed);
+  // Retain the broken support for a brief visual handoff without letting it
+  // support a troop (getSupportAt already excludes destroyed structures).
+  session.supportStructures = (session.supportStructures || []).filter((entry) => !entry.destroyed || session.elapsed - entry.destroyedAt < 450);
   for (const troop of session.troops.filter((entry) => !entry.dead && isMagmaCell(session.phase, entry.row, entry.col))) {
     const protectedByPlatform = hasThermalPlatform(session, troop.row, troop.col);
     const compatible = isTroopThermalCompatible(session.troopConfigs?.[troop.type]);

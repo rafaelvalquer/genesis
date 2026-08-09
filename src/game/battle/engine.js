@@ -209,6 +209,15 @@ const DEFAULT_SANDBOX_SETTINGS = {
   enemySpeedMultiplier: 1,
   enemyDamageMultiplier: 1,
   troopDamageMultiplier: 1,
+  magmaThermalState: "auto",
+  magmaCrustCoverage: 0.48,
+  magmaFlowMultiplier: 1,
+  magmaWarpMultiplier: 1,
+  magmaVentLimit: 7,
+  magmaParticleLimit: 60,
+  magmaPaused: false,
+  magmaShowHeatmap: false,
+  magmaShowRegionMask: false,
 };
 
 function applySandboxMechanic(phase, settings = {}) {
@@ -218,6 +227,14 @@ function applySandboxMechanic(phase, settings = {}) {
     ...phase,
     environmentHazard: profile?.environmentHazard || null,
     chapterMechanic: profile?.chapterMechanic || null,
+    magmaTerrain: Object.prototype.hasOwnProperty.call(profile || {}, "magmaTerrain")
+      ? profile.magmaTerrain
+      : Object.prototype.hasOwnProperty.call(phase, "sandboxBaseMagmaTerrain")
+        ? phase.sandboxBaseMagmaTerrain
+        : phase.magmaTerrain,
+    ambientEffects: Object.prototype.hasOwnProperty.call(profile || {}, "ambientEffects")
+      ? profile.ambientEffects
+      : phase.sandboxBaseAmbientEffects || phase.ambientEffects,
   };
 }
 

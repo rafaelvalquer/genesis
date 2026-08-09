@@ -470,6 +470,12 @@ body:has(.test-page) { min-width: 0; }
 .sandbox-mode-toggle { display: grid; grid-template-columns: 1fr 1fr; margin: 11px 0; }
 .sandbox-mode-toggle button, .sandbox-choice button { min-height: 32px; border: 1px solid var(--line); background: #081421; color: var(--muted); font: 700 9px "Chakra Petch"; text-transform: uppercase; }
 .sandbox-mode-toggle button.active, .sandbox-choice button.active { border-color: var(--cyan); background: rgba(34,211,238,.12); color: var(--cyan-soft); }
+.magma-lab-card { border-color: rgba(249,115,22,.32); background: linear-gradient(180deg, rgba(80,25,8,.2), rgba(13,28,43,.78)); }
+.magma-lab-card > header b { color: #fdba74; }
+.magma-state-toggle { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.magma-state-toggle button.active { border-color: #fb923c; background: rgba(249,115,22,.15); color: #fed7aa; }
+.magma-lab-card .sandbox-slider output { color: #fb923c; }
+.magma-lab-card .sandbox-slider input { accent-color: #f97316; }
 .enemy-catalog { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .enemy-catalog button { min-width: 0; padding: 4px; border: 1px solid var(--line); background: #07111d; color: var(--muted); }
 .enemy-catalog button.selected { border-color: var(--enemy-color); background: color-mix(in srgb, var(--enemy-color) 12%, #07111d); box-shadow: inset 0 -2px var(--enemy-color); color: var(--text); }
