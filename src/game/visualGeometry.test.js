@@ -289,6 +289,11 @@ describe("geometria visual dos disparos", () => {
     expect(anchors.map(({ x }) => x)).toEqual([
       0.5169, 0.4565, 0.4394, 0.3915, 0.4896, 0.4875, 0.4643, 0.4173,
     ]);
+    const firingJano = { ...jano, type: "operadorJano", state: "attack" };
+    const muzzle = getMuzzleWorldPosition(firingJano, TROOPS.operadorJano, 0, 4);
+    const firingRect = getAnchoredSpriteRect(jano, TROOPS.operadorJano.attackVisual.height, 1, anchors[4]);
+    expect(muzzle.x).toBeCloseTo(firingRect.x + firingRect.width * .88, 5);
+    expect(muzzle.y).toBeCloseTo(firingRect.y + firingRect.height * .34, 5);
   });
 
   it("faz os quatro tiros e as tres interceptacoes nascerem do cano por quadro", () => {
@@ -444,7 +449,7 @@ describe("geometria visual dos disparos", () => {
     const anchor = getEnemyFrameAnchor(ENEMIES.crix, "idle", 0);
     const rect = getEnemySpriteRect(enemy, ENEMIES.crix, "idle", 0);
     expect(rect.y + rect.height * anchor.y)
-      .toBeCloseTo(enemy.y + CELL.height * 0.43 - 10 * ENEMIES.crix.scale, 5);
+      .toBeCloseTo(enemy.y + CELL.height * 0.43 + ENEMIES.crix.spriteOffsetY * ENEMIES.crix.scale, 5);
   });
 
   it("reduz e baixa Medu, Neurax e Oculis em todos os estados", () => {
@@ -456,8 +461,10 @@ describe("geometria visual dos disparos", () => {
         const anchor = getEnemyFrameAnchor(config, state, 0);
         const rect = getEnemySpriteRect(enemy, config, state, 0);
         const anchorY = rect.y + rect.height * anchor.y;
-        const previousAnchorY = enemy.y + CELL.height * 0.43 - 26 * 1.12;
-        expect(anchorY - previousAnchorY).toBeCloseTo(9, 0);
+        expect(anchorY).toBeCloseTo(
+          enemy.y + CELL.height * 0.43 + config.spriteOffsetY * config.scale,
+          5,
+        );
       }
     }
   });

@@ -1258,7 +1258,7 @@ export const TROOPS = {
     specialEveryMs: 16000,
     specialStunMs: 800,
     maxDeployed: 5,
-    healthBarOffset: 104,
+    healthBarOffset: 88,
     healthBarWidth: 74,
     spriteOffsetY: 8,
     assetStates: ["idle", "attack", "special"],
@@ -1412,16 +1412,29 @@ export const TROOPS = {
     blockDistancePx: 62,
     color: "#22d3ee",
     unlockAt: 32,
-    healthBarOffset: 112,
+    healthBarOffset: 88,
     healthBarWidth: 78,
     assetStates: ["idle", "attack", "death"],
     idleVisual: {
       state: "idle", height: 138, durationMs: 1280, loop: true,
-      timeline: [{ atMs: 0, frame: 0 }],
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 160, frame: 1 },
+        { atMs: 320, frame: 2 }, { atMs: 480, frame: 3 },
+        { atMs: 640, frame: 4 }, { atMs: 800, frame: 5 },
+        { atMs: 960, frame: 6 }, { atMs: 1120, frame: 7 },
+      ],
     },
     attackVisual: {
       state: "attack", height: 138, durationMs: 720, impactMs: 360, loop: false,
-      timeline: [{ atMs: 0, frame: 0 }],
+      frameAnchors: {
+        attack: Array.from({ length: 8 }, () => ({ x: 0.5, y: 0.9434, scale: 1.13 })),
+      },
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 100, frame: 1 },
+        { atMs: 200, frame: 2 }, { atMs: 300, frame: 3 },
+        { atMs: 360, frame: 4 }, { atMs: 450, frame: 5 },
+        { atMs: 540, frame: 6 }, { atMs: 630, frame: 7 },
+      ],
     },
     deathVisual: {
       state: "death", height: 138, durationMs: 960, loop: false,
@@ -1435,7 +1448,7 @@ export const TROOPS = {
     label: "Fuzileiro Voltaico",
     title: "Condutor de Combate",
     role: "Dano elétrico / Antienxame aquático",
-    spriteKey: "guarda",
+    spriteKey: "fuzileiroVoltaico",
     price: 22,
     supply: 6,
     deployCooldownMs: 6500,
@@ -1457,6 +1470,8 @@ export const TROOPS = {
     ignoreTideAttackSpeedPenalty: true,
     color: "#22d3ee",
     unlockAt: 32,
+    healthBarOffset: 104,
+    healthBarWidth: 70,
     assetStates: ["idle", "attack", "death"],
     assetStateFallbacks: { death: "attack" },
     idleVisual: {
@@ -1469,12 +1484,12 @@ export const TROOPS = {
     attackVisual: {
       state: "attack",
       height: 126,
-      durationMs: 420,
-      releaseMs: 210,
+      durationMs: 780,
+      releaseMs: 390,
       loop: false,
       effect: "voltaicDischarge",
-      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 52.5, frame })),
-      shots: [{ atMs: 210, frame: 4, muzzle: { x: 0.97, y: 0.37 } }],
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * (780 / 7), frame })),
+      shots: [{ atMs: 390, frame: 4, muzzle: { x: 0.97, y: 0.37 } }],
     },
     deathVisual: {
       state: "death",
@@ -1519,7 +1534,7 @@ export const TROOPS = {
     attackVisual: {
       state: "attackFront",
       height: 126,
-      durationMs: 640,
+      durationMs: 960,
       effect: "janoRifleRound",
       frameAnchors: {
         idle: [
@@ -1547,8 +1562,8 @@ export const TROOPS = {
           { x: 0.4326, y: 0.9512 }, { x: 0.3779, y: 0.9512 },
         ],
       },
-      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 80, frame })),
-      shots: [{ atMs: 320, frame: 4, muzzle: { x: 0.93, y: 0.43 } }],
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 120, frame })),
+      shots: [{ atMs: 480, frame: 4, muzzle: { x: 0.88, y: 0.34 } }],
     },
     droneOffset: { x: 42, y: -76 },
     droneVisuals: {
@@ -1640,7 +1655,7 @@ export const ENEMIES = {
     threat: 10,
     color: "#ef4444",
     scale: 1.01,
-    spriteOffsetY: -20,
+    spriteOffsetY: 2,
     visualStateScale: { idle: 1, walking: 1.16, attack: 1.1 },
     description:
       "Batedor da colmeia que avança em formação e pressiona qualquer defesa desguarnecida.",
@@ -1657,7 +1672,7 @@ export const ENEMIES = {
     threat: 10,
     color: "#7c3aed",
     scale: 1.01,
-    spriteOffsetY: -20,
+    spriteOffsetY: 2,
     visualStateScale: { idle: 1, walking: 1.13, attack: 1.26 },
     description:
       "Variante robusta do Medu, criada para resistir ao fogo sustentado e romper a linha.",
@@ -1674,7 +1689,7 @@ export const ENEMIES = {
     threat: 10,
     color: "#06b6d4",
     scale: 1.01,
-    spriteOffsetY: -20,
+    spriteOffsetY: 2,
     visualStateScale: { idle: 1, walking: 1.08, attack: 1.03 },
     description:
       "Explorador ágil que troca resistência por velocidade para alcançar o núcleo rapidamente.",
@@ -1691,7 +1706,7 @@ export const ENEMIES = {
     threat: 18,
     color: "#a855f7",
     scale: 1.12,
-    spriteOffsetY: -10,
+    spriteOffsetY: 0,
     visualStateScale: { idle: 1, walking: 1.15, attack: 1.21 },
     description:
       "Corredor quitinoso que explora brechas e força respostas rápidas em sua rota.",
@@ -1708,7 +1723,7 @@ export const ENEMIES = {
     threat: 18,
     color: "#d946ef",
     scale: 1.12,
-    spriteOffsetY: -10,
+    spriteOffsetY: 0,
     visualStateScale: { idle: 1, walking: 1.23, attack: 1.4 },
     description:
       "Evolução de força do Crix, mais resistente e perigosa quando alcança as tropas.",
@@ -1725,7 +1740,7 @@ export const ENEMIES = {
     threat: 18,
     color: "#84cc16",
     scale: 1.12,
-    spriteOffsetY: -10,
+    spriteOffsetY: 0,
     visualStateScale: { idle: 1, walking: 1.19, attack: 1.22 },
     description:
       "A forma mais veloz da família Crix, frágil, mas capaz de atravessar uma rota em instantes.",
@@ -1789,6 +1804,7 @@ export const ENEMIES = {
     threat: 24,
     color: "#f43f5e",
     scale: 1.45,
+    spriteOffsetY: 14,
     description:
       "Elite colossal da colmeia, capaz de suportar uma defesa inteira e devastar o núcleo.",
   },
@@ -1805,6 +1821,7 @@ export const ENEMIES = {
     threat: 24,
     color: "#ef4444",
     scale: 1.45,
+    spriteOffsetY: 14,
     description:
       "Forma de força do Krakhul, com carapaça ampliada e impacto destrutivo contra a base.",
   },
@@ -1820,6 +1837,7 @@ export const ENEMIES = {
     threat: 24,
     color: "#facc15",
     scale: 1.45,
+    spriteOffsetY: 14,
     description:
       "Elite veloz que combina massa, agressividade e avanço rápido para romper linhas frágeis.",
   },
@@ -2309,7 +2327,7 @@ export const ENEMIES = {
     ]),
     allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false,
     hp: 6000, maxHp: 6000, damage: 0, attackEveryMs: 0, baseDamage: 0, speed: 0, threat: 1000,
-    color: "#22d3ee", scale: 2.15, spriteOffsetX: 30, spriteOffsetY: -18,
+    color: "#22d3ee", scale: 2.15, visualOffsetY: -18,
     bossAnchorRow: 2, surfacedDamageFactor: 1, exposedGillsDamageFactor: 1.35,
     submergedAreaDamageFactor: 0.25, globalAttackLockMs: 1400, attackDecisionEveryMs: 300,
     spawnDurationMs: 1040, phaseTwoHpFactor: 0.70, phaseThreeHpFactor: 0.35,
@@ -2322,7 +2340,7 @@ export const ENEMIES = {
       cooldownMs: 8500, telegraphMs: 1200, durationMs: 1400, releaseFrame: 4,
       damageMaxHpFactor: .10, attackSpeedFactor: .75, attackSpeedDurationMs: 4000,
       projectileSpeed: 700, mouthToGroundMs: 180, groundSweepMaxMs: 1700, groundSustainMs: 450,
-      streamHeightPx: 58, frontSplashRadiusPx: 34, priorityStartsAfterMs: 12000, highPriorityAfterMs: 20000, guaranteeAfterMs: 26000,
+      streamHeightPx: 58, frontSplashRadiusPx: 34, visualTravelLeadPx: 34, priorityStartsAfterMs: 12000, highPriorityAfterMs: 20000, guaranteeAfterMs: 26000,
       maximumRowOffset: 1, targetableRowSpan: 2,
       streamWidthTiles: .44, sustainMs: 580, fadeOutMs: 280,
       splashRadiusPx: 26, mouthState: "brineJet",

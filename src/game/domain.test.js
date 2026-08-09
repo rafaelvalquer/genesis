@@ -17,11 +17,13 @@ import {
 import { CELL } from "./visualGeometry.js";
 
 describe("campanha e ondas", () => {
-  it("eleva visualmente as familias Medu e Crix na rota", () => {
+  it("mantem as familias Medu e Crix apoiadas mais perto da rota", () => {
     expect([ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis].map((enemy) => enemy.spriteOffsetY))
-      .toEqual([-20, -20, -20]);
+      .toEqual([2, 2, 2]);
     expect([ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex].map((enemy) => enemy.spriteOffsetY))
-      .toEqual([-10, -10, -10]);
+      .toEqual([0, 0, 0]);
+    expect([ENEMIES.krakhul, ENEMIES.brakor, ENEMIES.aurakh].map((enemy) => enemy.spriteOffsetY))
+      .toEqual([14, 14, 14]);
     expect([
       ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis,
       ENEMIES.crix, ENEMIES.vexar, ENEMIES.silex,

@@ -75,7 +75,21 @@ function makePoints(THREE, count, minRadius, spread, color, size) {
   }));
 }
 
-function createMarkerMesh(THREE, phase, state, chapter) {
+export function createStarLayers(THREE, quality) {
+  const layers = [
+    { count: Math.max(44, quality.orbitalParticles), radius: 5, spread: 7, size: .016, opacity: .34, speed: .003 },
+    { count: Math.max(64, quality.orbitalParticles * 2), radius: 9, spread: 11, size: .022, opacity: .52, speed: -.006 },
+    { count: Math.max(80, quality.orbitalParticles * 3), radius: 14, spread: 16, size: .03, opacity: .72, speed: .01 },
+  ];
+  return layers.map((layer) => {
+    const stars = makePoints(THREE, layer.count, layer.radius, layer.spread, "#bde7ff", layer.size);
+    stars.material.opacity = layer.opacity;
+    stars.userData.parallaxSpeed = layer.speed;
+    return stars;
+  });
+}
+
+export function createMarkerMesh(THREE, phase, state, chapter) {
   const color = state.boss && state.accessible ? "#fb7185"
     : state.current ? chapter.palette.accent
       : state.completed ? chapter.palette.primary
@@ -91,12 +105,24 @@ function createMarkerMesh(THREE, phase, state, chapter) {
   group.add(ring);
   ring.renderOrder = 5;
   if (state.current) {
+    const surfaceGlow = new THREE.Mesh(
+      new THREE.CircleGeometry(.13, 28),
+      new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: .22, depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    surfaceGlow.position.z = -.006;
+    surfaceGlow.renderOrder = 4;
+    group.add(surfaceGlow);
     const outer = new THREE.Mesh(
       new THREE.RingGeometry(.09, .098, 24),
       new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: .55, depthWrite: false }),
     );
     group.add(outer);
     outer.renderOrder = 5;
+    group.userData.surfaceGlow = surfaceGlow;
+    group.userData.pulseRing = outer;
   }
   group.userData.phaseId = phase.id;
   group.userData.state = state.key;
@@ -163,10 +189,10 @@ export async function createCommandGlobeScene({
   planetModelRoot.add(proceduralAtmosphere);
 
   const lights = createGenesisPlanetLights(THREE, scene, biome, renderer);
-  const stars = makePoints(THREE, Math.max(80, quality.orbitalParticles * 3), 5, 18, "#bde7ff", .023);
+  const starLayers = createStarLayers(THREE, quality);
   const particles = makePoints(THREE, quality.orbitalParticles, 1.3, 1.9, biome.particle, biome.world.particleSize);
   particles.material.opacity = biome.world.particleOpacity;
-  scene.add(stars, particles);
+  scene.add(...starLayers, particles);
 
   const chapterEffects = createGenesisChapterEffects({
     THREE,
@@ -180,9 +206,9 @@ export async function createCommandGlobeScene({
     planetAnchor: planetReferenceFrame, planetGroup: planetReferenceFrame,
     planetReferenceFrame, modelOrientationRoot, planetModelRoot, mapOverlayRoot,
     atmosphere: proceduralAtmosphere, ...lights, uniforms,
-    particles, chapterEffects,
+    particles, starLayers, chapterEffects,
     atmosphereBaseOpacity: biome.world.atmosphereOpacityCommand,
-    markerVectors: new Map(), markerElements, phaseMarkerGroup: null, routeGroup: null,
+    markerVectors: new Map(), markerElements, phaseMarkerGroup: null, currentMarker: null, routeGroup: null,
     selectedPhaseId: selectedPhase.id, currentChapter: chapter, currentPhases: phases,
     dragging: false, velocityX: 0, velocityY: 0, disposed: false, killAuto: null,
     targetRotation: getTargetRotationForPhase(selectedPhase.id),
@@ -206,12 +232,14 @@ export async function createCommandGlobeScene({
     runtime.routeGroup = createChapterRoutes(THREE, nextChapter, nextPhases, nextCampaign, runtime.markerVectors);
     mapOverlayRoot.add(runtime.routeGroup);
     runtime.phaseMarkerGroup = new THREE.Group();
+    runtime.currentMarker = null;
     nextPhases.forEach((phase) => {
       const state = getCampaignPhaseState(phase, nextCampaign);
       const marker = createMarkerMesh(THREE, phase, state, nextChapter);
       marker.position.copy(runtime.markerVectors.get(phase.id));
       marker.lookAt(marker.position.clone().multiplyScalar(2));
       runtime.phaseMarkerGroup.add(marker);
+      if (state.current) runtime.currentMarker = marker;
     });
     mapOverlayRoot.add(runtime.phaseMarkerGroup);
 
@@ -334,6 +362,21 @@ export async function createCommandGlobeScene({
       runtime.velocityX *= .9;
       runtime.velocityY *= .9;
       particles.rotation.y += delta * .018;
+    }
+    if (!quality.reduceMotion) {
+      starLayers.forEach((stars, index) => {
+        stars.rotation.y += delta * stars.userData.parallaxSpeed;
+        stars.rotation.x += runtime.velocityX * (.18 + index * .05);
+        stars.rotation.y += runtime.velocityY * (.12 + index * .04);
+      });
+    }
+    if (runtime.currentMarker) {
+      const pulse = quality.reduceMotion ? .5 : (Math.sin(elapsed * 3.2) + 1) * .5;
+      const scale = 1 + pulse * .13;
+      runtime.currentMarker.scale.setScalar(scale);
+      const { pulseRing, surfaceGlow } = runtime.currentMarker.userData;
+      if (pulseRing?.material) pulseRing.material.opacity = .42 + pulse * .32;
+      if (surfaceGlow?.material) surfaceGlow.material.opacity = .14 + pulse * .18;
     }
     if (!quality.reduceMotion && runtime.planetParts?.clouds?.visible) {
       runtime.planetParts.clouds.rotation.y += delta * Math.PI * 2 / 120;

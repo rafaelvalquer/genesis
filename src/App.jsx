@@ -276,6 +276,7 @@ export function PlayPage({ campaign, setCampaign }) {
         <LoadoutPicker
           phase={phase}
           selected={selected}
+          unlockedPhaseIndex={campaign.unlockedPhaseIndex}
           onToggle={(troopId) => setSelected((current) => (
             current.includes(troopId)
               ? current.filter((id) => id !== troopId)

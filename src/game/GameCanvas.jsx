@@ -1157,20 +1157,35 @@ function drawLeviathanUnderwaterShadow(ctx, entity, session, config, settings) {
   const age = session.elapsed - entity.leviathanStateStartedAt;
   const pulse = settings.reduceMotion ? 0 : Math.sin(age / 260);
   const range = config.devastatingDive.shadowOpacityMax - config.devastatingDive.shadowOpacityMin;
+  const visualX = entity.x + (config.visualOffsetX || config.spriteOffsetX || 0) * (entity.scale || config.scale || 1);
   ctx.save();
-  ctx.globalAlpha = config.devastatingDive.shadowOpacityMin + range * (.5 + pulse * .5);
-  ctx.fillStyle = "#021525";
+  ctx.globalAlpha = Math.max(.34, config.devastatingDive.shadowOpacityMin + range * (.5 + pulse * .5));
+  ctx.fillStyle = "#062c43";
+  ctx.shadowColor = "rgba(34,211,238,.48)";
+  ctx.shadowBlur = 16;
   ctx.beginPath();
-  ctx.ellipse(entity.x - 44, entity.y + 16, 72 + pulse * 3, 24 + pulse, -.18, 0, Math.PI * 2);
-  ctx.ellipse(entity.x + 34, entity.y + 24, 80 + pulse * 4, 18 + pulse, .16, 0, Math.PI * 2);
+  ctx.ellipse(visualX - 44, entity.y + 16, 72 + pulse * 3, 24 + pulse, -.18, 0, Math.PI * 2);
+  ctx.ellipse(visualX + 34, entity.y + 24, 80 + pulse * 4, 18 + pulse, .16, 0, Math.PI * 2);
   ctx.fill();
+  ctx.globalAlpha = settings.reduceMotion ? .38 : .46 + pulse * .08;
+  ctx.strokeStyle = "rgba(103,232,249,.78)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(visualX - 4, entity.y + 20, 126 + pulse * 5, 34 + pulse * 2, -.05, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.globalAlpha = .28;
+  ctx.strokeStyle = "rgba(186,230,253,.8)";
+  ctx.beginPath();
+  ctx.moveTo(visualX - 132, entity.y + 28);
+  ctx.quadraticCurveTo(visualX - 18, entity.y + 42 + pulse * 3, visualX + 126, entity.y + 30);
+  ctx.stroke();
   if (["submergedStalk", "submergedFinalApproach"].includes(entity.leviathanState)) {
     const interval = entity.leviathanState === "submergedFinalApproach" ? 300 : config.devastatingDive.submergedBreathEveryMs;
     const phase = (age % interval) / interval;
     ctx.strokeStyle = `rgba(165,243,252,${.12 + phase * .38})`; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(entity.x - 10, entity.y - 6, 8 + phase * 24, 0, Math.PI * 2); ctx.stroke();
     ctx.fillStyle = "rgba(207,250,254,.62)";
-    for (let index = 0; index < 3; index += 1) { ctx.beginPath(); ctx.arc(entity.x - 18 + index * 11, entity.y + 8 - phase * (20 + index * 5), 2 + index * .5, 0, Math.PI * 2); ctx.fill(); }
+    for (let index = 0; index < 3; index += 1) { ctx.beginPath(); ctx.arc(visualX - 18 + index * 11, entity.y + 8 - phase * (20 + index * 5), 2 + index * .5, 0, Math.PI * 2); ctx.fill(); }
   }
   ctx.restore();
 }
@@ -1190,34 +1205,43 @@ export function drawLeviathanBrineJet(ctx, entity, session, config) {
   const elapsed = session.elapsed - releasedAt;
   if (elapsed < 0) return;
   const height = config.brineJet.streamHeightPx || 58;
-  const fieldRight = FIELD.enemyEntryCol * CELL.width + CELL.width;
-  const frontX = Number.isFinite(entity.leviathanBrineFrontX) ? entity.leviathanBrineFrontX : fieldRight;
+  const logicalFrontX = Number.isFinite(entity.leviathanBrineFrontX)
+    ? entity.leviathanBrineFrontX
+    : FIELD.enemyEntryCol * CELL.width + CELL.width;
   const fadeStart = Math.max(0, (entity.leviathanBrineEndsAt || Infinity) - config.brineJet.fadeOutMs);
   const fade = session.elapsed >= fadeStart ? Math.max(0, (entity.leviathanBrineEndsAt - session.elapsed) / config.brineJet.fadeOutMs) : 1;
   const mouthPhase = elapsed < config.brineJet.mouthToGroundMs;
   const frame = Math.min(7, Math.max(0, Math.floor((session.elapsed - entity.leviathanAnimationStartedAt) / (config.animationFrameMs?.brineJet || 150))));
   const mouth = getLeviathanBrineMouthPosition(entity, config, frame);
+  // The Leviathan faces the defenders (left). Keep the cosmetic stream anchored
+  // to the muzzle instead of the enemy-entry edge used by the damage sweep.
+  const sourceX = mouth.x - 8;
+  const frontX = Math.min(logicalFrontX, sourceX - (config.brineJet.visualTravelLeadPx || 34));
+  const wave = (x, phase = 0) => Math.sin(x * .042 + elapsed * .019 + phase) * 3;
   ctx.save();
   if (!mouthPhase) { ctx.beginPath(); ctx.rect(0, laneTop, FIELD.width, CELL.height); ctx.clip(); }
   ctx.globalAlpha = fade;
   ctx.beginPath();
   if (mouthPhase) {
     const t = elapsed / Math.max(1, config.brineJet.mouthToGroundMs);
-    const contactX = fieldRight - CELL.width * .12;
-    ctx.moveTo(mouth.x, mouth.y - height * .12);
-    ctx.quadraticCurveTo(mouth.x - CELL.width * .35, mouth.y, contactX, laneY - height * t);
+    const contactX = sourceX - Math.max(42, CELL.width * .62 * t);
+    ctx.moveTo(mouth.x, mouth.y - height * .13);
+    ctx.quadraticCurveTo(sourceX - CELL.width * .18, mouth.y - 20, contactX, laneY - height * t);
     ctx.lineTo(contactX, laneY);
-    ctx.quadraticCurveTo(mouth.x - CELL.width * .25, mouth.y + height * .12, mouth.x, mouth.y + height * .12);
+    ctx.quadraticCurveTo(sourceX - CELL.width * .14, mouth.y + height * .12, mouth.x, mouth.y + height * .13);
   } else {
-    ctx.moveTo(fieldRight, laneY);
-    for (let x = fieldRight; x >= frontX; x -= 12) ctx.lineTo(x, laneY - height + Math.sin(x * .031 + elapsed * .014) * 4);
+    ctx.moveTo(sourceX, laneY);
+    for (let x = sourceX; x >= frontX; x -= 12) ctx.lineTo(x, laneY - height + wave(x));
     ctx.lineTo(frontX, laneY);
   }
   ctx.closePath(); ctx.fillStyle = "rgba(14,165,194,.56)"; ctx.fill();
   if (!mouthPhase) {
     ctx.beginPath();
-    for (let x = fieldRight; x >= frontX; x -= 12) { const y = laneY - height + Math.sin(x * .031 + elapsed * .014) * 4; if (x === fieldRight) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
-    ctx.strokeStyle = "rgba(240,249,255,.78)"; ctx.lineWidth = 3; ctx.stroke();
+    for (let x = sourceX; x >= frontX; x -= 12) { const y = laneY - height + wave(x, .7); if (x === sourceX) ctx.moveTo(x, y); else ctx.lineTo(x, y); }
+    ctx.strokeStyle = "rgba(240,249,255,.86)"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(frontX, laneY - height * .4, config.brineJet.frontSplashRadiusPx || 34, Math.PI * .92, Math.PI * 1.92);
+    ctx.strokeStyle = "rgba(103,232,249,.72)"; ctx.lineWidth = 2; ctx.stroke();
   }
   ctx.restore();
 }
@@ -1368,10 +1392,15 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
 export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers) {
   buildBattleRenderRows(session.troops, session.enemies, interpolation, session.elapsed, settings.reduceMotion, buffers);
   drawWetReflections(ctx, session.phase, buffers.rows, settings, adaptive);
+  const bossEntries = [];
   for (let row = 0; row < FIELD.rows; row += 1) {
     let lastHaloX = -Infinity;
     for (const entry of buffers.rows[row]) {
       const entity = entry.entity;
+      if (entry.kind === "enemy" && entity.type === "leviathanNereida") {
+        bossEntries.push(entry);
+        continue;
+      }
       const drawHalo = Math.abs(entry.x - lastHaloX) > 2;
       if (drawHalo) lastHaloX = entry.x;
       const reaction = getHitReaction(runtime, entity.id, now);
@@ -1394,6 +1423,20 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
         drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, drawHalo);
       }
     }
+  }
+  // A boss can span several logical rows. Drawing it last keeps lower rows from
+  // incorrectly covering its body while preserving the efficient row renderer.
+  for (const entry of bossEntries) {
+    const entity = entry.entity;
+    const config = ENEMIES[entity.type];
+    const reaction = getHitReaction(runtime, entity.id, now);
+    buffers.position.x = entry.x + reaction.offsetX;
+    buffers.position.y = entry.y;
+    if (!isLeviathanShadowOnly(entity, session.elapsed)) {
+      buffers.position.x += (config.visualOffsetX || config.spriteOffsetX || 0) * (entity.scale || config.scale || 1);
+      drawContactShadow(ctx, buffers.position, entity.scale, settings);
+    }
+    drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, true);
   }
 }
 

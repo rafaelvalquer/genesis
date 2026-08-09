@@ -8,6 +8,7 @@ import {
   SandboxPanel, resolveCanvasClickAction, resolveInspectedTroopId,
   drawLeviathanBrineJet, isLeviathanShadowOnly,
 } from "./GameCanvas.jsx";
+import { getLeviathanBrineMouthPosition } from "./visualGeometry.js";
 
 afterEach(cleanup);
 
@@ -69,19 +70,24 @@ describe("renderização submersa do Leviatã", () => {
 });
 
 describe("Jato de Salmoura", () => {
-  it("desenha uma única massa horizontal após o contato com a rota", () => {
-    const ctx = Object.fromEntries(["save", "restore", "beginPath", "rect", "clip", "moveTo", "lineTo", "closePath", "fill", "stroke", "fillRect", "quadraticCurveTo", "setLineDash"].map((method) => [method, vi.fn()]));
+  it("parte da boca e varre a rota em direção aos defensores", () => {
+    const ctx = Object.fromEntries(["save", "restore", "beginPath", "rect", "clip", "moveTo", "lineTo", "closePath", "fill", "stroke", "fillRect", "quadraticCurveTo", "setLineDash", "arc"].map((method) => [method, vi.fn()]));
     const config = ENEMIES.leviathanNereida;
     drawLeviathanBrineJet(ctx, {
       type: "leviathanNereida", leviathanAttackRow: 1,
+      x: 1030, y: 180, scale: config.scale,
       leviathanBrineReleasedAt: 100, leviathanBrineFrontX: 420,
       leviathanBrineEndsAt: 3000, leviathanAnimationStartedAt: 0,
     }, { elapsed: 100 + config.brineJet.mouthToGroundMs + 200 }, config);
     expect(ctx.fill).toHaveBeenCalledOnce();
-    expect(ctx.stroke).toHaveBeenCalledOnce();
+    expect(ctx.stroke).toHaveBeenCalledTimes(2);
+    expect(ctx.arc).toHaveBeenCalledOnce();
     expect(ctx.fillRect).not.toHaveBeenCalled();
     expect(ctx.quadraticCurveTo).not.toHaveBeenCalled();
     expect(ctx.globalCompositeOperation).not.toBe("screen");
+    const mouth = getLeviathanBrineMouthPosition({ x: 1030, y: 180, scale: config.scale }, config, 3);
+    expect(ctx.moveTo.mock.calls[0][0]).toBeLessThan(mouth.x);
+    expect(ctx.lineTo.mock.calls.some(([x]) => x <= 420)).toBe(true);
   });
 });
 

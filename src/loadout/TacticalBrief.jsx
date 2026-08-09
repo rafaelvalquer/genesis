@@ -15,7 +15,7 @@ const mechanic = (phase) => {
   return [`AMBIENTE · ${phase.environment}`, "Sem penalidades ambientais ocultas."];
 };
 
-export default function TacticalBrief({ phase, chapter, arenaUrl, troops, canConfirm, confirming, onConfirm }) {
+export default function TacticalBrief({ phase, chapter, arenaUrl, troops, unlockedPhaseIndex, canConfirm, confirming, onConfirm }) {
   const [mechanicLabel, mechanicDescription] = mechanic(phase);
   return <aside className="tactical-brief">
     <div className="brief-arena"><img src={arenaUrl} alt={`Campo de batalha ${phase.name}`} /><span>ARENA SINCRONIZADA</span></div>
@@ -39,7 +39,7 @@ export default function TacticalBrief({ phase, chapter, arenaUrl, troops, canCon
       </ul>
       <strong>UNIDADES ANFÍBIAS RECOMENDADAS</strong>
     </div>}
-    <EnemyIntel phase={phase} />
+    <EnemyIntel phase={phase} unlockedPhaseIndex={unlockedPhaseIndex} />
     <SquadAnalysis troops={troops} />
     <button type="button" className="primary-button full loadout-confirm" disabled={!canConfirm || confirming} onClick={onConfirm}>
       {confirming ? "ESQUADRÃO SINCRONIZADO" : "CONFIRMAR LOADOUT"} <span>→</span>

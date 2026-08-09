@@ -14,7 +14,7 @@ import { useLoadoutAnimations } from "./useLoadoutAnimations.js";
 import { useLoadoutQuality } from "./useLoadoutQuality.js";
 import "./loadout.css";
 
-export default function LoadoutPage({ phase, selected, onToggle, onStart, onBack }) {
+export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onToggle, onStart, onBack }) {
   const rootRef = useRef(null);
   const infoTriggerRef = useRef(null);
   const startedRef = useRef(false);
@@ -147,6 +147,7 @@ export default function LoadoutPage({ phase, selected, onToggle, onStart, onBack
         chapter={chapter}
         arenaUrl={getArenaUrl(phase.arenaId)}
         troops={selectedTroops}
+        unlockedPhaseIndex={unlockedPhaseIndex}
         canConfirm={selected.length >= 1 && selected.length <= loadoutLimit}
         confirming={confirming}
         onConfirm={confirm}

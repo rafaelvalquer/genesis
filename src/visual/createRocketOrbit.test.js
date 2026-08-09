@@ -21,4 +21,22 @@ describe("orientação orbital do foguete", () => {
     expect(forward.dot(tangent)).toBeGreaterThan(.999);
     expect(up.dot(desiredUp)).toBeGreaterThan(.999);
   });
+
+  it("mantém os propulsores atrás do movimento, no lado externo da órbita", () => {
+    const parent = new THREE.Group();
+    const rocket = createRocketOrbitNodes({
+      THREE, parent, quality: { quality: "high" }, biome: { atmosphere: "#22d3ee" }, model: new THREE.Group(),
+    });
+    updateRocketOrbit(THREE, rocket, 3.25, false);
+    parent.updateMatrixWorld(true);
+
+    const enginePosition = rocket.engineGlow.getWorldPosition(new THREE.Vector3());
+    const rocketPosition = rocket.motionNode.getWorldPosition(new THREE.Vector3());
+    const engineDirection = enginePosition.sub(rocketPosition).normalize();
+    const travelDirection = rocket.forward.clone()
+      .applyQuaternion(rocket.motionNode.getWorldQuaternion(new THREE.Quaternion()))
+      .normalize();
+
+    expect(engineDirection.dot(travelDirection)).toBeLessThan(-.999);
+  });
 });

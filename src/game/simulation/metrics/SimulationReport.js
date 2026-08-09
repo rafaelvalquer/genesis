@@ -128,6 +128,12 @@ function summarizePhase(
   const victoryRate = (
     victories.length / denominator
   );
+  const pulse = results.map((result) => result.dematerializationPulse || {});
+  const pulseActivations = pulse.reduce((total, entry) => total + Number(entry.activations || 0), 0);
+  const pulseAiActivations = pulse.reduce((total, entry) => total + Number(entry.aiActivations || 0), 0);
+  const pulseAutomaticActivations = pulse.reduce((total, entry) => total + Number(entry.automaticActivations || 0), 0);
+  const pulseDamage = pulse.reduce((total, entry) => total + Number(entry.damage || 0), 0);
+  const pulseKills = pulse.reduce((total, entry) => total + Number(entry.kills || 0), 0);
 
   const summary = {
     phaseId,
@@ -234,6 +240,13 @@ function summarizePhase(
       ).length / denominator,
       4,
     ),
+    averagePulseActivations: round(pulseActivations / denominator),
+    aiPulseActivationRate: round(pulseAiActivations / Math.max(1, pulseActivations), 4),
+    automaticPulseActivationRate: round(pulseAutomaticActivations / Math.max(1, pulseActivations), 4),
+    averagePulseDamage: round(pulseDamage / denominator),
+    averagePulseKills: round(pulseKills / denominator),
+    averageDamagePerActivation: round(pulseDamage / Math.max(1, pulseActivations)),
+    averageKillsPerActivation: round(pulseKills / Math.max(1, pulseActivations)),
     invalidStates: results.filter(
       (result) => result.invalidState,
     ).length,
@@ -415,6 +428,13 @@ export function reportToCsv(
     "averageReplacements",
     "medianPeakEntities",
     "assistanceUsedRate",
+    "averagePulseActivations",
+    "aiPulseActivationRate",
+    "automaticPulseActivationRate",
+    "averagePulseDamage",
+    "averagePulseKills",
+    "averageDamagePerActivation",
+    "averageKillsPerActivation",
     "invalidStates",
     "deadlocks",
     "timeouts",
@@ -434,6 +454,16 @@ export function reportToCsv(
       assistanceUsedRate:
         round(
           phase.assistanceUsedRate * 100,
+          2,
+        ),
+      aiPulseActivationRate:
+        round(
+          phase.aiPulseActivationRate * 100,
+          2,
+        ),
+      automaticPulseActivationRate:
+        round(
+          phase.automaticPulseActivationRate * 100,
           2,
         ),
       recommendedLoadout:
@@ -493,6 +523,28 @@ export function reportToMarkdown(
       phase.averageReplacements,
       phase.medianPeakEntities,
       `${phase.classification} |`,
+    ].join(" | "));
+  });
+
+  lines.push(
+    "",
+    "## Telemetria do pulso de desmaterializa\u00e7\u00e3o",
+    "",
+    "| Fase | Ativa\u00e7\u00f5es m\u00e9dias | IA | Autom\u00e1tico | Dano m\u00e9dio | Kills m\u00e9dias | Dano/ativa\u00e7\u00e3o | Kills/ativa\u00e7\u00e3o |",
+    "|---|---:|---:|---:|---:|---:|---:|---:|",
+  );
+
+  report.phases.forEach((phase) => {
+    lines.push([
+      `| ${phase.phaseId}`,
+      phase.averagePulseActivations,
+      `${round(phase.aiPulseActivationRate * 100, 1)}%`,
+      `${round(phase.automaticPulseActivationRate * 100, 1)}%`,
+      phase.averagePulseDamage,
+      phase.averagePulseKills,
+      phase.averageDamagePerActivation,
+      phase.averageKillsPerActivation,
+      "|",
     ].join(" | "));
   });
 

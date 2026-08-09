@@ -1,4 +1,5 @@
 import { CELL, FIELD } from "./visualGeometry.js";
+import { enemyOccupiesTargetRow } from "./battle/queries.js";
 
 export const DEMATERIALIZATION_PULSE = Object.freeze({
   damage: 500,
@@ -22,6 +23,14 @@ export function createDematerializationPulseState(row) {
 
 export function getDematerializationPulseForRow(session, row) {
   return session?.dematerializationPulses?.find((pulse) => pulse.row === row) || null;
+}
+
+export function getDematerializationPulseTargets(session, row) {
+  return (session?.enemies || []).filter((enemy) => (
+    !enemy.dead
+    && Number(enemy.hp) > 0
+    && enemyOccupiesTargetRow(enemy, row)
+  ));
 }
 
 export function canActivateDematerializationPulse(session, row, options = {}) {

@@ -2,12 +2,23 @@ import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
 import { createBattleSession, createTroopEntity, enemyOccupiesTargetRow, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, startWave, stepBattle } from "./battleModel.js";
 import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
-import { LEVIATHAN_SHADOW_ONLY_STATES, chooseBrineJetPlacement, dynamicAttackWeight, startLeviathanMovement, syncLeviathanHitZones, updateLeviathanMovement } from "./leviathanNereida.js";
+import { LEVIATHAN_SHADOW_ONLY_STATES, chooseBalancedTargetRows, chooseBrineJetPlacement, dynamicAttackWeight, startLeviathanMovement, syncLeviathanHitZones, updateLeviathanMovement } from "./leviathanNereida.js";
 import { CELL, FIELD, getEnemyAnimation } from "./visualGeometry.js";
 
 describe("Leviatã de Nereida", () => {
   const sandbox = () => createBattleSession(PHASES.find((phase) => phase.chapterId === "chapter_05") || PHASES[0], [], 947, {
     sandbox: true, sandboxSettings: { rulesMode: "free", enemySpeedMultiplier: 0 },
+  });
+
+  it("distributes attacks evenly across occupied rows", () => {
+    const session = sandbox();
+    const boss = spawnEnemy(session, { type: "leviathanNereida" }).enemies[0];
+    [0, 2, 4].forEach((row) => session.troops.push(createTroopEntity(session, "ranger", row, 0)));
+    const picks = Array.from({ length: 9 }, () => chooseBalancedTargetRows(session, boss, 1)[0]);
+    const counts = [0, 2, 4].map((row) => picks.filter((pick) => pick === row).length);
+
+    expect(counts).toEqual([3, 3, 3]);
+    expect(picks).not.toEqual([2, 2, 2, 2, 2, 2, 2, 2, 2]);
   });
 
   it("é exclusivo do encontro final, sem entrada normal em ondas ou variantes", () => {
@@ -273,6 +284,7 @@ describe("Leviatã de Nereida", () => {
     boss.leviathanTargetable = true;
     boss.leviathanNextDecisionAt = Infinity;
     boss.row = 0;
+    boss.leviathanRouteAttackCounts = [1, 0, 1, 1, 1];
     const attackedHp = attacked.hp;
     const bodyRowHp = bodyRow.hp;
 

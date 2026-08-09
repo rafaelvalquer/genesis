@@ -50,10 +50,27 @@ export function syncLeviathanHitZones(enemy, config = enemy?._leviathanConfig) {
 function cooldownFactor(enemy, config) { return enemy.leviathanPhase === 3 ? config.phaseThreeCooldownFactor : enemy.leviathanPhase === 2 ? config.phaseTwoCooldownFactor : 1; }
 function attackReady(session, enemy, attack) { return session.elapsed >= Number(enemy[cooldownField[attack]] || 0); }
 function floodedTroops(session) { return living(session).filter((troop) => isTideCellFlooded(session, troop.row, troop.col)); }
-function targetRows(session, enemy, count) {
-  const scores = Array.from({ length: FIELD.rows }, (_, row) => ({ row, score: 0 }));
-  for (const troop of living(session)) scores[troop.row].score += 1 + (troop.attack || 0) / 10 + (troop.type.includes("muralha") ? .5 : 0);
-  return scores.sort((a, b) => b.score - a.score || (a.row === enemy.row ? -1 : 1)).slice(0, count).map(({ row }) => row);
+export function chooseBalancedTargetRows(session, enemy, count) {
+  // The boss used to rate the current row first, which made the centre lane
+  // disproportionately likely. Keep attacks meaningful by considering only
+  // occupied rows, then rotate evenly among them with a seeded random tie.
+  const occupiedRows = [...new Set(living(session).map((troop) => troop.row))];
+  const candidates = occupiedRows.length
+    ? occupiedRows
+    : Array.from({ length: FIELD.rows }, (_, row) => row);
+  const rowCounts = enemy.leviathanRouteAttackCounts ||= Array(FIELD.rows).fill(0);
+  const selected = [];
+
+  while (selected.length < Math.min(count, candidates.length)) {
+    const available = candidates.filter((row) => !selected.includes(row));
+    const leastTargeted = Math.min(...available.map((row) => rowCounts[row] || 0));
+    const equallyEligible = available.filter((row) => (rowCounts[row] || 0) === leastTargeted);
+    const row = equallyEligible[Math.floor(session.rng() * equallyEligible.length)];
+    selected.push(row);
+    rowCounts[row] = (rowCounts[row] || 0) + 1;
+  }
+
+  return selected;
 }
 function setState(session, enemy, state, duration = Infinity, { telegraphMs = 0, animationMs } = {}) {
   enemy.leviathanState = state; enemy.leviathanStateStartedAt = session.elapsed;
@@ -255,7 +272,7 @@ function startAttack(session, enemy, attack, config, events) {
   enemy.leviathanQueuedAttack = attack; enemy.leviathanPreviousAttack = attack;
   const phase = enemy.leviathanPhase;
   const rows = attack === "tailSweep" ? config.tailSweep[`rowsPhase${phase === 1 ? "One" : phase === 2 ? "Two" : "Three"}`] : 1;
-  enemy.leviathanTargetRows = targetRows(session, enemy, attack === "deluge" ? 5 : rows);
+  enemy.leviathanTargetRows = chooseBalancedTargetRows(session, enemy, attack === "deluge" ? 5 : rows);
   if (attack === "brineJet") {
     const attackRow = enemy.leviathanTargetRows[0] ?? enemy.row;
     const placement = chooseBrineJetPlacement(session, enemy, attackRow);

@@ -5,10 +5,10 @@ import { CELL, createBattleSession, placeTroop, spawnEnemy, stepBattle } from ".
 import { getTideTroopAttackSpeedFactor } from "./tideCycle.js";
 
 describe("Fuzileiro Voltaico — integração com Genesis", () => {
-  it("registra configuração, estados visuais e sprites temporários da Guarda", () => {
+  it("registra configuração, estados visuais e sprites dedicados", () => {
     expect(TROOPS.fuzileiroVoltaico).toMatchObject({
       id: "fuzileiroVoltaico",
-      spriteKey: "guarda",
+      spriteKey: "fuzileiroVoltaico",
       attack: "chainLightning",
       hp: 30,
       damage: 9,

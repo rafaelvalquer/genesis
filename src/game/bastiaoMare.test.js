@@ -231,6 +231,7 @@ describe("Bastião de Maré", () => {
     const session = { elapsed: 0, enemies: [target] };
     updateBastiaoMare(session, unit, config, [], dependencies);
     expect(unit.state).toBe("attack");
+    expect(unit.lastAttackAt).toBe(0);
     session.elapsed = 359;
     updateBastiaoMare(session, unit, config, [], dependencies);
     expect(damageEnemy).not.toHaveBeenCalled();

@@ -27,6 +27,7 @@ describe("Enguia Rasgamar", () => {
     expect(ENEMIES.enguiaRasgamar).toMatchObject({ hp: 60, speed: 39, baseDamage: 0, rangedRange: 5, allowAlphaVariant: false });
     expect(PHASES.flatMap((phase) => phase.waves.flatMap((wave) => wave.enemies)).some((entry) => entry.type === "enguiaRasgamar")).toBe(true);
     const session = tideSandbox();
+    session.tideCycle.currentLevel = 2;
     expect(spawnEnemy(session, { type: "enguiaRasgamar", row: 0 }).ok).toBe(true);
     expect(getEnemyPreviewUrl("enguiaRasgamar")).toMatch(/enguiaRasgamar.*surfaceRecovery.*frame0\.png/i);
   });
@@ -96,6 +97,29 @@ describe("Enguia Rasgamar", () => {
     expect(getBattleIndex(session).targetableEnemiesByRow[0]).not.toContain(enemy);
     expect(getEnemyAnimation(enemy, ENEMIES.enguiaRasgamar, session.elapsed, { swimSubmerged: 8 }).state)
       .toBe("swimSubmerged");
+  });
+
+  it("lança uma esfera de energia contra a barreira antes de reduzir a integridade", () => {
+    const session = tideSandbox();
+    session.tideCycle.currentLevel = 2;
+    session.sandboxSettings.invulnerableBase = false;
+    const enemy = spawnEnemy(session, { type: "enguiaRasgamar", row: 2 }).enemies[0];
+    enemy.x = 420;
+    enemy.previousRenderX = 420;
+    enemy.rasgamarBaseAssault = true;
+    enemy.rasgamarState = "rangedCharge";
+    enemy.rasgamarStateStartedAt = session.elapsed;
+    enemy.rasgamarStateEndsAt = session.elapsed;
+    const integrity = session.integrity;
+
+    stepBattle(session, 1);
+    expect(session.integrity).toBe(integrity);
+    expect(session.enemyProjectiles).toContainEqual(expect.objectContaining({
+      kind: "rasgamarBaseOrb", visualKind: "rasgamarOrb", launched: true,
+    }));
+
+    advance(session, 2200);
+    expect(session.integrity).toBeLessThan(integrity);
   });
 
   it("keeps a submerged Rasgamar shadow-only", () => {

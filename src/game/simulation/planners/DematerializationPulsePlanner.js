@@ -3,6 +3,7 @@ import {
   calculateDematerializationPulseCollapseScore,
   estimateDematerializationPulseValue,
 } from "../../dematerializationPulse.js";
+import { getDematerializationPulseTargets } from "../../dematerializationPulse.js";
 import { ENEMIES } from "../../content.js";
 import { FIELD } from "../../visualGeometry.js";
 
@@ -44,8 +45,7 @@ export function projectDematerializationPulseLane(session, lane, horizonMs = DEM
   const fireAt = Number(session?.elapsed || 0) + horizonMs;
   const row = lane?.row;
   if (!session || !Number.isInteger(row)) return null;
-  const current = (lane.enemies || session.enemies || [])
-    .filter((enemy) => !enemy.dead && Number(enemy.hp) > 0 && enemy.row === row)
+  const current = getDematerializationPulseTargets(session, row)
     .map((enemy) => ({
       ...enemy,
       x: enemy.x - projectedEnemySpeed(session, enemy) * horizonMs / 1000,
@@ -55,7 +55,7 @@ export function projectDematerializationPulseLane(session, lane, horizonMs = DEM
     .filter((queued) => queued.row === row)
     .map((queued) => queuedEnemyAtFire(session, queued, fireAt))
     .filter(Boolean);
-  const enemies = [...current, ...incoming];
+  const enemies = getDematerializationPulseTargets({ ...session, enemies: [...current, ...incoming] }, row);
   const frontline = (lane.troops || session.troops || [])
     .filter((troop) => !troop.dead && Number(troop.hp) > 0 && troop.row === row)
     .sort((left, right) => left.x - right.x)[0];

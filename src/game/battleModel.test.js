@@ -134,7 +134,13 @@ describe("Pulso de Desmaterializacao", () => {
     session.rng = () => 0;
     const common = spawnEnemy(session, { type: "estilha", row: 2 }).enemies[0];
     common.x = FIELD.baseX;
+    common.hp = 200;
+    common.maxHp = 200;
     common.isEcho = true;
+    const damaged = spawnEnemy(session, { type: "obsidonte", row: 2 }).enemies[0];
+    damaged.x = 760;
+    damaged.hp = 750;
+    damaged.maxHp = 750;
     const alpha = spawnEnemy(session, { type: "obsidonte", row: 2, variant: "alpha" }).enemies[0];
     alpha.x = 700;
     alpha.shield = 999;
@@ -163,9 +169,11 @@ describe("Pulso de Desmaterializacao", () => {
     const firedEvents = stepBattle(session, 1);
     expect(firedEvents).toContainEqual(expect.objectContaining({ type: "pulseFired", row: 2 }));
     expect(firedEvents.filter((event) => event.type === "enemyDisintegrated")).toHaveLength(3);
-    expect(alpha.hp).toBe(alpha.maxHp - DEMATERIALIZATION_PULSE.damage);
+    expect(damaged.hp).toBe(250);
+    expect(alpha.maxHp).toBe(1440);
+    expect(alpha.hp).toBe(940);
     expect(alpha.shield).toBe(999);
-    expect(session.enemies).toEqual([alpha, otherLane]);
+    expect(session.enemies).toEqual([damaged, alpha, otherLane]);
     expect(session.energyPickups).toHaveLength(0);
     expect(session.dematerializationPulses[2].state).toBe("spent");
   });

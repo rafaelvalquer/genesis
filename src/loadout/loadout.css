@@ -164,6 +164,8 @@ body:has(.loadout-page) { min-width: 0; }
 .enemy-intel ul, .squad-analysis ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .enemy-intel li { min-height: 38px; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto auto; align-items: center; gap: 7px; background: rgba(14,31,48,.7); }
 .enemy-intel img { width: 38px; height: 38px; object-fit: contain; }
+.enemy-intel-unknown-mark { width: 38px; height: 38px; display: grid; place-items: center; color: var(--cyan-soft); border: 1px solid rgba(34, 211, 238, .5); background: rgba(8, 47, 73, .4); font: 800 20px "Chakra Petch"; }
+.enemy-intel-unknown b { color: var(--cyan-soft); }
 .enemy-intel li > span { display: flex; min-width: 0; flex-direction: column; }
 .enemy-intel b { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .enemy-intel small { color: var(--muted); font-size: 6px; }.enemy-intel-count { grid-column: 3; min-width: 20px; color: var(--cyan-soft); font: 800 11px "Chakra Petch"; text-align: right; }.enemy-intel em { margin-right: 5px; color: var(--danger); font: 700 6px "Chakra Petch"; }

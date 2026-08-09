@@ -5,7 +5,8 @@ const formatDuration = (milliseconds) => `${formatNumber(milliseconds / 1000)} s
 
 export function getEnemyUnlockAt(enemyId, enemy = ENEMIES[enemyId]) {
   const phaseIndex = PHASES.findIndex((phase) => phase.waves.some((wave) => (
-    wave.enemies.some((entry) => entry.type === enemyId)
+    (wave.enemies || []).some((entry) => entry.type === enemyId)
+      || wave.bossEncounter?.type === enemyId
   )));
   if (phaseIndex >= 0) return phaseIndex;
   return Number.isInteger(enemy?.encyclopediaUnlockAt) ? enemy.encyclopediaUnlockAt : -1;

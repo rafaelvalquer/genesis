@@ -1,29 +1,13 @@
-import { DEMATERIALIZATION_PULSE } from "../dematerializationPulse.js";
+import { DEMATERIALIZATION_PULSE, getDematerializationPulseTargets } from "../dematerializationPulse.js";
 import { CELL, FIELD, VIEWPORT } from "../visualGeometry.js";
 import "./dematerializationPulseControls.css";
-
-function enemyOccupiesPulseRow(enemy, row) {
-  if (!enemy || enemy.dead || Number(enemy.hp) <= 0) return false;
-  if (enemy.type === "leviathanNereida") {
-    return Boolean(
-      enemy.leviathanTargetable && enemy.leviathanTargetableRows?.includes(row),
-    );
-  }
-  return enemy.row === row && !enemy.rasgamarSubmerged;
-}
-
-function routeTargets(session, row) {
-  return (session?.enemies || []).filter((enemy) =>
-    enemyOccupiesPulseRow(enemy, row),
-  );
-}
 
 export function DematerializationPulseControls({ session, onActivate }) {
   if (!session || session.outcome || !(session.waveActive || session.sandbox))
     return null;
 
   return (session.dematerializationPulses || []).map((pulse) => {
-    const targets = routeTargets(session, pulse.row);
+    const targets = getDematerializationPulseTargets(session, pulse.row);
     const targetCount = targets.length;
     const potentialDamage = targets.reduce(
       (total, enemy) =>

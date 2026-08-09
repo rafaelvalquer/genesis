@@ -12,6 +12,8 @@ const sourceRoot = join(root, "..", "art", "source", "leviathanNereida");
 const outputRoot = join(root, "..", "src", "game", "assets", "enemy", "leviathanNereida");
 const sheetsRoot = join(root, "..", "art", "spritesheets", "leviathanNereida");
 const specialHeightStates = new Set(["spawnRise", "submerge", "emergeImpact", "death"]);
+const cinematicStates = new Set(["spawnRise", "submerge", "emergeImpact", "delugeCharge", "delugeRelease", "death"]);
+const normalizationProfiles = { normal: { width: 444, height: 390 }, cinematic: { width: 456, height: 438 }, submerged: { width: 430, height: 330 } };
 
 function fail(message) { throw new Error(`Leviatã: ${message}`); }
 function ratioChanged(a, b) {
@@ -46,12 +48,36 @@ function assertConnectedAnatomy(state, frame, pixels) {
     if (component.area / analysis.main.area > auditRules.maximumSecondaryAreaFactor) fail(`${state}/${frame}: SECONDARY_COMPONENT_TOO_LARGE.`);
   }
 }
-async function normalize(sourcePath, outputPath) {
+function profileFor(state) {
+  if (state === "submergedTravel") return normalizationProfiles.submerged;
+  return cinematicStates.has(state) ? normalizationProfiles.cinematic : normalizationProfiles.normal;
+}
+function keepMainComponent(data) {
+  const analysis = analyzeLeviathanComponents(data, 512, 512);
+  if (!analysis.main) fail("sprite has no visible main component.");
+  const pixels = new Set(analysis.main.pixels);
+  const cleaned = Buffer.from(data);
+  for (let index = 0; index < 512 * 512; index += 1) if (!pixels.has(index)) cleaned[index * 4 + 3] = 0;
+  return cleaned;
+}
+async function normalize(state, sourcePath, outputPath) {
   const image = sharp(sourcePath).ensureAlpha().resize(512, 512, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png();
   const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
   if (info.width !== 512 || info.height !== 512 || info.channels !== 4) fail(`${sourcePath}: PNG RGBA 512×512 exigido.`);
-  await sharp(data, { raw: info }).png().toFile(outputPath);
-  return data;
+  const cleaned = keepMainComponent(data);
+  const box = alphaBox(cleaned);
+  if (!box) fail(`${sourcePath}: empty sprite.`);
+  const padding = cinematicStates.has(state) ? 24 : 18;
+  const left = Math.max(0, box.left - padding); const top = Math.max(0, box.top - padding);
+  const width = Math.min(512 - left, box.width + padding * 2); const height = Math.min(512 - top, box.height + padding * 2);
+  const profile = profileFor(state);
+  const cropped = await sharp(cleaned, { raw: info }).extract({ left, top, width, height })
+    .resize(profile.width, profile.height, { fit: "contain", background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+  const croppedInfo = await sharp(cropped).metadata();
+  const output = await sharp({ create: { width: 512, height: 512, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite([{ input: cropped, left: Math.round((512 - croppedInfo.width) / 2), top: Math.round((512 - croppedInfo.height) / 2) }]).png().toBuffer();
+  await sharp(output).toFile(outputPath);
+  return sharp(output).raw().toBuffer();
 }
 
 const sourceDirectories = (await readdir(sourceRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
@@ -69,7 +95,7 @@ for (const state of states) {
   for (const file of files) {
     const sourcePath = join(sourceDir, file); const bytes = await readFile(sourcePath);
     hashes.add(createHash("sha256").update(bytes).digest("hex"));
-    const pixels = await normalize(sourcePath, join(outputDir, file));
+    const pixels = await normalize(state, sourcePath, join(outputDir, file));
     boxes.push(assertSafeBounds(state, file, pixels));
     assertConnectedAnatomy(state, file, pixels);
     frames.push(pixels);

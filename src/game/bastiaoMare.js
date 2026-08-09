@@ -201,6 +201,8 @@ function beginAttack(session, troop, target, config, dependencies) {
   const impactMs = Number(config.attackVisual?.impactMs) || 360;
   troop.state = "attack";
   troop.stateStartedAt = session.elapsed;
+  // The sprite renderer uses this timestamp to enter the attack animation.
+  troop.lastAttackAt = session.elapsed;
   troop.stateEndsAt = session.elapsed + durationMs;
   troop.attackTargetId = target.id;
   troop.attackReleased = false;

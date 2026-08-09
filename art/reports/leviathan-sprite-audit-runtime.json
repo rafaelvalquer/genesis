@@ -1,0 +1,2738 @@
+{
+  "rules": {
+    "alphaThreshold": 16,
+    "transparentMarginPx": 24,
+    "cornerZonePx": 72,
+    "ignoreComponentAreaPx": 4,
+    "warningComponentAreaPx": 8,
+    "errorComponentAreaPx": 20,
+    "maximumSecondaryAreaFactor": 0.0005,
+    "maximumAnchorDriftPx": 10
+  },
+  "generatedAt": "2026-08-08T19:47:03.831Z",
+  "totalFrames": 136,
+  "failures": 0,
+  "warnings": 0,
+  "frames": [
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86009,
+        "left": 77,
+        "top": 74,
+        "right": 435,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86460,
+        "left": 77,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 88282,
+        "left": 77,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86894,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 91024,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 87353,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 87612,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "abyssRoar",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\abyssRoar\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86623,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 81902,
+        "left": 78,
+        "top": 75,
+        "right": 433,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 71624,
+        "left": 95,
+        "top": 75,
+        "right": 416,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 68867,
+        "left": 97,
+        "top": 75,
+        "right": 413,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 69622,
+        "left": 97,
+        "top": 75,
+        "right": 414,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 80251,
+        "left": 68,
+        "top": 76,
+        "right": 443,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 78824,
+        "left": 78,
+        "top": 75,
+        "right": 433,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74695,
+        "left": 81,
+        "top": 75,
+        "right": 429,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteAbyss",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteAbyss\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76866,
+        "left": 80,
+        "top": 75,
+        "right": 431,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 71434,
+        "left": 88,
+        "top": 75,
+        "right": 423,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 71438,
+        "left": 88,
+        "top": 75,
+        "right": 422,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 73430,
+        "left": 86,
+        "top": 75,
+        "right": 424,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 73792,
+        "left": 85,
+        "top": 75,
+        "right": 425,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 75163,
+        "left": 84,
+        "top": 75,
+        "right": 427,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74878,
+        "left": 85,
+        "top": 75,
+        "right": 425,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 75970,
+        "left": 78,
+        "top": 75,
+        "right": 432,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "biteRecover",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\biteRecover\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 73197,
+        "left": 82,
+        "top": 75,
+        "right": 428,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76871,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76757,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 78210,
+        "left": 77,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 78065,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 72822,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 75626,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76957,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "brineJet",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\brineJet\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 77121,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 110860,
+        "left": 57,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 94796,
+        "left": 85,
+        "top": 57,
+        "right": 425,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 90540,
+        "left": 91,
+        "top": 58,
+        "right": 421,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 118210,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 119867,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 102043,
+        "left": 77,
+        "top": 57,
+        "right": 435,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 97587,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "death",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\death\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 92013,
+        "left": 58,
+        "top": 57,
+        "right": 452,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 115651,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 88681,
+        "left": 99,
+        "top": 57,
+        "right": 411,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 91330,
+        "left": 92,
+        "top": 57,
+        "right": 419,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 116400,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 121628,
+        "left": 56,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 94234,
+        "left": 93,
+        "top": 58,
+        "right": 418,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 116284,
+        "left": 56,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeCharge",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeCharge\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 120060,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 107767,
+        "left": 58,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 79390,
+        "left": 104,
+        "top": 57,
+        "right": 407,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 85672,
+        "left": 85,
+        "top": 57,
+        "right": 425,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 101643,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74692,
+        "left": 56,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 70125,
+        "left": 107,
+        "top": 57,
+        "right": 404,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74164,
+        "left": 102,
+        "top": 58,
+        "right": 409,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "delugeRelease",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\delugeRelease\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 96525,
+        "left": 57,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 44706,
+        "left": 49,
+        "top": 157,
+        "right": 462,
+        "bottom": 352
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 94000,
+        "left": 58,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 69664,
+        "left": 108,
+        "top": 58,
+        "right": 402,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 91116,
+        "left": 57,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 93792,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 83989,
+        "left": 59,
+        "top": 58,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 57670,
+        "left": 123,
+        "top": 57,
+        "right": 389,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "emergeImpact",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\emergeImpact\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 88575,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 87683,
+        "left": 77,
+        "top": 74,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76589,
+        "left": 103,
+        "top": 74,
+        "right": 408,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 95168,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 94866,
+        "left": 76,
+        "top": 76,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 94450,
+        "left": 77,
+        "top": 74,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 87151,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 87570,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "exposedGills",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\exposedGills\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 77930,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 66142,
+        "left": 125,
+        "top": 75,
+        "right": 385,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 67485,
+        "left": 124,
+        "top": 75,
+        "right": 387,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 64899,
+        "left": 126,
+        "top": 74,
+        "right": 385,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 65491,
+        "left": 124,
+        "top": 74,
+        "right": 386,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 65029,
+        "left": 123,
+        "top": 75,
+        "right": 388,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 64101,
+        "left": 127,
+        "top": 75,
+        "right": 383,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 67172,
+        "left": 122,
+        "top": 74,
+        "right": 390,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "idleSurface",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\idleSurface\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 63798,
+        "left": 124,
+        "top": 75,
+        "right": 387,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 85976,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 94874,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74373,
+        "left": 57,
+        "top": 101,
+        "right": 455,
+        "bottom": 410
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74437,
+        "left": 49,
+        "top": 112,
+        "right": 461,
+        "bottom": 399
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 109237,
+        "left": 57,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 105103,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 78360,
+        "left": 116,
+        "top": 57,
+        "right": 395,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "spawnRise",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\spawnRise\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 118827,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 90481,
+        "left": 57,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 99426,
+        "left": 56,
+        "top": 58,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 104908,
+        "left": 58,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 109922,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 105067,
+        "left": 57,
+        "top": 58,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86526,
+        "left": 57,
+        "top": 57,
+        "right": 454,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 84511,
+        "left": 57,
+        "top": 57,
+        "right": 453,
+        "bottom": 457
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submerge",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submerge\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 83378,
+        "left": 74,
+        "top": 64,
+        "right": 439,
+        "bottom": 453
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 59493,
+        "left": 103,
+        "top": 102,
+        "right": 407,
+        "bottom": 408
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 53236,
+        "left": 103,
+        "top": 103,
+        "right": 407,
+        "bottom": 408
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 52307,
+        "left": 104,
+        "top": 103,
+        "right": 406,
+        "bottom": 408
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 60640,
+        "left": 103,
+        "top": 103,
+        "right": 406,
+        "bottom": 408
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 62109,
+        "left": 103,
+        "top": 103,
+        "right": 407,
+        "bottom": 409
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 64028,
+        "left": 103,
+        "top": 102,
+        "right": 406,
+        "bottom": 409
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 52512,
+        "left": 104,
+        "top": 103,
+        "right": 406,
+        "bottom": 409
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "submergedTravel",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\submergedTravel\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 59753,
+        "left": 104,
+        "top": 103,
+        "right": 406,
+        "bottom": 408
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 57912,
+        "left": 120,
+        "top": 75,
+        "right": 392,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 74810,
+        "left": 83,
+        "top": 75,
+        "right": 428,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 71840,
+        "left": 92,
+        "top": 75,
+        "right": 419,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 77980,
+        "left": 71,
+        "top": 75,
+        "right": 440,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 68726,
+        "left": 92,
+        "top": 75,
+        "right": 419,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 89140,
+        "left": 68,
+        "top": 76,
+        "right": 441,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 81931,
+        "left": 65,
+        "top": 76,
+        "right": 446,
+        "bottom": 435
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "surfaceSwim",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\surfaceSwim\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 73651,
+        "left": 93,
+        "top": 75,
+        "right": 417,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 75063,
+        "left": 77,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 79572,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 85151,
+        "left": 77,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86164,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 77201,
+        "left": 77,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 75279,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 85249,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tailSweep",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tailSweep\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76078,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 82651,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 81752,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 83091,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86590,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 86222,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 437
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 83116,
+        "left": 77,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 82849,
+        "left": 76,
+        "top": 74,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "tideCommand",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\tideCommand\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 82442,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 0,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame0.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 73902,
+        "left": 77,
+        "top": 75,
+        "right": 433,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 1,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame1.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 76639,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 2,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame2.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 82637,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 3,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame3.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 93188,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 4,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame4.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 92525,
+        "left": 76,
+        "top": 75,
+        "right": 435,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 5,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame5.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 95209,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 6,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame6.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 100815,
+        "left": 76,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    },
+    {
+      "location": "runtime",
+      "state": "vortexCast",
+      "frame": 7,
+      "path": "src\\game\\assets\\enemy\\leviathanNereida\\vortexCast\\frame7.png",
+      "width": 512,
+      "height": 512,
+      "componentCount": 1,
+      "mainComponent": {
+        "area": 98711,
+        "left": 77,
+        "top": 75,
+        "right": 434,
+        "bottom": 436
+      },
+      "mainComponentRatio": 1,
+      "secondaryComponents": [],
+      "severity": "PASS",
+      "issues": []
+    }
+  ]
+}

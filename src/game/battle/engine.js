@@ -82,6 +82,7 @@ import {
   DEMATERIALIZATION_PULSE,
   beginDematerializationPulse,
   createDematerializationPulseState,
+  getDematerializationPulseTargets,
 } from "../dematerializationPulse.js";
 import { isEnemyTargetable, isRasgamarSubmerged, RASGAMAR_SUBMERGED_STATES } from "../enemyTargeting.js";
 import {
@@ -1212,6 +1213,7 @@ function createEnemyLegacy(session, queued) {
     leviathanBiteReadyAt: 0, leviathanTailReadyAt: 0, leviathanBrineReadyAt: 0,
     leviathanVortexReadyAt: 0, leviathanDiveReadyAt: 0, leviathanTideReadyAt: 0,
     leviathanRoarReadyAt: 0, leviathanExposedUntil: 0, leviathanPulseIndex: 0,
+    leviathanRouteAttackCounts: queued.type === "leviathanNereida" ? Array(FIELD.rows).fill(0) : null,
     leviathanMoveState: queued.type === "leviathanNereida" ? "idle" : null,
     leviathanHomeX: queued.type === "leviathanNereida"
       ? FIELD.enemyEntryCol * CELL.width + CELL.width / 2
@@ -3805,10 +3807,6 @@ function pulseForRow(session, row) {
   return session.dematerializationPulses?.find((pulse) => pulse.row === row) || null;
 }
 
-function hasDematerializationPulseTargets(session, row) {
-  return session.enemies.some((enemy) => !enemy.dead && enemy.hp > 0 && enemyOccupiesTargetRow(enemy, row));
-}
-
 export function activateDematerializationPulse(session, row, options = {}) {
   const source = options.source || "player";
   const targetRow = clamp(Math.floor(Number(row)), 0, FIELD.rows - 1);
@@ -3819,7 +3817,7 @@ export function activateDematerializationPulse(session, row, options = {}) {
     reason: options.reason || null,
     events: externalEvents,
     requireTargets: options.requireTargets ?? source !== "automatic",
-    hasTargets: hasDematerializationPulseTargets(session, targetRow),
+    hasTargets: getDematerializationPulseTargets(session, targetRow).length > 0,
   });
   return {
     ...result,
@@ -3884,7 +3882,7 @@ function updateDematerializationPulses(session, events) {
     if (pulse.state !== "charging" || session.elapsed < pulse.fireAt) continue;
     pulse.state = "spent";
     const y = pulse.row * CELL.height + CELL.height / 2;
-    const targets = session.enemies.filter((enemy) => !enemy.dead && enemy.hp > 0 && enemyOccupiesTargetRow(enemy, pulse.row));
+    const targets = getDematerializationPulseTargets(session, pulse.row);
     const hpBefore = targets.reduce((total, enemy) => total + Math.max(0, Number(enemy.hp) || 0), 0);
     events.push({
       type: "pulseFired",
@@ -4877,6 +4875,14 @@ function updateEnemyProjectiles(session, dt, events) {
     projectile.x += projectile.vx * dt / 1000;
     projectile.y += projectile.vy * dt / 1000;
     pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
+
+    if (projectile.kind === "rasgamarBaseOrb") {
+      if (projectile.x <= FIELD.baseX) {
+        resolveRasgamarBaseOrbImpact(session, projectile, events);
+        projectile.active = false;
+      }
+      continue;
+    }
 
     const intendedTarget = projectile.targetTroopId
       ? indexedTroopById(session, projectile.targetTroopId)
@@ -6290,40 +6296,40 @@ function startRasgamarBaseAssault(session, enemy, config, events) {
 }
 
 function applyRasgamarBaseAttack(session, enemy, config, events) {
+  const origin = getEnemyMuzzleWorldPosition(enemy, { ...config, attackVisual: { muzzle: { x: .11, y: .48 } } });
+  const targetY = enemy.y;
+  const seconds = Math.max(.1, (origin.x - FIELD.baseX) / config.projectileSpeed);
+  session.enemyProjectiles.push({
+    id: id("enemy_projectile"), kind: "rasgamarBaseOrb", visualKind: "rasgamarOrb", sourceEnemyId: enemy.id,
+    row: enemy.row, x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    previousRenderX: origin.x, previousRenderY: origin.y, vx: -config.projectileSpeed, vy: (targetY - origin.y) / seconds,
+    baseDamage: config.baseAttackDamage, color: config.color, active: true, launched: true,
+    trail: createProjectileTrail(16, origin.x, origin.y), ageMs: 0, seed: nextEffectSeed(session),
+  });
+  enemy.rasgamarBaseAttackCount = Number(enemy.rasgamarBaseAttackCount || 0) + 1;
+  enemy.rasgamarNextBaseAttackAt = session.elapsed + config.baseAttackCooldownMs;
+  events.push({
+    type: "rasgamarBaseOrbLaunched",
+    enemyId: enemy.id,
+    row: enemy.row,
+    x: origin.x,
+    y: origin.y,
+    color: config.color,
+    seed: nextEffectSeed(session),
+  });
+}
+
+function resolveRasgamarBaseOrbImpact(session, projectile, events) {
   const integrityBefore = session.integrity;
   const invulnerable = Boolean(session.sandboxSettings?.invulnerableBase);
   const shielded = !session.sandbox && session.shieldCharges > 0;
   if (shielded) session.shieldCharges -= 1;
-  const damageMultiplier = Number(session.currentWaveBaseDamageFactor) || 1;
-  const sandboxMultiplier = session.sandboxSettings?.enemyDamageMultiplier ?? 1;
-  const requestedDamage = Math.max(1, Math.round(config.baseAttackDamage * damageMultiplier * sandboxMultiplier));
+  const requestedDamage = Math.max(1, Math.round(projectile.baseDamage * (Number(session.currentWaveBaseDamageFactor) || 1) * (session.sandboxSettings?.enemyDamageMultiplier ?? 1)));
   const damage = shielded || invulnerable ? 0 : requestedDamage;
   if (damage > 0) session.integrity = Math.max(0, session.integrity - damage);
-  if (shielded) {
-    events.push({
-      type: "shieldBlock",
-      x: FIELD.baseX,
-      y: enemy.y,
-      remaining: session.shieldCharges,
-    });
-  }
-  if (damage > 0) events.push({ type: "breach", damage, x: FIELD.baseX, y: enemy.y });
-  enemy.rasgamarBaseAttackCount = Number(enemy.rasgamarBaseAttackCount || 0) + 1;
-  enemy.rasgamarNextBaseAttackAt = session.elapsed + config.baseAttackCooldownMs;
-  events.push({
-    type: "rasgamarBaseAttack",
-    enemyId: enemy.id,
-    row: enemy.row,
-    damage,
-    requestedDamage,
-    shielded,
-    integrityBefore,
-    integrityAfter: session.integrity,
-    x: FIELD.baseX,
-    y: enemy.y,
-    color: config.color,
-    seed: nextEffectSeed(session),
-  });
+  if (shielded) events.push({ type: "shieldBlock", x: FIELD.baseX, y: projectile.y, remaining: session.shieldCharges });
+  if (damage > 0) events.push({ type: "breach", damage, x: FIELD.baseX, y: projectile.y });
+  events.push({ type: "rasgamarBaseAttack", enemyId: projectile.sourceEnemyId, row: projectile.row, damage, requestedDamage, shielded, integrityBefore, integrityAfter: session.integrity, x: FIELD.baseX, y: projectile.y, color: projectile.color, seed: projectile.seed });
 }
 
 function selectRasgamarAmbushTarget(session, enemy) {

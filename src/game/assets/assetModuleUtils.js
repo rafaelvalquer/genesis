@@ -4,7 +4,13 @@ export const frameNumber = (key) => (
 
 export function modulesFor(modules, folder, state) {
   return Object.entries(modules)
-    .filter(([key]) => key.includes(`/${folder}/${state}/`))
+    // Source sprite sheets can live beside their exported frames. They are
+    // reference artwork, not animation frames: loading one as frame 0 draws
+    // all eight poses at once.
+    .filter(([key]) => (
+      key.includes(`/${folder}/${state}/`)
+      && /\/frame\d+\.png$/i.test(key)
+    ))
     .sort(([left], [right]) => frameNumber(left) - frameNumber(right));
 }
 

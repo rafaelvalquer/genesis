@@ -1,8 +1,22 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { modulesFor } from "./assetModuleUtils.js";
 
 const repoRoot = process.cwd();
+
+it("carrega somente frames recortados, nunca a folha de sprites ao lado deles", () => {
+  const modules = {
+    "/enemy/leviathanNereida/idleSurface/frame0.png": () => {},
+    "/enemy/leviathanNereida/idleSurface/frame1.png": () => {},
+    "/enemy/leviathanNereida/idleSurface/idleSurface-spritesheet.png": () => {},
+  };
+
+  expect(modulesFor(modules, "leviathanNereida", "idleSurface").map(([key]) => key)).toEqual([
+    "/enemy/leviathanNereida/idleSurface/frame0.png",
+    "/enemy/leviathanNereida/idleSurface/frame1.png",
+  ]);
+});
 
 function source(relativePath) {
   return fs.readFileSync(

@@ -2,9 +2,11 @@ import { cloneGltfScene, loadGltfModel } from "./loadGltfModel.js";
 import { centerAndScaleModel } from "./normalizeGltfModel.js";
 
 export const GENESIS_ROCKET_URL = "/models/command/low-poly-rocket-ship.glb";
+// The source GLB is long on its local Y axis, with the engines at -Y. Align
+// its nose (+Y) with the orbital forward axis (-Z).
 export const ROCKET_FORWARD_VECTOR = Object.freeze({ x: 0, y: 0, z: -1 });
-export const ROCKET_UP_VECTOR = Object.freeze({ x: -1, y: 0, z: 0 });
-export const ROCKET_MODEL_ROTATION = Object.freeze({ x: -Math.PI / 2, y: 0, z: Math.PI / 2 });
+export const ROCKET_UP_VECTOR = Object.freeze({ x: 0, y: 1, z: 0 });
+export const ROCKET_MODEL_ROTATION = Object.freeze({ x: -Math.PI / 2, y: 0, z: 0 });
 
 export function createRocketOrbitNodes({ THREE, parent, quality, biome, model }) {
   const orbitRoot = new THREE.Group();
@@ -25,8 +27,9 @@ export function createRocketOrbitNodes({ THREE, parent, quality, biome, model })
       depthWrite: false,
     }),
   );
-  engineGlow.rotation.x = Math.PI / 2;
-  engineGlow.position.z = .16;
+  // The engines are on the model's negative local Y side, directly behind
+  // the tangential travel direction after the calibration above.
+  engineGlow.position.y = -.16;
   orientationNode.add(engineGlow);
   motionNode.add(orientationNode);
   orbitRoot.add(motionNode);

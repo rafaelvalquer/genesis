@@ -174,12 +174,14 @@ export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", fram
   const height = DEFAULT_ENEMY_HEIGHT * scale * visualStateScale;
   const width = height * aspectRatio;
   const anchor = getEnemyFrameAnchor(enemyConfig, state, frame);
-  const offsetY = (enemyConfig.spriteOffsetY || 0) * scale;
+  const offsetX = (enemyConfig.visualOffsetX || enemyConfig.spriteOffsetX || 0) * scale;
+  const stateOffsetX = (enemyConfig.visualStateOffsetX?.[state] || 0) * scale;
+  const offsetY = (enemyConfig.visualOffsetY || enemyConfig.spriteOffsetY || 0) * scale;
   const stateOffsetY = (enemyConfig.visualStateOffsetY?.[state] || 0) * scale;
   const anchorY = enemy.y + offsetY + stateOffsetY
     + (enemyConfig.airborne ? 0 : CELL.height * 0.43);
   return {
-    x: enemy.x - width * anchor.x,
+    x: enemy.x + offsetX + stateOffsetX - width * anchor.x,
     y: anchorY - height * anchor.y,
     width,
     height,

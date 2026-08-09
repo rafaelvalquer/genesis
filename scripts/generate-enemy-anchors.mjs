@@ -63,7 +63,7 @@ async function buildAnchors() {
       if (!state.isDirectory()) continue;
       const directory = path.join(ENEMY_ROOT, enemy.name, state.name);
       const frames = (await fs.readdir(directory))
-        .filter((file) => file.toLowerCase().endsWith(".png"))
+        .filter((file) => /^frame\d+\.png$/i.test(file))
         .sort((left, right) => frameNumber(left) - frameNumber(right));
       if (!frames.length) continue;
       stateAnchors[state.name] = [];
@@ -95,6 +95,10 @@ const lines = [
 for (const [enemy, states] of Object.entries(anchors)) {
   lines.push(`  ${JSON.stringify(enemy)}: {`);
   for (const [state, frames] of Object.entries(states)) {
+    if (enemy === "leviathanNereida") {
+      lines.push(`    ${JSON.stringify(state)}: ${JSON.stringify(frames)},`);
+      continue;
+    }
     const x = quantile(frames.map((anchor) => anchor.x), 0.5);
     const y = quantile(frames.map((anchor) => anchor.y), 0.5);
     lines.push(`    ${JSON.stringify(state)}: repeat({ x: ${x}, y: ${y} }, ${frames.length}),`);
