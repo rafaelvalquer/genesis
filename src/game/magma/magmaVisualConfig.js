@@ -2,7 +2,7 @@ const freeze = (value) => Object.freeze(value);
 
 export const MAGMA_VISUAL_CONFIG = freeze({
   surfaceFps: 15,
-  crustCoverage: 0.48,
+  crustCoverage: 0.43,
   largeCrustScale: 0.018,
   mediumCrustScale: 0.037,
   detailScale: 0.086,
@@ -76,6 +76,18 @@ export function getMagmaQualityProfile(settings = {}, adaptive = {}) {
     particleScale: (adaptive.particleBudgetScale ?? 1) * (settings.reduceMotion ? 0.42 : 1),
     smokeScale: base.smokeScale * (adaptive.heavyAtmosphere === false ? 0 : 1),
   };
+}
+
+export function getMagmaSurfaceFps(options = {}) {
+  const quality = options.quality?.quality || "high";
+  const state = options.thermalState || "stable";
+  const stateCaps = {
+    high: { stable: 12, active: 15, eruption: 15, cooldown: 10 },
+    medium: { stable: 10, active: 12, eruption: 12, cooldown: 8 },
+    low: { stable: 7, active: 8, eruption: 8, cooldown: 6 },
+  };
+  const cap = stateCaps[quality]?.[state] ?? options.quality?.surfaceFps ?? 15;
+  return Math.max(1, Math.min(options.quality?.surfaceFps ?? cap, cap));
 }
 
 export function resolveMagmaVisualOptions(session, settings = {}, adaptive = {}) {

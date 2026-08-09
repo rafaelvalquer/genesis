@@ -3,6 +3,10 @@ import { getMagmaCells } from "../thermalTerrain.js";
 import { buildMagmaRegions } from "./magmaRegionBuilder.js";
 import { getMagmaFlowFrame } from "./magmaFlowField.js";
 import {
+  createMagmaDynamicRegion,
+  updateMagmaDynamicRegion,
+} from "./magmaDynamicField.js";
+import {
   buildMajorChannels,
   calibrateMagmaCrustThreshold,
   createMagmaSurfaceFrame,
@@ -10,6 +14,7 @@ import {
 } from "./magmaSurfaceGenerator.js";
 import {
   MAGMA_VISUAL_CONFIG,
+  getMagmaSurfaceFps,
   resolveMagmaVisualOptions,
 } from "./magmaVisualConfig.js";
 
@@ -25,6 +30,7 @@ function createParticle() {
   return {
     active: false, x: 0, y: 0, vx: 0, vy: 0, gravity: 0,
     life: 0, maxLife: 0, radius: 0, temperature: 0, seed: 0,
+    type: "ember", surfaceY: 0, hasSplashed: false,
   };
 }
 
@@ -41,6 +47,7 @@ function buildVents(region, random) {
   return Array.from({ length: count }, (_, index) => {
     const point = pickPointInRegion(region, random, 18);
     const periodMs = 4300 + random() * 1100;
+    const typeRoll = random();
     return {
       id: `${region.id}-vent-${index}`,
       x: point.x,
@@ -50,6 +57,13 @@ function buildVents(region, random) {
       phaseMs: periodMs * index / Math.max(1, count) + random() * 180,
       strength: 0.56 + random() * 0.44,
       rareJet: random() > 0.88,
+      type: typeRoll < 0.48
+        ? "bubblePop"
+        : typeRoll < 0.73
+          ? "spatter"
+          : typeRoll < 0.94
+            ? "ventJet"
+            : "crustBurst",
       seed: Math.floor(random() * 0x7fffffff),
     };
   });
@@ -92,7 +106,9 @@ export function createMagmaFlowRuntime() {
     regions: [],
     surface: { lastUpdateAt: -Infinity, blendProgress: 0, fps: 0 },
     vents: [],
+    transientVents: [],
     particles: Array.from({ length: MAGMA_VISUAL_CONFIG.particlePoolSize }, createParticle),
+    splashes: [],
     smoke: [],
     currentFlowSpeed: 0,
     currentFlowVector: { x: 0, y: 0 },
@@ -123,17 +139,20 @@ function initializeRuntime(runtime, session, now, options, canvasFactory) {
   runtime.lastParticleUpdateAt = now;
   runtime.randomState = (seed ^ 0xa341316c) >>> 0;
   runtime.particles.forEach((particle) => { particle.active = false; });
+  runtime.splashes.length = 0;
+  const surfaceFps = getMagmaSurfaceFps(options);
   runtime.regions = baseRegions.map((region) => {
     const channelCount = Math.max(2, Math.min(
       options.majorChannelCount,
-      Math.round(region.bounds.width / 225),
+      Math.round(region.bounds.width / 320),
     ));
     const channels = buildMajorChannels(region, channelCount, region.seed);
     const crustThreshold = calibrateMagmaCrustThreshold(region, channels, options);
     const calibratedOptions = { ...options, calibratedCrustThreshold: crustThreshold };
     const previous = createMagmaSurfaceFrame(region, options.quality.resolutionScale, canvasFactory);
     const next = createMagmaSurfaceFrame(region, options.quality.resolutionScale, canvasFactory);
-    const interval = 1000 / options.quality.surfaceFps;
+    const interval = 1000 / surfaceFps;
+    const dynamic = createMagmaDynamicRegion(region, random, 0);
     const initialFlow = getMagmaFlowFrame({
       region,
       visualConfig: options,
@@ -150,19 +169,28 @@ function initializeRuntime(runtime, session, now, options, canvasFactory) {
     });
     renderMagmaSurfaceFrame(previous, {
       region, channels, time: 0, config: calibratedOptions, thermalState: options.thermalState,
-      flowFrame: initialFlow,
+      flowFrame: initialFlow, dynamic,
     });
     renderMagmaSurfaceFrame(next, {
       region, channels, time: interval / 1000, config: calibratedOptions, thermalState: options.thermalState,
-      flowFrame: nextFlow,
+      flowFrame: nextFlow, dynamic,
     });
-    return { region, channels, crustThreshold, vents: buildVents(region, random), previous, next };
+    return {
+      region,
+      channels,
+      crustThreshold,
+      vents: buildVents(region, random),
+      dynamic,
+      previous,
+      next,
+    };
   });
   runtime.vents = runtime.regions.flatMap((entry) => entry.vents);
   runtime.smoke = buildSmoke(baseRegions, random);
   runtime.surface.lastUpdateAt = now;
   runtime.surface.blendProgress = 0;
-  runtime.surface.fps = options.quality.surfaceFps;
+  runtime.transientVents = [];
+  runtime.surface.fps = surfaceFps;
 }
 
 function advanceVisualClock(runtime, now, options) {
@@ -186,11 +214,28 @@ function advanceVisualClock(runtime, now, options) {
     const motionScale = options.reduceMotion ? 0.12 : options.quality.quality === "low" ? 0.9 : 1;
     runtime.visualTimeMs += delta * motionScale;
     runtime.flowTravelPx += flow.speed * delta / 1000;
+    const dynamicDelta = delta * motionScale;
+    const random = () => nextMagmaRandom(runtime);
+    for (const entry of runtime.regions) {
+      updateMagmaDynamicRegion(
+        entry.dynamic,
+        entry.region,
+        runtime,
+        options,
+        dynamicDelta,
+        random,
+      );
+    }
+    runtime.transientVents = runtime.regions.flatMap(
+      (entry) => entry.dynamic.transientVents,
+    );
   }
 }
 
 function updateSurfaces(runtime, now, options) {
-  const interval = 1000 / options.quality.surfaceFps;
+  const surfaceFps = getMagmaSurfaceFps(options);
+  const interval = 1000 / surfaceFps;
+  runtime.surface.fps = surfaceFps;
   const elapsed = now - runtime.surface.lastUpdateAt;
   if (options.paused) {
     runtime.surface.blendProgress = 0;
@@ -207,6 +252,7 @@ function updateSurfaces(runtime, now, options) {
         time: (runtime.visualTimeMs + interval) / 1000,
         config: { ...options, calibratedCrustThreshold: entry.crustThreshold },
         thermalState: options.thermalState,
+        dynamic: entry.dynamic,
         flowFrame: getMagmaFlowFrame({
           region: entry.region,
           visualConfig: options,

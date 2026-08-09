@@ -4,6 +4,7 @@ import {
   buildMajorChannels,
   calibrateMagmaCrustThreshold,
   getChannelPoint,
+  getDynamicChannelGeometry,
   sampleMagmaField,
 } from "../magmaSurfaceGenerator.js";
 import { MAGMA_VISUAL_CONFIG } from "../magmaVisualConfig.js";
@@ -39,7 +40,7 @@ describe("magmaSurfaceGenerator", () => {
     expect(Math.abs(left.heat - right.heat)).toBeLessThan(0.015);
   });
 
-  it("calibra crosta dominante próxima de 48% nas oito sementes do capítulo", () => {
+  it("calibra crosta entre 40% e 46% nas oito sementes do capítulo", () => {
     for (const seed of [4141, 4242, 4343, 4444, 4545, 4646, 4747, 4848]) {
       const data = fixture(seed);
       let crust = 0;
@@ -50,8 +51,8 @@ describe("magmaSurfaceGenerator", () => {
           if (sampleAt(data, x, y).heat < 0.38) crust += 1;
         }
       }
-      expect(crust / total).toBeGreaterThanOrEqual(0.44);
-      expect(crust / total).toBeLessThanOrEqual(0.56);
+      expect(crust / total).toBeGreaterThanOrEqual(0.38);
+      expect(crust / total).toBeLessThanOrEqual(0.49);
     }
   });
 
@@ -72,7 +73,7 @@ describe("magmaSurfaceGenerator", () => {
     expect(averageChange).toBeLessThan(0.15);
   });
 
-  it("move a camada líquida em dois segundos e preserva a crosta em cinco", () => {
+  it("move o líquido e preserva a macroestrutura enquanto parte da crosta muda", () => {
     const data = fixture();
     let liquidChange = 0;
     let liquidSamples = 0;
@@ -94,7 +95,7 @@ describe("magmaSurfaceGenerator", () => {
     }
 
     expect(liquidChange / liquidSamples).toBeGreaterThan(0.025);
-    expect(preservedCrust / crustSamples).toBeGreaterThan(0.93);
+    expect(preservedCrust / crustSamples).toBeGreaterThan(0.84);
   });
 
   it("gera quatro canais Bézier largos atravessando a região inteira", () => {
@@ -107,8 +108,24 @@ describe("magmaSurfaceGenerator", () => {
       expect(start.x).toBeLessThan(0);
       expect(middle.x).toBeGreaterThan(0);
       expect(end.x).toBeGreaterThan(region.bounds.width);
-      expect(channel.radius * 2).toBeGreaterThanOrEqual(15);
-      expect(channel.radius * 2).toBeLessThanOrEqual(45);
+      expect(channel.radius * 2).toBeGreaterThanOrEqual(24);
+      expect(channel.radius * 2).toBeLessThanOrEqual(64);
+    }
+  });
+
+  it("faz os canais mudarem de curvatura e largura sem sair da região", () => {
+    const { region, channels } = fixture();
+    for (const channel of channels) {
+      const initial = getDynamicChannelGeometry(channel, 0);
+      const later = getDynamicChannelGeometry(channel, 5);
+      expect(Math.abs(initial.controlY1 - later.controlY1)
+        + Math.abs(initial.controlY2 - later.controlY2)).toBeGreaterThan(0.5);
+      expect(initial.radius).not.toBeCloseTo(later.radius, 4);
+      for (const progress of [0, 0.25, 0.5, 0.75, 1]) {
+        const point = getChannelPoint(channel, progress, 5);
+        expect(point.y).toBeGreaterThanOrEqual(-30);
+        expect(point.y).toBeLessThanOrEqual(region.bounds.height + 30);
+      }
     }
   });
 
@@ -123,5 +140,48 @@ describe("magmaSurfaceGenerator", () => {
       }
     }
     expect(eruptionCrust).toBeLessThan(stableCrust);
+  });
+
+  it("zera também a advecção das correntes locais com Fluxo 0", () => {
+    const data = fixture();
+    const worldX = 520;
+    const worldY = 300;
+    const current = {
+      x: worldX,
+      y: worldY,
+      radiusX: 140,
+      radiusY: 70,
+      directionX: -1,
+      directionY: 0.2,
+      strength: 18,
+      phase: 0,
+      phaseSpeed: 0,
+      birthAt: 0,
+      peakAt: 1000,
+      deathAt: 10000,
+    };
+    const input = {
+      worldX,
+      worldY,
+      localX: worldX - data.region.bounds.x,
+      localY: worldY - data.region.bounds.y,
+      region: data.region,
+      channels: data.channels,
+      time: 2,
+      config: { ...data.config, flowMultiplier: 0 },
+      thermalState: "active",
+    };
+    const withoutCurrent = sampleMagmaField(input);
+    const stoppedCurrent = sampleMagmaField({
+      ...input,
+      dynamic: {
+        localCurrents: [current],
+        vortices: [],
+        crustPatches: [],
+        hotspots: [],
+      },
+    });
+    expect(stoppedCurrent.heat).toBeCloseTo(withoutCurrent.heat, 6);
+    expect(stoppedCurrent.flowStreak).toBeCloseTo(withoutCurrent.flowStreak, 6);
   });
 });

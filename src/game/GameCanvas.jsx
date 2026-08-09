@@ -1677,7 +1677,7 @@ export function SandboxPanel({
       <div className="sandbox-choice"><span>Próximo golpe</span><div>{[1, 2, 3].map((step) => <button key={step} onClick={() => onForceCombo(step)}>Combo {step}</button>)}</div></div>
     </section>
     {magmaEnabled && <section className="sandbox-spawn-card magma-lab-card">
-      <header><div><span>MAGMA</span><b>Superfície procedural V4</b></div></header>
+      <header><div><span>MAGMA</span><b>Superfície procedural V5</b></div></header>
       <div className="sandbox-mode-toggle magma-state-toggle" role="group" aria-label="Estado térmico do magma">
         {[["auto", "Auto"], ["stable", "Stable"], ["active", "Active"], ["eruption", "Eruption"], ["cooldown", "Cooldown"]].map(([id, label]) => <button
           key={id}

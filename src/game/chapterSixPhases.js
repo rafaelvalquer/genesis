@@ -10,6 +10,7 @@ const cells = [
 ];
 const names = ["Primeiras Fissuras", "Lago Incandescente", "Respiração da Caldeira", "Fornalhas Naturais", "Fendas Laterais", "Linha de Ruptura", "Veias do Mundo", "Núcleo da Caldeira"];
 const arenaIds = ["volcanic-threshold", "magma-lake", "breathing-caldera", "natural-forges", "lateral-rifts", "rupture-line", "world-veins", "caldera-core"];
+const crustDensities = [.44, .43, .42, .41, .43, .42, .41, .4];
 const cycleFor = (index) => index === 0 ? [{ state: "stable", durationMs: 60000 }] : index === 1 ? [{ state: "stable", durationMs: 30000 }, { state: "active", durationMs: 18000 }] : DEFAULT_THERMAL_CYCLE;
 
 export const CHAPTER_SIX_PHASES = deepFreeze(Array.from({ length: 8 }, (_, index) => {
@@ -20,7 +21,7 @@ export const CHAPTER_SIX_PHASES = deepFreeze(Array.from({ length: 8 }, (_, index
     energy: 930 + index * 30, arenaId: `fase_${41 + index}`, chapterId: "chapter_06", chapterIndex: index,
     supplyLimit: 40, loadoutLimit: 9, baseIntegrity: 100, cadenceMs: 900, targetDurationMs: 1080000,
     waves, waveCompletionEnergy: 20, waveIntensity: waves.map((_, wave) => .4 + .6 * wave / Math.max(1, waves.length - 1)),
-    environment: "volcanic", ambientEffects: ["embers", "smoke", "heat", "magma"], magmaTerrain: { cells: cells[index], visual: { seed: 4141 + index * 101, flow: { x: -1, y: .025 }, speed: 26, viscosity: .82, turbulence: .16, crustDensity: .48 } }, thermalCycle,
+    environment: "volcanic", ambientEffects: ["embers", "smoke", "heat", "magma"], magmaTerrain: { cells: cells[index], visual: { seed: 4141 + index * 101, flow: { x: -1, y: .025 }, speed: 26, viscosity: .82, turbulence: .16, crustDensity: crustDensities[index] } }, thermalCycle,
     environmentHazard: createThermalHazard(cells[index], { cycle: thermalCycle, thermalOverheatDamagePerSecond: 4 + Math.max(0, index - 4), thermalBurnDamagePerSecond: 6 }),
     battlefieldTheme: { id: arenaIds[index], seed: 4141 + index * 101, material: "volcanic", base: "basalt", entrance: "magma-rift", lane: "#2a1713", laneAlt: "#392019", edge: "#f97316", detail: "#fbbf24" },
     palette: { primary: "#f97316", accent: "#fbbf24", shadow: "#090402", haze: "#ef4444" }, boss: false,

@@ -16,15 +16,16 @@ describe("contrato do capítulo 6", () => {
     });
   });
 
-  it("configura o mesmo fluxo viscoso contínuo nas oito fases", () => {
+  it("configura fluxo viscoso e crosta progressivamente mais exposta", () => {
     for (const phase of CHAPTER_SIX_PHASES) {
       expect(phase.magmaTerrain.visual).toMatchObject({
         flow: { x: -1, y: 0.025 },
         speed: 26,
         viscosity: 0.82,
-        crustDensity: 0.48,
       });
     }
+    expect(CHAPTER_SIX_PHASES.map((phase) => phase.magmaTerrain.visual.crustDensity))
+      .toEqual([0.44, 0.43, 0.42, 0.41, 0.43, 0.42, 0.41, 0.4]);
     expect(CHAPTER_SIX_PHASES.map((phase) => phase.magmaTerrain.visual.seed))
       .toEqual([4141, 4242, 4343, 4444, 4545, 4646, 4747, 4848]);
   });

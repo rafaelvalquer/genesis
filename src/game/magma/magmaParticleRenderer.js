@@ -15,8 +15,11 @@ function spawnParticle(runtime, options) {
   if (!particle || !runtime.regions.length) return false;
   const regionEntry = runtime.regions[Math.floor(nextMagmaRandom(runtime) * runtime.regions.length)];
   const useVent = nextMagmaRandom(runtime) < (options.thermalState === "eruption" ? 0.68 : 0.34);
-  const ventLimit = Math.max(1, Math.min(regionEntry.vents.length, options.ventLimit));
-  const vent = regionEntry.vents[Math.floor(nextMagmaRandom(runtime) * ventLimit)];
+  const availableVents = [
+    ...regionEntry.vents,
+    ...(regionEntry.dynamic?.transientVents || []),
+  ].slice(0, Math.max(1, options.ventLimit));
+  const vent = availableVents[Math.floor(nextMagmaRandom(runtime) * availableVents.length)];
   let x;
   let y;
   if (useVent && vent) {
@@ -29,16 +32,48 @@ function spawnParticle(runtime, options) {
   }
   const eruption = options.thermalState === "eruption" ? 1 : 0;
   const flowVector = runtime.currentFlowVector || { x: 0, y: 0 };
+  const typeRoll = nextMagmaRandom(runtime);
+  const type = typeRoll < 0.43
+    ? "ember"
+    : typeRoll < 0.7
+      ? "lavaDrop"
+      : typeRoll < 0.86
+        ? "crustFragment"
+        : "spark";
   particle.active = true;
+  particle.type = type;
   particle.x = x;
   particle.y = y;
-  particle.vx = flowVector.x * (0.18 + nextMagmaRandom(runtime) * 0.12)
-    + (nextMagmaRandom(runtime) - 0.5) * (22 + eruption * 24);
-  particle.vy = flowVector.y * 0.16 - (24 + nextMagmaRandom(runtime) * (40 + eruption * 45));
-  particle.gravity = 18 + nextMagmaRandom(runtime) * 26;
-  particle.maxLife = 850 + nextMagmaRandom(runtime) * 1050;
+  particle.surfaceY = y;
+  particle.hasSplashed = false;
+  const lateral = (nextMagmaRandom(runtime) - 0.5) * (22 + eruption * 24);
+  if (type === "spark") {
+    particle.vx = flowVector.x * 0.08 + lateral * 1.8;
+    particle.vy = -(78 + nextMagmaRandom(runtime) * 90);
+    particle.gravity = 8 + nextMagmaRandom(runtime) * 12;
+    particle.maxLife = 220 + nextMagmaRandom(runtime) * 360;
+  } else if (type === "lavaDrop") {
+    particle.vx = flowVector.x * 0.24 + lateral * 0.8;
+    particle.vy = -(42 + nextMagmaRandom(runtime) * (50 + eruption * 28));
+    particle.gravity = 82 + nextMagmaRandom(runtime) * 42;
+    particle.maxLife = 800 + nextMagmaRandom(runtime) * 700;
+  } else if (type === "crustFragment") {
+    particle.vx = flowVector.x * 0.12 + lateral * 0.7;
+    particle.vy = -(22 + nextMagmaRandom(runtime) * 36);
+    particle.gravity = 74 + nextMagmaRandom(runtime) * 48;
+    particle.maxLife = 580 + nextMagmaRandom(runtime) * 620;
+  } else {
+    particle.vx = flowVector.x * (0.18 + nextMagmaRandom(runtime) * 0.12) + lateral;
+    particle.vy = flowVector.y * 0.16 - (24 + nextMagmaRandom(runtime) * (40 + eruption * 45));
+    particle.gravity = 18 + nextMagmaRandom(runtime) * 26;
+    particle.maxLife = 850 + nextMagmaRandom(runtime) * 1050;
+  }
   particle.life = particle.maxLife;
-  particle.radius = 0.8 + nextMagmaRandom(runtime) * (1.6 + eruption);
+  particle.radius = type === "spark"
+    ? 0.45 + nextMagmaRandom(runtime) * 0.65
+    : type === "crustFragment"
+      ? 1.3 + nextMagmaRandom(runtime) * 1.8
+      : 0.8 + nextMagmaRandom(runtime) * (1.6 + eruption);
   particle.temperature = 0.72 + nextMagmaRandom(runtime) * 0.28;
   particle.seed = Math.floor(nextMagmaRandom(runtime) * 9999);
   return true;
@@ -63,6 +98,27 @@ export function updateMagmaParticles(runtime, now, options) {
     particle.vy += particle.gravity * seconds;
     particle.vx += Math.sin((particle.life + particle.seed) * 0.008) * seconds * 5;
     particle.temperature = Math.max(0, particle.life / particle.maxLife);
+    if (
+      particle.type === "lavaDrop"
+      && particle.vy > 0
+      && particle.y >= particle.surfaceY
+      && !particle.hasSplashed
+    ) {
+      particle.hasSplashed = true;
+      runtime.splashes.push({
+        x: particle.x,
+        y: particle.surfaceY,
+        life: 180 + nextMagmaRandom(runtime) * 120,
+        maxLife: 300,
+        radius: 3 + particle.radius * 2.5,
+      });
+      particle.active = false;
+    }
+  }
+
+  for (let index = runtime.splashes.length - 1; index >= 0; index -= 1) {
+    runtime.splashes[index].life -= deltaMs;
+    if (runtime.splashes[index].life <= 0) runtime.splashes.splice(index, 1);
   }
 
   const qualityLimit = options.maxParticles[options.quality.quality] || options.maxParticles.high;
@@ -82,6 +138,24 @@ function particleColor(temperature) {
   return "221,52,10";
 }
 
+function drawSplash(ctx, splash, thermal) {
+  const progress = 1 - Math.max(0, splash.life / splash.maxLife);
+  const alpha = Math.sin(progress * Math.PI) * thermal.splashFactor;
+  ctx.strokeStyle = `rgba(255,134,25,${alpha * 0.72})`;
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  ctx.ellipse(
+    splash.x,
+    splash.y,
+    splash.radius * (0.6 + progress * 1.5),
+    splash.radius * (0.18 + progress * 0.32),
+    0,
+    0,
+    TAU,
+  );
+  ctx.stroke();
+}
+
 export function drawMagmaParticles(ctx, runtime, now, options) {
   if (!runtime?.particles?.length) return;
   updateMagmaParticles(runtime, now, options);
@@ -89,16 +163,31 @@ export function drawMagmaParticles(ctx, runtime, now, options) {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   ctx.lineCap = "round";
+  for (const splash of runtime.splashes || []) drawSplash(ctx, splash, thermal);
   for (const particle of runtime.particles) {
     if (!particle.active) continue;
     const life = Math.max(0, particle.life / particle.maxLife);
     const alpha = Math.min(1, life * 1.4) * thermal.emberFactor;
     const color = particleColor(particle.temperature);
+    if (particle.type === "crustFragment") {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = `rgba(27,10,7,${Math.min(0.9, alpha + 0.28)})`;
+      ctx.save();
+      ctx.translate(particle.x, particle.y);
+      ctx.rotate((particle.seed + particle.life) * 0.012);
+      ctx.fillRect(-particle.radius, -particle.radius * 0.55, particle.radius * 2, particle.radius * 1.1);
+      ctx.restore();
+      ctx.globalCompositeOperation = "screen";
+      continue;
+    }
     ctx.strokeStyle = `rgba(${color},${alpha * 0.45})`;
-    ctx.lineWidth = Math.max(0.7, particle.radius * 0.7);
+    ctx.lineWidth = particle.type === "spark"
+      ? Math.max(0.45, particle.radius * 0.55)
+      : Math.max(0.7, particle.radius * 0.7);
     ctx.beginPath();
     ctx.moveTo(particle.x, particle.y);
-    ctx.lineTo(particle.x - particle.vx * 0.045, particle.y - particle.vy * 0.045);
+    const trail = particle.type === "spark" ? 0.075 : 0.045;
+    ctx.lineTo(particle.x - particle.vx * trail, particle.y - particle.vy * trail);
     ctx.stroke();
     ctx.fillStyle = `rgba(${color},${alpha})`;
     ctx.beginPath();

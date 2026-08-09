@@ -1,5 +1,9 @@
 import { CELL } from "../visualGeometry.js";
-import { hashNoise } from "./magmaSurfaceGenerator.js";
+import {
+  getChannelPoint,
+  getDynamicChannelGeometry,
+  hashNoise,
+} from "./magmaSurfaceGenerator.js";
 import { prepareMagmaFlowRuntime } from "./magmaFlowRuntime.js";
 import { drawMagmaHeatShimmer } from "./magmaHeatRenderer.js";
 import { getMagmaThermalVisual } from "./magmaVisualConfig.js";
@@ -16,17 +20,19 @@ function traceRegionClip(ctx, region) {
   }
 }
 
-function traceChannel(ctx, channel, bounds) {
+function traceChannel(ctx, channel, bounds, time = 0) {
+  const geometry = getDynamicChannelGeometry(channel, time);
   ctx.beginPath();
-  ctx.moveTo(bounds.x + channel.startX, bounds.y + channel.startY);
+  ctx.moveTo(bounds.x + geometry.startX, bounds.y + geometry.startY);
   ctx.bezierCurveTo(
-    bounds.x + channel.controlX1,
-    bounds.y + channel.controlY1,
-    bounds.x + channel.controlX2,
-    bounds.y + channel.controlY2,
-    bounds.x + channel.endX,
-    bounds.y + channel.endY,
+    bounds.x + geometry.controlX1,
+    bounds.y + geometry.controlY1,
+    bounds.x + geometry.controlX2,
+    bounds.y + geometry.controlY2,
+    bounds.x + geometry.endX,
+    bounds.y + geometry.endY,
   );
+  return geometry;
 }
 
 function drawInterpolatedLayer(ctx, entry, property, blend, composite = "source-over", alpha = 1) {
@@ -68,15 +74,19 @@ function edgeCoordinates(edge) {
   return { x0: x + CELL.width, y0: y, x1: x + CELL.width, y1: y + CELL.height, nx: -1, ny: 0 };
 }
 
-function traceIrregularEdge(ctx, edge, seed) {
+function traceIrregularEdge(ctx, edge, seed, visualTimeMs = 0, thermalState = "stable") {
   const geometry = edgeCoordinates(edge);
   const segments = 10;
+  const dynamicAmplitude = thermalState === "eruption" ? 7 : thermalState === "active" ? 4.5 : 3;
   ctx.beginPath();
   for (let index = 0; index <= segments; index += 1) {
     const progress = index / segments;
     const baseX = geometry.x0 + (geometry.x1 - geometry.x0) * progress;
     const baseY = geometry.y0 + (geometry.y1 - geometry.y0) * progress;
-    const noise = (hashNoise(edge.row * 17 + edge.col * 31 + index, index * 7, seed) - 0.5) * 9;
+    const staticNoise = hashNoise(edge.row * 17 + edge.col * 31 + index, index * 7, seed);
+    const edgePhase = hashNoise(edge.row * 41 + edge.col * 13, index * 23, seed + 91) * Math.PI * 2;
+    const pulse = Math.sin(visualTimeMs * 0.00042 + edgePhase) * dynamicAmplitude;
+    const noise = Math.max(0.75, 1.5 + staticNoise * 4.5 + pulse);
     const x = baseX + geometry.nx * noise;
     const y = baseY + geometry.ny * noise;
     if (index === 0) ctx.moveTo(x, y);
@@ -85,17 +95,17 @@ function traceIrregularEdge(ctx, edge, seed) {
   return geometry;
 }
 
-function drawEdgeGlow(ctx, region, thermal) {
+function drawEdgeGlow(ctx, region, thermal, visualTimeMs, thermalState) {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const edge of region.edges) {
-    traceIrregularEdge(ctx, edge, region.seed);
+    traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
     ctx.strokeStyle = `rgba(249,72,9,${0.05 * thermal.brightness})`;
     ctx.lineWidth = 26;
     ctx.stroke();
-    traceIrregularEdge(ctx, edge, region.seed);
+    traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
     ctx.strokeStyle = `rgba(255,144,25,${0.08 * thermal.brightness})`;
     ctx.lineWidth = 10;
     ctx.stroke();
@@ -103,16 +113,16 @@ function drawEdgeGlow(ctx, region, thermal) {
   ctx.restore();
 }
 
-function drawIrregularBanks(ctx, region) {
+function drawIrregularBanks(ctx, region, visualTimeMs, thermalState) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   for (const edge of region.edges) {
-    const geometry = traceIrregularEdge(ctx, edge, region.seed);
+    const geometry = traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
     ctx.strokeStyle = "rgba(12,5,4,.96)";
     ctx.lineWidth = 6;
     ctx.stroke();
-    traceIrregularEdge(ctx, edge, region.seed);
+    traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
     ctx.strokeStyle = "rgba(109,30,8,.72)";
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -133,29 +143,43 @@ function drawIrregularBanks(ctx, region) {
 
 function drawChannelHighlights(ctx, entry, flowFrame, thermal, options) {
   const { bounds } = entry.region;
+  const time = entry.next?.generatedAt ?? entry.previous?.generatedAt ?? 0;
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   ctx.lineCap = "round";
   for (const channel of entry.channels) {
-    traceChannel(ctx, channel, bounds);
-    ctx.strokeStyle = `rgba(218,55,7,${0.035 * thermal.brightness})`;
-    ctx.lineWidth = channel.radius * 2.15;
+    const geometry = traceChannel(ctx, channel, bounds, time);
+    ctx.strokeStyle = `rgba(255,92,12,${0.025 * thermal.brightness})`;
+    ctx.lineWidth = geometry.radius * 2.2;
     ctx.stroke();
-    traceChannel(ctx, channel, bounds);
-    ctx.strokeStyle = `rgba(255,112,14,${0.075 * thermal.hotAlpha})`;
-    ctx.lineWidth = Math.max(3, channel.radius * 0.72);
-    ctx.setLineDash([32 + channel.radius, 9, 54 + channel.radius * 1.5, 17]);
-    ctx.lineDashOffset = flowFrame.offsetX * 0.72 * channel.speed;
-    ctx.stroke();
-    ctx.setLineDash([]);
-    if (!options.paused) {
-      traceChannel(ctx, channel, bounds);
-      ctx.strokeStyle = `rgba(255,226,107,${0.11 * thermal.hotAlpha})`;
-      ctx.lineWidth = 1.4;
-      ctx.setLineDash([2, 13 + channel.speed * 4]);
-      ctx.lineDashOffset = flowFrame.offsetX * 1.55 * channel.speed;
-      ctx.stroke();
-      ctx.setLineDash([]);
+    for (let index = 0; index < 3; index += 1) {
+      const progress = ((index / 3 + channel.phase / (Math.PI * 2)
+        - flowFrame.primaryTravel / Math.max(180, bounds.width * 0.72)) % 1 + 1) % 1;
+      const point = getChannelPoint(channel, progress, time);
+      const radius = geometry.radius * (0.18 + index * 0.035);
+      const glow = ctx.createRadialGradient(
+        bounds.x + point.x,
+        bounds.y + point.y,
+        0,
+        bounds.x + point.x,
+        bounds.y + point.y,
+        radius * 3.2,
+      );
+      glow.addColorStop(0, `rgba(255,235,146,${0.2 * thermal.hotAlpha})`);
+      glow.addColorStop(0.35, `rgba(255,126,20,${0.11 * thermal.hotAlpha})`);
+      glow.addColorStop(1, "rgba(255,70,8,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.ellipse(
+        bounds.x + point.x,
+        bounds.y + point.y,
+        radius * 3.2,
+        radius * 1.45,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
     }
   }
   ctx.restore();
@@ -201,10 +225,10 @@ export function drawMagmaSurface(
 
   for (const entry of runtime.regions) {
     const flowFrame = interpolateFlowFrame(entry, blend);
-    drawEdgeGlow(ctx, entry.region, thermal);
     ctx.save();
     traceRegionClip(ctx, entry.region);
     ctx.clip();
+    drawEdgeGlow(ctx, entry.region, thermal, runtime.visualTimeMs, options.thermalState);
     ctx.fillStyle = "#120604";
     ctx.fillRect(
       entry.region.bounds.x,
@@ -216,15 +240,15 @@ export function drawMagmaSurface(
       drawInterpolatedLayer(ctx, entry, "heatCanvas", blend);
     } else {
       drawInterpolatedLayer(ctx, entry, "surfaceCanvas", blend);
-      drawInterpolatedLayer(ctx, entry, "crustCanvas", blend, "multiply", 0.42);
-      drawInterpolatedLayer(ctx, entry, "hotCanvas", blend, "screen", 0.22);
+      drawInterpolatedLayer(ctx, entry, "crustCanvas", blend, "multiply", 0.54);
+      drawInterpolatedLayer(ctx, entry, "hotCanvas", blend, "screen", 0.34);
       drawChannelHighlights(ctx, entry, flowFrame, thermal, options);
       drawMagmaHeatShimmer(ctx, entry, blend, now, options);
     }
     traceRegionClip(ctx, entry.region);
     drawRegionDebug(ctx, entry, options);
     ctx.restore();
-    drawIrregularBanks(ctx, entry.region);
+    drawIrregularBanks(ctx, entry.region, runtime.visualTimeMs, options.thermalState);
   }
   ctx.restore();
   return runtime;

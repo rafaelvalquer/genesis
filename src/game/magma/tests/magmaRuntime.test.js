@@ -65,7 +65,7 @@ describe("runtime visual de magma", () => {
     expect(getMagmaVentPhase(vent, 4800)).toBeCloseTo(0.25);
   });
 
-  it("mantém dois buffers de região e os interpola a 15 FPS", () => {
+  it("mantém dois buffers e usa 12 FPS no estado estável", () => {
     const runtime = createMagmaFlowRuntime();
     const session = {
       phase: {
@@ -80,16 +80,16 @@ describe("runtime visual de magma", () => {
     const firstNext = runtime.regions[0].next;
     expect(firstPrevious).not.toBe(firstNext);
     expect(firstPrevious).toMatchObject({ width: 65, height: 78, generatedAt: 0 });
-    expect(firstNext.generatedAt).toBeCloseTo(1 / 15);
-    expect(runtime.surface.fps).toBe(15);
+    expect(firstNext.generatedAt).toBeCloseTo(1 / 12);
+    expect(runtime.surface.fps).toBe(12);
     expect(runtime.vents).toHaveLength(7);
     expect(runtime.smoke).toHaveLength(10);
 
     prepareMagmaFlowRuntime(runtime, session, 1030, { quality: "high" }, {}, canvasFactory);
     expect(runtime.regions[0].previous).toBe(firstPrevious);
-    expect(runtime.surface.blendProgress).toBeCloseTo(0.45);
+    expect(runtime.surface.blendProgress).toBeCloseTo(0.36);
 
-    prepareMagmaFlowRuntime(runtime, session, 1070, { quality: "high" }, {}, canvasFactory);
+    prepareMagmaFlowRuntime(runtime, session, 1090, { quality: "high" }, {}, canvasFactory);
     expect(runtime.regions[0].previous).toBe(firstNext);
     expect(runtime.regions[0].next).toBe(firstPrevious);
   });
@@ -111,11 +111,13 @@ describe("runtime visual de magma", () => {
     prepareMagmaFlowRuntime(runtime, session, 1000, { quality: "high" }, {}, canvasFactory);
     prepareMagmaFlowRuntime(runtime, session, 1100, { quality: "high" }, {}, canvasFactory);
     const movingTravel = runtime.flowTravelPx;
+    const movingVisualTime = runtime.visualTimeMs;
     expect(movingTravel).toBeCloseTo(2.6, 4);
 
     session.sandboxSettings.magmaPaused = true;
     prepareMagmaFlowRuntime(runtime, session, 1300, { quality: "high" }, {}, canvasFactory);
     expect(runtime.flowTravelPx).toBe(movingTravel);
+    expect(runtime.visualTimeMs).toBe(movingVisualTime);
 
     session.sandboxSettings.magmaPaused = false;
     session.sandboxSettings.magmaFlowMultiplier = 0;

@@ -75,6 +75,96 @@ function drawJet(ctx, vent, phase, thermal, options) {
   ctx.restore();
 }
 
+function drawSpatter(ctx, vent, phase, thermal) {
+  if (phase < 0.68 || phase > 0.94 || thermal.splashFactor <= 0.02) return;
+  const progress = (phase - 0.68) / 0.26;
+  const envelope = Math.sin(progress * Math.PI);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  for (let index = 0; index < 7; index += 1) {
+    const direction = (index - 3) * 0.34 + Math.sin(vent.seed * 0.01 + index) * 0.12;
+    const travel = (8 + index % 3 * 7 + vent.strength * 12) * envelope;
+    const x = vent.x + Math.sin(direction) * travel;
+    const y = vent.y - Math.cos(direction) * travel * 0.62 - Math.sin(progress * Math.PI) * 9;
+    ctx.fillStyle = `rgba(255,${92 + index * 16},18,${envelope * thermal.splashFactor * 0.72})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 0.9 + (index % 3) * 0.55, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawBubblePop(ctx, vent, phase, thermal) {
+  if (phase < 0.76 || phase > 0.93) return;
+  const progress = (phase - 0.76) / 0.17;
+  const envelope = Math.sin(progress * Math.PI);
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.strokeStyle = `rgba(255,197,72,${envelope * thermal.hotAlpha * 0.7})`;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(vent.x, vent.y, vent.radius * (0.6 + progress), vent.radius * 0.28, 0, 0, TAU);
+  ctx.stroke();
+  for (let index = 0; index < 4; index += 1) {
+    const angle = -2.6 + index * 0.65 + Math.sin(vent.seed + index) * 0.12;
+    const travel = (7 + index * 3) * envelope;
+    ctx.fillStyle = `rgba(255,${132 + index * 20},24,${envelope * thermal.splashFactor})`;
+    ctx.beginPath();
+    ctx.arc(
+      vent.x + Math.cos(angle) * travel,
+      vent.y + Math.sin(angle) * travel - 3 * envelope,
+      1.2 + (index % 2) * 0.6,
+      0,
+      TAU,
+    );
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawCrustBurst(ctx, vent, phase, thermal) {
+  if (phase < 0.62 || phase > 0.94) return;
+  const progress = (phase - 0.62) / 0.32;
+  const envelope = Math.sin(progress * Math.PI);
+  ctx.save();
+  ctx.strokeStyle = `rgba(255,105,14,${envelope * thermal.hotAlpha * 0.8})`;
+  ctx.lineWidth = 1 + envelope;
+  for (let index = 0; index < 3; index += 1) {
+    const angle = index * TAU / 3 + vent.seed * 0.001;
+    ctx.beginPath();
+    ctx.moveTo(vent.x, vent.y);
+    ctx.lineTo(
+      vent.x + Math.cos(angle) * vent.radius * (1.2 + envelope),
+      vent.y + Math.sin(angle) * vent.radius * 0.55 * (1.2 + envelope),
+    );
+    ctx.stroke();
+    const fragmentX = vent.x + Math.cos(angle) * (5 + index * 3) * envelope;
+    const fragmentY = vent.y - Math.sin(progress * Math.PI) * (7 + index * 2)
+      + Math.sin(angle) * 3;
+    ctx.fillStyle = `rgba(24,8,5,${0.75 * envelope})`;
+    ctx.beginPath();
+    ctx.rect(fragmentX - 1.8, fragmentY - 1.2, 3.6, 2.4);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawVentByType(ctx, vent, phase, thermal, options) {
+  drawVentGlow(ctx, vent, phase, thermal);
+  const type = vent.type || (vent.rareJet ? "ventJet" : "bubblePop");
+  if (type === "bubblePop") {
+    drawBubble(ctx, vent, phase, thermal);
+    drawBubblePop(ctx, vent, phase, thermal);
+  } else if (type === "spatter") {
+    drawSpatter(ctx, vent, phase, thermal);
+  } else if (type === "ventJet") {
+    drawBubble(ctx, vent, phase, thermal);
+    drawJet(ctx, vent, phase, thermal, options);
+  } else {
+    drawCrustBurst(ctx, vent, phase, thermal);
+  }
+}
+
 export function drawMagmaEruptions(ctx, runtime, options) {
   if (!runtime?.vents?.length) return;
   const thermal = getMagmaThermalVisual(options.thermalState);
@@ -87,9 +177,12 @@ export function drawMagmaEruptions(ctx, runtime, options) {
   for (let index = 0; index < count; index += 1) {
     const vent = runtime.vents[index];
     const phase = getMagmaVentPhase(vent, runtime.visualTimeMs);
-    drawVentGlow(ctx, vent, phase, thermal);
-    drawBubble(ctx, vent, phase, thermal);
-    drawJet(ctx, vent, phase, thermal, options);
+    drawVentByType(ctx, vent, phase, thermal, options);
+  }
+  const transientLimit = Math.max(0, options.ventLimit - count);
+  for (const vent of (runtime.transientVents || []).slice(0, transientLimit)) {
+    const phase = getMagmaVentPhase(vent, runtime.visualTimeMs);
+    drawVentByType(ctx, vent, phase, thermal, options);
   }
   ctx.restore();
 }
