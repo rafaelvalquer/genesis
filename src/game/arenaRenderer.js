@@ -253,6 +253,28 @@ function drawGlassDetail(ctx, feature, lane, theme) {
   ctx.restore();
 }
 
+function drawVolcanicDetail(ctx, feature, lane, theme, profile) {
+  const y = lane.top + 16 + feature.offset * 60;
+  const radius = 5 + feature.size * 8;
+  ctx.fillStyle = "rgba(8,5,5,.28)";
+  ctx.beginPath(); ctx.ellipse(feature.x, y + 5, radius * 1.7, radius * .7, feature.flip ? -.2 : .2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(55,27,18,.32)";
+  ctx.beginPath(); ctx.ellipse(feature.x - radius * .2, y, radius, radius * .62, .28, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = rgba(theme.detail, profile.detail > .65 ? .16 : .1);
+  ctx.lineWidth = 1.15;
+  ctx.beginPath();
+  ctx.moveTo(feature.x - radius * 1.8, y + radius * .2);
+  ctx.lineTo(feature.x - radius * .45, y - radius * .25);
+  ctx.lineTo(feature.x + radius * .35, y + radius * .45);
+  ctx.lineTo(feature.x + radius * 1.7, y - radius * .15);
+  ctx.stroke();
+  if (feature.offset > .72) {
+    ctx.strokeStyle = rgba("#fb6a24", .12);
+    ctx.lineWidth = .7;
+    ctx.beginPath(); ctx.moveTo(feature.x - radius * .35, y - radius * .2); ctx.lineTo(feature.x + radius * .35, y + radius * .42); ctx.stroke();
+  }
+}
+
 function drawLanes(ctx, blueprint, profile) {
   const { theme } = blueprint;
   for (const lane of blueprint.lanes) {
@@ -277,6 +299,7 @@ function drawLanes(ctx, blueprint, profile) {
       else if (theme.material === "rock") drawRockDetail(ctx, feature, lane, theme);
       else if (["chitin", "organic"].includes(theme.material)) drawOrganicDetail(ctx, feature, lane, theme, theme.material === "chitin");
       else if (theme.material === "obsidian-glass") drawGlassDetail(ctx, feature, lane, theme);
+      else if (theme.material === "volcanic") drawVolcanicDetail(ctx, feature, lane, theme, profile);
       else drawAncientDetail(ctx, feature, lane, theme);
     }
 

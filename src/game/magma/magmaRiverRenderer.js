@@ -7,6 +7,7 @@ import {
 import { prepareMagmaFlowRuntime } from "./magmaFlowRuntime.js";
 import { drawMagmaHeatShimmer } from "./magmaHeatRenderer.js";
 import { getMagmaThermalVisual } from "./magmaVisualConfig.js";
+import { drawMagmaTransition } from "./magmaTransitionRenderer.js";
 
 function traceRegionClip(ctx, region) {
   ctx.beginPath();
@@ -17,6 +18,22 @@ function traceRegionClip(ctx, region) {
       CELL.width + 1.5,
       CELL.height + 1.5,
     );
+  }
+  // visualMask is intentionally broader and softer than the cell union. It only
+  // affects paint; region.cellSet remains the exact gameplay terrain.
+  const mask = region.visualMask;
+  if (!mask) return;
+  for (const edge of region.edges) {
+    const geometry = edgeCoordinates(edge);
+    const lobes = Math.max(1, Math.round(geometry.x0 === geometry.x1 ? CELL.height : CELL.width) / mask.wavelength);
+    for (let index = 0; index < lobes; index += 1) {
+      const noise = hashNoise(edge.row * 37 + edge.col * 19, index * 41, region.seed);
+      const progress = (index + .5) / lobes;
+      const x = geometry.x0 + (geometry.x1 - geometry.x0) * progress + geometry.nx * (mask.lowFrequencyAmplitude * (.35 + noise * .55));
+      const y = geometry.y0 + (geometry.y1 - geometry.y0) * progress + geometry.ny * (mask.lowFrequencyAmplitude * (.35 + noise * .55));
+      const tangent = Math.atan2(geometry.y1 - geometry.y0, geometry.x1 - geometry.x0);
+      ctx.ellipse(x, y, 24 + noise * 18, 7 + noise * 6, tangent, 0, Math.PI * 2);
+    }
   }
 }
 
@@ -93,52 +110,6 @@ function traceIrregularEdge(ctx, edge, seed, visualTimeMs = 0, thermalState = "s
     else ctx.lineTo(x, y);
   }
   return geometry;
-}
-
-function drawEdgeGlow(ctx, region, thermal, visualTimeMs, thermalState) {
-  ctx.save();
-  ctx.globalCompositeOperation = "screen";
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const edge of region.edges) {
-    traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
-    ctx.strokeStyle = `rgba(249,72,9,${0.05 * thermal.brightness})`;
-    ctx.lineWidth = 26;
-    ctx.stroke();
-    traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
-    ctx.strokeStyle = `rgba(255,144,25,${0.08 * thermal.brightness})`;
-    ctx.lineWidth = 10;
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawIrregularBanks(ctx, region, visualTimeMs, thermalState) {
-  ctx.save();
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  for (const edge of region.edges) {
-    const geometry = traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
-    ctx.strokeStyle = "rgba(12,5,4,.96)";
-    ctx.lineWidth = 6;
-    ctx.stroke();
-    traceIrregularEdge(ctx, edge, region.seed, visualTimeMs, thermalState);
-    ctx.strokeStyle = "rgba(109,30,8,.72)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    for (let index = 1; index < 5; index += 1) {
-      const progress = index / 5;
-      const random = hashNoise(edge.row * 31 + edge.col, index * 19, region.seed);
-      if (random < 0.38) continue;
-      const x = geometry.x0 + (geometry.x1 - geometry.x0) * progress + geometry.nx * (3 + random * 4);
-      const y = geometry.y0 + (geometry.y1 - geometry.y0) * progress + geometry.ny * (3 + random * 4);
-      ctx.fillStyle = random > 0.72 ? "#1a0906" : "#260d07";
-      ctx.beginPath();
-      ctx.ellipse(x, y, 4 + random * 6, 2.5 + random * 3.5, random * 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  ctx.restore();
 }
 
 function drawChannelHighlights(ctx, entry, flowFrame, thermal, options) {
@@ -228,7 +199,6 @@ export function drawMagmaSurface(
     ctx.save();
     traceRegionClip(ctx, entry.region);
     ctx.clip();
-    drawEdgeGlow(ctx, entry.region, thermal, runtime.visualTimeMs, options.thermalState);
     ctx.fillStyle = "#120604";
     ctx.fillRect(
       entry.region.bounds.x,
@@ -248,7 +218,7 @@ export function drawMagmaSurface(
     traceRegionClip(ctx, entry.region);
     drawRegionDebug(ctx, entry, options);
     ctx.restore();
-    drawIrregularBanks(ctx, entry.region, runtime.visualTimeMs, options.thermalState);
+    drawMagmaTransition(ctx, entry.region, session.phase, runtime, options);
   }
   ctx.restore();
   return runtime;
