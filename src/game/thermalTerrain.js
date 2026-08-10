@@ -32,8 +32,10 @@ export function canSupportThermalPlatform(phase, row, col) { return isMagmaCell(
 
 export function createThermalCycleState(config, elapsed = 0) {
   const first = config?.cycle?.[0] || DEFAULT_THERMAL_CYCLE[0];
-  return { state: first.state, cycleIndex: 0, stateStartedAt: elapsed, stateEndsAt: elapsed + first.durationMs, heatRatePerSecond: THERMAL_STATES[first.state]?.heatPerSecond ?? 0, eruptionCount: 0 };
+  return { state: first.state, cycleIndex: 0, stateStartedAt: elapsed, stateEndsAt: elapsed + first.durationMs, heatRatePerSecond: THERMAL_STATES[first.state]?.heatPerSecond ?? 0, eruptionCount: 0, paused: false };
 }
+
+export function isThermalHazardActive(session) { return Boolean(session?.waveActive || session?.sandbox); }
 
 export function getSupportAt(session, row, col) { return session.supportStructures?.find((entry) => entry.row === row && entry.col === col && !entry.destroyed) || null; }
 export function getThermalPlatformAt(session, row, col) { const support = getSupportAt(session, row, col); return support?.type === "thermalPlatform" ? support : null; }
@@ -43,14 +45,65 @@ export function createThermalPlatform(session, row, col, config, id) {
   const platform = { id: id(), type: "thermalPlatform", row, col, hp: config.hp, maxHp: config.hp, heat: 0, maxHeat: config.maxHeat || 100, overheated: false, createdAt: session.elapsed, destroyed: false };
   session.supportStructures.push(platform);
   const troop = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col);
-  if (troop) troop.thermalBurning = false;
+  if (troop) { troop.thermalExposed = false; troop.thermalBurning = false; troop.thermalAttackSpeedFactor = 1; }
   return platform;
+}
+
+function removeExpiredDestroyedPlatforms(session) {
+  session.supportStructures = (session.supportStructures || []).filter((entry) => !entry.destroyed || session.elapsed - entry.destroyedAt < 450);
+}
+
+function syncTroopThermalExposure(session, config, hazardActive) {
+  for (const troop of session.troops || []) {
+    if (troop.dead) continue;
+    const onMagma = isMagmaCell(session.phase, troop.row, troop.col);
+    const protectedByPlatform = onMagma && hasThermalPlatform(session, troop.row, troop.col);
+    const compatible = isTroopThermalCompatible(session.troopConfigs?.[troop.type]);
+    const exposed = onMagma && !protectedByPlatform && !compatible;
+    troop.thermalExposed = exposed;
+    troop.thermalBurning = hazardActive && exposed;
+    troop.thermalAttackSpeedFactor = hazardActive && getThermalPlatformAt(session, troop.row, troop.col)?.overheated
+      ? config.attackSpeedFactor
+      : 1;
+  }
+}
+
+export function enterThermalIntermission(session) {
+  const config = session?.phase?.environmentHazard;
+  if (config?.id !== "thermal_cycle") return;
+  const cycle = session.thermalCycle || createThermalCycleState(config, session.elapsed);
+  cycle.paused = true;
+  session.thermalCycle = cycle;
+  syncTroopThermalExposure(session, config, false);
+}
+
+export function resumeThermalHazard(session) {
+  const config = session?.phase?.environmentHazard;
+  if (config?.id !== "thermal_cycle") return;
+  const cycle = session.thermalCycle || createThermalCycleState(config, session.elapsed);
+  cycle.paused = false;
+  session.thermalCycle = cycle;
+  syncTroopThermalExposure(session, config, true);
 }
 
 export function updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop }) {
   const config = session.phase?.environmentHazard;
   if (config?.id !== "thermal_cycle") return;
   let cycle = session.thermalCycle || createThermalCycleState(config, session.elapsed);
+  const hazardActive = isThermalHazardActive(session);
+  // Broken supports still need their short visual handoff while the danger is paused.
+  removeExpiredDestroyedPlatforms(session);
+  if (!hazardActive) {
+    cycle.stateStartedAt += dt;
+    cycle.stateEndsAt += dt;
+    cycle.paused = true;
+    session.thermalCycle = cycle;
+    syncTroopThermalExposure(session, config, false);
+    session.troops.filter((troop) => !troop.dead && isMagmaCell(session.phase, troop.row, troop.col))
+      .forEach((troop) => refreshTroop?.(session, troop));
+    return;
+  }
+  cycle.paused = false;
   while (session.elapsed >= cycle.stateEndsAt) {
     const previous = cycle.state;
     cycle.cycleIndex = (cycle.cycleIndex + 1) % config.cycle.length;
@@ -80,19 +133,17 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
   }
   // Retain the broken support for a brief visual handoff without letting it
   // support a troop (getSupportAt already excludes destroyed structures).
-  session.supportStructures = (session.supportStructures || []).filter((entry) => !entry.destroyed || session.elapsed - entry.destroyedAt < 450);
-  for (const troop of session.troops.filter((entry) => !entry.dead && isMagmaCell(session.phase, entry.row, entry.col))) {
-    const protectedByPlatform = hasThermalPlatform(session, troop.row, troop.col);
-    const compatible = isTroopThermalCompatible(session.troopConfigs?.[troop.type]);
-    troop.thermalBurning = !protectedByPlatform && !compatible;
-    troop.thermalAttackSpeedFactor = getThermalPlatformAt(session, troop.row, troop.col)?.overheated ? config.attackSpeedFactor : 1;
+  removeExpiredDestroyedPlatforms(session);
+  syncTroopThermalExposure(session, config, true);
+  session.troops.filter((troop) => !troop.dead && isMagmaCell(session.phase, troop.row, troop.col))
+    .forEach((troop) => refreshTroop?.(session, troop));
+  for (const troop of session.troops.filter((entry) => !entry.dead && entry.thermalBurning)) {
     if (troop.thermalBurning) {
       const damage = troop.maxHp * (config.thermalBurnDamagePerSecond / 100) * seconds;
       troop.hp -= damage;
       if (session.thermalMetrics) session.thermalMetrics.burnDamage += damage;
       if (troop.hp <= 0) { if (session.thermalMetrics) session.thermalMetrics.troopsLost += 1; eliminateTroop(session, troop, events, "thermalBurn"); }
     }
-    refreshTroop?.(session, troop);
   }
   if (session.supportStructures.length && session.thermalMetrics) {
     session.thermalMetrics.heatSampleTotal += session.supportStructures.reduce((sum, platform) => sum + platform.heat, 0) / session.supportStructures.length;
@@ -102,5 +153,5 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
 
 export function getThermalSnapshot(session) {
   const cycle = session?.thermalCycle;
-  return { state: cycle?.state || null, nextStateAt: cycle?.stateEndsAt || null, heatRate: cycle?.heatRatePerSecond || 0, eruptionCount: cycle?.eruptionCount || 0, platforms: (session?.supportStructures || []).map(({ id, row, col, hp, maxHp, heat, maxHeat, overheated }) => ({ id, row, col, hp, maxHp, heat, maxHeat, overheated })) };
+  return { state: cycle?.state || null, nextStateAt: cycle?.stateEndsAt || null, remainingMs: cycle ? Math.max(0, cycle.stateEndsAt - session.elapsed) : 0, paused: Boolean(cycle?.paused), heatRate: cycle?.paused ? 0 : cycle?.heatRatePerSecond || 0, eruptionCount: cycle?.eruptionCount || 0, platforms: (session?.supportStructures || []).map(({ id, row, col, hp, maxHp, heat, maxHeat, overheated }) => ({ id, row, col, hp, maxHp, heat, maxHeat, overheated })) };
 }

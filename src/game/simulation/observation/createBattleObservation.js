@@ -229,7 +229,13 @@ export function createBattleObservation(
       tideState:
         session.tideCycle?.state || null,
       magmaCells: session.phase.magmaTerrain?.cells || [],
-      thermal: { state: session.thermalCycle?.state || null, nextStateAt: session.thermalCycle?.stateEndsAt || null, heatRate: session.thermalCycle?.heatRatePerSecond || 0 },
+      thermal: {
+        state: session.thermalCycle?.state || null,
+        nextStateAt: session.thermalCycle?.stateEndsAt || null,
+        remainingMs: Math.max(0, (session.thermalCycle?.stateEndsAt || session.elapsed) - session.elapsed),
+        paused: Boolean(session.thermalCycle?.paused),
+        heatRate: session.thermalCycle?.paused ? 0 : session.thermalCycle?.heatRatePerSecond || 0,
+      },
     },
 
     defenses: {

@@ -71,6 +71,8 @@ import {
   isMagmaCell,
   isTroopThermalCompatible,
   getThermalSnapshot,
+  enterThermalIntermission,
+  resumeThermalHazard,
   updateThermalTerrain,
 } from "../thermalTerrain.js";
 import { chapterFourAlphaMultipliers } from "../chapterFourEnemies.js";
@@ -416,7 +418,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     },
     windCurrent: createWindCurrentState(),
     tideCycle: createTideCycleState(),
-    thermalCycle: createThermalCycleState(sessionPhase.environmentHazard, 0),
+    thermalCycle: { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox },
     supportStructures: [],
     thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0 },
     troopConfigs: TROOPS,
@@ -707,7 +709,7 @@ export function placeTroop(session, troopId, row, col) {
   const config = TROOPS[troopId];
   const effective = getEffectiveTroopStats(session, troopId);
   if (troopId === "thermalPlatform") {
-    const burningTroop = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col && entry.thermalBurning);
+    const burningTroop = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col && (entry.thermalBurning || entry.thermalExposed));
     const platform = createThermalPlatform(session, row, col, config, () => id("support"));
     const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
     if (!freePlacement) { session.energy -= effective.price; session.supply -= effective.supply; }
@@ -1038,6 +1040,7 @@ export function startWave(session) {
   session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
   initializeBossEncounterForWave(session, wave, session.queue, { row: 2 });
   session.waveActive = true;
+  resumeThermalHazard(session);
   session.waveKillStart = session.killed;
   session.lastEnemyKillCandidate = null;
   session.waveOutro = { ...session.waveOutro, status: "idle", elapsedMs: 0, startedAt: null, lastKill: null, decisionOptions: null };
@@ -6839,6 +6842,7 @@ function finish(session, outcome) {
   session.outcome = outcome;
   session.pendingOutcome = null;
   session.waveActive = false;
+  enterThermalIntermission(session);
   session.preparing = false;
   session.result = {
     phaseId: session.phase.id,
@@ -6911,6 +6915,7 @@ export function stepBattle(session, dt = 32) {
     eliminateTroop,
   });
   updateSandstorm(session, events);
+  compactActive(session.troops, (troop) => !troop.dead);
   rebuildBattleIndex(session);
   const settlingWaveOutro = ["finalKill", "cleanup"].includes(session.waveOutro?.status);
   if (settlingWaveOutro && !session.waveActive && !session.sandbox) {
@@ -6956,6 +6961,7 @@ export function stepBattle(session, dt = 32) {
       && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0;
     if (waveCleared) {
       session.waveActive = false;
+      enterThermalIntermission(session);
       session.activeTemporaryDecisions = [];
       endSandstorm(session, events, true);
       endWindCurrent(session, events, true);

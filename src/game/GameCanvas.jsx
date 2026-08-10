@@ -2626,8 +2626,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         ? `CORRENTE DISSIPANDO · ${(wind.remainingMs / 1000).toFixed(1)}s`
         : null;
   const thermal = snapshot.thermal;
+  const thermalRemainingSeconds = (thermal?.remainingMs != null
+    ? thermal.remainingMs / 1000
+    : Math.max(0, (thermal?.nextStateAt - snapshot.elapsed) / 1000)).toFixed(0);
   const thermalBanner = thermal?.state
-    ? `${thermal.state === "stable" ? "🔥 ESTÁVEL" : thermal.state === "active" ? "🔥🔥 ATIVA" : thermal.state === "eruption" ? "⚠ ERUPÇÃO" : "RESFRIAMENTO"} · ${Math.max(0, (thermal.nextStateAt - snapshot.elapsed) / 1000).toFixed(0)}s`
+    ? `${thermal.paused ? "MAGMA EM PAUSA" : thermal.state === "stable" ? "🔥 ESTÁVEL" : thermal.state === "active" ? "🔥🔥 ATIVA" : thermal.state === "eruption" ? "⚠ ERUPÇÃO" : "RESFRIAMENTO"} · ${thermalRemainingSeconds}s`
     : null;
   const canStartWave = !sandbox
     && snapshot.preparing
