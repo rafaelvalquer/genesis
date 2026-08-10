@@ -1,7 +1,7 @@
 const freeze = (value) => Object.freeze(value);
 
 export const MAGMA_VISUAL_CONFIG = freeze({
-  surfaceFps: 15,
+  surfaceFps: 12,
   crustCoverage: 0.43,
   largeCrustScale: 0.018,
   mediumCrustScale: 0.037,
@@ -14,8 +14,8 @@ export const MAGMA_VISUAL_CONFIG = freeze({
   hotspotThreshold: 0.91,
   particlePoolSize: 80,
   ventCount: freeze({ stable: 2, active: 4, eruption: 7, cooldown: 1 }),
-  activeParticles: freeze({ stable: 10, active: 22, eruption: 54, cooldown: 6 }),
-  smokeCount: freeze({ stable: 5, active: 7, eruption: 10, cooldown: 3 }),
+  activeParticles: freeze({ stable: 10, active: 22, eruption: 36, cooldown: 6 }),
+  smokeCount: freeze({ stable: 5, active: 6, eruption: 6, cooldown: 3 }),
   maxParticles: freeze({ high: 60, medium: 32, low: 14 }),
 });
 
@@ -39,9 +39,9 @@ export const MAGMA_THERMAL_VISUALS = freeze({
 });
 
 export const MAGMA_QUALITY_PROFILES = freeze({
-  high: freeze({ resolutionScale: 0.65, surfaceFps: 15, shimmer: true, channelSamples: 42, smokeScale: 1 }),
-  medium: freeze({ resolutionScale: 0.5, surfaceFps: 12, shimmer: false, channelSamples: 30, smokeScale: 0.72 }),
-  low: freeze({ resolutionScale: 0.35, surfaceFps: 8, shimmer: false, channelSamples: 20, smokeScale: 0.4 }),
+  high: freeze({ resolutionScale: 0.54, surfaceFps: 12, shimmer: true, channelSamples: 42, smokeScale: 1 }),
+  medium: freeze({ resolutionScale: 0.46, surfaceFps: 11, shimmer: false, channelSamples: 30, smokeScale: 0.72 }),
+  low: freeze({ resolutionScale: 0.34, surfaceFps: 8, shimmer: false, channelSamples: 20, smokeScale: 0.4 }),
 });
 
 export const MAGMA_COLOR_STOPS = freeze([
@@ -66,10 +66,11 @@ export function getMagmaQualityProfile(settings = {}, adaptive = {}) {
   const quality = MAGMA_QUALITY_PROFILES[settings.quality] ? settings.quality : "high";
   const base = MAGMA_QUALITY_PROFILES[quality];
   const adaptiveScale = adaptive.level === "stress" ? 0.72 : adaptive.level === "busy" ? 0.88 : 1;
-  const fpsCap = adaptive.level === "stress" ? 8 : adaptive.level === "busy" ? 12 : base.surfaceFps;
+  const fpsCap = adaptive.level === "stress" ? 8 : adaptive.level === "busy" ? 10 : base.surfaceFps;
   return {
     ...base,
     quality,
+    measuredFrameMs: adaptive.frameMs ?? 16.7,
     resolutionScale: base.resolutionScale * adaptiveScale,
     surfaceFps: Math.min(base.surfaceFps, fpsCap),
     shimmer: base.shimmer && adaptive.level !== "stress" && settings.reduceMotion !== true,
@@ -82,8 +83,8 @@ export function getMagmaSurfaceFps(options = {}) {
   const quality = options.quality?.quality || "high";
   const state = options.thermalState || "stable";
   const stateCaps = {
-    high: { stable: 12, active: 15, eruption: 15, cooldown: 10 },
-    medium: { stable: 10, active: 12, eruption: 12, cooldown: 8 },
+    high: { stable: 10, active: 12, eruption: 12, cooldown: 8 },
+    medium: { stable: 9, active: 11, eruption: 11, cooldown: 7 },
     low: { stable: 7, active: 8, eruption: 8, cooldown: 6 },
   };
   const cap = stateCaps[quality]?.[state] ?? options.quality?.surfaceFps ?? 15;

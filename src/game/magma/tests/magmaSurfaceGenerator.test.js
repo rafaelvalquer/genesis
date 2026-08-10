@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildMagmaRegions } from "../magmaRegionBuilder.js";
 import {
+  buildDynamicChannelFrame,
   buildMajorChannels,
   calibrateMagmaCrustThreshold,
   getChannelPoint,
@@ -33,6 +34,24 @@ function sampleAt(data, x, y, time = 0, thermalState = "stable") {
 }
 
 describe("magmaSurfaceGenerator", () => {
+  it("reutiliza a geometria dinamica dos canais e move suas extremidades", () => {
+    const { channels } = fixture();
+    const initial = buildDynamicChannelFrame(channels, 0, []);
+    const firstObjects = [...initial];
+    const startPositions = initial.map((channel) => channel.startY);
+    const later = buildDynamicChannelFrame(channels, 5, initial);
+
+    expect(later).toBe(initial);
+    later.forEach((channel, index) => {
+      expect(channel).toBe(firstObjects[index]);
+    });
+    const endpointMovement = later.reduce(
+      (sum, channel, index) => sum + Math.abs(channel.startY - startPositions[index]),
+      0,
+    );
+    expect(endpointMovement).toBeGreaterThan(1);
+  });
+
   it("mantém o campo contínuo ao atravessar uma fronteira de coluna", () => {
     const data = fixture();
     const left = sampleAt(data, 499.9, 262);

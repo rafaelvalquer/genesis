@@ -107,24 +107,24 @@ export function createGraphicsRuntime() {
   };
 }
 
-export function getAdaptiveEffects(settings = {}, level = "full") {
+export function getAdaptiveEffects(settings = {}, level = "full", frameMs = 16.7) {
   const quality = settings.quality || "high";
   if (level === "stress") {
     return {
-      level, quality, bloom: false, dynamicLightScale: 0, reflections: false,
+      level, quality, frameMs, bloom: false, dynamicLightScale: 0, reflections: false,
       heavyAtmosphere: false, atmosphereScale: 0.45, particleBudgetScale: 0.55,
       hideFullHealthEnemies: true,
     };
   }
   if (level === "busy") {
     return {
-      level, quality, bloom: false, dynamicLightScale: 0.5, reflections: true,
+      level, quality, frameMs, bloom: false, dynamicLightScale: 0.5, reflections: true,
       heavyAtmosphere: true, atmosphereScale: 0.82, particleBudgetScale: 0.82,
       hideFullHealthEnemies: false,
     };
   }
   return {
-    level: "full", quality, bloom: true, dynamicLightScale: 1, reflections: true,
+    level: "full", quality, frameMs, bloom: true, dynamicLightScale: 1, reflections: true,
     heavyAtmosphere: true, atmosphereScale: 1, particleBudgetScale: 1,
     hideFullHealthEnemies: false,
   };

@@ -2037,7 +2037,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         activeEntities,
         particles: particlesRef.current.length,
       });
-      const adaptive = getAdaptiveEffects(settings, graphicsRef.current.adaptive.level);
+      const adaptive = getAdaptiveEffects(
+        settings,
+        graphicsRef.current.adaptive.level,
+        graphicsRef.current.metrics.frameMs,
+      );
       Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
       const drawStarted = performance.now();
       lastLayerTimings = drawBattle(

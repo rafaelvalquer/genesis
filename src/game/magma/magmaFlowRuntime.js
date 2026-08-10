@@ -17,6 +17,10 @@ import {
   getMagmaSurfaceFps,
   resolveMagmaVisualOptions,
 } from "./magmaVisualConfig.js";
+import {
+  applyMagmaSurfaceWorkerResult,
+  createMagmaSurfaceWorkerClient,
+} from "./magmaSurfaceWorkerClient.js";
 
 function seededRandom(seed) {
   let state = seed >>> 0;
@@ -104,7 +108,15 @@ export function createMagmaFlowRuntime() {
     phaseId: null,
     signature: null,
     regions: [],
-    surface: { lastUpdateAt: -Infinity, blendProgress: 0, fps: 0 },
+    surface: {
+      lastUpdateAt: -Infinity,
+      blendProgress: 0,
+      fps: 0,
+      pending: false,
+      workerActive: false,
+      workerDisabled: false,
+    },
+    surfaceWorker: null,
     vents: [],
     transientVents: [],
     particles: Array.from({ length: MAGMA_VISUAL_CONFIG.particlePoolSize }, createParticle),
@@ -138,6 +150,11 @@ function initializeRuntime(runtime, session, now, options, canvasFactory) {
   runtime.lastClockAt = now;
   runtime.lastParticleUpdateAt = now;
   runtime.randomState = (seed ^ 0xa341316c) >>> 0;
+  if (!runtime.surfaceWorker && !runtime.surface.workerDisabled) {
+    runtime.surfaceWorker = createMagmaSurfaceWorkerClient();
+  }
+  runtime.surface.pending = false;
+  runtime.surface.workerActive = Boolean(runtime.surfaceWorker);
   runtime.particles.forEach((particle) => { particle.active = false; });
   runtime.splashes.length = 0;
   const surfaceFps = getMagmaSurfaceFps(options);
@@ -232,7 +249,73 @@ function advanceVisualClock(runtime, now, options) {
   }
 }
 
-function updateSurfaces(runtime, now, options) {
+function closeWorkerResult(result) {
+  result?.surface?.close?.();
+  result?.hot?.close?.();
+  result?.crust?.close?.();
+  result?.heat?.close?.();
+}
+
+function scheduleWorkerSurfaceUpdate(runtime, options, interval, canvasFactory) {
+  if (!runtime.surfaceWorker || runtime.surface.pending) return false;
+  const signature = runtime.signature;
+  const thermalState = options.thermalState;
+  const showHeatmap = options.showHeatmap;
+  const targetTime = (runtime.visualTimeMs + interval) / 1000;
+  runtime.surface.pending = true;
+  const requests = runtime.regions.map((entry) => {
+    const flowFrame = getMagmaFlowFrame({
+      region: entry.region,
+      visualConfig: options,
+      thermalState: options.thermalState,
+      travel: runtime.flowTravelPx + runtime.currentFlowSpeed * interval / 1000,
+      reduceMotion: options.reduceMotion,
+    });
+    return runtime.surfaceWorker.render({
+      frameKey: `${signature}:${entry.region.id}`,
+      resolutionScale: options.quality.resolutionScale,
+      region: entry.region,
+      render: {
+        region: entry.region,
+        channels: entry.channels,
+        time: targetTime,
+        config: { ...options, calibratedCrustThreshold: entry.crustThreshold },
+        thermalState: options.thermalState,
+        dynamic: entry.dynamic,
+        flowFrame,
+      },
+    });
+  });
+
+  Promise.all(requests).then((results) => {
+    if (
+      runtime.signature !== signature
+      || runtime.thermalState !== thermalState
+      || runtime.debug.showHeatmap !== showHeatmap
+    ) {
+      results.forEach(closeWorkerResult);
+      return;
+    }
+    results.forEach((result, index) => {
+      const entry = runtime.regions[index];
+      const recycled = entry.previous;
+      applyMagmaSurfaceWorkerResult(recycled, result, canvasFactory);
+      entry.previous = entry.next;
+      entry.next = recycled;
+    });
+    runtime.surface.lastUpdateAt = runtime.lastClockAt ?? 0;
+  }).catch(() => {
+    runtime.surfaceWorker?.terminate?.();
+    runtime.surfaceWorker = null;
+    runtime.surface.workerActive = false;
+    runtime.surface.workerDisabled = true;
+  }).finally(() => {
+    runtime.surface.pending = false;
+  });
+  return true;
+}
+
+function updateSurfaces(runtime, now, options, canvasFactory) {
   const surfaceFps = getMagmaSurfaceFps(options);
   const interval = 1000 / surfaceFps;
   runtime.surface.fps = surfaceFps;
@@ -242,6 +325,11 @@ function updateSurfaces(runtime, now, options) {
     return;
   }
   if (elapsed >= interval) {
+    if (runtime.surfaceWorker) {
+      scheduleWorkerSurfaceUpdate(runtime, options, interval, canvasFactory);
+      runtime.surface.blendProgress = 1;
+      return;
+    }
     for (const entry of runtime.regions) {
       const recycled = entry.previous;
       entry.previous = entry.next;
@@ -283,7 +371,7 @@ export function prepareMagmaFlowRuntime(
   runtime.thermalState = options.thermalState;
   runtime.debug.showHeatmap = options.showHeatmap;
   runtime.debug.showRegionMask = options.showRegionMask;
-  updateSurfaces(runtime, now, options);
+  updateSurfaces(runtime, now, options, canvasFactory);
   return { runtime, options };
 }
 
@@ -294,5 +382,6 @@ export function nextMagmaRandom(runtime) {
 
 export function resetMagmaFlowRuntime(runtime) {
   if (!runtime) return;
+  runtime.surfaceWorker?.terminate?.();
   Object.assign(runtime, createMagmaFlowRuntime());
 }

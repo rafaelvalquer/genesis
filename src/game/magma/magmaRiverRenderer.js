@@ -149,7 +149,7 @@ function drawChannelHighlights(ctx, entry, flowFrame, thermal, options) {
   ctx.lineCap = "round";
   for (const channel of entry.channels) {
     const geometry = traceChannel(ctx, channel, bounds, time);
-    ctx.strokeStyle = `rgba(255,92,12,${0.025 * thermal.brightness})`;
+    ctx.strokeStyle = `rgba(255,92,12,${0.012 * thermal.brightness})`;
     ctx.lineWidth = geometry.radius * 2.2;
     ctx.stroke();
     for (let index = 0; index < 3; index += 1) {

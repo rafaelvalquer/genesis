@@ -2,10 +2,47 @@ import { describe, expect, it } from "vitest";
 import { createMagmaFlowRuntime, prepareMagmaFlowRuntime } from "../magmaFlowRuntime.js";
 import { getMagmaVentPhase } from "../magmaEruptionRenderer.js";
 import {
+  MAGMA_VISUAL_CONFIG,
   MAGMA_THERMAL_VISUALS,
   getMagmaQualityProfile,
   resolveMagmaVisualOptions,
 } from "../magmaVisualConfig.js";
+
+describe("alocacoes do runtime de magma", () => {
+  it("reutiliza ImageData e a grade dinamica ao reciclar os buffers", () => {
+    let imageDataAllocations = 0;
+    const countingCanvasFactory = () => {
+      const context = {
+        createImageData: (width, height) => {
+          imageDataAllocations += 1;
+          return { data: new Uint8ClampedArray(width * height * 4) };
+        },
+        putImageData: () => {},
+      };
+      return { width: 0, height: 0, getContext: () => context };
+    };
+    const runtime = createMagmaFlowRuntime();
+    const session = {
+      phase: {
+        id: "magma-allocation-test",
+        magmaTerrain: { cells: [[0, 0]], visual: { seed: 101 } },
+      },
+      thermalCycle: { state: "stable" },
+      sandboxSettings: {},
+    };
+
+    prepareMagmaFlowRuntime(runtime, session, 1000, { quality: "high" }, {}, countingCanvasFactory);
+    const recycledFrame = runtime.regions[0].previous;
+    const recycledGrid = recycledFrame.dynamicGrid.values;
+    expect(imageDataAllocations).toBe(6);
+    expect(recycledFrame.heatImageData).toBeNull();
+
+    prepareMagmaFlowRuntime(runtime, session, 1110, { quality: "high" }, {}, countingCanvasFactory);
+    expect(runtime.regions[0].next).toBe(recycledFrame);
+    expect(runtime.regions[0].next.dynamicGrid.values).toBe(recycledGrid);
+    expect(imageDataAllocations).toBe(6);
+  });
+});
 
 describe("runtime visual de magma", () => {
   const canvasFactory = () => {
@@ -25,8 +62,8 @@ describe("runtime visual de magma", () => {
   it("reduz resolução, FPS, partículas e shimmer com qualidade/adaptive", () => {
     const high = getMagmaQualityProfile({ quality: "high" }, { level: "full", particleBudgetScale: 1 });
     const stress = getMagmaQualityProfile({ quality: "high" }, { level: "stress", particleBudgetScale: 0.55 });
-    expect(high.resolutionScale).toBe(0.65);
-    expect(high.surfaceFps).toBe(15);
+    expect(high.resolutionScale).toBe(0.54);
+    expect(high.surfaceFps).toBe(12);
     expect(high.shimmer).toBe(true);
     expect(stress.resolutionScale).toBeLessThan(high.resolutionScale);
     expect(stress.surfaceFps).toBe(8);
@@ -39,6 +76,8 @@ describe("runtime visual de magma", () => {
     expect(MAGMA_THERMAL_VISUALS.eruption.brightness).toBeGreaterThan(MAGMA_THERMAL_VISUALS.cooldown.brightness);
     expect(MAGMA_THERMAL_VISUALS.eruption.liquidBias).toBeGreaterThan(MAGMA_THERMAL_VISUALS.stable.liquidBias);
     expect(MAGMA_THERMAL_VISUALS.eruption.smokeFactor).toBeGreaterThan(MAGMA_THERMAL_VISUALS.cooldown.smokeFactor);
+    expect(MAGMA_VISUAL_CONFIG.activeParticles.eruption).toBe(36);
+    expect(MAGMA_VISUAL_CONFIG.smokeCount.eruption).toBe(6);
   });
 
   it("aceita todos os overrides de depuração do laboratório", () => {
@@ -65,7 +104,7 @@ describe("runtime visual de magma", () => {
     expect(getMagmaVentPhase(vent, 4800)).toBeCloseTo(0.25);
   });
 
-  it("mantém dois buffers e usa 12 FPS no estado estável", () => {
+  it("mantém dois buffers e usa 10 FPS no estado estável", () => {
     const runtime = createMagmaFlowRuntime();
     const session = {
       phase: {
@@ -79,17 +118,17 @@ describe("runtime visual de magma", () => {
     const firstPrevious = runtime.regions[0].previous;
     const firstNext = runtime.regions[0].next;
     expect(firstPrevious).not.toBe(firstNext);
-    expect(firstPrevious).toMatchObject({ width: 65, height: 78, generatedAt: 0 });
-    expect(firstNext.generatedAt).toBeCloseTo(1 / 12);
-    expect(runtime.surface.fps).toBe(12);
+    expect(firstPrevious).toMatchObject({ width: 54, height: 65, generatedAt: 0 });
+    expect(firstNext.generatedAt).toBeCloseTo(0.1);
+    expect(runtime.surface.fps).toBe(10);
     expect(runtime.vents).toHaveLength(7);
     expect(runtime.smoke).toHaveLength(10);
 
     prepareMagmaFlowRuntime(runtime, session, 1030, { quality: "high" }, {}, canvasFactory);
     expect(runtime.regions[0].previous).toBe(firstPrevious);
-    expect(runtime.surface.blendProgress).toBeCloseTo(0.36);
+    expect(runtime.surface.blendProgress).toBeCloseTo(0.3);
 
-    prepareMagmaFlowRuntime(runtime, session, 1090, { quality: "high" }, {}, canvasFactory);
+    prepareMagmaFlowRuntime(runtime, session, 1110, { quality: "high" }, {}, canvasFactory);
     expect(runtime.regions[0].previous).toBe(firstNext);
     expect(runtime.regions[0].next).toBe(firstPrevious);
   });

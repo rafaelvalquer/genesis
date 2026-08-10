@@ -1,4 +1,5 @@
 import { CELL } from "../visualGeometry.js";
+import { pointIsInsideMagmaRegion } from "./magmaRegionBuilder.js";
 
 const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -173,7 +174,7 @@ function replenish(list, target, factory, region, random, now) {
   while (list.length < target) list.push(factory(region, random, now, false));
 }
 
-const transientTargets = { stable: 1, active: 3, eruption: 6, cooldown: 0 };
+const transientTargets = { stable: 1, active: 2, eruption: 3, cooldown: 0 };
 const transientIntervals = {
   stable: [3200, 3400],
   active: [1500, 2200],
@@ -190,6 +191,22 @@ export function updateMagmaDynamicRegion(
   random,
 ) {
   const now = runtime.visualTimeMs;
+  const enteringCooldown = runtime.thermalState !== "cooldown"
+    && options.thermalState === "cooldown";
+  if (enteringCooldown) {
+    const features = [
+      dynamic.localCurrents,
+      dynamic.vortices,
+      dynamic.crustPatches,
+      dynamic.hotspots,
+      dynamic.transientVents,
+    ];
+    for (const list of features) {
+      for (const feature of list) {
+        feature.deathAt = Math.min(feature.deathAt, now + 2500 + random() * 2500);
+      }
+    }
+  }
   const thermalScale = options.thermalState === "eruption"
     ? 1.3
     : options.thermalState === "active"
@@ -232,6 +249,20 @@ export function updateMagmaDynamicRegion(
 
   const seconds = deltaMs / 1000;
   const advectionScale = Math.max(0, options.flowMultiplier ?? 1);
+  const flowX = runtime.currentFlowVector.x * seconds;
+  const flowY = runtime.currentFlowVector.y * seconds;
+  for (const current of dynamic.localCurrents) {
+    current.x += flowX * 0.08;
+    current.y += flowY * 0.08;
+  }
+  for (const vortex of dynamic.vortices) {
+    vortex.x += flowX * 0.04;
+    vortex.y += flowY * 0.04;
+  }
+  for (const patch of dynamic.crustPatches) {
+    patch.x += flowX * 0.025;
+    patch.y += flowY * 0.025;
+  }
   for (const hotspot of dynamic.hotspots) {
     const local = sampleLocalCurrents(hotspot.x, hotspot.y, dynamic.localCurrents, now);
     hotspot.x += (
@@ -241,13 +272,13 @@ export function updateMagmaDynamicRegion(
       runtime.currentFlowVector.y * 0.48
       + (local.y * 0.34 + hotspot.drift) * advectionScale
     ) * seconds;
-    const bounds = region.bounds;
-    if (
-      hotspot.x < bounds.x - hotspot.radius
-      || hotspot.x > bounds.x + bounds.width + hotspot.radius
-      || hotspot.y < bounds.y - hotspot.radius
-      || hotspot.y > bounds.y + bounds.height + hotspot.radius
-    ) hotspot.deathAt = now;
+    if (!pointIsInsideMagmaRegion(
+      region,
+      hotspot.x,
+      hotspot.y,
+      region.cellWidth || CELL.width,
+      region.cellHeight || CELL.height,
+    )) hotspot.deathAt = now;
   }
 
   for (let index = dynamic.transientVents.length - 1; index >= 0; index -= 1) {

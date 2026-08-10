@@ -73,21 +73,26 @@ export function buildMajorChannels(region, count = MAGMA_VISUAL_CONFIG.majorChan
     const baseControlY1 = Math.max(0, Math.min(height, startY + (random() - 0.5) * bend));
     const baseControlY2 = Math.max(0, Math.min(height, endY + (random() - 0.5) * bend));
     const baseRadius = 12 + random() * 20;
+    const controlX1 = width * (0.2 + random() * 0.1);
+    const controlX2 = width * (0.68 + random() * 0.12);
+    const channelPhase = random() * TAU;
     return {
       id: `${region.id}-channel-${index}`,
       startX: -width * 0.06,
       startY,
-      controlX1: width * (0.2 + random() * 0.1),
+      baseStartY: startY,
+      controlX1,
       controlY1: baseControlY1,
       baseControlY1,
-      controlX2: width * (0.68 + random() * 0.12),
+      controlX2,
       controlY2: baseControlY2,
       baseControlY2,
       endX: width * 1.06,
       endY,
+      baseEndY: endY,
       radius: baseRadius,
       baseRadius,
-      phase: random() * TAU,
+      phase: channelPhase,
       speed: 0.72 + random() * 0.68,
       strength: 0.64 + random() * 0.2,
       swayAmplitude1: 8 + random() * Math.max(12, height * 0.12),
@@ -96,6 +101,10 @@ export function buildMajorChannels(region, count = MAGMA_VISUAL_CONFIG.majorChan
       swaySpeed2: 0.13 + random() * 0.22,
       widthPulsePhase: random() * TAU,
       widthPulseSpeed: 0.22 + random() * 0.3,
+      endpointAmplitudeStart: 3 + (Math.sin(channelPhase) * 0.5 + 0.5) * 2.5,
+      endpointAmplitudeEnd: 3 + (Math.cos(channelPhase * 1.37) * 0.5 + 0.5) * 3,
+      endpointSpeedStart: 0.04 + (Math.sin(channelPhase * 2.1) * 0.5 + 0.5) * 0.04,
+      endpointSpeedEnd: 0.035 + (Math.cos(channelPhase * 1.8) * 0.5 + 0.5) * 0.04,
       branches: random() > 0.28 ? [{
         start: 0.2 + random() * 0.22,
         end: 0.64 + random() * 0.24,
@@ -108,7 +117,13 @@ export function buildMajorChannels(region, count = MAGMA_VISUAL_CONFIG.majorChan
   });
 }
 
-export function getDynamicChannelGeometry(channel, time = 0) {
+export function getDynamicChannelGeometry(channel, time = 0, target = {}) {
+  const startY = (channel.baseStartY ?? channel.startY)
+    + Math.sin(time * (channel.endpointSpeedStart || 0) + channel.phase * 0.73)
+      * (channel.endpointAmplitudeStart || 0);
+  const endY = (channel.baseEndY ?? channel.endY)
+    + Math.sin(time * (channel.endpointSpeedEnd || 0) + channel.phase * 1.81)
+      * (channel.endpointAmplitudeEnd || 0);
   const controlY1 = (channel.baseControlY1 ?? channel.controlY1)
     + Math.sin(time * (channel.swaySpeed1 || 0) + channel.phase) * (channel.swayAmplitude1 || 0);
   const controlY2 = (channel.baseControlY2 ?? channel.controlY2)
@@ -116,7 +131,30 @@ export function getDynamicChannelGeometry(channel, time = 0) {
   const radius = (channel.baseRadius ?? channel.radius) * (
     1 + Math.sin(time * (channel.widthPulseSpeed || 0) + (channel.widthPulsePhase || 0)) * 0.18
   );
-  return { ...channel, controlY1, controlY2, radius };
+  target.id = channel.id;
+  target.startX = channel.startX;
+  target.startY = startY;
+  target.controlX1 = channel.controlX1;
+  target.controlY1 = controlY1;
+  target.controlX2 = channel.controlX2;
+  target.controlY2 = controlY2;
+  target.endX = channel.endX;
+  target.endY = endY;
+  target.radius = radius;
+  target.phase = channel.phase;
+  target.speed = channel.speed;
+  target.strength = channel.strength;
+  target.branches = channel.branches;
+  target.timeMs = time * 1000;
+  return target;
+}
+
+export function buildDynamicChannelFrame(channels, time = 0, reusable = []) {
+  reusable.length = channels.length;
+  for (let index = 0; index < channels.length; index += 1) {
+    reusable[index] = getDynamicChannelGeometry(channels[index], time, reusable[index] || {});
+  }
+  return reusable;
 }
 
 export function getChannelPoint(channel, progress, time = 0) {
@@ -140,14 +178,20 @@ function branchEnvelope(branch, progress, timeMs) {
   return spatial * temporal;
 }
 
-function sampleChannels(channels, localX, localY, regionWidth, flowFrame, time) {
+function sampleChannels(dynamicChannels, localX, localY, regionWidth, flowFrame) {
   let river = 0;
   let hotspot = 0;
   let longitudinal = 0;
-  for (const channel of channels) {
-    const geometry = getDynamicChannelGeometry(channel, time);
+  for (const geometry of dynamicChannels) {
+    const channel = geometry;
     const progress = clamp01((localX - channel.startX) / Math.max(1, channel.endX - channel.startX));
-    const point = getChannelPoint(channel, progress, time);
+    const pointY = cubic(
+      geometry.startY,
+      geometry.controlY1,
+      geometry.controlY2,
+      geometry.endY,
+      progress,
+    );
     const advectedX = localX - flowFrame.offsetX;
     const rippleProgress = (advectedX - channel.startX) / Math.max(1, channel.endX - channel.startX);
     const widthWave = Math.max(0.58, Math.min(1.18,
@@ -160,15 +204,15 @@ function sampleChannels(channels, localX, localY, regionWidth, flowFrame, time) 
       Math.sin(rippleProgress * TAU * 2.2 + channel.phase) * 0.26
       + Math.sin(rippleProgress * TAU * 5.6 - channel.phase * 0.7) * 0.11
     ) * geometry.radius;
-    const distance = Math.abs(localY - point.y - ripple);
+    const distance = Math.abs(localY - pointY - ripple);
     const continuity = 0.62 + 0.38 * (
       0.5 + 0.5 * Math.sin(rippleProgress * TAU * 2.85 + channel.phase * 1.6)
     );
     let channelHeat = (1 - smoothstep(localRadius * 0.32, localRadius, distance)) * continuity;
     for (const branch of channel.branches || []) {
-      const envelope = branchEnvelope(branch, progress, time * 1000);
+      const envelope = branchEnvelope(branch, progress, geometry.timeMs);
       if (envelope <= 0) continue;
-      const branchDistance = Math.abs(localY - point.y - ripple - branch.offset * envelope);
+      const branchDistance = Math.abs(localY - pointY - ripple - branch.offset * envelope);
       const branchRadius = geometry.radius * (0.46 + branch.strength * 0.32);
       const branchHeat = (1 - smoothstep(branchRadius * 0.32, branchRadius, branchDistance))
         * envelope
@@ -202,6 +246,7 @@ export function sampleMagmaField({
   flowFrame,
   dynamic,
   dynamicSample,
+  dynamicChannels,
 }) {
   const thermal = getMagmaThermalVisual(thermalState);
   const flow = flowFrame || getMagmaFlowFrame({
@@ -295,7 +340,14 @@ export function sampleMagmaField({
     + (flowStreak - 0.5) * 0.09
   ) * liquidMask;
 
-  const channel = sampleChannels(channels, localX, localY, region.bounds.width, flow, time);
+  const resolvedChannels = dynamicChannels || buildDynamicChannelFrame(channels, time);
+  const channel = sampleChannels(
+    resolvedChannels,
+    localX,
+    localY,
+    region.bounds.width,
+    flow,
+  );
   const riverInfluence = smoothstep(0.46, 0.84, channel.river);
   const riverHeat = 0.44
     + channel.river * (0.17 + liquidFlow * 0.12)
@@ -327,6 +379,7 @@ export function calibrateMagmaCrustThreshold(region, channels, config = MAGMA_VI
     thermalState: "stable",
     time: 0,
   });
+  const dynamicChannels = buildDynamicChannelFrame(channels, 0);
   let low = 0.42;
   let high = 0.68;
   for (let pass = 0; pass < 8; pass += 1) {
@@ -350,6 +403,7 @@ export function calibrateMagmaCrustThreshold(region, channels, config = MAGMA_VI
             config: calibrated,
             thermalState: "stable",
             flowFrame,
+            dynamicChannels,
           });
           samples += 1;
           if (field.heat < 0.38) crust += 1;
@@ -401,7 +455,14 @@ export function createMagmaSurfaceFrame(region, resolutionScale, canvasFactory) 
     surfaceCanvas: createSurfaceCanvas(width, height, canvasFactory),
     hotCanvas: createSurfaceCanvas(width, height, canvasFactory),
     crustCanvas: createSurfaceCanvas(width, height, canvasFactory),
-    heatCanvas: createSurfaceCanvas(width, height, canvasFactory),
+    heatCanvas: null,
+    canvasFactory,
+    surfaceImageData: null,
+    hotImageData: null,
+    crustImageData: null,
+    heatImageData: null,
+    dynamicGrid: null,
+    dynamicChannels: [],
     generatedAt: -Infinity,
   };
 }
@@ -415,10 +476,15 @@ function writePixel(data, offset, red, green, blue, alpha = 255) {
 
 function buildDynamicGrid(frame, region, dynamic, time) {
   if (!dynamic) return null;
-  const step = 4;
+  const step = 6;
   const width = Math.ceil((frame.width - 1) / step) + 1;
   const height = Math.ceil((frame.height - 1) / step) + 1;
-  const values = new Float32Array(width * height * 5);
+  let grid = frame.dynamicGrid;
+  if (!grid || grid.step !== step || grid.width !== width || grid.height !== height) {
+    grid = { step, width, height, values: new Float32Array(width * height * 5) };
+    frame.dynamicGrid = grid;
+  }
+  const { values } = grid;
   const scaleX = region.bounds.width / frame.width;
   const scaleY = region.bounds.height / frame.height;
   for (let gridY = 0; gridY < height; gridY += 1) {
@@ -436,11 +502,32 @@ function buildDynamicGrid(frame, region, dynamic, time) {
       values[offset + 4] = sample.hotspotHeat;
     }
   }
-  return { step, width, height, values };
+  return grid;
 }
 
-function sampleDynamicGrid(grid, px, py) {
-  if (!grid) return null;
+function interpolateGridComponent(grid, x0, y0, x1, y1, tx, ty, component) {
+  const top = lerp(
+    grid.values[(y0 * grid.width + x0) * 5 + component],
+    grid.values[(y0 * grid.width + x1) * 5 + component],
+    tx,
+  );
+  const bottom = lerp(
+    grid.values[(y1 * grid.width + x0) * 5 + component],
+    grid.values[(y1 * grid.width + x1) * 5 + component],
+    tx,
+  );
+  return lerp(top, bottom, ty);
+}
+
+function sampleDynamicGridInto(grid, px, py, target) {
+  if (!grid) {
+    target.offsetX = 0;
+    target.offsetY = 0;
+    target.crustHeatDelta = 0;
+    target.crackHeat = 0;
+    target.hotspotHeat = 0;
+    return target;
+  }
   const rawX = px / grid.step;
   const rawY = py / grid.step;
   const x0 = Math.min(grid.width - 1, Math.floor(rawX));
@@ -449,26 +536,21 @@ function sampleDynamicGrid(grid, px, py) {
   const y1 = Math.min(grid.height - 1, y0 + 1);
   const tx = rawX - x0;
   const ty = rawY - y0;
-  const interpolate = (component) => {
-    const top = lerp(
-      grid.values[(y0 * grid.width + x0) * 5 + component],
-      grid.values[(y0 * grid.width + x1) * 5 + component],
-      tx,
-    );
-    const bottom = lerp(
-      grid.values[(y1 * grid.width + x0) * 5 + component],
-      grid.values[(y1 * grid.width + x1) * 5 + component],
-      tx,
-    );
-    return lerp(top, bottom, ty);
-  };
-  return {
-    offsetX: interpolate(0),
-    offsetY: interpolate(1),
-    crustHeatDelta: interpolate(2),
-    crackHeat: interpolate(3),
-    hotspotHeat: interpolate(4),
-  };
+  target.offsetX = interpolateGridComponent(grid, x0, y0, x1, y1, tx, ty, 0);
+  target.offsetY = interpolateGridComponent(grid, x0, y0, x1, y1, tx, ty, 1);
+  target.crustHeatDelta = interpolateGridComponent(grid, x0, y0, x1, y1, tx, ty, 2);
+  target.crackHeat = interpolateGridComponent(grid, x0, y0, x1, y1, tx, ty, 3);
+  target.hotspotHeat = interpolateGridComponent(grid, x0, y0, x1, y1, tx, ty, 4);
+  return target;
+}
+
+function ensureFrameImageData(frame, property, context) {
+  if (!context?.createImageData) return null;
+  const expectedLength = frame.width * frame.height * 4;
+  if (!frame[property]?.data || frame[property].data.length !== expectedLength) {
+    frame[property] = context.createImageData(frame.width, frame.height);
+  }
+  return frame[property];
 }
 
 export function renderMagmaSurfaceFrame(frame, {
@@ -484,12 +566,17 @@ export function renderMagmaSurfaceFrame(frame, {
   const surfaceContext = frame.surfaceCanvas.getContext("2d");
   const hotContext = frame.hotCanvas?.getContext("2d");
   const crustContext = frame.crustCanvas?.getContext("2d");
+  if (config.showHeatmap && !frame.heatCanvas) {
+    frame.heatCanvas = createSurfaceCanvas(frame.width, frame.height, frame.canvasFactory);
+  }
   const heatContext = frame.heatCanvas?.getContext("2d");
   if (!surfaceContext?.createImageData || !surfaceContext?.putImageData) return frame;
-  const surfaceImage = surfaceContext.createImageData(frame.width, frame.height);
-  const hotImage = hotContext?.createImageData(frame.width, frame.height);
-  const crustImage = crustContext?.createImageData(frame.width, frame.height);
-  const heatImage = heatContext?.createImageData(frame.width, frame.height);
+  const surfaceImage = ensureFrameImageData(frame, "surfaceImageData", surfaceContext);
+  const hotImage = ensureFrameImageData(frame, "hotImageData", hotContext);
+  const crustImage = ensureFrameImageData(frame, "crustImageData", crustContext);
+  const heatImage = config.showHeatmap
+    ? ensureFrameImageData(frame, "heatImageData", heatContext)
+    : null;
   const thermal = getMagmaThermalVisual(thermalState);
   const resolvedFlowFrame = flowFrame || getMagmaFlowFrame({
     region,
@@ -500,6 +587,14 @@ export function renderMagmaSurfaceFrame(frame, {
   const scaleX = region.bounds.width / frame.width;
   const scaleY = region.bounds.height / frame.height;
   const dynamicGrid = buildDynamicGrid(frame, region, dynamic, time);
+  const dynamicSample = {
+    offsetX: 0,
+    offsetY: 0,
+    crustHeatDelta: 0,
+    crackHeat: 0,
+    hotspotHeat: 0,
+  };
+  const dynamicChannels = buildDynamicChannelFrame(channels, time, frame.dynamicChannels);
 
   for (let py = 0; py < frame.height; py += 1) {
     const localY = (py + 0.5) * scaleY;
@@ -511,7 +606,8 @@ export function renderMagmaSurfaceFrame(frame, {
         worldX, worldY, localX, localY, region, channels, time, config, thermalState,
         flowFrame: resolvedFlowFrame,
         dynamic,
-        dynamicSample: sampleDynamicGrid(dynamicGrid, px, py),
+        dynamicSample: sampleDynamicGridInto(dynamicGrid, px, py, dynamicSample),
+        dynamicChannels,
       });
       const offset = (py * frame.width + px) * 4;
       const [red, green, blue] = getMagmaColor(sample.heat, thermal.brightness, sample.grain);
