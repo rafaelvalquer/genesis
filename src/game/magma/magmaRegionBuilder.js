@@ -60,14 +60,6 @@ export function buildMagmaRegions(cells = [], { cellWidth = 100, cellHeight = 10
         width: (maxCol - minCol + 1) * cellWidth,
         height: (maxRow - minRow + 1) * cellHeight,
       },
-      // Art can extend beyond this soft mask while cellSet remains the authoritative
-      // placement and damage geometry.
-      visualMask: {
-        clipInset: 0.75,
-        transitionWidth: 30,
-        lowFrequencyAmplitude: 12,
-        wavelength: 92,
-      },
       edges,
       seed: (seed + regions.length * 97) >>> 0,
     });

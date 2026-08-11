@@ -169,7 +169,10 @@ export function getEnemyFrameAnchor(enemyConfig = {}, state = "idle", frame = 0)
 }
 
 export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", frame = 0, aspectRatio = 1) {
-  const scale = enemy.scale || enemyConfig.scale || 1;
+  const altitudeScale = enemy.type === "rasgaCeusCinereo"
+    ? 0.78 + 0.22 * (1 - (enemy.flightAltitude || 0) / Math.max(1, enemy.maximumFlightAltitude || 38))
+    : 1;
+  const scale = (enemy.scale || enemyConfig.scale || 1) * altitudeScale;
   const visualStateScale = enemyConfig.visualStateScale?.[state] || 1;
   const height = DEFAULT_ENEMY_HEIGHT * scale * visualStateScale;
   const width = height * aspectRatio;
@@ -178,7 +181,7 @@ export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", fram
   const stateOffsetX = (enemyConfig.visualStateOffsetX?.[state] || 0) * scale;
   const offsetY = (enemyConfig.visualOffsetY || enemyConfig.spriteOffsetY || 0) * scale;
   const stateOffsetY = (enemyConfig.visualStateOffsetY?.[state] || 0) * scale;
-  const anchorY = enemy.y + offsetY + stateOffsetY
+  const anchorY = enemy.y - (enemy.type === "rasgaCeusCinereo" ? (enemy.flightAltitude || 0) : 0) + offsetY + stateOffsetY
     + (enemyConfig.airborne ? 0 : CELL.height * 0.43);
   return {
     x: enemy.x + offsetX + stateOffsetX - width * anchor.x,
@@ -267,6 +270,13 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     if (duration && !["submergedPatrol", "tideEscape"].includes(state)) {
       return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
     }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 90)) % count };
+  }
+
+  if (enemyConfig.id === "rasgaCeusCinereo") {
+    const state = enemy.dead ? "death" : ["diving", "strike"].includes(enemy.rasgaCeusState) ? "diveAttack" : "flying";
+    const count = Math.max(1, frameCounts[state] || frameCounts.flying || 1);
+    const age = Math.max(0, elapsed - (enemy.rasgaCeusStateStartedAt || enemy.spawnedAt || 0));
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 90)) % count };
   }
 

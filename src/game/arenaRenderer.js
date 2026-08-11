@@ -872,8 +872,8 @@ export function getPlacementPreviewGeometry(session, selectedTroop, hoveredCell,
       x1: Math.min(FIELD.width, (col + Math.floor(config.range) + 1) * CELL.width),
       y1: (row + 1) * CELL.height,
       blindX0: Math.min(FIELD.width, (col + 1) * CELL.width),
-    } : hasAttackRange ? {
-      x0: x,
+  } : hasAttackRange ? {
+      x0: x + (config.minRange || 0) * CELL.width,
       y0: y,
       x1: Math.min(FIELD.width, x + config.range * CELL.width),
       y1: y,

@@ -2,7 +2,7 @@ import { createMagmaFlowRuntime, prepareMagmaFlowRuntime } from "./magma/magmaFl
 import { drawMagmaEruptions } from "./magma/magmaEruptionRenderer.js";
 import { drawMagmaSmoke } from "./magma/magmaHeatRenderer.js";
 import { drawMagmaParticles } from "./magma/magmaParticleRenderer.js";
-import { drawMagmaSurface } from "./magma/magmaRiverRenderer.js";
+import { drawMagmaGround } from "./magma/magmaGroundRenderer.js";
 
 let fallbackRuntime = createMagmaFlowRuntime();
 
@@ -21,10 +21,7 @@ export function drawMagmaTerrainBase(
   graphicsRuntime,
 ) {
   if (!session?.phase?.magmaTerrain?.cells?.length) return;
-  const runtime = getRuntime(graphicsRuntime);
-  const nextRuntime = drawMagmaSurface(ctx, session, runtime, time, settings, adaptive);
-  if (graphicsRuntime) graphicsRuntime.magma = nextRuntime;
-  else fallbackRuntime = nextRuntime;
+  drawMagmaGround(ctx, session, time, { ...settings, thermalState: session.thermalCycle?.state });
 }
 
 export function drawMagmaTerrainEffects(

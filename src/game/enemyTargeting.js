@@ -21,3 +21,11 @@ export function isEnemyTargetable(enemy) {
   if (enemy.type === "leviathanNereida") return Boolean(enemy.leviathanTargetable);
   return true;
 }
+
+export function canTroopTargetEnemy(session, troop, troopConfig, enemy, enemyConfig = {}) {
+  if (!isEnemyTargetable(enemy)) return false;
+  if (!enemyConfig.airborne) return true;
+  if (troopConfig?.canTargetAir) return true;
+  const ranged = troopConfig?.range > 0 || ["bullet", "flame", "arcane", "missile", "projectile", "droneVolley", "janoDual"].includes(troopConfig?.attack);
+  return Boolean(enemy.groundRangedTargetable && ranged);
+}

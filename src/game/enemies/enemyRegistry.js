@@ -12,6 +12,8 @@ import { mordelumeBehavior } from "./chapter05/mordelume.js";
 import { carapacaNereidaBehavior } from "./chapter05/carapacaNereida.js";
 import { medusaVeuSalinoBehavior } from "./chapter05/medusaVeuSalino.js";
 import { leviathanNereidaBehavior } from "./chapter05/leviathanNereida.js";
+import { salamandraCinereaBehavior } from "./salamandraCinerea.js";
+import { rasgaCeusCinereoBehavior } from "./chapter06/rasgaCeusCinereo.js";
 
-export const ENEMY_BEHAVIORS = Object.freeze({ scarabEmperor: scarabEmperorBehavior, workerQueen: workerQueenBehavior, workerQueenEgg: workerQueenEggBehavior, duneRipper: duneRipperBehavior, voltriz: voltrizBehavior, gorjal: gorjalBehavior, nimbarca: nimbarcaBehavior, derivante: derivanteBehavior, raizFulgor: raizFulgorBehavior, enguiaRasgamar: enguiaRasgamarBehavior, mordelume: mordelumeBehavior, carapacaNereida: carapacaNereidaBehavior, medusaVeuSalino: medusaVeuSalinoBehavior, leviathanNereida: leviathanNereidaBehavior });
+export const ENEMY_BEHAVIORS = Object.freeze({ scarabEmperor: scarabEmperorBehavior, workerQueen: workerQueenBehavior, workerQueenEgg: workerQueenEggBehavior, duneRipper: duneRipperBehavior, voltriz: voltrizBehavior, gorjal: gorjalBehavior, nimbarca: nimbarcaBehavior, derivante: derivanteBehavior, raizFulgor: raizFulgorBehavior, enguiaRasgamar: enguiaRasgamarBehavior, mordelume: mordelumeBehavior, carapacaNereida: carapacaNereidaBehavior, medusaVeuSalino: medusaVeuSalinoBehavior, leviathanNereida: leviathanNereidaBehavior, salamandraCinerea: salamandraCinereaBehavior, rasgaCeusCinereo: rasgaCeusCinereoBehavior });
 export function getEnemyBehavior(type) { return ENEMY_BEHAVIORS[type] || GENERIC_ENEMY_BEHAVIOR; }

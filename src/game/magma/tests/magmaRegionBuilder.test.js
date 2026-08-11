@@ -21,13 +21,6 @@ describe("magmaRegionBuilder", () => {
     expect(region.edges.some((edge) => edge.row === 2 && edge.col === 5 && edge.direction === "west")).toBe(false);
   });
 
-  it("keeps the artistic mask separate from logical cells", () => {
-    const [region] = buildMagmaRegions([[2, 4], [2, 5]]);
-    expect(region.visualMask).toMatchObject({ transitionWidth: 30, lowFrequencyAmplitude: 12 });
-    expect(region.cellSet.has("2:4")).toBe(true);
-    expect(region.cellSet.has("1:4")).toBe(false);
-  });
-
   it("é determinístico independentemente da ordem de entrada", () => {
     const first = buildMagmaRegions(centralLake, { seed: 99 });
     const second = buildMagmaRegions([...centralLake].reverse(), { seed: 99 });

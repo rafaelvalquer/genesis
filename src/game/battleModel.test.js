@@ -349,6 +349,54 @@ describe("Artilheira de Morteiro", () => {
     expect(projectile.targetY).toBe(initialTarget.y);
     expect(target.hp).toBe(100);
   });
+  it("prevê a posição de um inimigo rápido no momento da explosão", () => {
+    const target = { ...targetAt("fast", 5, 0, 10), speed: 20 };
+    const session = createMortarSession([target]);
+
+    stepBattle(session, 1);
+    const projectile = session.projectiles[0];
+    const predictionMs = TROOPS.artilheiraMorteiro.attackVisual.shots[0].atMs
+      + TROOPS.artilheiraMorteiro.projectileFlightMs;
+    expect(projectile.targetX).toBeCloseTo(target.x - target.speed * predictionMs / 1000, 1);
+    expect(projectile.targetX).toBeGreaterThan(target.x - CELL.width);
+  });
+
+  it("mantém a posição atual para um inimigo parado", () => {
+    const target = targetAt("stationary", 5, 0, 10);
+    const session = createMortarSession([target]);
+
+    stepBattle(session, 1);
+    expect(session.projectiles[0].targetX).toBeCloseTo(target.x);
+  });
+
+  it("limita a previsão ao alcance válido do morteiro", () => {
+    const target = { ...targetAt("too_fast", 5, 0, 10), speed: 9999 };
+    const session = createMortarSession([target]);
+
+    stepBattle(session, 1);
+    const projectile = session.projectiles[0];
+    const troop = session.troops[0];
+    expect(projectile.targetX).toBeCloseTo(
+      troop.x + TROOPS.artilheiraMorteiro.minRange * CELL.width,
+    );
+  });
+
+  it("mantém o ponto previsto mesmo quando o alvo morre durante o voo", () => {
+    const target = { ...targetAt("doomed", 5, 0, 10), speed: 20 };
+    const session = createMortarSession([target]);
+
+    stepBattle(session, 1);
+    const projectile = session.projectiles[0];
+    const predictedX = projectile.targetX;
+    target.dead = true;
+    target.hp = 0;
+    stepBattle(session, TROOPS.artilheiraMorteiro.attackVisual.shots[0].atMs
+      + TROOPS.artilheiraMorteiro.projectileFlightMs);
+
+    expect(projectile.targetX).toBe(predictedX);
+    expect(target.hp).toBe(0);
+    expect(session.projectiles).toHaveLength(0);
+  });
 });
 
 describe("Colosso de Impacto", () => {

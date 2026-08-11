@@ -830,7 +830,10 @@ body:has(.test-page) {
   max-height: none;
   overflow: hidden;
 }
-.sandbox-battle .troop-rail { max-height: none; overflow: visible; }
+.sandbox-battle .troop-rail {
+  max-height: calc(100vh - 160px);
+  overflow: hidden;
+}
 .sandbox-battle .troop-grid,
 .sandbox-panel {
   min-height: 0;

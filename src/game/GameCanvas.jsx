@@ -1281,6 +1281,37 @@ function drawLeviathanBossHealth(ctx, entity) {
   ctx.restore();
 }
 
+function drawRasgaCeusShadow(ctx, enemy) {
+  const ratio = Math.min(1, Math.max(0, enemy.flightAltitude || 0) / Math.max(1, enemy.maximumFlightAltitude || 38));
+  ctx.save();
+  ctx.fillStyle = `rgba(15,23,42,${0.3 - ratio * 0.2})`;
+  ctx.beginPath();
+  ctx.ellipse(enemy.x, enemy.y, 30 * (1 - ratio * 0.52), 8 * (1 - ratio * 0.45), 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawRasgaCeusTargetMarker(ctx, session, enemy) {
+  if (enemy.rasgaCeusState !== "targeting" || !enemy.diveTargetId) return;
+  const target = session.troops.find((troop) => troop.id === enemy.diveTargetId && !troop.dead);
+  if (!target) return;
+  const pulse = 0.5 + 0.5 * Math.sin(session.elapsed / 90);
+  ctx.save();
+  ctx.strokeStyle = `rgba(251,113,133,${0.45 + pulse * 0.35})`;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(target.x, target.y - 42, 22 + pulse * 4, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "#fb7185";
+  ctx.beginPath();
+  ctx.moveTo(target.x, target.y - 66 - pulse * 3);
+  ctx.lineTo(target.x - 6, target.y - 78 - pulse * 3);
+  ctx.lineTo(target.x + 6, target.y - 78 - pulse * 3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   if (isRasgamarShadowOnly(logicalEntity, session.elapsed)) return;
@@ -1387,6 +1418,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.textAlign = "center";
     ctx.fillText(`${config.label.toUpperCase()} ALFA`, scratch.x, Math.max(30, scratch.y - 76 * logicalEntity.scale));
   }
+  drawRasgaCeusTargetMarker(ctx, session, logicalEntity);
 }
 
 function drawThermalPlatforms(ctx, session, assets) {
@@ -1424,6 +1456,8 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       const leviathanShadowOnly = entry.kind === "enemy" && isLeviathanShadowOnly(entity, session.elapsed);
       if (rasgamarShadowOnly) {
         drawRasgamarUnderwaterShadow(ctx, buffers.position, session.elapsed, settings);
+      } else if (entry.kind === "enemy" && entity.type === "rasgaCeusCinereo") {
+        drawRasgaCeusShadow(ctx, entity);
       } else if (!leviathanShadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
         const emergenceScale = entry.kind === "enemy"
           ? 0.2 + 0.8 * silicaDiggerEmergenceProgress(entity, session.elapsed)

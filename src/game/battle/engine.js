@@ -95,7 +95,7 @@ import {
   createDematerializationPulseState,
   getDematerializationPulseTargets,
 } from "../dematerializationPulse.js";
-import { isEnemyTargetable, isRasgamarSubmerged, RASGAMAR_SUBMERGED_STATES } from "../enemyTargeting.js";
+import { canTroopTargetEnemy, isEnemyTargetable, isRasgamarSubmerged, RASGAMAR_SUBMERGED_STATES } from "../enemyTargeting.js";
 import {
   getBattleIndex,
   livingEnemyById,
@@ -1321,9 +1321,172 @@ function createEnemyRuntime(session) {
     updateCarapacaNereida: (enemy, config, dt, events) => updateCarapacaNereida(session, enemy, config, dt, events),
     updateMedusaVeuSalino: (enemy, config, dt, events) => updateMedusaVeuSalino(session, enemy, config, dt, events),
     updateMordelume: (enemy, config, dt, events) => updateMordelume(session, enemy, config, dt, events),
+    updateSalamandra: (enemy, config, dt, events) => updateSalamandra(session, enemy, config, dt, events),
+    updateRasgaCeus: (enemy, config, dt, events) => updateRasgaCeus(session, enemy, config, dt, events),
     updateLeviathan: (enemy, config, events) => updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events),
     setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
   };
+}
+
+function updateSalamandra(session, enemy, config, dt, events) {
+  if (enemy.meleeAttackPending) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.meleeImpactAt) {
+      const biteTarget = session.troops.find((troop) => troop.id === enemy.meleeTargetId && !troop.dead);
+      if (biteTarget && biteTarget.row === enemy.row && enemy.x - biteTarget.x <= troopBlockDistance(biteTarget)) {
+        damageTroop(session, biteTarget, enemy.damage, events);
+        events.push({ type: "salamandraBite", sourceEnemyId: enemy.id, targetTroopId: biteTarget.id, x: biteTarget.x, y: biteTarget.y });
+      }
+      enemy.meleeAttackPending = false;
+      enemy.meleeImpactAt = Infinity;
+      enemy.meleeTargetId = null;
+    }
+    return;
+  }
+  const target = closestTroopForEnemy(session, enemy);
+  const distance = target ? enemy.x - target.x : Infinity;
+  const charging = session.elapsed < enemy.salamandraChargeUntil;
+  if (!charging && config.charge.enabled && target && distance >= config.charge.minDistance && distance <= config.charge.maxDistance
+    && session.elapsed >= enemy.salamandraNextChargeAt) {
+    enemy.salamandraChargeUntil = session.elapsed + config.charge.durationMs;
+    enemy.salamandraCharges += 1;
+    enemy.salamandraNextChargeAt = session.elapsed + config.charge.cooldownMs;
+    session.metrics ??= {};
+    session.metrics.salamanderCharges = (session.metrics.salamanderCharges || 0) + 1;
+  }
+  if (target && distance <= troopBlockDistance(target)) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      enemy.meleeAttackPending = true;
+      enemy.meleeAttackStartedAt = session.elapsed;
+      enemy.meleeImpactAt = session.elapsed + config.attackVisual.impactMs;
+      enemy.meleeTargetId = target.id;
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+    }
+    return;
+  }
+  enemy.moving = true;
+  const originalSpeed = enemy.speed;
+  if (charging) enemy.speed *= config.charge.speedMultiplier;
+  moveEnemy(session, enemy, dt, events);
+  enemy.speed = originalSpeed;
+}
+
+function setRasgaCeusState(session, enemy, state, durationMs = Infinity) {
+  enemy.rasgaCeusState = state;
+  enemy.rasgaCeusStateStartedAt = session.elapsed;
+  enemy.rasgaCeusStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+}
+
+function rasgaCeusTargetScore(session, enemy, troop) {
+  const config = TROOPS[troop.type] || {};
+  const weight = config.role === "support" || config.tags?.includes("support") ? 3
+    : config.range >= 5 ? 2 : config.tags?.includes("frontline") ? 1 : 1.5;
+  return weight + session.rng() * 0.15 - Math.abs(enemy.x - troop.x) / (CELL.width * 100);
+}
+
+function selectRasgaCeusTarget(session, enemy, config) {
+  return session.troops
+    .filter((troop) => !troop.dead && troop.row === enemy.row
+      && troop.type !== "thermalPlatform" && troop.unitKind !== "support"
+      && enemy.x - troop.x >= -config.huntAheadTiles * CELL.width
+      && enemy.x - troop.x <= config.huntBehindTiles * CELL.width)
+    .sort((left, right) => rasgaCeusTargetScore(session, enemy, right) - rasgaCeusTargetScore(session, enemy, left))[0] || null;
+}
+
+function rasgaCeusBezier(p0, p1, p2, p3, t) {
+  const u = 1 - t;
+  return u ** 3 * p0 + 3 * u ** 2 * t * p1 + 3 * u * t ** 2 * p2 + t ** 3 * p3;
+}
+
+function updateRasgaCeus(session, enemy, config, dt, events) {
+  const state = enemy.rasgaCeusState;
+  enemy.airborne = true;
+  enemy.moving = true;
+  enemy.groundRangedTargetable = enemy.flightAltitude <= config.groundTargetAltitude;
+  if (state === "spawnFlight") {
+    const progress = Math.min(1, (session.elapsed - enemy.rasgaCeusStateStartedAt) / 700);
+    enemy.flightAltitude = config.maximumFlightAltitude - (config.maximumFlightAltitude - config.cruiseAltitude) * progress;
+    if (progress >= 1) setRasgaCeusState(session, enemy, "cruise");
+    moveEnemy(session, enemy, dt, events);
+    return;
+  }
+  if (state === "targeting") {
+    const target = session.troops.find((troop) => troop.id === enemy.diveTargetId && !troop.dead);
+    if (!target) {
+      enemy.diveTargetId = null;
+      enemy.nextDiveAt = session.elapsed + 1800;
+      setRasgaCeusState(session, enemy, "cruise");
+      return;
+    }
+    enemy.speed = config.speed * 0.65;
+    moveEnemy(session, enemy, dt, events);
+    enemy.speed = config.speed;
+    if (session.elapsed >= enemy.rasgaCeusStateEndsAt) {
+      enemy.diveFromX = enemy.x;
+      enemy.diveFromAltitude = enemy.flightAltitude;
+      enemy.diveTargetX = target.x;
+      enemy.diveTargetY = target.y;
+      enemy.diveStartedAt = session.elapsed;
+      enemy.strikeConsumed = false;
+      setRasgaCeusState(session, enemy, "diving", config.diveDurationMs);
+      session.metrics ??= {};
+      session.metrics.rasgaCeusDives = (session.metrics.rasgaCeusDives || 0) + 1;
+    }
+    return;
+  }
+  if (state === "diving") {
+    const progress = Math.min(1, (session.elapsed - enemy.diveStartedAt) / config.diveDurationMs);
+    enemy.x = rasgaCeusBezier(enemy.diveFromX, enemy.diveFromX + 35, enemy.diveTargetX + 25, enemy.diveTargetX, progress);
+    enemy.flightAltitude = enemy.diveFromAltitude * (1 - progress);
+    enemy.groundRangedTargetable = true;
+    if (progress >= 1) setRasgaCeusState(session, enemy, "strike", 120);
+    return;
+  }
+  if (state === "strike") {
+    enemy.flightAltitude = 0;
+    if (!enemy.strikeConsumed) {
+      const target = session.troops.find((troop) => troop.id === enemy.diveTargetId && !troop.dead);
+      if (target && target.row === enemy.row && Math.abs(target.x - enemy.diveTargetX) <= CELL.width * 0.7) {
+        damageTroop(session, target, config.damage, events);
+        session.metrics ??= {};
+        session.metrics.rasgaCeusSuccessfulStrikes = (session.metrics.rasgaCeusSuccessfulStrikes || 0) + 1;
+        events.push({ type: "rasgaCeusStrike", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y });
+      }
+      enemy.strikeConsumed = true;
+    }
+    if (session.elapsed >= enemy.rasgaCeusStateEndsAt) setRasgaCeusState(session, enemy, "climbing", config.climbDurationMs);
+    return;
+  }
+  if (state === "climbing") {
+    const progress = Math.min(1, (session.elapsed - enemy.rasgaCeusStateStartedAt) / config.climbDurationMs);
+    enemy.x -= config.speed * dt / 1000;
+    enemy.flightAltitude = config.cruiseAltitude * progress;
+    enemy.groundRangedTargetable = enemy.flightAltitude <= config.groundTargetAltitude;
+    if (progress >= 1) {
+      enemy.nextDiveAt = session.elapsed + config.diveCooldownMs + Math.floor(session.rng() * 2000);
+      enemy.diveTargetId = null;
+      setRasgaCeusState(session, enemy, "cruise");
+    }
+    return;
+  }
+  if (state === "cruise") {
+    enemy.flightAltitude = config.cruiseAltitude;
+    enemy.groundRangedTargetable = false;
+    if (session.elapsed >= enemy.nextDiveAt) {
+      const target = selectRasgaCeusTarget(session, enemy, config);
+      if (target) {
+        enemy.diveTargetId = target.id;
+        setRasgaCeusState(session, enemy, "targeting", config.targetLockMs);
+        session.metrics ??= {};
+        session.metrics.rasgaCeusTargetsMarked = (session.metrics.rasgaCeusTargetsMarked || 0) + 1;
+        events.push({ type: "rasgaCeusTargetMarked", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y });
+        return;
+      }
+    }
+    moveEnemy(session, enemy, dt, events);
+  }
 }
 
 function createEnemy(session, queued) {
@@ -1445,7 +1608,7 @@ export function spawnEnemy(session, {
 } = {}) {
   if (!session.sandbox) return { ok: false, reason: "Spawn manual disponível apenas no Campo de Provas.", enemies: [], events: [] };
   if (!ENEMIES[type] || ENEMIES[type].hiddenFromCatalog) return { ok: false, reason: "Inimigo desconhecido.", enemies: [], events: [] };
-  if (ENEMIES[type].debugOnly && !session.sandbox) return { ok: false, reason: "Chefe disponível apenas no Campo de Provas.", enemies: [], events: [] };
+  if ((ENEMIES[type].debugOnly || ENEMIES[type].testOnly) && !session.sandbox) return { ok: false, reason: "Inimigo disponível apenas no Campo de Provas.", enemies: [], events: [] };
   const amount = clamp(Math.floor(Number(count) || 1), 1, 50);
   const targetRow = clamp(Math.floor(Number(row) || 0), 0, FIELD.rows - 1);
   const enemies = [];
@@ -1548,7 +1711,8 @@ function closestEnemy(session, troop, config) {
   const rowEnemies = enemiesForRow(session, troop.row);
   for (const enemy of rowEnemies) {
     if (!enemyOccupiesTargetRow(enemy, troop.row) || enemy.x < originX
-      || enemy.x - originX > config.range * CELL.width) continue;
+      || enemy.x - originX > config.range * CELL.width
+      || !canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type])) continue;
     if (!closest || enemy.x < closest.x) closest = enemy;
   }
   return closest;
@@ -1610,7 +1774,13 @@ function mortarTargetGroup(session, troop, config) {
   }
   return selectedCol < 0
     ? null
-    : { target: mortarTargetEntities[selectedCol], row: troop.row, col: selectedCol };
+    : {
+      target: mortarTargetEntities[selectedCol],
+      row: troop.row,
+      col: selectedCol,
+      targetX: mortarTargetEntities[selectedCol].x,
+      targetSpeed: getEffectiveEnemyMoveSpeed(session, mortarTargetEntities[selectedCol]),
+    };
 }
 
 function nextEffectSeed(session) {
@@ -1993,6 +2163,17 @@ function notifyEnemyDeath(session, enemy, events, context = {}) {
 
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
+  if (enemy.type === "rasgaCeusCinereo") {
+    session.metrics ??= {};
+    if (enemy.flightAltitude <= ENEMIES.rasgaCeusCinereo.groundTargetAltitude && context.ranged) {
+      session.metrics.rasgaCeusGroundWindowDamageTaken = (session.metrics.rasgaCeusGroundWindowDamageTaken || 0) + Math.max(0, amount);
+    }
+    if (amount >= enemy.hp) {
+      const metric = ["diving", "strike", "climbing"].includes(enemy.rasgaCeusState)
+        ? "rasgaCeusKilledDuringDive" : enemy.flightAltitude > ENEMIES.rasgaCeusCinereo.groundTargetAltitude ? "rasgaCeusKilledHighAltitude" : null;
+      if (metric) session.metrics[metric] = (session.metrics[metric] || 0) + 1;
+    }
+  }
   getEnemyBehavior(enemy.type).receiveDamage(createEnemyRuntime(session), enemy, amount, events, context);
   if (isRasgamarSubmerged(enemy)) {
     return;
@@ -2600,7 +2781,15 @@ export function fireDroneSentinela(session, troop, config, target, events = []) 
 
 function fireMortar(session, troop, config, group) {
   const origin = getMuzzleWorldPosition(troop, config, 0);
-  const targetX = group.col * CELL.width + CELL.width / 2;
+  const launchDelayMs = config.attackVisual.shots?.[0]?.atMs || 0;
+  const predictionMs = launchDelayMs + config.projectileFlightMs;
+  const minimumTargetX = troop.x + config.minRange * CELL.width;
+  const maximumTargetX = Math.min(FIELD.width, troop.x + config.range * CELL.width);
+  const targetX = clamp(
+    group.targetX - group.targetSpeed * predictionMs / 1000,
+    Math.max(0, minimumTargetX),
+    maximumTargetX,
+  );
   const targetY = group.row * CELL.height + CELL.height * 0.85;
   session.projectiles.push({
     id: id("projectile"), kind: "mortar", visualKind: config.attackVisual.effect,
