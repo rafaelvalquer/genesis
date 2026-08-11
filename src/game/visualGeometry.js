@@ -240,6 +240,20 @@ export function getLeviathanHitPointForRow(enemy, enemyConfig = {}, troopRow, st
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "cuspidorBrasa") {
+    const logicalState = enemy.cuspidorState || (enemy.moving ? "walking" : "idle");
+    const state = enemy.dead ? "death"
+      : logicalState === "attack" ? "attack"
+        : logicalState === "walking" || logicalState === "reposition" ? "walking" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.cuspidorStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    if (state === "attack") {
+      const frameMs = Math.max(1, enemyConfig.animationFrameMs?.attack || 150);
+      return { state, frame: Math.min(count - 1, Math.floor(age / frameMs)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
   if (enemyConfig.id === "vermeIncubador") {
     const state = enemy.dead ? "death"
       : enemy.incubatorState === "attack" || enemy.incubatorState === "incubateAttack" ? "attack"

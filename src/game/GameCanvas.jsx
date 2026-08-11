@@ -849,6 +849,33 @@ function drawPhysicalStunEffect(ctx, troop, elapsed, settings) {
   ctx.restore();
 }
 
+function drawAresThermalShield(ctx, troop, settings) {
+  if (troop.type !== "aresT") return;
+  const max = Math.max(1, TROOPS.aresT.thermalShield.maxHp);
+  const current = Math.max(0, Math.min(max, Number(troop.thermalShieldHp) || 0));
+  const pips = Math.ceil(max / 3);
+  const filled = Math.round(current / max * pips);
+  ctx.save();
+  ctx.globalAlpha = current > 0 ? 0.95 : 0.42;
+  ctx.shadowColor = "#22d3ee";
+  ctx.shadowBlur = settings.reduceMotion ? 3 : 7;
+  for (let index = 0; index < pips; index += 1) {
+    const x = troop.x + (index - (pips - 1) / 2) * 8;
+    ctx.fillStyle = index < filled ? "#67e8f9" : "rgba(8,47,73,.8)";
+    ctx.strokeStyle = "#cffafe";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, troop.y - 76);
+    ctx.lineTo(x + 3, troop.y - 72);
+    ctx.lineTo(x, troop.y - 68);
+    ctx.lineTo(x - 3, troop.y - 72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed, settings) {
   if (!preview || !selectedTroop) return;
   const config = TROOPS[selectedTroop];
@@ -1141,6 +1168,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings);
   drawPhysicalStunEffect(ctx, logicalEntity, session.elapsed, settings);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
+  drawAresThermalShield(ctx, logicalEntity, settings);
   if (logicalEntity.type === "droneSentinela") {
     ctx.save();
     ctx.font = "700 13px Inter, sans-serif";

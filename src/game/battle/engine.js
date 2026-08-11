@@ -1,4 +1,4 @@
-import { DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "../content.js";
+import { DAMAGE_TYPES, DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "../content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "../domain.js";
 import { CHAPTER_FIVE_PACKETS } from "../chapterFivePackets.js";
 import {
@@ -41,6 +41,7 @@ import {
   updateInterceptadorIcaro,
 } from "../interceptadorIcaro.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
+import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
 import { getBastiaoFloodedDamageFactor, recordBastiaoDamage, updateBastiaoMare } from "../bastiaoMare.js";
 import {
   createWindCurrentState,
@@ -426,7 +427,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     thermalCycle: { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox },
     temporaryMagmaHazards: [],
     supportStructures: [],
-    thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0, platformRenewals: 0 },
+    thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0, platformRenewals: 0, aresShieldGained: 0, aresShieldAbsorbed: 0 },
     troopConfigs: TROOPS,
     deployCooldowns: {},
     modifiers: { ...DEFAULT_MODIFIERS },
@@ -489,6 +490,10 @@ export function canPlaceTroop(session, troopId, row, col) {
   const magma = isSessionMagmaCell(session, row, col);
   const thermalPlatform = troopId === "thermalPlatform";
   const existingPlatform = getThermalPlatformAt(session, row, col);
+  if (thermalPlatform && session.troops.some((entry) => !entry.dead && entry.type === "aresT" && entry.row === row && entry.col === col)) {
+    return "ARES-T já possui proteção térmica própria.";
+  }
+  if (troopId === "aresT" && existingPlatform) return "ARES-T já possui proteção térmica própria.";
   if (thermalPlatform && !magma) return "Plataformas Térmicas só podem ser instaladas sobre magma.";
   const renewingPlatform = thermalPlatform && Boolean(existingPlatform);
   if (magma && !thermalPlatform && !existingPlatform && !isTroopThermalCompatible(troop)) return "Magma exige uma Plataforma Térmica; apenas o Drone Sentinela pode operar diretamente.";
@@ -591,6 +596,10 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     lastAttackAt: -Infinity, attackStartedAt: -Infinity,
     channelingAttack: false, channelTickAccumulator: 0, lastAttackMode: null,
     pendingImpact: null, pendingComboImpact: null, pendingRepulsorShot: null,
+    pendingAresImpact: null,
+    thermalShieldHp: Number(config.thermalShield?.initialHp) || 0,
+    thermalShieldNextPulseAt: config.thermalShield ? session.elapsed + config.thermalShield.pulseEveryMs : Infinity,
+    thermalShieldPausedAt: null,
     attackTargetId: null, specialRequested: false, attackBusyUntil: 0,
     attackReleased: false, attackReleaseAt: Infinity,
     comboStep: 0, comboTargetId: null, comboExpiresAt: null,
@@ -612,6 +621,8 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     electricReactorPausedUntil: 0,
     firstImpactAvailable: session.modifiers.firstImpact,
     previousRenderX: x, previousRenderY: y, dead: false,
+    emberBurnUntil: 0, emberBurnNextTickAt: 0, emberBurnSourceEnemyId: null,
+    emberBurnStartedAt: null, emberBurnEndedAt: null, emberBurnTickEveryMs: 500,
   };
 }
 
@@ -1357,6 +1368,7 @@ function createEnemyRuntime(session) {
     updateDevorador: (enemy, config, dt, events) => updateDevorador(session, enemy, config, dt, events),
     updateVermeIncubador: (enemy, config, dt, events) => updateVermeIncubador(session, enemy, config, dt, events),
     updatePredadorCaldeira: (enemy, config, dt, events) => updatePredadorCaldeira(session, enemy, config, dt, events),
+    updateCuspidorBrasa: (enemy, config, dt, events) => updateCuspidorBrasa(session, enemy, config, dt, events),
     updateRasgaCeus: (enemy, config, dt, events) => updateRasgaCeus(session, enemy, config, dt, events),
     updateLeviathan: (enemy, config, events) => updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events),
     setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
@@ -1580,6 +1592,89 @@ function updatePredadorCaldeira(session, enemy, config, dt, events) {
   enemy.speed = predatorMovementSpeed(enemy, config);
   moveEnemy(session, enemy, dt, events);
   enemy.speed = originalSpeed;
+}
+
+function setCuspidorState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.cuspidorState !== state) enemy.cuspidorStateStartedAt = session.elapsed;
+  enemy.cuspidorState = state;
+  enemy.cuspidorStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.moving = state === "walking" || state === "reposition";
+}
+
+function launchCuspidorEmberGlob(session, enemy, config, events) {
+  const targetX = Number(enemy.cuspidorTargetX);
+  const targetY = Number(enemy.cuspidorTargetY);
+  if (!Number.isFinite(targetX) || !Number.isFinite(targetY)) return null;
+  const origin = getEnemyMuzzleWorldPosition(
+    enemy,
+    config,
+    "attack",
+    config.attackVisual.releaseFrame,
+  );
+  const distance = Math.max(1, origin.x - targetX);
+  const flightMs = Math.max(80, distance / Math.max(1, config.projectileSpeed) * 1000);
+  const projectile = {
+    id: id("enemy_projectile"), kind: "emberGlob", visualKind: "emberGlob",
+    sourceEnemyId: enemy.id, targetTroopId: enemy.cuspidorTargetId,
+    targetRow: enemy.cuspidorTargetRow, targetX, targetY,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    previousRenderX: origin.x, previousRenderY: origin.y,
+    startX: origin.x, startY: origin.y, flightMs,
+    vx: -config.projectileSpeed, vy: 0, arcHeight: config.projectileArcHeight,
+    damage: config.damage, splashDamage: config.splashDamage,
+    splashRadiusPx: config.splashRadiusPx, splashSameRowOnly: config.splashSameRowOnly,
+    burnDamagePerSecond: config.burnDamagePerSecond, burnDurationMs: config.burnDurationMs,
+    burnTickEveryMs: config.burnTickEveryMs, color: "#f97316", active: true, launched: true,
+    trail: createProjectileTrail(14, origin.x, origin.y), ageMs: 0, seed: nextEffectSeed(session),
+  };
+  session.enemyProjectiles.push(projectile);
+  events.push({
+    type: "emberGlobLaunched", sourceEnemyId: enemy.id, targetTroopId: enemy.cuspidorTargetId,
+    x: origin.x, y: origin.y, targetX, targetY, color: projectile.color, seed: projectile.seed,
+  });
+  return projectile;
+}
+
+function updateCuspidorBrasa(session, enemy, config, dt, events) {
+  if (enemy.cuspidorState === "attack") {
+    enemy.moving = false;
+    const age = session.elapsed - enemy.cuspidorStateStartedAt;
+    if (!enemy.cuspidorProjectileReleased && age >= config.attackVisual.releaseMs) {
+      launchCuspidorEmberGlob(session, enemy, config, events);
+      enemy.cuspidorProjectileReleased = true;
+    }
+    if (session.elapsed >= enemy.cuspidorStateEndsAt) {
+      enemy.cuspidorTargetId = null;
+      enemy.cuspidorTargetX = null;
+      enemy.cuspidorTargetY = null;
+      enemy.cuspidorTargetRow = null;
+      enemy.cuspidorProjectileReleased = false;
+      setCuspidorState(session, enemy, "idle");
+    }
+    return;
+  }
+
+  const target = closestTroopForEnemy(session, enemy);
+  const distance = target ? enemy.x - target.x : Infinity;
+  if (!target || distance > config.maximumAttackRangeTiles * CELL.width) {
+    if (enemy.cuspidorState !== "walking") setCuspidorState(session, enemy, "walking");
+    enemy.moving = true;
+    moveEnemy(session, enemy, dt, events);
+    return;
+  }
+
+  enemy.moving = false;
+  if (enemy.cuspidorState !== "idle") setCuspidorState(session, enemy, "idle");
+  if (session.elapsed >= enemy.cuspidorAttackReadyAt) {
+    enemy.cuspidorTargetId = target.id;
+    enemy.cuspidorTargetX = target.x;
+    enemy.cuspidorTargetY = target.y - 18;
+    enemy.cuspidorTargetRow = target.row;
+    enemy.cuspidorProjectileReleased = false;
+    enemy.cuspidorAttackReadyAt = session.elapsed + config.attackEveryMs;
+    enemy.lastAttackAt = session.elapsed;
+    setCuspidorState(session, enemy, "attack", config.attackVisual.durationMs);
+  }
 }
 
 function setIncubatorState(session, enemy, state, durationMs = Infinity) {
@@ -2494,6 +2589,7 @@ function attackDamageMultiplier(session, troop, { explosive = false, target = nu
   if (session.modifiers.advancedFormation && session.advancedFormationColumns.includes(troop.col)) multiplier *= 1.15;
   if (troop.swarmHpApplied) multiplier *= 1.1;
   multiplier *= getFocusedFireDamageMultiplier(session, troop, target);
+  multiplier *= getAresFireBonus(troop, target, target ? ENEMIES[target.type] : null);
   if (target && session.modifiers.continuousSuppression) {
     if (troop.suppressionTargetId === target.id) {
       if ((troop.suppressionHits || 0) >= 3) multiplier *= 1.15;
@@ -2973,7 +3069,7 @@ export function eliminateTroop(session, troop, events, reason = "enemy", options
   return true;
 }
 
-function damageTroop(session, troop, amount, events, context = {}) {
+export function damageTroop(session, troop, amount, events, context = {}) {
   if (!troop || troop.dead) return 0;
   const config = TROOPS[troop.type];
   const defenseFactor = isLumiUrsa7(config) && troop.defenseActive ? config.defenseDamageFactor : 1;
@@ -2985,10 +3081,24 @@ function damageTroop(session, troop, amount, events, context = {}) {
   const bastiaoFactor = config.id === "bastiaoMare"
     ? getBastiaoFloodedDamageFactor(config, flooded)
     : 1;
-  let incoming = amount * defenseFactor * lastLineFactor * advancedFormationFactor
+  const damageType = context.damageType || DAMAGE_TYPES.PHYSICAL;
+  const typeFactor = damageType === DAMAGE_TYPES.FIRE
+    ? (config.fireDamageTakenFactor ?? 1)
+    : damageType === DAMAGE_TYPES.THERMAL
+      ? (config.thermalDamageTakenFactor ?? 1)
+      : 1;
+  let incoming = amount * typeFactor * defenseFactor * lastLineFactor * advancedFormationFactor
     * finalFortressFactor * bastiaoFactor
     * electricDamageTakenFactor(troop, session.elapsed)
     * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+  if ([DAMAGE_TYPES.FIRE, DAMAGE_TYPES.THERMAL].includes(damageType)
+    && config.thermalShield && troop.thermalShieldHp > 0) {
+    const absorbed = Math.min(troop.thermalShieldHp, incoming);
+    troop.thermalShieldHp -= absorbed;
+    incoming -= absorbed;
+    session.thermalMetrics.aresShieldAbsorbed += absorbed;
+    events.push({ type: "aresThermalShieldAbsorb", targetId: troop.id, amount: absorbed, current: troop.thermalShieldHp, max: config.thermalShield.maxHp, x: troop.x, y: troop.y - 54, damageType });
+  }
   if (troop.reactiveShield > 0 && session.elapsed < troop.reactiveShieldUntil) {
     const absorbed = Math.min(troop.reactiveShield, incoming);
     troop.reactiveShield -= absorbed;
@@ -3969,6 +4079,33 @@ function updateTroops(session, events, dt) {
     }
     const baseConfig = TROOPS[troop.type];
     const config = effectiveCombatConfig(session, troop, baseConfig);
+    if (troop.type === "aresT") {
+      if (troop.pendingAresImpact && session.elapsed >= troop.pendingAresImpact.at) {
+        const lockedTarget = session.enemies.find((enemy) => enemy.id === troop.pendingAresImpact.targetId);
+        if (lockedTarget && !lockedTarget.dead && enemyOccupiesTargetRow(lockedTarget, troop.row)) {
+          const damage = config.damage * attackDamageMultiplier(session, troop, { target: lockedTarget });
+          damageEnemy(session, lockedTarget, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
+          events.push({ type: "aresHydraulicPunch", sourceTroopId: troop.id, targetId: lockedTarget.id, x: lockedTarget.x, y: lockedTarget.y, color: config.color, seed: nextEffectSeed(session) });
+        }
+        troop.pendingAresImpact = null;
+      }
+      if (troop.state === "attack" && session.elapsed >= troop.stateEndsAt) {
+        troop.state = "idle";
+        troop.stateStartedAt = session.elapsed;
+        troop.stateEndsAt = Infinity;
+      }
+      if (session.elapsed < troop.attackReadyAt) continue;
+      const target = closestEnemy(session, troop, config);
+      if (!target) continue;
+      troop.state = "attack";
+      troop.stateStartedAt = session.elapsed;
+      troop.stateEndsAt = session.elapsed + (config.attackVisual?.durationMs || 720);
+      troop.lastAttackAt = session.elapsed;
+      troop.attackTargetId = target.id;
+      troop.pendingAresImpact = { targetId: target.id, at: session.elapsed + (config.attackVisual?.impactMs || 470) };
+      troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+      continue;
+    }
     if (config.attack === "leviathanCannon") {
       updateLeviathanHunter(session, troop, config, events);
       continue;
@@ -5582,6 +5719,76 @@ function resolveInhibitorWebImpact(session, projectile, target, events) {
   });
 }
 
+function applyCuspidorEmberBurn(session, troop, projectile, events) {
+  if (!troop || troop.dead) return;
+  if (TROOPS[troop.type]?.emberBurnImmune) {
+    events.push({ type: "emberBurnImmune", sourceEnemyId: projectile.sourceEnemyId, targetTroopId: troop.id, x: troop.x, y: troop.y - 42, color: "#67e8f9", seed: projectile.seed });
+    return;
+  }
+  const wasBurning = Number(troop.emberBurnUntil || 0) > session.elapsed;
+  troop.emberBurnUntil = Math.max(Number(troop.emberBurnUntil || 0), session.elapsed + projectile.burnDurationMs);
+  if (!wasBurning || !Number.isFinite(troop.emberBurnNextTickAt) || troop.emberBurnNextTickAt <= 0) {
+    troop.emberBurnNextTickAt = session.elapsed + projectile.burnTickEveryMs;
+    troop.emberBurnStartedAt = session.elapsed;
+  }
+  troop.emberBurnSourceEnemyId = projectile.sourceEnemyId;
+  troop.emberBurnTickEveryMs = projectile.burnTickEveryMs;
+  events.push({
+    type: wasBurning ? "emberBurnRenewed" : "emberBurnStarted",
+    sourceEnemyId: projectile.sourceEnemyId, targetTroopId: troop.id,
+    durationMs: projectile.burnDurationMs, damagePerSecond: projectile.burnDamagePerSecond,
+    x: troop.x, y: troop.y, color: projectile.color, seed: projectile.seed,
+  });
+}
+
+function resolveCuspidorEmberGlobImpact(session, projectile, events) {
+  const directTarget = indexedTroopById(session, projectile.targetTroopId);
+  if (directTarget && !directTarget.dead) {
+    damageTroop(session, directTarget, projectile.damage, events, { sourceEnemyId: projectile.sourceEnemyId, damageType: DAMAGE_TYPES.FIRE });
+    applyCuspidorEmberBurn(session, directTarget, projectile, events);
+  }
+  const splashTargets = session.troops.filter((troop) => (
+    !troop.dead
+    && troop.id !== projectile.targetTroopId
+    && (!projectile.splashSameRowOnly || troop.row === projectile.targetRow)
+    && Math.abs(troop.x - projectile.targetX) <= projectile.splashRadiusPx
+  ));
+  for (const troop of splashTargets) {
+    damageTroop(session, troop, projectile.splashDamage, events, { sourceEnemyId: projectile.sourceEnemyId, damageType: DAMAGE_TYPES.FIRE });
+  }
+  events.push({
+    type: "emberGlobImpact", weapon: projectile.visualKind,
+    sourceEnemyId: projectile.sourceEnemyId, targetTroopId: projectile.targetTroopId,
+    x: projectile.targetX, y: projectile.targetY, color: projectile.color, seed: projectile.seed,
+    directDamage: projectile.damage, splashDamage: projectile.splashDamage,
+  });
+}
+
+function updateEmberBurns(session, events) {
+  for (const troop of session.troops) {
+    if (troop.dead) continue;
+    const until = Number(troop.emberBurnUntil || 0);
+    if (until <= 0) continue;
+    while (troop.emberBurnNextTickAt <= session.elapsed && troop.emberBurnNextTickAt <= until) {
+      const sourceEnemyId = troop.emberBurnSourceEnemyId;
+      damageTroop(session, troop, 0.75, events, { sourceEnemyId, generateEnergy: false });
+      events.push({
+        type: "emberBurnTick", sourceEnemyId, targetTroopId: troop.id,
+        damage: 0.75, x: troop.x, y: troop.y, color: "#f97316",
+      });
+      troop.emberBurnNextTickAt += Number(troop.emberBurnTickEveryMs) || 500;
+      if (troop.dead) break;
+    }
+    if (!troop.dead && session.elapsed >= until) {
+      troop.emberBurnEndedAt = session.elapsed;
+      troop.emberBurnUntil = 0;
+      troop.emberBurnNextTickAt = 0;
+      troop.emberBurnSourceEnemyId = null;
+      troop.emberBurnTickEveryMs = 500;
+    }
+  }
+}
+
 function updateEnemyProjectiles(session, dt, events) {
   for (const projectile of session.enemyProjectiles) {
     if (!projectile.active) continue;
@@ -5590,6 +5797,21 @@ function updateEnemyProjectiles(session, dt, events) {
     projectile.previousY = projectile.y;
     projectile.previousRenderX = projectile.x;
     projectile.previousRenderY = projectile.y;
+
+    if (projectile.kind === "emberGlob") {
+      const progress = Math.min(1, projectile.ageMs / projectile.flightMs);
+      projectile.x = projectile.startX + (projectile.targetX - projectile.startX) * progress;
+      projectile.y = projectile.startY + (projectile.targetY - projectile.startY) * progress
+        - projectile.arcHeight * 4 * progress * (1 - progress);
+      projectile.rotation = Math.atan2(projectile.y - projectile.previousY, projectile.x - projectile.previousX);
+      pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
+      if (progress >= 1) {
+        resolveCuspidorEmberGlobImpact(session, projectile, events);
+        projectile.active = false;
+      }
+      continue;
+    }
+
     projectile.x += projectile.vx * dt / 1000;
     projectile.y += projectile.vy * dt / 1000;
     pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
@@ -7575,6 +7797,7 @@ export function stepBattle(session, dt = 32) {
   updateEnergyPickups(session, dt, events);
   updateTideCycle(session, events, { eliminateTroop });
   updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor });
+  updateAresThermalShields(session, events);
   updateWindCurrent(session, events, {
     troops: TROOPS,
     enemies: ENEMIES,
@@ -7615,6 +7838,7 @@ export function stepBattle(session, dt = 32) {
     updateTroops(session, events, dt);
     updateProjectiles(session, dt, events);
     updateEnemyProjectiles(session, dt, events);
+    updateEmberBurns(session, events);
     updateEnemies(session, dt, events);
     updateBossEncounter(session);
     updateMines(session, events);

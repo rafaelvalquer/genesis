@@ -1,14 +1,26 @@
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 function intensityFor(troop, elapsed, state) {
-  if (state === "burning") return clamp((elapsed - Number(troop.thermalBurnStartedAt ?? elapsed)) / 220, 0, 1);
-  if (state === "extinguishing") return clamp(1 - (elapsed - troop.thermalBurnEndedAt) / 320, 0, 1);
+  if (state === "burning") {
+    const starts = [troop.thermalBurnStartedAt, troop.emberBurnStartedAt]
+      .filter((value) => Number.isFinite(value));
+    const startedAt = starts.length ? Math.min(...starts) : elapsed;
+    return clamp((elapsed - startedAt) / 220, 0, 1);
+  }
+  if (state === "extinguishing") {
+    const ends = [troop.thermalBurnEndedAt, troop.emberBurnEndedAt]
+      .filter((value) => Number.isFinite(value));
+    const endedAt = ends.length ? Math.max(...ends) : elapsed;
+    return clamp(1 - (elapsed - endedAt) / 320, 0, 1);
+  }
   return state === "exposed" ? 0.28 : 0;
 }
 
 export function getTroopThermalVisualState(troop, elapsed) {
-  if (troop?.thermalBurning) return "burning";
-  if (troop?.thermalBurnEndedAt != null && elapsed - troop.thermalBurnEndedAt < 320) return "extinguishing";
+  if (troop?.thermalBurning || elapsed < Number(troop?.emberBurnUntil || 0)) return "burning";
+  const thermalEnded = troop?.thermalBurnEndedAt != null && elapsed - troop.thermalBurnEndedAt < 320;
+  const emberEnded = troop?.emberBurnEndedAt != null && elapsed - troop.emberBurnEndedAt < 320;
+  if (thermalEnded || emberEnded) return "extinguishing";
   if (troop?.thermalExposed) return "exposed";
   return "none";
 }

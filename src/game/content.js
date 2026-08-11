@@ -7,6 +7,7 @@ export { createWindCurrentHazard } from "./windCurrent.js";
 
 export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9});
 export const DEFAULT_MAX_DEPLOYED_PER_TROOP = 5;
+export const DAMAGE_TYPES = Object.freeze({ PHYSICAL: "physical", FIRE: "fire", THERMAL: "thermal" });
 
 export const TROOPS = {
   colono: {
@@ -187,6 +188,40 @@ export const TROOPS = {
     deathVisual: { state: "death", height: 100, aspectRatio: 4 / 3, durationMs: 640, loop: false },
     description:
       "Drone flutuante barato que pode receber até dois drones adicionais na mesma célula. Cada unidade acrescenta vida e um disparo à formação.",
+  },
+  aresT: {
+    id: "aresT",
+    label: "ARES-T",
+    title: "Bastilha Cerâmica",
+    role: "Linha de frente térmica / Anti-fogo",
+    spriteKey: "aresT",
+    price: 22,
+    supply: 6,
+    deployCooldownMs: 7000,
+    maxDeployed: 5,
+    hp: 88,
+    range: 0.95,
+    attackEveryMs: 1500,
+    damage: 8,
+    attack: "melee",
+    color: "#f59e0b",
+    unlockAt: 40,
+    thermalTerrainCompatible: true,
+    thermalBurnDamageFactor: 0,
+    thermalDamageTakenFactor: 0,
+    fireDamageTakenFactor: 0.35,
+    fireEnemyDamageFactor: 1.2,
+    emberBurnImmune: true,
+    knockbackFactor: 0.35,
+    armorClass: "heavy",
+    weightClass: "heavy",
+    thermalShield: { maxHp: 18, gainHp: 6, pulseEveryMs: 5000, onlyOnMagma: true },
+    spriteScale: 1.18,
+    assetStates: ["idle", "attack", "death"],
+    idleVisual: { state: "idle", height: 132, aspectRatio: 1.32, durationMs: 960, loop: true },
+    attackVisual: { state: "attack", height: 132, aspectRatio: 1.32, durationMs: 720, impactMs: 470, effect: "aresHydraulicPunch", loop: false },
+    deathVisual: { state: "death", height: 132, aspectRatio: 1.32, durationMs: 880, loop: false },
+    description: "Bastilha cerâmica pesada. Opera diretamente sobre magma, neutraliza queimadura e converte parte do fogo recebido em desgaste do escudo térmico.",
   },
   thermalPlatform: {
     id: "thermalPlatform", label: "Plataforma Térmica", role: "Suporte / Infraestrutura",
@@ -1619,6 +1654,7 @@ const TROOP_WIND_CLASSES = Object.freeze({
   guarda: "medium",
   fuzileiroVoltaico: "medium",
   operadorJano: "light",
+  aresT: "heavy",
 });
 
 const TROOP_WIND_ANCHORS = Object.freeze({
@@ -1626,6 +1662,7 @@ const TROOP_WIND_ANCHORS = Object.freeze({
   cacadorLeviatas: true,
   lumiUrsa7: true,
   colossoImpacto: true,
+  aresT: true,
 });
 
 const TROOP_TAXONOMY = Object.freeze({
@@ -1652,6 +1689,7 @@ const TROOP_TAXONOMY = Object.freeze({
   bastiaoMare: { tags: ["frontline", "economy", "amphibious", "windResistant"], counters: ["aquatic"] },
   fuzileiroVoltaico: { tags: ["offense", "ranged", "amphibious"], counters: ["aquatic"] },
   operadorJano: { tags: ["offense", "ranged", "support"], counters: ["light"] },
+  aresT: { tags: ["frontline", "offense", "thermal", "fireResistant", "magmaCompatible"], counters: ["fire"] },
 });
 
 Object.values(TROOPS).forEach((troop) => {
@@ -1692,7 +1730,7 @@ export const ENEMIES = {
     magmaImmune: true,
     color: "#f97316",
     scale: 0.84,
-    spriteOffsetY: 32,
+    spriteOffsetY: 38,
     assetStates: ["idle", "walking", "attack", "death"],
     animationFrameMs: { idle: 110, walking: 90, attack: 100, death: 100 },
     visualStateScale: { idle: 1, walking: 1.05, attack: 1.08, death: 1 },
@@ -1803,6 +1841,47 @@ export const ENEMIES = {
     attackVisual: { durationMs: 800, clawImpactMs: 260, biteImpactMs: 540 },
     frenzyTransitionVisual: { durationMs: 720 },
     description: "Caçador vulcânico de elite que acelera ao identificar uma presa, desfere garras e mordida em sequência e entra em frenesi quando gravemente ferido.",
+    testOnly: true,
+  },
+  cuspidorBrasa: {
+    id: "cuspidorBrasa",
+    traits: ["volcanic", "fire"],
+    label: "Cuspidor de Brasa",
+    role: "Artilharia / incendiário",
+    chapterId: "chapter_06",
+    hp: 50,
+    speed: 15,
+    damage: 7,
+    splashDamage: 3,
+    splashRadiusPx: 115,
+    splashSameRowOnly: true,
+    burnDamagePerSecond: 1.5,
+    burnDurationMs: 4000,
+    burnTickEveryMs: 500,
+    attackEveryMs: 4500,
+    chargeMs: 800,
+    projectileSpeed: 290,
+    projectileArcHeight: 55,
+    minimumAttackRangeTiles: 2.6,
+    maximumAttackRangeTiles: 5,
+    preferredRangeTiles: 3.7,
+    baseDamage: 14,
+    threat: 24,
+    armorClass: "medium",
+    knockbackFactor: 0.8,
+    magmaImmune: true,
+    scale: 1.15,
+    assetStates: ["idle", "walking", "attack", "death"],
+    previewState: "idle",
+    animationFrameMs: { idle: 150, walking: 130, attack: 150, death: 110 },
+    attackVisual: {
+      durationMs: 1300,
+      releaseMs: 800,
+      releaseFrame: 5,
+      effect: "emberGlob",
+      muzzle: { x: 0.18, y: 0.42 },
+    },
+    description: "Artilheiro vulcânico que infla sua bolsa gular e cospe massas incandescentes, causando dano em área e incendiando o alvo principal.",
     testOnly: true,
   },
   vermeIncubador: {
@@ -2613,6 +2692,7 @@ export const ENEMIES = {
 };
 
 const LATEST_ENEMY_IDS = Object.freeze([
+  "cuspidorBrasa",
   "vermeIncubador",
   "predadorCaldeira",
   "devoradorCaldeira",

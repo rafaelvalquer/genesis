@@ -814,6 +814,14 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       });
       continue;
     }
+    if (event.type === "emberGlobImpact") {
+      addSparks(particles, event, Math.max(3, Math.round((settings.reduceMotion ? 3 : 7) * quality.density)), random, {
+        color: "#fb923c", minSpeed: 24, speed: 88, life: 300, size: 2,
+      });
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#f59e0b", born: now, life: 260, maxRadius: 28 });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#fff7c2", born: now, life: 130, size: 24 });
+      continue;
+    }
     if (event.type === "abyssImpact") {
       const prism = event.weapon === "prismBolt";
       addSparks(particles, event, now, Math.max(6, Math.round(18 * quality.density)), random, {
@@ -1486,6 +1494,50 @@ function drawRasgamarOrb(ctx, projectile, quality) {
   ctx.beginPath(); ctx.arc(-4, -4, 2.2, 0, Math.PI * 2); ctx.fill();
 }
 
+function drawEmberGlob(ctx, projectile, quality) {
+  const trailLength = Math.min(projectileTrailLength(projectile.trail), Math.max(2, Math.round(6 * quality.trail)));
+  if (trailLength > 1) {
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(249,115,22,.36)";
+    ctx.lineWidth = quality.trail > .7 ? 5 : 3;
+    ctx.beginPath();
+    forEachProjectileTrailPoint(projectile.trail, trailLength, (point, index) => {
+      if (!index) ctx.moveTo(point.x, point.y); else ctx.lineTo(point.x, point.y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y);
+  ctx.rotate(projectile.rotation || 0);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.shadowBlur = 15;
+  ctx.shadowColor = "#f97316";
+  ctx.fillStyle = "#c2410c";
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#f97316";
+  ctx.beginPath();
+  ctx.arc(-1, -1, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff7ae";
+  ctx.beginPath();
+  ctx.arc(-2.5, -2.5, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  const sparks = quality.trail > .7 ? 3 : quality.trail > .35 ? 2 : 1;
+  ctx.fillStyle = "#fbbf24";
+  for (let index = 0; index < sparks; index += 1) {
+    const phase = (Number(projectile.seed) || 1) * .17 + index * 2.1 + (projectile.ageMs || 0) * .012;
+    ctx.beginPath();
+    ctx.arc(-7 - Math.cos(phase) * (3 + index * 2), Math.sin(phase) * (4 + index * 2), 1.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 const projectileScratchState = { entity: null, x: 0, y: 0 };
 const projectileScratch = new Proxy(projectileScratchState, {
   get(state, property) {
@@ -1517,6 +1569,7 @@ export function drawProjectileCollection(
     ctx.save();
     if (projectile.visualKind === "leviathanRound") drawLeviathanRound(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "rasgamarOrb") drawRasgamarOrb(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "emberGlob") drawEmberGlob(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "executorArcSlash") drawExecutorArcSlash(ctx, projectileScratch, quality, assets);
     else if (projectile.visualKind === "magneticMine") drawMagneticMine(ctx, projectileScratch.x, projectileScratch.y, projectile.rotation, assets.mine?.[0], 46);
     else if (projectile.visualKind === "repulsorFist") drawRepulsorFist(ctx, projectileScratch);
