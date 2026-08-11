@@ -66,6 +66,7 @@ import {
 } from "./graphicsRenderer.js";
 import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
 import { isRasgamarSubmerged } from "./enemyTargeting.js";
+import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "./thermalBurningTroopRenderer.js";
 import {
   CELL, FIELD, VIEWPORT,
   adaptiveAidBlocksIntermission,
@@ -809,6 +810,43 @@ function drawSandstormTroopEffects(ctx, troop, session, assets, settings, visual
   ctx.restore();
 }
 
+function drawPhysicalStunEffect(ctx, troop, elapsed, settings) {
+  if (elapsed >= (troop.controlStunnedUntil || 0)) return;
+  const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 95) * 2;
+  const stars = [
+    { x: -14, y: -73, scale: 0.72, phase: 0 },
+    { x: 0, y: -82, scale: 1, phase: 1.2 },
+    { x: 14, y: -73, scale: 0.72, phase: 2.4 },
+  ];
+  ctx.save();
+  ctx.fillStyle = "#fde047";
+  ctx.strokeStyle = "#713f12";
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+  for (const star of stars) {
+    const spin = settings.reduceMotion ? 0 : Math.sin(elapsed / 140 + star.phase) * 0.18;
+    const x = troop.x + star.x;
+    const y = troop.y + star.y + pulse * Math.sin(star.phase + elapsed / 120);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spin);
+    ctx.beginPath();
+    for (let index = 0; index < 10; index += 1) {
+      const radius = index % 2 === 0 ? 8 * star.scale : 3.4 * star.scale;
+      const angle = -Math.PI / 2 + index * Math.PI / 5;
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius;
+      if (index === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 function drawTroopPlacementPreview(ctx, assets, selectedTroop, preview, elapsed, settings) {
   if (!preview || !selectedTroop) return;
   const config = TROOPS[selectedTroop];
@@ -1029,6 +1067,11 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   const height = (visual?.height || config.attackVisual?.height || (logicalEntity.type === "muralhaReforcada" ? 112 : 126))
     * (config.spriteScale || 1);
   const troopFilter = getTroopSpriteFilter(reaction.flash);
+  const thermalState = getTroopThermalVisualState(logicalEntity, session.elapsed);
+  const thermalRect = image?.width && image?.height
+    ? getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor)
+    : { x: scratch.x - 24, y: scratch.y - 60, width: 48, height: 68 };
+  drawThermalBurnBackLayer(ctx, logicalEntity, thermalRect, session.elapsed, settings, thermalState);
   let spriteDrawn = false;
   if (logicalEntity.type === "droneSentinela") {
     const baseX = scratch.x;
@@ -1082,6 +1125,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.fillStyle = config.color;
     ctx.fillRect(scratch.x - 24, scratch.y - 34, 48, 68);
   }
+  drawThermalBurnFrontLayer(ctx, logicalEntity, thermalRect, session.elapsed, settings, thermalState);
   drawLumiDefenseShield(ctx, scratch, config, session.elapsed, settings);
   if (config.specialEveryMs && !logicalEntity.specialRequested && session.elapsed >= logicalEntity.specialReadyAt) {
     drawTroopSpecialReady(ctx, scratch, session.elapsed, settings);
@@ -1093,6 +1137,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings);
   drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
   drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings);
+  drawPhysicalStunEffect(ctx, logicalEntity, session.elapsed, settings);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
   if (logicalEntity.type === "droneSentinela") {
     ctx.save();

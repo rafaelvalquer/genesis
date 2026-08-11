@@ -45,7 +45,7 @@ export function createThermalPlatform(session, row, col, config, id) {
   const platform = { id: id(), type: "thermalPlatform", row, col, hp: config.hp, maxHp: config.hp, heat: 0, maxHeat: config.maxHeat || 100, overheated: false, createdAt: session.elapsed, destroyed: false };
   session.supportStructures.push(platform);
   const troop = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col);
-  if (troop) { troop.thermalExposed = false; troop.thermalBurning = false; troop.thermalAttackSpeedFactor = 1; }
+  if (troop) { if (troop.thermalBurning) troop.thermalBurnEndedAt = session.elapsed; troop.thermalExposed = false; troop.thermalBurning = false; troop.thermalAttackSpeedFactor = 1; }
   return platform;
 }
 
@@ -60,8 +60,11 @@ function syncTroopThermalExposure(session, config, hazardActive) {
     const protectedByPlatform = onMagma && hasThermalPlatform(session, troop.row, troop.col);
     const compatible = isTroopThermalCompatible(session.troopConfigs?.[troop.type]);
     const exposed = onMagma && !protectedByPlatform && !compatible;
+    const burning = hazardActive && exposed;
+    if (burning && !troop.thermalBurning) troop.thermalBurnStartedAt = session.elapsed;
+    if (!burning && troop.thermalBurning) troop.thermalBurnEndedAt = session.elapsed;
     troop.thermalExposed = exposed;
-    troop.thermalBurning = hazardActive && exposed;
+    troop.thermalBurning = burning;
     troop.thermalAttackSpeedFactor = hazardActive && getThermalPlatformAt(session, troop.row, troop.col)?.overheated
       ? config.attackSpeedFactor
       : 1;
@@ -125,7 +128,10 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
         platform.destroyed = true;
         platform.destroyedAt = session.elapsed;
         const troop = session.troops.find((entry) => !entry.dead && entry.row === platform.row && entry.col === platform.col);
-        if (troop && !isTroopThermalCompatible(session.troopConfigs?.[troop.type] || null)) troop.thermalBurning = true;
+        if (troop && !isTroopThermalCompatible(session.troopConfigs?.[troop.type] || null)) {
+          if (!troop.thermalBurning) troop.thermalBurnStartedAt = session.elapsed;
+          troop.thermalBurning = true;
+        }
         events.push({ type: "thermalPlatformDestroyed", row: platform.row, col: platform.col, troopId: troop?.id || null });
         if (troop?.thermalBurning) events.push({ type: "thermalBurnStarted", troopId: troop.id, row: platform.row, col: platform.col });
       }

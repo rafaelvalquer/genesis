@@ -1322,6 +1322,7 @@ function createEnemyRuntime(session) {
     updateMedusaVeuSalino: (enemy, config, dt, events) => updateMedusaVeuSalino(session, enemy, config, dt, events),
     updateMordelume: (enemy, config, dt, events) => updateMordelume(session, enemy, config, dt, events),
     updateSalamandra: (enemy, config, dt, events) => updateSalamandra(session, enemy, config, dt, events),
+    updateDevorador: (enemy, config, dt, events) => updateDevorador(session, enemy, config, dt, events),
     updateRasgaCeus: (enemy, config, dt, events) => updateRasgaCeus(session, enemy, config, dt, events),
     updateLeviathan: (enemy, config, events) => updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events),
     setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
@@ -1373,6 +1374,81 @@ function updateSalamandra(session, enemy, config, dt, events) {
   enemy.speed = originalSpeed;
 }
 
+function setDevoradorState(session, enemy, state, durationMs = Infinity) {
+  enemy.devoradorState = state;
+  enemy.devoradorStateStartedAt = session.elapsed;
+  enemy.devoradorStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.devoradorImpactApplied = false;
+}
+
+function updateDevorador(session, enemy, config, dt, events) {
+  const frenzy = enemy.devoradorFrenzy;
+  if (!enemy.devoradorFrenzyTriggered && enemy.hp / enemy.maxHp <= config.frenzyThreshold) {
+    enemy.devoradorFrenzyTriggered = true;
+    enemy.armorDamageFactor = config.frenzyArmorDamageFactor;
+    if (["attack", "crushingBite"].includes(enemy.devoradorState)) enemy.devoradorFrenzyPending = true;
+    else setDevoradorState(session, enemy, "frenzyTransition", config.frenzyTransitionVisual.durationMs);
+  }
+  if (enemy.devoradorState === "frenzyTransition") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.devoradorStateEndsAt) {
+      enemy.devoradorFrenzy = true;
+      enemy.devoradorFrenzyPending = false;
+      setDevoradorState(session, enemy, "walking");
+    }
+    return;
+  }
+  const target = enemy.devoradorTargetId
+    ? session.troops.find((troop) => troop.id === enemy.devoradorTargetId && !troop.dead)
+    : null;
+  if (["attack", "crushingBite"].includes(enemy.devoradorState)) {
+    enemy.moving = false;
+    if (!enemy.devoradorImpactApplied && session.elapsed >= enemy.devoradorStateStartedAt
+      + (enemy.devoradorState === "crushingBite" ? config.crushingBiteVisual.impactMs : config.attackVisual.impactMs)) {
+      enemy.devoradorImpactApplied = true;
+      const valid = target && target.row === enemy.row
+        && Math.abs(enemy.x - target.x) <= config.meleeContactDistancePx;
+      if (valid) {
+        const crushing = enemy.devoradorState === "crushingBite";
+        damageTroop(session, target, crushing ? config.crushingBiteDamage : config.damage, events, { sourceEnemyId: enemy.id });
+        enemy.devoradorSuccessfulBites += 1;
+        if (crushing) {
+          stunTroop(session, target, config.crushingBiteStunMs, events);
+          events.push({ type: "devoradorCrushingBite", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y });
+        } else events.push({ type: "devoradorBite", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y });
+      }
+    }
+    if (session.elapsed >= enemy.devoradorStateEndsAt) {
+      enemy.devoradorTargetId = null;
+      if (enemy.devoradorFrenzyPending) {
+        enemy.devoradorFrenzyPending = false;
+        setDevoradorState(session, enemy, "frenzyTransition", config.frenzyTransitionVisual.durationMs);
+      } else setDevoradorState(session, enemy, "walking");
+    }
+    return;
+  }
+  const currentTarget = target && target.row === enemy.row ? target : closestTroopForEnemy(session, enemy);
+  const distance = currentTarget ? enemy.x - currentTarget.x : Infinity;
+  if (currentTarget && Math.abs(distance) <= config.meleeContactDistancePx) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      const crushing = (enemy.devoradorSuccessfulBites + 1) % config.crushingBiteEvery === 0;
+      enemy.devoradorTargetId = currentTarget.id;
+      enemy.devoradorCrushing = crushing;
+      setDevoradorState(session, enemy, crushing ? "crushingBite" : "attack", crushing ? config.crushingBiteVisual.durationMs : config.attackVisual.durationMs);
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs / (frenzy ? config.frenzyAttackSpeedFactor : 1);
+      enemy.lastAttackAt = session.elapsed;
+    }
+    return;
+  }
+  // Sem tropas na rota ele continua avançando até a base; a patrulha não deve congelar.
+  enemy.moving = true;
+  const originalSpeed = enemy.speed;
+  enemy.speed = config.speed * (frenzy ? config.frenzySpeedFactor : 1);
+  moveEnemy(session, enemy, dt, events);
+  enemy.speed = originalSpeed;
+}
+
 function setRasgaCeusState(session, enemy, state, durationMs = Infinity) {
   enemy.rasgaCeusState = state;
   enemy.rasgaCeusStateStartedAt = session.elapsed;
@@ -1419,16 +1495,23 @@ function updateRasgaCeusPatrolBounds(session, enemy, config) {
   return troops;
 }
 
+function moveRasgaCeusDirectional(session, enemy, config, dt, speedFactor = 1) {
+  const speed = config.speed * speedFactor * session.modifiers.enemySpeed
+    * (session.sandboxSettings?.enemySpeedMultiplier ?? 1);
+  enemy.x += enemy.flightDirection * speed * dt / 1000;
+  enemy.visualFacing = enemy.flightDirection;
+}
+
 function moveRasgaCeusPatrol(session, enemy, config, dt) {
   const troops = updateRasgaCeusPatrolBounds(session, enemy, config);
   if (!troops) return false;
-  const speed = config.speed * (enemy.rasgaCeusState === "turning"
+  const patrolSpeedFactor = enemy.rasgaCeusState === "turning"
     ? Math.min(1, Math.abs(session.elapsed - enemy.rasgaCeusStateStartedAt - config.turnDurationMs / 2) / (config.turnDurationMs / 2))
-    : 1);
-  enemy.x += enemy.flightDirection * speed * session.modifiers.enemySpeed * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * dt / 1000;
-  enemy.visualFacing = enemy.flightDirection;
+    : 1;
+  moveRasgaCeusDirectional(session, enemy, config, dt, patrolSpeedFactor);
   if (enemy.rasgaCeusState === "turning") {
     if (session.elapsed - enemy.rasgaCeusStateStartedAt >= config.turnDurationMs) {
+      enemy.patrolPass = (enemy.patrolPass || 0) + 1;
       enemy.visualFacing = enemy.flightDirection;
       setRasgaCeusState(session, enemy, "cruise");
     }
@@ -1455,7 +1538,11 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
     enemy.flightAltitude = config.maximumFlightAltitude - (config.maximumFlightAltitude - config.cruiseAltitude) * progress;
     if (progress >= 1) setRasgaCeusState(session, enemy, "cruise");
     if (rasgaCeusLivingTroopsInRow(session, enemy.row).length) moveRasgaCeusPatrol(session, enemy, config, dt);
-    else moveEnemy(session, enemy, dt, events);
+    else {
+      setRasgaCeusState(session, enemy, "baseApproach");
+      enemy.flightDirection = -1;
+      enemy.visualFacing = -1;
+    }
     return;
   }
   if (state === "baseApproach") {
@@ -1477,6 +1564,12 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
     enemy.flightDirection = -1;
     return;
   }
+  if (state === "turning") {
+    enemy.flightAltitude = config.cruiseAltitude;
+    enemy.groundRangedTargetable = false;
+    moveRasgaCeusPatrol(session, enemy, config, dt);
+    return;
+  }
   if (state === "targeting") {
     const target = session.troops.find((troop) => troop.id === enemy.diveTargetId && !troop.dead);
     if (!target) {
@@ -1485,14 +1578,12 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
       setRasgaCeusState(session, enemy, "cruise");
       return;
     }
-    enemy.speed = config.speed * 0.65;
-    moveEnemy(session, enemy, dt, events);
-    enemy.speed = config.speed;
+    moveRasgaCeusDirectional(session, enemy, config, dt, 0.65);
     if (session.elapsed >= enemy.rasgaCeusStateEndsAt) {
       enemy.diveFromX = enemy.x;
       enemy.diveFromAltitude = enemy.flightAltitude;
       enemy.preDiveDirection = enemy.flightDirection;
-      enemy.diveTargetX = target.x - enemy.flightDirection * config.strikeStandOffTiles * CELL.width;
+      enemy.diveTargetX = target.x + config.strikeStandOffTiles * CELL.width;
       enemy.diveTargetY = target.y;
       enemy.diveStartedAt = session.elapsed;
       enemy.strikeConsumed = false;
@@ -1504,7 +1595,14 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
   }
   if (state === "diving") {
     const progress = Math.min(1, (session.elapsed - enemy.diveStartedAt) / config.diveDurationMs);
-    enemy.x = rasgaCeusBezier(enemy.diveFromX, enemy.diveFromX + 35, enemy.diveTargetX + 25, enemy.diveTargetX, progress);
+    const approachDirection = enemy.preDiveDirection || -1;
+    enemy.x = rasgaCeusBezier(
+      enemy.diveFromX,
+      enemy.diveFromX + approachDirection * 35,
+      enemy.diveTargetX - approachDirection * 25,
+      enemy.diveTargetX,
+      progress,
+    );
     enemy.flightAltitude = config.strikeAltitude + (enemy.diveFromAltitude - config.strikeAltitude) * (1 - progress);
     enemy.groundRangedTargetable = true;
     if (progress >= 1) setRasgaCeusState(session, enemy, "strike", 120);
@@ -1527,8 +1625,8 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
   }
   if (state === "climbing") {
     const progress = Math.min(1, (session.elapsed - enemy.rasgaCeusStateStartedAt) / config.climbDurationMs);
-    enemy.x -= enemy.preDiveDirection * config.climbForwardTiles * CELL.width * dt / config.climbDurationMs;
-    enemy.visualFacing = -enemy.preDiveDirection;
+    enemy.x += config.climbForwardTiles * CELL.width * dt / config.climbDurationMs;
+    enemy.visualFacing = enemy.x >= enemy.diveTargetX ? 1 : enemy.visualFacing;
     enemy.flightAltitude = config.strikeAltitude + (config.cruiseAltitude - config.strikeAltitude) * progress;
     enemy.groundRangedTargetable = enemy.flightAltitude <= config.groundTargetAltitude;
     if (progress >= 1) {
@@ -2324,7 +2422,9 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       ? shieldFactor
       : 1 - (1 - shieldFactor) * (1 - context.nimbarcaShieldIgnoreFactor);
   }
-  const armorFactor = ENEMIES[enemy.type]?.armorDamageFactor ?? 1;
+  const armorFactor = Number.isFinite(enemy.armorDamageFactor)
+    ? enemy.armorDamageFactor
+    : ENEMIES[enemy.type]?.armorDamageFactor ?? 1;
   const armorPierce = clamp(context.armorPierceFactor || 0, 0, 1);
   const effectiveArmorFactor = armorFactor < 1
     ? armorFactor + (1 - armorFactor) * armorPierce
@@ -2645,6 +2745,19 @@ function damageTroop(session, troop, amount, events, context = {}) {
     eliminateTroop(session, troop, events, session.sandbox ? "sandbox" : "enemy");
   }
   return actualHpDamage;
+}
+
+function stunTroop(session, troop, durationMs, events) {
+  if (!troop || troop.dead || durationMs <= 0) return false;
+  const start = Math.max(session.elapsed, troop.controlStunnedUntil || 0);
+  const end = Math.max(start, session.elapsed + durationMs);
+  const extension = end - (troop.controlStunnedUntil || session.elapsed);
+  troop.controlStunnedUntil = end;
+  for (const key of ["attackReadyAt", "attackBusyUntil", "attackReleaseAt", "stateEndsAt", "mineReadyAt", "gunReadyAt"]) {
+    if (Number.isFinite(troop[key]) && troop[key] > session.elapsed) troop[key] += extension;
+  }
+  events.push({ type: "physicalStun", targetId: troop.id, durationMs: end - session.elapsed, x: troop.x, y: troop.y });
+  return true;
 }
 
 function updateFlameChannel(session, troop, config, events, dt) {
@@ -3526,6 +3639,10 @@ function updateLeviathanHunter(session, troop, config, events) {
 function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead || troop.windRecovery) continue;
+    if (session.elapsed < (troop.controlStunnedUntil || 0)) {
+      troop.defenseActive = false;
+      continue;
+    }
     if (troop.rasgamarCoiledBy) {
       troop.defenseActive = false;
       continue;

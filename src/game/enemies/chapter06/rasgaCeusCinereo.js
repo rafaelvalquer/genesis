@@ -8,6 +8,7 @@ export const rasgaCeusCinereoBehavior = enemyBehavior({
     cruiseAltitude: config.cruiseAltitude,
     flightDirection: -1,
     visualFacing: -1,
+    patrolPass: 0,
     preDiveDirection: -1,
     patrolMinX: null,
     patrolMaxX: null,

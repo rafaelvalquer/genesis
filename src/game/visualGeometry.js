@@ -239,6 +239,18 @@ export function getLeviathanHitPointForRow(enemy, enemyConfig = {}, troopRow, st
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "devoradorCaldeira") {
+    const state = enemy.dead ? "death" : enemy.devoradorState || (enemy.moving ? "walking" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.devoradorStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const duration = Number.isFinite(enemy.devoradorStateEndsAt)
+      ? Math.max(1, enemy.devoradorStateEndsAt - startedAt) : null;
+    if (duration && ["attack", "crushingBite", "frenzyTransition"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
   if (enemyConfig.id === "leviathanNereida") {
     const state = enemy.dead ? "death" : enemy.leviathanState || "idleSurface";
     const count = Math.max(1, frameCounts[state] || frameCounts.idleSurface || 1);
