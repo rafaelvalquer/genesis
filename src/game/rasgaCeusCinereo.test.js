@@ -21,7 +21,7 @@ describe("Rasga-Céus Cinéreo", () => {
     expect(enemy.flightAltitude).toBe(38);
     expect(enemy.y).toBe(2 * 120 + 60);
     stepBattle(current, 700);
-    expect(enemy.rasgaCeusState).toBe("cruise");
+    expect(enemy.rasgaCeusState).toBe("baseApproach");
     expect(enemy.flightAltitude).toBe(30);
     expect(enemy.row).toBe(2);
     expect(enemy.y).toBe(300);
@@ -62,6 +62,30 @@ describe("Rasga-Céus Cinéreo", () => {
     stepBattle(current, 700);
     enemy.nextDiveAt = current.elapsed;
     stepBattle(current, 1);
+    expect(enemy.rasgaCeusState).toBe("baseApproach");
+  });
+
+  it("patrulha os limites da formação e só aborda a base quando a rota fica vazia", () => {
+    const current = session();
+    const left = { id: "left", type: "marine", row: 2, x: 420, y: 300, hp: 100, maxHp: 100, dead: false };
+    const right = { id: "right", type: "marine", row: 2, x: 760, y: 300, hp: 100, maxHp: 100, dead: false };
+    current.troops.push(left, right);
+    const { enemies: [enemy] } = spawnEnemy(current, { type: "rasgaCeusCinereo", row: 2, x: 800 });
+    stepBattle(current, 700);
     expect(enemy.rasgaCeusState).toBe("cruise");
+    expect(enemy.patrolMinX).toBeLessThan(left.x);
+    expect(enemy.patrolMaxX).toBeGreaterThan(right.x);
+    expect(current.integrity).toBe(current.integrityMax);
+    enemy.nextDiveAt = Infinity;
+    enemy.x = enemy.patrolMinX;
+    stepBattle(current, 32);
+    expect(enemy.flightDirection).toBe(1);
+    const turnX = enemy.x;
+    stepBattle(current, 32);
+    expect(enemy.x).toBeGreaterThan(turnX);
+    left.dead = true;
+    right.dead = true;
+    stepBattle(current, 40);
+    expect(enemy.rasgaCeusState).toBe("baseApproach");
   });
 });

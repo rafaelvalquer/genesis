@@ -26,12 +26,16 @@ export function drawSprite(
   return true;
 }
 
-export function drawSpriteInRect(ctx, image, rect, opacity = 1, filter = "none") {
+export function drawSpriteInRect(ctx, image, rect, opacity = 1, filter = "none", flipX = false) {
   if (!image?.width || !image?.height) return false;
   ctx.save();
   ctx.globalAlpha = opacity;
   ctx.filter = filter;
-  ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
+  if (flipX) {
+    ctx.translate(rect.x + rect.width / 2, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(image, -rect.width / 2, rect.y, rect.width, rect.height);
+  } else ctx.drawImage(image, rect.x, rect.y, rect.width, rect.height);
   ctx.restore();
   return true;
 }

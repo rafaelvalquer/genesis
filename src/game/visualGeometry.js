@@ -170,7 +170,9 @@ export function getEnemyFrameAnchor(enemyConfig = {}, state = "idle", frame = 0)
 
 export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", frame = 0, aspectRatio = 1) {
   const altitudeScale = enemy.type === "rasgaCeusCinereo"
-    ? 0.78 + 0.22 * (1 - (enemy.flightAltitude || 0) / Math.max(1, enemy.maximumFlightAltitude || 38))
+    ? (enemyConfig.airborneVisualScaleMin ?? 0.68)
+      + (1 - (enemyConfig.airborneVisualScaleMin ?? 0.68))
+        * (1 - (enemy.flightAltitude || 0) / Math.max(1, enemy.maximumFlightAltitude || 38))
     : 1;
   const scale = (enemy.scale || enemyConfig.scale || 1) * altitudeScale;
   const visualStateScale = enemyConfig.visualStateScale?.[state] || 1;

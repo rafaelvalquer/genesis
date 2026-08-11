@@ -1375,7 +1375,8 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
       logicalEntity.isEcho ? 1.4 : 1,
     );
   }
-  let spriteDrawn = leviathanShadowOnly ? false : drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter);
+  const flipEnemy = logicalEntity.type === "rasgaCeusCinereo" && logicalEntity.visualFacing > 0;
+  let spriteDrawn = leviathanShadowOnly ? false : drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter, flipEnemy);
   if (!spriteDrawn && !leviathanShadowOnly) spriteDrawn = drawProceduralGlassEnemy(ctx, scratch, config, session.elapsed, spriteFilter);
   if (frozen && spriteDrawn) {
     drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");

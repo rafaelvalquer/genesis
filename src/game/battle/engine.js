@@ -1387,17 +1387,62 @@ function rasgaCeusTargetScore(session, enemy, troop) {
 }
 
 function selectRasgaCeusTarget(session, enemy, config) {
+  const direction = enemy.flightDirection || -1;
   return session.troops
     .filter((troop) => !troop.dead && troop.row === enemy.row
       && troop.type !== "thermalPlatform" && troop.unitKind !== "support"
-      && enemy.x - troop.x >= -config.huntAheadTiles * CELL.width
-      && enemy.x - troop.x <= config.huntBehindTiles * CELL.width)
+      && (troop.x - enemy.x) * direction >= -config.huntBehindTiles * CELL.width
+      && (troop.x - enemy.x) * direction <= config.huntAheadTiles * CELL.width)
     .sort((left, right) => rasgaCeusTargetScore(session, enemy, right) - rasgaCeusTargetScore(session, enemy, left))[0] || null;
 }
 
 function rasgaCeusBezier(p0, p1, p2, p3, t) {
   const u = 1 - t;
   return u ** 3 * p0 + 3 * u ** 2 * t * p1 + 3 * u * t ** 2 * p2 + t ** 3 * p3;
+}
+
+function rasgaCeusLivingTroopsInRow(session, row) {
+  return session.troops.filter((troop) => !troop.dead && troop.hp > 0 && troop.row === row
+    && troop.type !== "thermalPlatform" && troop.unitKind !== "support");
+}
+
+function updateRasgaCeusPatrolBounds(session, enemy, config) {
+  const troops = rasgaCeusLivingTroopsInRow(session, enemy.row);
+  if (!troops.length) return null;
+  const left = Math.min(...troops.map((troop) => troop.x));
+  const right = Math.max(...troops.map((troop) => troop.x));
+  const minimumSpan = config.minimumPatrolSpanTiles * CELL.width;
+  const center = (left + right) / 2;
+  const span = Math.max(minimumSpan, right - left + config.patrolPaddingTiles * 2 * CELL.width);
+  enemy.patrolMinX = Math.max(FIELD.baseX + 24, center - span / 2);
+  enemy.patrolMaxX = Math.min(FIELD.width - 24, center + span / 2);
+  return troops;
+}
+
+function moveRasgaCeusPatrol(session, enemy, config, dt) {
+  const troops = updateRasgaCeusPatrolBounds(session, enemy, config);
+  if (!troops) return false;
+  const speed = config.speed * (enemy.rasgaCeusState === "turning"
+    ? Math.min(1, Math.abs(session.elapsed - enemy.rasgaCeusStateStartedAt - config.turnDurationMs / 2) / (config.turnDurationMs / 2))
+    : 1);
+  enemy.x += enemy.flightDirection * speed * session.modifiers.enemySpeed * (session.sandboxSettings?.enemySpeedMultiplier ?? 1) * dt / 1000;
+  enemy.visualFacing = enemy.flightDirection;
+  if (enemy.rasgaCeusState === "turning") {
+    if (session.elapsed - enemy.rasgaCeusStateStartedAt >= config.turnDurationMs) {
+      enemy.visualFacing = enemy.flightDirection;
+      setRasgaCeusState(session, enemy, "cruise");
+    }
+    return true;
+  }
+  const atEdge = enemy.flightDirection < 0 ? enemy.x <= enemy.patrolMinX : enemy.x >= enemy.patrolMaxX;
+  if (atEdge) {
+    enemy.x = enemy.flightDirection < 0 ? enemy.patrolMinX : enemy.patrolMaxX;
+    enemy.turnFromDirection = enemy.flightDirection;
+    enemy.flightDirection *= -1;
+    enemy.visualFacing = enemy.flightDirection;
+    setRasgaCeusState(session, enemy, "turning", config.turnDurationMs);
+  }
+  return true;
 }
 
 function updateRasgaCeus(session, enemy, config, dt, events) {
@@ -1409,7 +1454,27 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
     const progress = Math.min(1, (session.elapsed - enemy.rasgaCeusStateStartedAt) / 700);
     enemy.flightAltitude = config.maximumFlightAltitude - (config.maximumFlightAltitude - config.cruiseAltitude) * progress;
     if (progress >= 1) setRasgaCeusState(session, enemy, "cruise");
+    if (rasgaCeusLivingTroopsInRow(session, enemy.row).length) moveRasgaCeusPatrol(session, enemy, config, dt);
+    else moveEnemy(session, enemy, dt, events);
+    return;
+  }
+  if (state === "baseApproach") {
+    if (rasgaCeusLivingTroopsInRow(session, enemy.row).length) {
+      enemy.nextDiveAt = session.elapsed + 600;
+      setRasgaCeusState(session, enemy, "cruise");
+      return;
+    }
+    enemy.flightAltitude = config.cruiseAltitude;
+    enemy.flightDirection = -1;
+    enemy.visualFacing = -1;
+    enemy.speed = config.speed * config.baseApproachSpeedFactor;
     moveEnemy(session, enemy, dt, events);
+    enemy.speed = config.speed;
+    return;
+  }
+  if ((state === "cruise" || state === "turning") && !rasgaCeusLivingTroopsInRow(session, enemy.row).length) {
+    setRasgaCeusState(session, enemy, "baseApproach");
+    enemy.flightDirection = -1;
     return;
   }
   if (state === "targeting") {
@@ -1426,7 +1491,8 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
     if (session.elapsed >= enemy.rasgaCeusStateEndsAt) {
       enemy.diveFromX = enemy.x;
       enemy.diveFromAltitude = enemy.flightAltitude;
-      enemy.diveTargetX = target.x;
+      enemy.preDiveDirection = enemy.flightDirection;
+      enemy.diveTargetX = target.x - enemy.flightDirection * config.strikeStandOffTiles * CELL.width;
       enemy.diveTargetY = target.y;
       enemy.diveStartedAt = session.elapsed;
       enemy.strikeConsumed = false;
@@ -1439,16 +1505,16 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
   if (state === "diving") {
     const progress = Math.min(1, (session.elapsed - enemy.diveStartedAt) / config.diveDurationMs);
     enemy.x = rasgaCeusBezier(enemy.diveFromX, enemy.diveFromX + 35, enemy.diveTargetX + 25, enemy.diveTargetX, progress);
-    enemy.flightAltitude = enemy.diveFromAltitude * (1 - progress);
+    enemy.flightAltitude = config.strikeAltitude + (enemy.diveFromAltitude - config.strikeAltitude) * (1 - progress);
     enemy.groundRangedTargetable = true;
     if (progress >= 1) setRasgaCeusState(session, enemy, "strike", 120);
     return;
   }
   if (state === "strike") {
-    enemy.flightAltitude = 0;
+    enemy.flightAltitude = config.strikeAltitude;
     if (!enemy.strikeConsumed) {
       const target = session.troops.find((troop) => troop.id === enemy.diveTargetId && !troop.dead);
-      if (target && target.row === enemy.row && Math.abs(target.x - enemy.diveTargetX) <= CELL.width * 0.7) {
+      if (target && target.row === enemy.row) {
         damageTroop(session, target, config.damage, events);
         session.metrics ??= {};
         session.metrics.rasgaCeusSuccessfulStrikes = (session.metrics.rasgaCeusSuccessfulStrikes || 0) + 1;
@@ -1461,12 +1527,15 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
   }
   if (state === "climbing") {
     const progress = Math.min(1, (session.elapsed - enemy.rasgaCeusStateStartedAt) / config.climbDurationMs);
-    enemy.x -= config.speed * dt / 1000;
-    enemy.flightAltitude = config.cruiseAltitude * progress;
+    enemy.x -= enemy.preDiveDirection * config.climbForwardTiles * CELL.width * dt / config.climbDurationMs;
+    enemy.visualFacing = -enemy.preDiveDirection;
+    enemy.flightAltitude = config.strikeAltitude + (config.cruiseAltitude - config.strikeAltitude) * progress;
     enemy.groundRangedTargetable = enemy.flightAltitude <= config.groundTargetAltitude;
     if (progress >= 1) {
       enemy.nextDiveAt = session.elapsed + config.diveCooldownMs + Math.floor(session.rng() * 2000);
       enemy.diveTargetId = null;
+      enemy.flightDirection = enemy.preDiveDirection || enemy.flightDirection;
+      enemy.visualFacing = enemy.flightDirection;
       setRasgaCeusState(session, enemy, "cruise");
     }
     return;
@@ -1485,7 +1554,7 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
         return;
       }
     }
-    moveEnemy(session, enemy, dt, events);
+    moveRasgaCeusPatrol(session, enemy, config, dt);
   }
 }
 
