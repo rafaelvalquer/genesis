@@ -573,7 +573,10 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
 }
 
 export function isEnemyFrozen(enemy, elapsed) {
-  return !enemy?.dead && Number.isFinite(enemy?.slowUntil) && elapsed < enemy.slowUntil;
+  return !enemy?.dead && (
+    (Number.isFinite(enemy?.slowUntil) && elapsed < enemy.slowUntil)
+    || (Number.isFinite(enemy?.cryoFrozenUntil) && elapsed < enemy.cryoFrozenUntil)
+  );
 }
 
 export function getWallDamageFrame(troop, frameCount = 3) {

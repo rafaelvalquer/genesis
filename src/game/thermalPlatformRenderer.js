@@ -62,6 +62,16 @@ export function drawThermalPlatformHeatBars(ctx, session) {
       ctx.textAlign = "center";
       ctx.fillText(state === "overheat" ? "SUPERAQUECIDA" : `CALOR ${percent}%`, x, y - 5);
     }
+    const cryoSupport = (session.troops || []).some((troop) => !troop.dead
+      && troop.type === "cryo7" && troop.row === platform.row && troop.col === platform.col);
+    if (cryoSupport) {
+      ctx.fillStyle = "#a5f3fc";
+      ctx.font = "700 13px Inter, sans-serif";
+      ctx.textAlign = "left";
+      ctx.shadowColor = "#22d3ee";
+      ctx.shadowBlur = 6;
+      ctx.fillText("❄", x + width / 2 + 5, y + height + 2);
+    }
     if (platform.renewedAt != null && session.elapsed - platform.renewedAt < 700) {
       const progress = Math.max(0, (session.elapsed - platform.renewedAt) / 700);
       ctx.strokeStyle = `rgba(103,232,249,${1 - progress})`;

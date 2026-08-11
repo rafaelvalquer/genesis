@@ -135,6 +135,7 @@ export const TROOPS = {
     burst: 3,
     burstIntervalMs: 120,
     attack: "bullet",
+    straightLaneProjectile: true,
     color: "#38bdf8",
     unlockAt: 2,
     attackVisual: {
@@ -216,12 +217,61 @@ export const TROOPS = {
     armorClass: "heavy",
     weightClass: "heavy",
     thermalShield: { maxHp: 18, gainHp: 6, pulseEveryMs: 5000, onlyOnMagma: true },
-    spriteScale: 1.18,
+    spriteScale: 1.34,
     assetStates: ["idle", "attack", "death"],
     idleVisual: { state: "idle", height: 132, aspectRatio: 1.32, durationMs: 960, loop: true },
     attackVisual: { state: "attack", height: 132, aspectRatio: 1.32, durationMs: 720, impactMs: 470, effect: "aresHydraulicPunch", loop: false },
     deathVisual: { state: "death", height: 132, aspectRatio: 1.32, durationMs: 880, loop: false },
     description: "Bastilha cerâmica pesada. Opera diretamente sobre magma, neutraliza queimadura e converte parte do fogo recebido em desgaste do escudo térmico.",
+  },
+  cryo7: {
+    id: "cryo7",
+    label: "CRYO-7",
+    title: "Operador Criogênico",
+    role: "Ranged / Anti-fogo / Controle",
+    spriteKey: "cryo7",
+    price: 20,
+    supply: 5,
+    deployCooldownMs: 6000,
+    maxDeployed: 5,
+    hp: 28,
+    range: 5.5,
+    attackEveryMs: 2600,
+    damage: 6,
+    attack: "cryoJet",
+    projectileSpeed: 540,
+    straightLaneProjectile: true,
+    canTargetGround: true,
+    canTargetAir: false,
+    cryoDamageFactor: 1.35,
+    cryoShockMs: 1000,
+    fireCryoShockMs: 2000,
+    cryoShockRecoveryMs: 4000,
+    platformCoolingPercentPerShot: 0.04,
+    thermalTerrainCompatible: false,
+    fireDamageTakenFactor: 0.60,
+    emberBurnDurationFactor: 0.50,
+    color: "#67e8f9",
+    unlockAt: 40,
+    assetStates: ["idle", "attack", "death"],
+    idleVisual: {
+      state: "idle", height: 124, aspectRatio: 0.82, durationMs: 1040, loop: true,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 130, frame: 1 }, { atMs: 260, frame: 2 }, { atMs: 390, frame: 3 },
+        { atMs: 520, frame: 4 }, { atMs: 650, frame: 5 }, { atMs: 780, frame: 6 }, { atMs: 910, frame: 7 },
+      ],
+    },
+    attackVisual: {
+      state: "attack", height: 124, aspectRatio: 0.82, durationMs: 720, releaseMs: 450,
+      releaseFrame: 5, effect: "cryoJet", loop: false,
+      timeline: [
+        { atMs: 0, frame: 0 }, { atMs: 100, frame: 1 }, { atMs: 200, frame: 2 }, { atMs: 300, frame: 3 },
+        { atMs: 390, frame: 4 }, { atMs: 450, frame: 5 }, { atMs: 540, frame: 6 }, { atMs: 630, frame: 7 },
+      ],
+      shots: [{ atMs: 450, frame: 5, muzzle: { x: 0.90, y: 0.48 } }],
+    },
+    deathVisual: { state: "death", height: 124, aspectRatio: 0.82, durationMs: 880, loop: false },
+    description: "Especialista criogênico que paralisa inimigos, causa dano ampliado contra organismos termicamente adaptados e reduz o calor da Plataforma Térmica a cada disparo.",
   },
   thermalPlatform: {
     id: "thermalPlatform", label: "Plataforma Térmica", role: "Suporte / Infraestrutura",
@@ -800,6 +850,7 @@ export const TROOPS = {
     attackEveryMs: 3000,
     damage: 30,
     attack: "bullet",
+    straightLaneProjectile: true,
     color: "#f97316",
     unlockAt: 3,
     attackVisual: {
@@ -903,6 +954,7 @@ export const TROOPS = {
     attackEveryMs: 1420,
     damage: 5,
     attack: "ice",
+    straightLaneProjectile: true,
     slowFactor: 0.5,
     slowMs: 1800,
     color: "#67e8f9",
@@ -1409,6 +1461,7 @@ export const TROOPS = {
     attackEveryMs: 1800,
     damage: 10,
     attack: "fireball",
+    straightLaneProjectile: true,
     color: "#f59e0b",
     unlockAt: 1,
     attackVisual: {
@@ -1655,6 +1708,7 @@ const TROOP_WIND_CLASSES = Object.freeze({
   fuzileiroVoltaico: "medium",
   operadorJano: "light",
   aresT: "heavy",
+  cryo7: "light",
 });
 
 const TROOP_WIND_ANCHORS = Object.freeze({
@@ -1690,6 +1744,7 @@ const TROOP_TAXONOMY = Object.freeze({
   fuzileiroVoltaico: { tags: ["offense", "ranged", "amphibious"], counters: ["aquatic"] },
   operadorJano: { tags: ["offense", "ranged", "support"], counters: ["light"] },
   aresT: { tags: ["frontline", "offense", "thermal", "fireResistant", "magmaCompatible"], counters: ["fire"] },
+  cryo7: { tags: ["offense", "ranged", "control", "antiFire", "thermalSupport"], counters: ["fire", "thermalAdapted"] },
 });
 
 Object.values(TROOPS).forEach((troop) => {
@@ -1719,6 +1774,7 @@ export const ENEMIES = {
   },
   salamandraCinerea: {
     id: "salamandraCinerea",
+    enemyTags: ["thermalAdapted", "agile"],
     label: "Salamandra Cinérea",
     role: "Comum ágil",
     hp: 28,
@@ -1741,6 +1797,7 @@ export const ENEMIES = {
   },
   rasgaCeusCinereo: {
     id: "rasgaCeusCinereo",
+    enemyTags: ["thermalAdapted", "airborne"],
     label: "Rasga-Céus Cinéreo",
     role: "Predador aéreo / mergulho",
     chapterId: "chapter_06",
@@ -1778,6 +1835,7 @@ export const ENEMIES = {
   },
   devoradorCaldeira: {
     id: "devoradorCaldeira",
+    enemyTags: ["thermalAdapted", "heavy"],
     label: "Devorador da Caldeira",
     role: "Tanque pesado / triturador",
     chapterId: "chapter_06",
@@ -1812,6 +1870,7 @@ export const ENEMIES = {
   },
   predadorCaldeira: {
     id: "predadorCaldeira",
+    enemyTags: ["thermalAdapted", "predator"],
     label: "Predador da Caldeira",
     role: "Elite terrestre / caçador",
     chapterId: "chapter_06",
@@ -1845,6 +1904,7 @@ export const ENEMIES = {
   },
   cuspidorBrasa: {
     id: "cuspidorBrasa",
+    enemyTags: ["thermalAdapted", "fire", "artillery"],
     traits: ["volcanic", "fire"],
     label: "Cuspidor de Brasa",
     role: "Artilharia / incendiário",
@@ -1886,6 +1946,7 @@ export const ENEMIES = {
   },
   vermeIncubador: {
     id: "vermeIncubador",
+    enemyTags: ["thermalAdapted", "subterranean"],
     label: "Verme Incubador",
     role: "Controle de terreno / subterrâneo",
     chapterId: "chapter_06",

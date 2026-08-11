@@ -42,6 +42,7 @@ import {
 } from "../interceptadorIcaro.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
 import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
+import { getCryoDamageFactor, getCryoShockDuration, isCryoThermalTarget, selectCryoTarget } from "../troops/cryo7.js";
 import { getBastiaoFloodedDamageFactor, recordBastiaoDamage, updateBastiaoMare } from "../bastiaoMare.js";
 import {
   createWindCurrentState,
@@ -74,6 +75,7 @@ import {
   getTemporaryMagmaAt,
   isSessionMagmaCell,
   getThermalPlatformAt,
+  coolThermalPlatform,
   isMagmaCell,
   isTroopThermalCompatible,
   getThermalSnapshot,
@@ -428,6 +430,12 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     temporaryMagmaHazards: [],
     supportStructures: [],
     thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0, platformRenewals: 0, aresShieldGained: 0, aresShieldAbsorbed: 0 },
+    metrics: {
+      cryo7Shots: 0, cryo7Hits: 0, cryo7ThermalHits: 0, cryo7FireHits: 0,
+      cryo7BonusDamage: 0, cryo7ShockApplications: 0, cryo7NormalFreezeMs: 0,
+      cryo7FireFreezeMs: 0, cryo7ShockBlockedByRecovery: 0, cryo7ShockImmuneTargets: 0,
+      cryo7PlatformHeatRemoved: 0,
+    },
     troopConfigs: TROOPS,
     deployCooldowns: {},
     modifiers: { ...DEFAULT_MODIFIERS },
@@ -597,6 +605,8 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     channelingAttack: false, channelTickAccumulator: 0, lastAttackMode: null,
     pendingImpact: null, pendingComboImpact: null, pendingRepulsorShot: null,
     pendingAresImpact: null,
+    cryoShockRecoveryByTarget: {},
+    cryoShotCount: 0,
     thermalShieldHp: Number(config.thermalShield?.initialHp) || 0,
     thermalShieldNextPulseAt: config.thermalShield ? session.elapsed + config.thermalShield.pulseEveryMs : Infinity,
     thermalShieldPausedAt: null,
@@ -1163,7 +1173,7 @@ function createEnemyLegacy(session, queued) {
     casting: false, castStartedAt: -Infinity, castReadyAt: Infinity, moving: true,
     jumpConsumed: false, jumping: false, jumpStartedAt: -Infinity, jumpProgress: 0,
     jumpFromX: null, jumpTargetTroopId: null, attachedToTroopId: null,
-    slowUntil: 0, slowFactor: 1, stunnedUntil: 0,
+    slowUntil: 0, slowFactor: 1, stunnedUntil: 0, cryoFrozenUntil: 0, cryoShockRecoveryUntil: 0,
     emergeState: null, emergeStartedAt: -Infinity, emergeEndsAt: -Infinity,
     bossPhase: isScarabEmperor(base) ? 1 : 0,
     shield: 0, shieldMax: 0, lastShieldPulseAt: -Infinity,
@@ -2254,6 +2264,14 @@ function enemyHitPointForRow(enemy, row, elapsed) {
 }
 
 function closestEnemy(session, troop, config) {
+  if (troop.type === "cryo7") {
+    return selectCryoTarget(session.enemies, troop, config, {
+      occupiesTargetRow: enemyOccupiesTargetRow,
+      canTarget: (enemy) => canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type]),
+      enemyConfigFor: (enemy) => ENEMIES[enemy.type],
+      cellWidth: CELL.width,
+    });
+  }
   const originX = attackOriginX(session, troop, config);
   let closest = null;
   const rowEnemies = enemiesForRow(session, troop.row);
@@ -2590,6 +2608,10 @@ function attackDamageMultiplier(session, troop, { explosive = false, target = nu
   if (troop.swarmHpApplied) multiplier *= 1.1;
   multiplier *= getFocusedFireDamageMultiplier(session, troop, target);
   multiplier *= getAresFireBonus(troop, target, target ? ENEMIES[target.type] : null);
+  if (troop.type === "cryo7" && target) {
+    const cryoFactor = getCryoDamageFactor(ENEMIES[target.type], TROOPS.cryo7);
+    multiplier *= cryoFactor;
+  }
   if (target && session.modifiers.continuousSuppression) {
     if (troop.suppressionTargetId === target.id) {
       if ((troop.suppressionHits || 0) >= 3) multiplier *= 1.15;
@@ -3000,6 +3022,15 @@ export function stunEnemy(session, enemy, durationMs) {
       enemy.scarabStateEndsAt += pausedFor;
     }
   }
+  for (const field of [
+    "predatorStateStartedAt", "predatorStateEndsAt",
+    "devoradorStateStartedAt", "devoradorStateEndsAt",
+    "incubatorStateStartedAt", "incubatorStateEndsAt",
+    "cuspidorStateStartedAt", "cuspidorStateEndsAt",
+  ]) {
+    if (Number.isFinite(enemy[field])
+      && (field.endsWith("StartedAt") || enemy[field] >= session.elapsed)) enemy[field] += pausedFor;
+  }
   if (enemy.jumping && Number.isFinite(enemy.jumpStartedAt)) enemy.jumpStartedAt += pausedFor;
   enemy.moving = false;
 }
@@ -3264,7 +3295,7 @@ function fireTroop(session, troop, config, target, events) {
       const ballisticSpeed = ["marine", "sniper", "caçador"].includes(troop.type)
         ? session.modifiers.ballisticProjectileSpeed : 1;
       const speed = (config.projectileSpeed || (config.attack === "missile" ? 210 : 390)) * ballisticSpeed;
-      const straightLane = troop.type === "marine" || troop.type === "sniper" || troop.type === "krio" || troop.type === "guarda";
+      const straightLane = Boolean(config.straightLaneProjectile);
       session.projectiles.push({
         id: id("projectile"), kind: config.attack, troopType: troop.type,
         sourceTroopId: troop.id, shotIndex: shot, row: troop.row, straightLane,
@@ -3284,6 +3315,13 @@ function fireTroop(session, troop, config, target, events) {
         nextFireSmokeAt: config.attack === "fireball" ? 160 : Infinity,
         launchAt: session.elapsed + (config.attackVisual?.shots?.[shot]?.atMs ?? shot * (config.burstIntervalMs || 0)),
       });
+      const createdProjectile = session.projectiles[session.projectiles.length - 1];
+      if (troop.type === "cryo7") {
+        createdProjectile.cryoThermalTarget = isCryoThermalTarget(ENEMIES[target.type]);
+        createdProjectile.cryoFireTarget = ENEMIES[target.type]?.enemyTags?.includes("fire") || false;
+        createdProjectile.cryoShockDurationMs = getCryoShockDuration(ENEMIES[target.type], config);
+        troop.cryoShotCount = (troop.cryoShotCount || 0) + 1;
+      }
     }
   }
 }
@@ -4229,12 +4267,60 @@ function updateTroops(session, events, dt) {
   }
 }
 
+function applyCryoShock(session, projectile, target, events) {
+  if (!target || target.dead) return;
+  const targetConfig = ENEMIES[target.type] || {};
+  const tags = targetConfig.enemyTags || targetConfig.traits || [];
+  const thermalTarget = tags.includes("thermalAdapted");
+  const fireTarget = tags.includes("fire");
+  session.metrics.cryo7Hits += 1;
+  if (thermalTarget) session.metrics.cryo7ThermalHits += 1;
+  if (fireTarget) session.metrics.cryo7FireHits += 1;
+  if (projectile.cryoThermalTarget) session.metrics.cryo7BonusDamage += Math.max(0, projectile.damage - TROOPS.cryo7.damage);
+  if (targetConfig.controlImmune) {
+    session.metrics.cryo7ShockImmuneTargets += 1;
+    return;
+  }
+  if (session.elapsed < (target.cryoShockRecoveryUntil || 0)) {
+    session.metrics.cryo7ShockBlockedByRecovery += 1;
+    return;
+  }
+  const durationMs = fireTarget ? TROOPS.cryo7.fireCryoShockMs : TROOPS.cryo7.cryoShockMs;
+  stunEnemy(session, target, durationMs);
+  target.cryoFrozenUntil = Math.max(target.cryoFrozenUntil || 0, session.elapsed + durationMs);
+  target.cryoShockRecoveryUntil = session.elapsed + TROOPS.cryo7.cryoShockRecoveryMs;
+  session.metrics.cryo7ShockApplications += 1;
+  if (fireTarget) session.metrics.cryo7FireFreezeMs += durationMs;
+  else session.metrics.cryo7NormalFreezeMs += durationMs;
+  events.push({
+    type: "cryoShock", targetId: target.id, sourceTroopId: projectile.sourceTroopId,
+    durationMs, fireTarget, x: target.x, y: target.y - 32, color: TROOPS.cryo7.color, seed: projectile.seed,
+  });
+}
+
 function updateProjectiles(session, dt, events) {
   for (const projectile of session.projectiles) {
     if (!projectile.active) continue;
     if (session.elapsed < projectile.launchAt) continue;
     if (!projectile.launched) {
+      if (projectile.kind === "cryoJet") {
+        const lockedTarget = indexedEnemyById(session, projectile.targetId);
+        if (!isEnemyTargetable(lockedTarget)) {
+          projectile.active = false;
+          continue;
+        }
+        const sourceTroop = indexedTroopById(session, projectile.sourceTroopId);
+        if (sourceTroop) {
+          const removed = coolThermalPlatform(
+            session, sourceTroop.row, sourceTroop.col,
+            TROOPS.cryo7.platformCoolingPercentPerShot,
+            sourceTroop.id, events,
+          );
+          session.metrics.cryo7PlatformHeatRemoved += removed;
+        }
+      }
       projectile.launched = true;
+      if (projectile.kind === "cryoJet") session.metrics.cryo7Shots += 1;
       events.push({
         type: projectile.kind === "mine" ? "mineLaunch" : "shoot", weapon: projectile.visualKind, troopType: projectile.troopType,
         sourceTroopId: projectile.sourceTroopId, shotIndex: projectile.shotIndex,
@@ -4543,7 +4629,10 @@ function updateProjectiles(session, dt, events) {
       continue;
     }
     let target;
-    if (projectile.straightLane) {
+    if (projectile.kind === "cryoJet") {
+      target = indexedEnemyById(session, projectile.targetId);
+      if (!isEnemyTargetable(target) || !enemyOccupiesTargetRow(target, projectile.row)) target = null;
+    } else if (projectile.straightLane) {
       target = null;
       for (const enemy of enemiesForRow(session, projectile.row)) {
         if (!enemyOccupiesTargetRow(enemy, projectile.row) || enemy.x < projectile.previousX - 24) continue;
@@ -4638,9 +4727,12 @@ function updateProjectiles(session, dt, events) {
           });
         } else {
           damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: projectile.origin.x });
+          if (projectile.kind === "cryoJet" && !derivanteDodging) {
+            applyCryoShock(session, projectile, target, events);
+          }
         }
         events.push({
-          type: projectile.kind === "ice" ? "iceImpact" : projectile.kind === "fireball" ? "fireImpact" : "projectileImpact",
+          type: projectile.kind === "ice" ? "iceImpact" : projectile.kind === "cryoJet" ? "cryoImpact" : projectile.kind === "fireball" ? "fireImpact" : "projectileImpact",
           weapon: projectile.visualKind, x: targetPoint.x, y: targetPoint.y,
           color: projectile.color, seed: projectile.seed,
         });
@@ -5725,8 +5817,9 @@ function applyCuspidorEmberBurn(session, troop, projectile, events) {
     events.push({ type: "emberBurnImmune", sourceEnemyId: projectile.sourceEnemyId, targetTroopId: troop.id, x: troop.x, y: troop.y - 42, color: "#67e8f9", seed: projectile.seed });
     return;
   }
+  const durationMs = projectile.burnDurationMs * (TROOPS[troop.type]?.emberBurnDurationFactor ?? 1);
   const wasBurning = Number(troop.emberBurnUntil || 0) > session.elapsed;
-  troop.emberBurnUntil = Math.max(Number(troop.emberBurnUntil || 0), session.elapsed + projectile.burnDurationMs);
+  troop.emberBurnUntil = Math.max(Number(troop.emberBurnUntil || 0), session.elapsed + durationMs);
   if (!wasBurning || !Number.isFinite(troop.emberBurnNextTickAt) || troop.emberBurnNextTickAt <= 0) {
     troop.emberBurnNextTickAt = session.elapsed + projectile.burnTickEveryMs;
     troop.emberBurnStartedAt = session.elapsed;
@@ -5736,7 +5829,7 @@ function applyCuspidorEmberBurn(session, troop, projectile, events) {
   events.push({
     type: wasBurning ? "emberBurnRenewed" : "emberBurnStarted",
     sourceEnemyId: projectile.sourceEnemyId, targetTroopId: troop.id,
-    durationMs: projectile.burnDurationMs, damagePerSecond: projectile.burnDamagePerSecond,
+    durationMs, damagePerSecond: projectile.burnDamagePerSecond,
     x: troop.x, y: troop.y, color: projectile.color, seed: projectile.seed,
   });
 }

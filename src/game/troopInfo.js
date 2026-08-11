@@ -7,6 +7,7 @@ const ATTACK_LABELS = {
   shotgun: "Escopeta",
   flame: "Jato contínuo",
   ice: "Projétil criogênico",
+  cryoJet: "Jato criogênico",
   laser: "Feixe de energia",
   missile: "Míssil em área",
   mortar: "Morteiro indireto",
@@ -97,6 +98,18 @@ export function getTroopInfo(troop) {
   if (troop.slowFactor != null) specials.push({
     label: "Lentidão",
     value: `-${Math.round((1 - troop.slowFactor) * 100)}% por ${formatDuration(troop.slowMs)}`,
+  });
+  if (troop.cryoShockMs != null) specials.push({
+    label: "Choque térmico",
+    value: `Paralisa por ${formatDuration(troop.cryoShockMs)} · fogo por ${formatDuration(troop.fireCryoShockMs || troop.cryoShockMs)}`,
+  });
+  if (troop.cryoDamageFactor != null) specials.push({
+    label: "Anti-térmico",
+    value: `+${Math.round((troop.cryoDamageFactor - 1) * 100)}% contra fogo e Thermal Adapted`,
+  });
+  if (troop.platformCoolingPercentPerShot != null) specials.push({
+    label: "Refrigeração",
+    value: `-${Math.round(troop.platformCoolingPercentPerShot * 100)}% Heat por disparo na Plataforma Térmica`,
   });
   if (troop.maxDeployed) specials.push({ label: "Limite", value: `${troop.maxDeployed} simultâneos` });
   if (troop.waveEnergyBonus) specials.push({ label: "Bônus de onda", value: `+${troop.waveEnergyBonus} energia` });

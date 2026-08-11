@@ -82,6 +82,22 @@ export function getSupportAt(session, row, col) { return session.supportStructur
 export function getThermalPlatformAt(session, row, col) { const support = getSupportAt(session, row, col); return support?.type === "thermalPlatform" ? support : null; }
 export function hasThermalPlatform(session, row, col) { return Boolean(getThermalPlatformAt(session, row, col)); }
 
+export function coolThermalPlatform(session, row, col, coolingPercent, sourceTroopId = null, events = []) {
+  const platform = getThermalPlatformAt(session, row, col);
+  if (!platform) return 0;
+  const amount = Math.max(0, Number(platform.maxHeat) || 0) * Math.max(0, Number(coolingPercent) || 0);
+  const previous = platform.heat;
+  platform.heat = Math.max(0, platform.heat - amount);
+  const removed = previous - platform.heat;
+  if (removed > 0) {
+    events.push({
+      type: "thermalPlatformCooled", sourceTroopId, supportId: platform.id, row, col,
+      x: col * 100 + 50, y: row * 70 + 35, amount: removed, heat: platform.heat,
+    });
+  }
+  return removed;
+}
+
 export function createThermalPlatform(session, row, col, config, id) {
   const platform = { id: id(), type: "thermalPlatform", row, col, hp: config.hp, maxHp: config.hp, heat: 0, maxHeat: config.maxHeat || 100, overheated: false, createdAt: session.elapsed, destroyed: false, paidEnergy: config.price || 8 };
   session.supportStructures.push(platform);
@@ -196,7 +212,9 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
       const localHazard = getTemporaryMagmaAt(session, platform.row, platform.col);
       const heatRate = localHazard ? THERMAL_STATES.eruption.heatPerSecond : cycle.heatRatePerSecond;
       platform.heat = clamp(platform.heat + heatRate * seconds, 0, platform.maxHeat);
-    platform.overheated = platform.heat >= platform.maxHeat;
+    platform.overheated = platform.overheated
+      ? platform.heat > platform.maxHeat * 0.95
+      : platform.heat >= platform.maxHeat;
     if (platform.overheated) {
       platform.hp -= platform.maxHp * (config.thermalOverheatDamagePerSecond / 100) * seconds;
       if (platform.hp <= 0) {

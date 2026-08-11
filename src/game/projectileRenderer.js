@@ -32,7 +32,8 @@ function profile(settings = {}, essential = false) {
 export function isEssentialParticleEvent(event = {}) {
   return event.type === "hit" || event.type === "troopHit" || event.type === "shieldHit"
     || event.type === "shieldBreak" || event.type === "glassEchoShatter" || event.type === "bossPhase" || event.type === "bossDeath"
-    || event.type === "prismaticPulse" || event.type === "iceImpact"
+    || event.type === "prismaticPulse" || event.type === "iceImpact" || event.type === "cryoImpact"
+    || event.type === "cryoShock" || event.type === "thermalPlatformCooled"
     || event.type === "voltaicDischarge" || event.type === "bastiaoOverload"
     || event.type === "scarabTransitionStart" || event.type === "scarabTransitionComplete"
     || event.type === "capsuleLanded" || event.type === "capsuleOpened" || event.type === "fortuneOrbitalStrike"
@@ -733,14 +734,28 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       particles.push(...createIceTrailParticles(event, now, settings));
       continue;
     }
+    if (event.type === "cryoShock") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#67e8f9", born: now, life: 520, maxRadius: event.fireTarget ? 42 : 32 });
+      addSparks(particles, event, now, settings.reduceMotion ? 4 : Math.max(8, Math.round(16 * quality.density)), random, {
+        kind: "snow", color: "#dffcff", minSpeed: 22, speed: 78, life: 520, size: 2.2,
+      });
+      continue;
+    }
+    if (event.type === "thermalPlatformCooled") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#67e8f9", born: now, life: 520, maxRadius: 34 });
+      addSparks(particles, event, now, settings.reduceMotion ? 2 : 5, random, {
+        color: "#dffcff", minSpeed: 12, speed: 42, life: 360, size: 1.5,
+      });
+      continue;
+    }
     if (event.type === "fireTrail") {
       particles.push(...createFireTrailParticles(event, now, settings));
       continue;
     }
     if (event.type === "shoot") {
       const icaro = ["icaroBullet", "icaroInterceptionShot"].includes(event.weapon);
-      const flashColor = icaro ? "#67e8f9" : event.weapon === "naniteBullet" ? "#ccfbf1" : event.weapon === "ice" ? "#d9fbff" : event.weapon === "abyssOrb" ? "#ead7ff" : event.weapon === "prismBolt" ? "#fff1b8" : ["microMissile", "fireball"].includes(event.weapon) ? "#ffcf8a" : "#fff7d6";
-      const flashSize = event.weapon === "icaroInterceptionShot" ? 12 : event.weapon === "icaroBullet" ? 9 : event.weapon === "sniperBullet" ? 22 : ["abyssOrb", "prismBolt"].includes(event.weapon) ? 24 : event.weapon === "fireball" ? 12 : 15;
+      const flashColor = icaro ? "#67e8f9" : event.weapon === "cryoJet" ? "#dffcff" : event.weapon === "naniteBullet" ? "#ccfbf1" : event.weapon === "ice" ? "#d9fbff" : event.weapon === "abyssOrb" ? "#ead7ff" : event.weapon === "prismBolt" ? "#fff1b8" : ["microMissile", "fireball"].includes(event.weapon) ? "#ffcf8a" : "#fff7d6";
+      const flashSize = event.weapon === "icaroInterceptionShot" ? 12 : event.weapon === "icaroBullet" ? 9 : event.weapon === "sniperBullet" ? 22 : event.weapon === "cryoJet" ? 20 : ["abyssOrb", "prismBolt"].includes(event.weapon) ? 24 : event.weapon === "fireball" ? 12 : 15;
       particles.push({ kind: "muzzle", x: event.x, y: event.y, color: flashColor, born: now, life: event.weapon === "sniperBullet" ? 125 : 90, size: flashSize });
       if (["marineBullet", "sniperBullet"].includes(event.weapon)) {
         addSparks(particles, event, now, Math.max(2, Math.round(5 * quality.density)), random, { forward: true, color: event.color, speed: 100, life: 190, size: 1.4 });
@@ -751,6 +766,11 @@ export function pushEventParticles(particles, events, now, settings = {}) {
         });
       } else if (event.weapon === "ice") {
         particles.push(...createIceTrailParticles({ ...event, variant: "muzzle" }, now, settings));
+      } else if (event.weapon === "cryoJet") {
+        particles.push(...createIceTrailParticles({ ...event, variant: "muzzle" }, now, settings));
+        addSparks(particles, event, now, settings.reduceMotion ? 2 : Math.max(5, Math.round(10 * quality.density)), random, {
+          forward: true, color: "#a5f3fc", minSpeed: 35, speed: 110, life: 300, size: 1.7,
+        });
       } else if (event.weapon === "microMissile") {
         particles.push({ kind: "smoke", x: event.x - 4, y: event.y, vx: -18, vy: 0, color: "#94a3b8", born: now, life: 360, size: 8 });
       } else if (event.weapon === "fireball") {
@@ -801,6 +821,13 @@ export function pushEventParticles(particles, events, now, settings = {}) {
     if (event.type === "iceImpact") {
       addSparks(particles, event, now, Math.max(5, Math.round(16 * quality.density)), random, { kind: "snow", color: "#d8fbff", minSpeed: 24, speed: 85, life: 480, size: 2.8 });
       particles.push({ kind: "ring", x: event.x, y: event.y, color: "#67e8f9", born: now, life: 390, maxRadius: 48 });
+      continue;
+    }
+    if (event.type === "cryoImpact") {
+      addSparks(particles, event, now, Math.max(7, Math.round(20 * quality.density)), random, {
+        kind: "snow", color: "#e6fcff", minSpeed: 28, speed: 105, life: 540, size: 2.4,
+      });
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#67e8f9", born: now, life: 460, maxRadius: 46 });
       continue;
     }
     if (event.type === "fireImpact") {
@@ -1120,6 +1147,32 @@ function drawIceProjectile(ctx, projectile) {
   ctx.stroke();
 }
 
+function drawCryoJet(ctx, projectile) {
+  forEachProjectileTrailPoint(projectile.trail, 12, (point, index, count) => {
+    const ratio = (index + 1) / count;
+    ctx.fillStyle = `rgba(103,232,249,${ratio * 0.24})`;
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 2 + ratio * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  drawCachedRadialGlow(
+    ctx, "projectile-cryo-jet", projectile.x, projectile.y, 13, 13,
+    "#ffffff", "#67e8f9", "rgba(34,211,238,0)", 0.7,
+  );
+  ctx.save();
+  ctx.translate(projectile.x, projectile.y);
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = "#f5feff";
+  ctx.strokeStyle = "#a5f3fc";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(9, 0); ctx.lineTo(1, -4); ctx.lineTo(-5, 0); ctx.lineTo(1, 4); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#67e8f9";
+  ctx.beginPath(); ctx.arc(-6, 0, 3.2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
 function drawFireball(ctx, projectile) {
   drawRoundBullet(ctx, projectile, {
     radius: 4, glowRadius: 8.5, rim: "#ea580c", glowEdge: "rgba(249,115,22,0)",
@@ -1223,6 +1276,13 @@ export function drawFrozenEnemyEffect(ctx, entity, elapsed, settings = {}) {
     ctx.fill();
     ctx.stroke();
   });
+  ctx.save();
+  ctx.globalAlpha = 0.68 * pulse;
+  ctx.fillStyle = "#e0fbff";
+  ctx.font = `${Math.round(13 * scale)}px Inter, sans-serif`;
+  ctx.textAlign = "center";
+  ctx.fillText("❄", entity.x, entity.y - 56 * scale);
+  ctx.restore();
 }
 
 export function drawStunnedEnemyEffect(ctx, entity, elapsed, settings = {}) {
@@ -1579,6 +1639,7 @@ export function drawProjectileCollection(
     else if (projectile.visualKind === "icaroInterceptionShot") drawIcaroBullet(ctx, projectileScratch, true);
     else if (projectile.visualKind === "naniteBullet") drawNaniteBullet(ctx, projectileScratch);
     else if (projectile.visualKind === "ice") drawIceProjectile(ctx, projectileScratch);
+    else if (projectile.visualKind === "cryoJet") drawCryoJet(ctx, projectileScratch);
     else if (projectile.visualKind === "fireball") drawFireball(ctx, projectileScratch);
     else if (projectile.visualKind === "abyssOrb") drawAbyssOrb(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "prismBolt") drawPrismBolt(ctx, projectileScratch, quality);
