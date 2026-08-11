@@ -183,6 +183,7 @@ function lightFor(event, now) {
     executorSlash: { radius: 56, life: 150 },
     executorFinisher: { radius: event.lightRadius || 92, life: 380 },
     pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 }, pulseHit: { radius: 68, life: 220 },
+    predatorClaw: { radius: 58, life: 180 }, predatorBite: { radius: 68, life: 220 }, predatorFrenzy: { radius: 92, life: 520 },
   }[event.type];
   if (!values) return null;
   return { x: event.x ?? event.x0 ?? 0, y: event.y ?? event.y0 ?? 0, color: event.color || "#f8fafc", born: now, ...values };

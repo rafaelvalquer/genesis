@@ -107,6 +107,8 @@ import {
 } from "./battleModel.js";
 import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
+import { drawThermalPlatformHeatBars, getThermalPlatformVisual } from "./thermalPlatformRenderer.js";
+import { drawIncubatorFissureEffects, drawIncubatorFissureUnderlay, drawIncubatorTargetTelegraph } from "./incubatorFissureRenderer.js";
 import { drawAdaptiveAid } from "./adaptiveAidRenderer.js";
 import { drawWindEffects } from "./windCurrentRenderer.js";
 import { drawTideOverlay, drawTideUnderlay } from "./tideRenderer.js";
@@ -1359,6 +1361,7 @@ function drawRasgaCeusTargetMarker(ctx, session, enemy) {
 
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
+  if (logicalEntity.type === "vermeIncubador" && logicalEntity.incubatorSubmerged) return;
   if (isRasgamarShadowOnly(logicalEntity, session.elapsed)) return;
   const config = ENEMIES[logicalEntity.type];
   const reaction = getHitReaction(runtime, logicalEntity.id, now);
@@ -1470,7 +1473,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
 function drawThermalPlatforms(ctx, session, assets) {
   const frames = assets.troops.thermalPlatform || {};
   for (const platform of session.supportStructures || []) {
-    const state = platform.destroyed ? "destroyed" : platform.overheated ? "overheat" : platform.heat >= 80 ? "critical" : platform.heat >= 60 ? "heated" : "idle";
+    const { state } = getThermalPlatformVisual(platform);
     const image = resolveTroopFrame(frames, state, 0);
     if (!image) continue;
     const x = platform.col * CELL.width + CELL.width / 2;
@@ -1583,6 +1586,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   arenaCtx.translate(0, VIEWPORT.fieldOffsetY);
   drawArenaBackground(arenaCtx, session.phase, settings);
   drawArenaUnderlay(arenaCtx, session.phase, settings, session, now, adaptive, runtime);
+  drawIncubatorFissureUnderlay(arenaCtx, session);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);
   drawTacticalGrid(arenaCtx, session, selectedTroop, removeMode, hoveredCell);
   drawPlacementRange(arenaCtx, placementPreview);
@@ -1600,6 +1604,8 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   effectCtx.save();
   effectCtx.translate(0, VIEWPORT.fieldOffsetY);
   drawTideUnderlay(effectCtx, session, now, settings, adaptive);
+  drawIncubatorFissureEffects(effectCtx, session, now, settings);
+  drawIncubatorTargetTelegraph(effectCtx, session, now, settings);
   drawDecals(effectCtx, runtime, settings);
   drawPulseScorches(effectCtx, runtime, now, settings);
   drawDematerializationPulses(
@@ -1637,6 +1643,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   entityCtx.save();
   entityCtx.translate(0, VIEWPORT.fieldOffsetY);
   drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
+  drawThermalPlatformHeatBars(entityCtx, session);
   drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(entityCtx, runtime, assets, now, session.phase);
   entityCtx.restore();
@@ -2324,7 +2331,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setMessage(result.ok
       ? result.upgraded
         ? `Drone adicionado · Formação ${result.troop.droneCount}/3.`
-        : `${TROOPS[action.troopType].label} implantado.`
+        : result.renewed
+          ? "Plataforma Térmica renovada — calor zerado."
+          : `${TROOPS[action.troopType].label} implantado.`
       : result.reason);
     if (result.ok) {
       play("deploy", 0.55);

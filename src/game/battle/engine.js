@@ -67,6 +67,11 @@ import {
 import {
   createThermalCycleState,
   createThermalPlatform,
+  renewThermalPlatform,
+  THERMAL_STATES,
+  createTemporaryMagmaEruption,
+  getTemporaryMagmaAt,
+  isSessionMagmaCell,
   getThermalPlatformAt,
   isMagmaCell,
   isTroopThermalCompatible,
@@ -95,7 +100,7 @@ import {
   createDematerializationPulseState,
   getDematerializationPulseTargets,
 } from "../dematerializationPulse.js";
-import { canTroopTargetEnemy, isEnemyTargetable, isRasgamarSubmerged, RASGAMAR_SUBMERGED_STATES } from "../enemyTargeting.js";
+import { canTroopTargetEnemy, isEnemyTargetable, isRasgamarSubmerged, isIncubatorSubmerged, RASGAMAR_SUBMERGED_STATES } from "../enemyTargeting.js";
 import {
   getBattleIndex,
   livingEnemyById,
@@ -419,8 +424,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     windCurrent: createWindCurrentState(),
     tideCycle: createTideCycleState(),
     thermalCycle: { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox },
+    temporaryMagmaHazards: [],
     supportStructures: [],
-    thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0 },
+    thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0, platformRenewals: 0 },
     troopConfigs: TROOPS,
     deployCooldowns: {},
     modifiers: { ...DEFAULT_MODIFIERS },
@@ -480,11 +486,11 @@ export function canPlaceTroop(session, troopId, row, col) {
     ? null
     : getTidePlacementBlockReason(session, row, col);
   if (tidePlacementReason) return tidePlacementReason;
-  const magma = isMagmaCell(session.phase, row, col);
+  const magma = isSessionMagmaCell(session, row, col);
   const thermalPlatform = troopId === "thermalPlatform";
   const existingPlatform = getThermalPlatformAt(session, row, col);
   if (thermalPlatform && !magma) return "Plataformas Térmicas só podem ser instaladas sobre magma.";
-  if (thermalPlatform && existingPlatform) return "Já existe uma Plataforma Térmica nesta célula.";
+  const renewingPlatform = thermalPlatform && Boolean(existingPlatform);
   if (magma && !thermalPlatform && !existingPlatform && !isTroopThermalCompatible(troop)) return "Magma exige uma Plataforma Térmica; apenas o Drone Sentinela pode operar diretamente.";
   const occupant = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col);
   const droneStack = troopId === "droneSentinela" && occupant?.type === "droneSentinela" ? occupant : null;
@@ -505,7 +511,7 @@ export function canPlaceTroop(session, troopId, row, col) {
     if (getTotalDroneSentinelaCount(session) >= troop.maxTotalDrones) {
       return `Limite total de ${troop.maxTotalDrones} drones no campo.`;
     }
-  } else if (thermalPlatform && !freePlacement && (session.supportStructures || []).filter((entry) => !entry.destroyed && entry.type === troopId).length >= deploymentLimit) {
+  } else if (thermalPlatform && !renewingPlatform && !freePlacement && (session.supportStructures || []).filter((entry) => !entry.destroyed && entry.type === troopId).length >= deploymentLimit) {
     return `Limite de ${deploymentLimit} ${troop.label} no campo.`;
   } else if (!thermalPlatform && !freePlacement && getActiveTroopCount(session, troopId) >= deploymentLimit) {
     return `Limite de ${deploymentLimit} ${troop.label} no campo.`;
@@ -709,9 +715,35 @@ export function placeTroop(session, troopId, row, col) {
   const config = TROOPS[troopId];
   const effective = getEffectiveTroopStats(session, troopId);
   if (troopId === "thermalPlatform") {
+    const existingPlatform = getThermalPlatformAt(session, row, col);
+    const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
+    if (existingPlatform) {
+      const renewal = renewThermalPlatform(session, existingPlatform, config);
+      if (!freePlacement) {
+        session.energy -= effective.price;
+        session.supply -= effective.supply;
+      }
+      if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) {
+        session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
+      }
+      session.thermalMetrics.platformRenewals = (session.thermalMetrics.platformRenewals || 0) + 1;
+      return {
+        ok: true,
+        support: existingPlatform,
+        renewed: true,
+        events: [{ type: "thermalPlatformRenewed", supportId: existingPlatform.id, row, col,
+          previousHeat: renewal.previousHeat, previousHp: renewal.previousHp,
+          heat: 0, hp: existingPlatform.maxHp,
+          x: col * CELL.width + CELL.width / 2, y: row * CELL.height + CELL.height / 2 }],
+        activeCount: (session.supportStructures || []).length,
+        maxDeployed: getTroopDeploymentLimit(troopId, session),
+        event: { type: "thermalPlatformRenewed", x: col * CELL.width + CELL.width / 2, y: row * CELL.height + CELL.height / 2 },
+      };
+    }
     const burningTroop = session.troops.find((entry) => !entry.dead && entry.row === row && entry.col === col && (entry.thermalBurning || entry.thermalExposed));
     const platform = createThermalPlatform(session, row, col, config, () => id("support"));
-    const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
+    const temporaryHazard = getTemporaryMagmaAt(session, row, col);
+    if (temporaryHazard) platform.temporaryHazardId = temporaryHazard.id;
     if (!freePlacement) { session.energy -= effective.price; session.supply -= effective.supply; }
     session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
     if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
@@ -1323,6 +1355,8 @@ function createEnemyRuntime(session) {
     updateMordelume: (enemy, config, dt, events) => updateMordelume(session, enemy, config, dt, events),
     updateSalamandra: (enemy, config, dt, events) => updateSalamandra(session, enemy, config, dt, events),
     updateDevorador: (enemy, config, dt, events) => updateDevorador(session, enemy, config, dt, events),
+    updateVermeIncubador: (enemy, config, dt, events) => updateVermeIncubador(session, enemy, config, dt, events),
+    updatePredadorCaldeira: (enemy, config, dt, events) => updatePredadorCaldeira(session, enemy, config, dt, events),
     updateRasgaCeus: (enemy, config, dt, events) => updateRasgaCeus(session, enemy, config, dt, events),
     updateLeviathan: (enemy, config, events) => updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events),
     setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
@@ -1447,6 +1481,240 @@ function updateDevorador(session, enemy, config, dt, events) {
   enemy.speed = config.speed * (frenzy ? config.frenzySpeedFactor : 1);
   moveEnemy(session, enemy, dt, events);
   enemy.speed = originalSpeed;
+}
+
+function setPredadorState(session, enemy, state, durationMs = Infinity) {
+  enemy.predatorState = state;
+  enemy.predatorStateStartedAt = session.elapsed;
+  enemy.predatorStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.predatorClawApplied = false;
+  enemy.predatorBiteApplied = false;
+  enemy.moving = state === "walking" || state === "hunting";
+}
+
+function predatorMovementSpeed(enemy, config) {
+  const huntFactor = enemy.predatorState === "hunting" ? config.hunt.speedMultiplier : 1;
+  const frenzyFactor = enemy.predatorFrenzy ? config.frenzySpeedFactor : 1;
+  return config.speed * huntFactor * frenzyFactor;
+}
+
+function updatePredadorCaldeira(session, enemy, config, dt, events) {
+  if (!enemy.predatorFrenzyTriggered && enemy.hp / Math.max(1, enemy.maxHp) <= config.frenzyThreshold) {
+    enemy.predatorFrenzyTriggered = true;
+    enemy.armorDamageFactor = config.frenzyArmorDamageFactor;
+    if (enemy.predatorState === "attackCombo") enemy.predatorFrenzyPending = true;
+    else {
+      setPredadorState(session, enemy, "frenzyTransition", config.frenzyTransitionVisual.durationMs);
+      events.push({ type: "predatorFrenzy", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y });
+    }
+  }
+
+  if (enemy.predatorState === "frenzyTransition") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.predatorStateEndsAt) {
+      enemy.predatorFrenzy = true;
+      enemy.predatorFrenzyPending = false;
+      setPredadorState(session, enemy, "walking");
+    }
+    return;
+  }
+
+  if (enemy.predatorState === "idle" && session.elapsed < enemy.predatorStateEndsAt) {
+    enemy.moving = false;
+    return;
+  }
+
+  const lockedTarget = enemy.predatorTargetId
+    ? session.troops.find((troop) => troop.id === enemy.predatorTargetId && !troop.dead)
+    : null;
+  if (enemy.predatorState === "attackCombo") {
+    enemy.moving = false;
+    const age = session.elapsed - enemy.predatorStateStartedAt;
+    const validTarget = lockedTarget && lockedTarget.row === enemy.row
+      && enemy.x - lockedTarget.x <= config.meleeContactDistancePx;
+    if (!enemy.predatorClawApplied && age >= config.attackVisual.clawImpactMs) {
+      enemy.predatorClawApplied = true;
+      if (validTarget) {
+        damageTroop(session, lockedTarget, config.clawDamage, events, { sourceEnemyId: enemy.id });
+        events.push({ type: "predatorClaw", sourceEnemyId: enemy.id, targetTroopId: lockedTarget.id, x: lockedTarget.x, y: lockedTarget.y });
+      }
+    }
+    if (!enemy.predatorBiteApplied && age >= config.attackVisual.biteImpactMs) {
+      enemy.predatorBiteApplied = true;
+      if (validTarget) {
+        damageTroop(session, lockedTarget, config.biteDamage, events, { sourceEnemyId: enemy.id });
+        events.push({ type: "predatorBite", sourceEnemyId: enemy.id, targetTroopId: lockedTarget.id, x: lockedTarget.x, y: lockedTarget.y });
+      }
+    }
+    if (session.elapsed >= enemy.predatorStateEndsAt) {
+      enemy.predatorTargetId = null;
+      if (enemy.predatorFrenzyPending) {
+        enemy.predatorFrenzyPending = false;
+        setPredadorState(session, enemy, "frenzyTransition", config.frenzyTransitionVisual.durationMs);
+        events.push({ type: "predatorFrenzy", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y });
+      } else setPredadorState(session, enemy, "idle", 120);
+    }
+    return;
+  }
+
+  const target = closestTroopForEnemy(session, enemy);
+  const distance = target ? enemy.x - target.x : Infinity;
+  if (target && distance <= config.meleeContactDistancePx) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.attackReadyAt) {
+      enemy.predatorTargetId = target.id;
+      const attackFactor = enemy.predatorFrenzy ? config.frenzyAttackSpeedFactor : 1;
+      setPredadorState(session, enemy, "attackCombo", config.attackVisual.durationMs / (enemy.predatorFrenzy ? config.frenzyAnimationSpeedFactor : 1));
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs / attackFactor;
+      enemy.lastAttackAt = session.elapsed;
+    }
+    return;
+  }
+
+  const inHuntZone = target && distance > config.meleeContactDistancePx
+    && (distance <= config.hunt.maxDistanceTiles * CELL.width || enemy.predatorState === "hunting");
+  const desiredState = inHuntZone ? "hunting" : "walking";
+  if (enemy.predatorState !== desiredState) setPredadorState(session, enemy, desiredState);
+  enemy.moving = true;
+  const originalSpeed = enemy.speed;
+  enemy.speed = predatorMovementSpeed(enemy, config);
+  moveEnemy(session, enemy, dt, events);
+  enemy.speed = originalSpeed;
+}
+
+function setIncubatorState(session, enemy, state, durationMs = Infinity) {
+  enemy.incubatorState = state;
+  enemy.incubatorStateStartedAt = session.elapsed;
+  enemy.incubatorStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
+  enemy.incubationImpactApplied = false;
+}
+
+function incubatorTargetCandidates(session, enemy, config) {
+  return session.troops.filter((troop) => {
+    if (troop.dead || isTroopThermalCompatible(TROOPS[troop.type])) return false;
+    if (getThermalPlatformAt(session, troop.row, troop.col) || isSessionMagmaCell(session, troop.row, troop.col)) return false;
+    const key = `${troop.row}:${troop.col}`;
+    return Number(enemy.incubatorRecentTargets?.[key] || 0) <= session.elapsed;
+  });
+}
+
+function selectIncubatorTarget(session, enemy, config) {
+  const candidates = incubatorTargetCandidates(session, enemy, config);
+  if (!candidates.length) return null;
+  const weighted = candidates.map((troop) => {
+    const troopConfig = TROOPS[troop.type] || {};
+    const weight = troopConfig.unitKind === "support" || troopConfig.role === "support" ? 1.4
+      : troopConfig.range > 0 ? 1.2 : 1;
+    return { troop, weight };
+  });
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let roll = session.rng() * total;
+  return weighted.find((entry) => (roll -= entry.weight) <= 0)?.troop || weighted.at(-1).troop;
+}
+
+function incubatorBeginBurrow(session, enemy, target, config) {
+  enemy.incubatorOriginRow = enemy.row;
+  enemy.incubatorOriginX = enemy.x;
+  enemy.incubatorOriginY = enemy.y;
+  enemy.incubatorTargetTroopId = target.id;
+  enemy.incubatorTargetRow = target.row;
+  enemy.incubatorTargetCol = target.col;
+  enemy.incubatorTargetX = target.x;
+  enemy.incubatorTargetY = target.y;
+  setIncubatorState(session, enemy, "burrowOrigin", config.burrowDurationMs);
+}
+
+function updateVermeIncubador(session, enemy, config, dt, events) {
+  const state = enemy.incubatorState;
+  if (["undergroundToTarget", "undergroundReturn"].includes(state)) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.incubatorStateEndsAt) {
+      if (state === "undergroundToTarget") {
+        enemy.row = enemy.incubatorTargetRow;
+        enemy.x = enemy.incubatorTargetX + config.targetEmergenceOffsetTiles * CELL.width;
+        enemy.y = enemy.row * CELL.height + CELL.height / 2;
+        enemy.previousRenderX = enemy.x;
+        enemy.previousRenderY = enemy.y;
+        enemy.incubatorSubmerged = false;
+        enemy.incubatorReturning = false;
+        setIncubatorState(session, enemy, "emerging", config.emergeDurationMs);
+      } else {
+        enemy.row = enemy.incubatorOriginRow;
+        enemy.x = enemy.incubatorOriginX;
+        enemy.y = enemy.incubatorOriginY;
+        enemy.previousRenderX = enemy.x;
+        enemy.previousRenderY = enemy.y;
+        enemy.incubatorSubmerged = false;
+        enemy.incubatorReturning = true;
+        enemy.nextIncubationAt = session.elapsed + config.incubationCooldownMs;
+        setIncubatorState(session, enemy, "emerging", config.returnEmergeDurationMs);
+      }
+    }
+    return;
+  }
+  if (["burrowOrigin", "burrowTarget"].includes(state)) {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.incubatorStateEndsAt) {
+      enemy.incubatorSubmerged = true;
+      setIncubatorState(session, enemy, state === "burrowOrigin" ? "undergroundToTarget" : "undergroundReturn",
+        state === "burrowOrigin" ? config.undergroundTravelMs : config.returnTravelMs);
+    }
+    return;
+  }
+  if (state === "emerging") {
+    enemy.moving = false;
+    if (session.elapsed >= enemy.incubatorStateEndsAt) {
+      if (!enemy.incubatorReturning && enemy.incubatorTargetTroopId && !enemy.incubationImpactApplied) {
+        setIncubatorState(session, enemy, "incubateAttack", config.incubationAttackVisual.durationMs);
+      }
+      else setIncubatorState(session, enemy, "crawl");
+    }
+    return;
+  }
+  if (state === "incubateAttack") {
+    enemy.moving = false;
+    if (!enemy.incubationImpactApplied && session.elapsed >= enemy.incubatorStateStartedAt + config.incubationAttackVisual.impactMs) {
+      enemy.incubationImpactApplied = true;
+      const hazard = createTemporaryMagmaEruption(session, enemy.incubatorTargetRow, enemy.incubatorTargetCol, enemy.id, config.eruptionDurationMs, config.fissureCloseVisualMs);
+      const key = `${enemy.incubatorTargetRow}:${enemy.incubatorTargetCol}`;
+      enemy.incubatorRecentTargets[key] = session.elapsed + config.recentTargetCooldownMs;
+      events.push({ type: "incubatorEruption", hazardId: hazard.id, sourceEnemyId: enemy.id, row: hazard.row, col: hazard.col, x: hazard.col * CELL.width + CELL.width / 2, y: hazard.row * CELL.height + CELL.height / 2 });
+    }
+    if (session.elapsed >= enemy.incubatorStateEndsAt) setIncubatorState(session, enemy, "burrowTarget", config.targetBurrowDurationMs);
+    return;
+  }
+  if (state === "attack") {
+    enemy.moving = false;
+    if (!enemy.incubationImpactApplied && session.elapsed >= enemy.incubatorStateStartedAt + config.attackVisual.impactMs) {
+      enemy.incubationImpactApplied = true;
+      const target = session.troops.find((troop) => troop.id === enemy.incubatorTargetTroopId && !troop.dead);
+      if (target && target.row === enemy.row && Math.abs(enemy.x - target.x) <= config.meleeContactDistancePx) damageTroop(session, target, config.damage, events, { sourceEnemyId: enemy.id });
+    }
+    if (session.elapsed >= enemy.incubatorStateEndsAt) setIncubatorState(session, enemy, "crawl");
+    return;
+  }
+  if (state === "crawl") {
+    enemy.moving = true;
+    if (session.elapsed >= enemy.nextIncubationAt
+      && (session.temporaryMagmaHazards || []).filter((hazard) => hazard.active).length < config.maxConcurrentFissures) {
+      const target = selectIncubatorTarget(session, enemy, config);
+      if (target) {
+        incubatorBeginBurrow(session, enemy, target, config);
+        return;
+      }
+    }
+    const target = session.troops.find((troop) => !troop.dead && troop.row === enemy.row && troop.x <= enemy.x
+      && enemy.x - troop.x <= config.meleeContactDistancePx);
+    if (target && session.elapsed >= enemy.attackReadyAt) {
+      enemy.incubatorTargetTroopId = target.id;
+      enemy.incubationImpactApplied = false;
+      setIncubatorState(session, enemy, "attack", config.attackVisual.durationMs);
+      enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+      enemy.lastAttackAt = session.elapsed;
+      return;
+    }
+    moveEnemy(session, enemy, dt, events);
+  }
 }
 
 function setRasgaCeusState(session, enemy, state, durationMs = Infinity) {
@@ -1806,6 +2074,23 @@ export function setSandboxSettings(session, settings) {
     session.tideCycle = createTideCycleState();
   }
   session.sandboxSettings = nextSettings;
+  if (Object.prototype.hasOwnProperty.call(settings, "magmaThermalState")
+    && session.phase?.environmentHazard?.id === "thermal_cycle") {
+    const forcedState = settings.magmaThermalState;
+    if (forcedState && forcedState !== "auto" && THERMAL_STATES[forcedState]) {
+      session.thermalCycle = {
+        ...session.thermalCycle,
+        state: forcedState,
+        cycleIndex: -1,
+        stateStartedAt: session.elapsed,
+        stateEndsAt: Infinity,
+        heatRatePerSecond: THERMAL_STATES[forcedState].heatPerSecond,
+        paused: false,
+      };
+    } else if (forcedState === "auto") {
+      session.thermalCycle = createThermalCycleState(session.phase.environmentHazard, session.elapsed);
+    }
+  }
   initializeSandboxHazard(session);
   return true;
 }
@@ -1836,6 +2121,7 @@ export function clearSandboxEntities(session, target = "all") {
   session.enemyProjectiles = [];
   session.energyPickups = [];
   session.energyPickupPointer = null;
+  session.temporaryMagmaHazards = [];
   session.effects = [];
   return true;
 }
@@ -2458,6 +2744,13 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   }
   if (incoming > 0) {
     enemy.hp -= incoming;
+    if (enemy.type === "predadorCaldeira"
+      && !enemy.predatorFrenzyTriggered
+      && enemy.hp / Math.max(1, enemy.maxHp) <= ENEMIES.predadorCaldeira.frenzyThreshold) {
+      enemy.predatorFrenzyTriggered = true;
+      enemy.armorDamageFactor = ENEMIES.predadorCaldeira.frenzyArmorDamageFactor;
+      if (enemy.predatorState === "attackCombo") enemy.predatorFrenzyPending = true;
+    }
     events.push({
       type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y,
       color: ENEMIES[enemy.type].color, damageTakenFactor, amount: Math.round(incoming),

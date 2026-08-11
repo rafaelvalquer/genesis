@@ -179,11 +179,12 @@ export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", fram
   const height = DEFAULT_ENEMY_HEIGHT * scale * visualStateScale;
   const width = height * aspectRatio;
   const anchor = getEnemyFrameAnchor(enemyConfig, state, frame);
-  const offsetX = (enemyConfig.visualOffsetX || enemyConfig.spriteOffsetX || 0) * scale;
+  const predatorFrenzy = enemy.type === "predadorCaldeira" && enemy.predatorFrenzy;
+  const offsetX = ((enemyConfig.visualOffsetX || enemyConfig.spriteOffsetX || 0) + (predatorFrenzy ? -3 : 0)) * scale;
   const stateOffsetX = (enemyConfig.visualStateOffsetX?.[state] || 0) * scale;
   const offsetY = (enemyConfig.visualOffsetY || enemyConfig.spriteOffsetY || 0) * scale;
   const stateOffsetY = (enemyConfig.visualStateOffsetY?.[state] || 0) * scale;
-  const anchorY = enemy.y - (enemy.type === "rasgaCeusCinereo" ? (enemy.flightAltitude || 0) : 0) + offsetY + stateOffsetY
+  const anchorY = enemy.y - (enemy.type === "rasgaCeusCinereo" ? (enemy.flightAltitude || 0) : 0) + offsetY + stateOffsetY + (predatorFrenzy ? 2 * scale : 0)
     + (enemyConfig.airborne ? 0 : CELL.height * 0.43);
   return {
     x: enemy.x + offsetX + stateOffsetX - width * anchor.x,
@@ -239,6 +240,20 @@ export function getLeviathanHitPointForRow(enemy, enemyConfig = {}, troopRow, st
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "vermeIncubador") {
+    const state = enemy.dead ? "death"
+      : enemy.incubatorState === "attack" || enemy.incubatorState === "incubateAttack" ? "attack"
+        : ["burrowOrigin", "burrowTarget", "undergroundToTarget", "undergroundReturn"].includes(enemy.incubatorState) ? "burrowing"
+          : enemy.incubatorState === "emerging" ? "emerging" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const age = Math.max(0, elapsed - (enemy.incubatorStateStartedAt || enemy.spawnedAt || 0));
+    const duration = Number.isFinite(enemy.incubatorStateEndsAt)
+      ? Math.max(1, enemy.incubatorStateEndsAt - (enemy.incubatorStateStartedAt || 0)) : null;
+    if (duration && ["attack", "burrowing", "emerging"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
   if (enemyConfig.id === "devoradorCaldeira") {
     const state = enemy.dead ? "death" : enemy.devoradorState || (enemy.moving ? "walking" : "idle");
     const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
@@ -250,6 +265,19 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
       return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
     }
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
+  if (enemyConfig.id === "predadorCaldeira") {
+    const state = enemy.dead ? "death" : enemy.predatorState || (enemy.moving ? "walking" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.predatorStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const duration = Number.isFinite(enemy.predatorStateEndsAt)
+      ? Math.max(1, enemy.predatorStateEndsAt - startedAt) : null;
+    if (duration && ["attackCombo", "frenzyTransition"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    const playback = enemy.predatorFrenzy ? (enemyConfig.frenzyAnimationSpeedFactor || 1) : 1;
+    return { state, frame: Math.floor(age * playback / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
   }
   if (enemyConfig.id === "leviathanNereida") {
     const state = enemy.dead ? "death" : enemy.leviathanState || "idleSurface";

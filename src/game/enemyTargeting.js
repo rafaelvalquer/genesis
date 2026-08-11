@@ -15,9 +15,14 @@ export function isRasgamarSubmerged(enemy) {
   );
 }
 
+export function isIncubatorSubmerged(enemy) {
+  return Boolean(enemy?.type === "vermeIncubador" && enemy.incubatorSubmerged);
+}
+
 export function isEnemyTargetable(enemy) {
   if (!enemy || enemy.dead || enemy.hp <= 0) return false;
   if (isRasgamarSubmerged(enemy)) return false;
+  if (isIncubatorSubmerged(enemy)) return false;
   if (enemy.type === "leviathanNereida") return Boolean(enemy.leviathanTargetable);
   return true;
 }

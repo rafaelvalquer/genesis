@@ -4,6 +4,7 @@ import { drawWindCurrent, drawWindWarning } from "./windCurrentRenderer.js";
 import { drawCachedRadialGlow } from "./effectTextureCache.js";
 import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRenderer.js";
 import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
+import { getThermalPlatformAt } from "./thermalTerrain.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -847,7 +848,10 @@ export function getPlacementPreviewGeometry(session, selectedTroop, hoveredCell,
   const dronePreviewCount = selectedTroop === "droneSentinela"
     ? Math.min(config.maxDronesPerTile, currentDroneCount + 1)
     : null;
-  const placementLabel = selectedTroop !== "droneSentinela"
+  const existingThermalPlatform = selectedTroop === "thermalPlatform" ? getThermalPlatformAt(session, row, col) : null;
+  const placementLabel = existingThermalPlatform
+    ? `Renovar Plataforma Térmica — ⚡${config.price}`
+    : selectedTroop !== "droneSentinela"
     ? null
     : currentDroneCount >= config.maxDronesPerTile
       ? `Formação completa — ${currentDroneCount}/3`

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
-import { canPlaceTroop, createBattleSession, createTroopEntity, eliminateTroop, placeTroop, startWave, stepBattle } from "./battleModel.js";
+import { canPlaceTroop, createBattleSession, createTroopEntity, eliminateTroop, placeTroop, setSandboxSettings, startWave, stepBattle } from "./battleModel.js";
 import { getThermalPlatformAt, getThermalSnapshot } from "./thermalTerrain.js";
+import { getThermalPlatformVisual } from "./thermalPlatformRenderer.js";
 
 describe("terreno térmico", () => {
   it("bloqueia tropas comuns no magma, aceita Drone e permite resgate com plataforma", () => {
@@ -87,5 +88,42 @@ describe("terreno térmico", () => {
     stepBattle(session, 1000);
     expect(troop.thermalBurning).toBe(true);
     expect(troop.hp).toBeLessThan(hp);
+  });
+
+  it("renova a plataforma existente in-place, limpa calor e preserva o ID", () => {
+    const session = createBattleSession(CHAPTER_SIX_PHASES[2], ["colono", "thermalPlatform"], 24, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
+    const [row, col] = session.phase.magmaTerrain.cells[0];
+    expect(placeTroop(session, "thermalPlatform", row, col).ok).toBe(true);
+    expect(placeTroop(session, "colono", row, col).ok).toBe(true);
+    const platform = getThermalPlatformAt(session, row, col);
+    platform.heat = 78; platform.hp = 54; platform.overheated = true;
+    const id = platform.id;
+    const count = session.supportStructures.length;
+    const result = placeTroop(session, "thermalPlatform", row, col);
+    expect(result).toMatchObject({ ok: true, renewed: true });
+    expect(session.supportStructures).toHaveLength(count);
+    expect(platform).toMatchObject({ id, hp: 100, maxHp: 100, heat: 0, overheated: false, renewalCount: 1 });
+    expect(session.thermalMetrics.platformRenewals).toBe(1);
+    expect(session.troops[0]).toMatchObject({ thermalExposed: false, thermalBurning: false, thermalAttackSpeedFactor: 1 });
+  });
+
+  it("calcula a barra progressiva pelos thresholds configurados", () => {
+    const config = { maxHeat: 100, heatThresholds: { heated: .6, critical: .8, overheat: 1 } };
+    expect(getThermalPlatformVisual({ heat: 25 }, config)).toMatchObject({ ratio: .25, percent: 25, state: "idle" });
+    expect(getThermalPlatformVisual({ heat: 60 }, config).state).toBe("heated");
+    expect(getThermalPlatformVisual({ heat: 80 }, config).state).toBe("critical");
+    expect(getThermalPlatformVisual({ heat: 120 }, config)).toMatchObject({ ratio: 1, percent: 100, state: "overheat" });
+  });
+
+  it("aplica o estado Cooldown selecionado no Campo de Provas", () => {
+    const session = createBattleSession(CHAPTER_SIX_PHASES[2], ["thermalPlatform"], 25, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
+    const [row, col] = session.phase.magmaTerrain.cells[0];
+    placeTroop(session, "thermalPlatform", row, col);
+    const platform = getThermalPlatformAt(session, row, col);
+    platform.heat = 80;
+    setSandboxSettings(session, { magmaThermalState: "cooldown" });
+    stepBattle(session, 1000);
+    expect(getThermalSnapshot(session)).toMatchObject({ state: "cooldown", heatRate: -4 });
+    expect(platform.heat).toBe(76);
   });
 });
