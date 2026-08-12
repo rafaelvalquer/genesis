@@ -102,12 +102,12 @@ describe("baia de preparação tática", () => {
 
   it("navega pelo catálogo usando as setas", () => {
     renderLoadout();
-    const first = screen.getByRole("button", { name: "Selecionar Reator de Energia" });
-    const second = screen.getByRole("button", { name: "Remover Colono" });
+    const first = screen.getByRole("button", { name: "Remover Colono" });
+    const second = screen.getByRole("button", { name: "Selecionar Reator de Energia" });
     first.focus();
     fireEvent.keyDown(first, { key: "ArrowRight" });
     expect(second).toHaveFocus();
-    expect(within(stage()).getByRole("heading", { name: "Colono" })).toBeInTheDocument();
+    expect(within(stage()).getByRole("heading", { name: "Reator de Energia" })).toBeInTheDocument();
   });
 
   it("mantém a interface funcional no fallback sem WebGL", async () => {

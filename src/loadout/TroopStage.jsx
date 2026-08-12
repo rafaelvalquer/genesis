@@ -32,6 +32,7 @@ export default function TroopStage({
   arenaUrl,
   onRuntimeReady,
   onStageReady,
+  onInfo,
 }) {
   const stageRef = useRef(null);
   const mountRef = useRef(null);
@@ -243,6 +244,7 @@ export default function TroopStage({
           ? "INTEGRADO AO ESQUADRÃO"
           : "DISPONÍVEL"}
       </strong>
+      {troop && <button type="button" className="stage-dossier-button" aria-label={`Informações de ${troop.label}`} onClick={onInfo}>DOSSIÊ COMPLETO</button>}
     </div>
 
     <div

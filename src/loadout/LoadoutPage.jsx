@@ -31,6 +31,10 @@ export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onTog
   const [limitMessage, setLimitMessage] = useState("");
   const [capacityPulse, setCapacityPulse] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [catalogType, setCatalogType] = useState("all");
+  const [catalogSort, setCatalogSort] = useState("appearance");
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [briefOpen, setBriefOpen] = useState(false);
   const settings = useMemo(() => loadSettings(), []);
   const quality = useLoadoutQuality(settings);
   const {
@@ -120,7 +124,7 @@ export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onTog
     }}
   >
     <div className="loadout-bay-backdrop" aria-hidden="true" />
-    <LoadoutHeader phase={phase} chapter={chapter} selectedCount={selected.length} limit={loadoutLimit} onBack={onBack} />
+    <LoadoutHeader phase={phase} chapter={chapter} selectedCount={selected.length} limit={loadoutLimit} onBack={onBack} onMissionInfo={() => setBriefOpen(true)} />
     <div className="loadout-workbench">
       <TroopRoster
         troops={available}
@@ -132,29 +136,26 @@ export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onTog
         onToggle={handleToggle}
         onFocusTroop={setFocusedTroopId}
         onHoverTroop={setHoverTroopId}
-        onInfo={openInfo}
+        catalogType={catalogType}
+        catalogSort={catalogSort}
+        catalogSearch={catalogSearch}
+        onTypeChange={setCatalogType}
+        onSortChange={setCatalogSort}
+        onSearchChange={setCatalogSearch}
       />
       <TroopStage
         troop={focusedTroop}
         selected={selected.includes(focusedTroop?.id)}
+        onInfo={(event) => openInfo(focusedTroop, event.currentTarget)}
         quality={quality}
         arenaUrl={getArenaUrl(phase.arenaId)}
         onRuntimeReady={setRuntime}
         onStageReady={handleStageReady}
       />
-      <TacticalBrief
-        phase={phase}
-        chapter={chapter}
-        arenaUrl={getArenaUrl(phase.arenaId)}
-        troops={selectedTroops}
-        unlockedPhaseIndex={unlockedPhaseIndex}
-        canConfirm={selected.length >= 1 && selected.length <= loadoutLimit}
-        confirming={confirming}
-        onConfirm={confirm}
-      />
-      <SquadDock troops={selectedTroops} limit={loadoutLimit} onRemove={handleToggle} reduceMotion={quality.reduceMotion} capacityPulse={capacityPulse} />
+      <SquadDock troops={selectedTroops} limit={loadoutLimit} onRemove={handleToggle} reduceMotion={quality.reduceMotion} capacityPulse={capacityPulse} canConfirm={selected.length >= 1 && selected.length <= loadoutLimit} confirming={confirming} onConfirm={confirm} />
     </div>
     <div className="loadout-announcer" aria-live="polite">{limitMessage || `${selected.length} de ${loadoutLimit} unidades selecionadas`}</div>
     <AnimatePresence>{infoTroop && <TroopDossierModal troop={infoTroop} onClose={closeInfo} returnFocusRef={infoTriggerRef} reduceMotion={quality.reduceMotion} />}</AnimatePresence>
+    <AnimatePresence>{briefOpen && <div className="mission-brief-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setBriefOpen(false); }}><div className="mission-brief-drawer" role="dialog" aria-modal="true" aria-labelledby="mission-brief-title"><button type="button" className="mission-brief-close" aria-label="Fechar briefing da missão" onClick={() => setBriefOpen(false)}>×</button><h2 id="mission-brief-title" className="sr-only">Briefing da missão</h2><TacticalBrief phase={phase} chapter={chapter} arenaUrl={getArenaUrl(phase.arenaId)} troops={selectedTroops} unlockedPhaseIndex={unlockedPhaseIndex} canConfirm={selected.length >= 1 && selected.length <= loadoutLimit} confirming={confirming} onConfirm={confirm} /></div></div>}</AnimatePresence>
   </main>;
 }

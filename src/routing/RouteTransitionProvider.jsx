@@ -283,11 +283,14 @@ export function useRouteTransition() {
     RouteTransitionContext,
   );
 
-  if (!context) {
-    throw new Error(
-      "useRouteTransition deve ser usado dentro de RouteTransitionProvider.",
-    );
-  }
-
-  return context;
+  // Permite renderizar telas isoladamente (testes, previews e fallback WebGL)
+  // sem alterar o comportamento quando o provider real está montado.
+  return context || {
+    transition: IDLE_ROUTE_TRANSITION,
+    isTransitioning: false,
+    transitionTo: async () => false,
+    completeTransition: () => false,
+    cancelTransition: () => false,
+    matchesTransition: () => false,
+  };
 }
