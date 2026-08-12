@@ -1659,9 +1659,25 @@ function updateCuspidorBrasa(session, enemy, config, dt, events) {
       enemy.cuspidorTargetY = null;
       enemy.cuspidorTargetRow = null;
       enemy.cuspidorProjectileReleased = false;
-      setCuspidorState(session, enemy, "idle");
+      const target = closestTroopForEnemy(session, enemy);
+      const minimumDistance = config.minimumAttackRangeTiles * CELL.width;
+      const desiredTargetX = enemy.x - config.repositionDistanceTiles * CELL.width;
+      enemy.cuspidorRepositionTargetX = target
+        ? Math.max(desiredTargetX, target.x + minimumDistance)
+        : desiredTargetX;
+      setCuspidorState(session, enemy, "reposition");
     }
     return;
+  }
+
+  if (enemy.cuspidorState === "reposition") {
+    const repositionTargetX = Number(enemy.cuspidorRepositionTargetX);
+    if (Number.isFinite(repositionTargetX) && enemy.x > repositionTargetX) {
+      moveEnemyTowardX(session, enemy, repositionTargetX, dt, events);
+      return;
+    }
+    enemy.cuspidorRepositionTargetX = null;
+    setCuspidorState(session, enemy, "idle");
   }
 
   const target = closestTroopForEnemy(session, enemy);

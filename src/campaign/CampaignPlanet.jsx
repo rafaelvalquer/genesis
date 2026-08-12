@@ -34,6 +34,7 @@ import {
   setGenesisPlanetOpacity,
 } from "../visual/genesisPlanetAsset.js";
 import { applyGenesisPlanetOrientation } from "../visual/genesisPlanetOrientation.js";
+import { createGenesisAtmosphereMaterial } from "../visual/createGenesisAtmosphereMaterial.js";
 
 export function supportsWebGL2() {
   try {
@@ -262,10 +263,7 @@ export default function CampaignPlanet({
         const planet = new THREE.Mesh(new THREE.IcosahedronGeometry(1, quality.segments), planetMaterial);
         planetModelRoot.add(planet);
 
-        const atmosphereMaterial = new THREE.MeshBasicMaterial({
-          color: biome.atmosphere, transparent: true, opacity: biome.world.atmosphereOpacityCampaign,
-          side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-        });
+        const atmosphereMaterial = createGenesisAtmosphereMaterial(THREE, { color: biome.atmosphere, opacity: biome.world.atmosphereOpacityCampaign });
         const atmosphere = new THREE.Mesh(new THREE.SphereGeometry(1.09, 48, 32), atmosphereMaterial);
         planetModelRoot.add(atmosphere);
 

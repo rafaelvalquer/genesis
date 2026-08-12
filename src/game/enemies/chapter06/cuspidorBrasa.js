@@ -8,6 +8,7 @@ export const cuspidorBrasaBehavior = enemyBehavior({
     cuspidorTargetId: null,
     cuspidorProjectileReleased: false,
     cuspidorAttackReadyAt: session.elapsed,
+    cuspidorRepositionTargetX: null,
     armorDamageFactor: config.armorDamageFactor,
   }),
   update: (runtime, enemy, config, dt, events) => {

@@ -5,6 +5,21 @@ export const CHAPTER_SIX_ENEMY_POOL = Object.freeze([
   "rasgaCeusCinereo", "salamandraCinerea",
 ]);
 
+export const CHAPTER_SIX_PACKET_COUNTS = Object.freeze([
+  [6, 6, 7, 7, 8, 9], [6, 7, 7, 8, 9, 9], [7, 7, 8, 9, 9, 10],
+  [7, 8, 9, 9, 10, 11], [8, 8, 9, 10, 11, 11], [8, 9, 10, 10, 11, 12],
+  [9, 10, 10, 11, 12, 13], [10, 10, 11, 12, 13, 14],
+]);
+
+export const CHAPTER_SIX_PACKET_GAPS = Object.freeze([
+  [7500, 7000, 6500, 6000, 5500, 5000], [7000, 6500, 6000, 5500, 5000, 4800],
+  [6500, 6000, 5500, 5000, 4700, 4400], [6000, 5600, 5200, 4800, 4400, 4200],
+  [5600, 5200, 4800, 4500, 4200, 3900], [5200, 4800, 4500, 4200, 3900, 3600],
+  [4800, 4500, 4200, 3900, 3600, 3400], [4500, 4200, 3900, 3600, 3400, 3200],
+]);
+
+export const CHAPTER_SIX_MAXIMUM_LIVING = Object.freeze([48, 52, 56, 60, 64, 68, 72, 76]);
+
 export const CHAPTER_SIX_PACKETS = Object.freeze({
   "C6-01": { id: "embers", label: "Brasas", tier: 1, threat: 48, units: [unit("cuspidorBrasa", 2)] },
   "C6-02": { id: "fire-line", label: "Linha de Fogo", tier: 1, threat: 72, units: [unit("cuspidorBrasa", 3)] },
@@ -23,60 +38,64 @@ export const CHAPTER_SIX_PACKETS = Object.freeze({
 export const CHAPTER_SIX_TIER_PROFILES = Object.freeze([
   [100], [65, 35], [45, 55], [30, 55, 15], [25, 40, 35], [20, 35, 30, 15], [15, 30, 30, 25], [10, 25, 35, 30],
 ]);
+export const CHAPTER_SIX_INTRODUCTIONS = Object.freeze([null, "vermeIncubador", "predadorCaldeira", null, "devoradorCaldeira", "rasgaCeusCinereo", "salamandraCinerea", null]);
 
-export const CHAPTER_SIX_INTRODUCTIONS = Object.freeze([
-  null, "vermeIncubador", "predadorCaldeira", null, "devoradorCaldeira", "rasgaCeusCinereo", "salamandraCinerea", null,
-]);
-
-const routeRows = (rows, units) => units.map((entry, index) => {
-  const row = rows[index % rows.length];
-  return { ...entry, rows: [row], countPerRow: entry.count };
+const routeRows = (rows, units, spread = false) => units.map((entry, index) => {
+  const selectedRows = spread ? rows : [rows[index % rows.length]];
+  return { ...entry, rows: [...selectedRows], countPerRow: entry.count };
 });
 
-export function instantiateChapterSixPacket(key, index, spawnAtMs, block = "main", rows = [2]) {
+export function instantiateChapterSixPacket(key, index, spawnAtMs, block = "main", rows = [2], options = {}) {
   const source = CHAPTER_SIX_PACKETS[key];
   if (!source) throw new Error(`Pacote desconhecido: ${key}`);
-  return {
-    id: `${source.id}_${index + 1}`,
-    key,
-    label: source.label,
-    block,
-    spawnAtMs,
-    units: routeRows(rows, source.units).map((entry) => ({ ...entry, rows: [...entry.rows] })),
-  };
+  return { id: `${source.id}_${index + 1}`, key, label: source.label, block, spawnAtMs, units: routeRows(rows, source.units, options.spread === true) };
 }
 
 function aggregateEnemies(packets) {
   const totals = new Map();
   packets.flatMap((packet) => packet.units).forEach((entry) => {
-    const count = entry.rows?.length ? entry.rows.length * (entry.countPerRow || 1) : entry.count;
+    const count = entry.rows.length * (entry.countPerRow || 1);
     totals.set(entry.type, (totals.get(entry.type) || 0) + count);
   });
   return [...totals].map(([type, count]) => ({ type, count }));
 }
 
-function wave(sequence, phaseIndex, waveIndex, { rows = [2], spawnWindowMs = 12000, blocks = ["main"], coordinated = true } = {}) {
-  const packets = sequence.map((entry, index) => instantiateChapterSixPacket(entry.key, index, entry.at ?? index * 2200, entry.block || blocks[index % blocks.length], entry.rows || rows));
-  const spawnBlocks = [...new Set(packets.map((packet) => packet.block))].map((id) => ({ id, packets: packets.filter((packet) => packet.block === id) }));
+function wave(sequence, phaseIndex, waveIndex, gap, rows = [0, 1, 2, 3, 4]) {
+  const packets = sequence.map((entry, index) => instantiateChapterSixPacket(entry.key, index, index * gap, "main", entry.rows || rows, { spread: entry.spread !== false }));
+  const packetThreat = packets.reduce((total, packet) => total + CHAPTER_SIX_PACKETS[packet.key].threat, 0);
   return {
-    enemies: aggregateEnemies(packets), spawnBlocks, spawnWindowMs,
-    maximumLivingEnemies: 18 + phaseIndex * 3, coordinated, chapterSix: true,
-    chapterSixPacketKeys: sequence.map((entry) => entry.key), chapterSixWaveIndex: waveIndex,
+    enemies: aggregateEnemies(packets), spawnBlocks: [{ id: "main", packets }], spawnWindowMs: Math.max(12000, (packets.length - 1) * gap),
+    maximumLivingEnemies: CHAPTER_SIX_MAXIMUM_LIVING[phaseIndex], coordinated: true, chapterSix: true,
+    chapterSixPacketKeys: packets.map((packet) => packet.key), chapterSixWaveIndex: waveIndex,
+    packetCount: packets.length, packetThreat,
+    difficulty: packetThreat + packets.length * 10 + packets.reduce((total, packet) => total + (packet.key === "C6-10" || packet.key === "C6-11" ? 8 : 0), 0),
   };
 }
 
-const p = (key, at = 0, rows) => ({ key, at, ...(rows ? { rows } : {}) });
+const p = (key, spread = true, rows) => ({ key, spread, ...(rows ? { rows } : {}) });
+const templates = [
+  ["C6-01", "C6-02"], ["C6-03", "C6-04"], ["C6-05", "C6-06"], ["C6-07", "C6-06"],
+  ["C6-08", "C6-09"], ["C6-10", "C6-11"], ["C6-12", "C6-11"], ["C6-08", "C6-10", "C6-12", "C6-06", "C6-07"],
+];
+
+export function composeChapterSixWave({ phaseIndex, waveIndex, packetCount }) {
+  const available = templates[phaseIndex];
+  const introductionKey = [null, "C6-03", "C6-05", null, "C6-08", "C6-10", "C6-12", null][phaseIndex];
+  const strongestKey = [...available].sort((left, right) => (
+    CHAPTER_SIX_PACKETS[right].threat - CHAPTER_SIX_PACKETS[left].threat
+  ))[0];
+  const keys = [];
+  for (let index = 0; index < packetCount; index += 1) keys.push(strongestKey);
+  if (introductionKey && waveIndex === 0) keys[0] = introductionKey;
+  if (phaseIndex === 0 && waveIndex === 0) keys.fill("C6-01");
+  if (phaseIndex >= 6 && waveIndex >= 4) keys[0] = "C6-10";
+  return keys.map((key, index) => p(key, true, [index % 5, (index + 2) % 5]));
+}
 
 export function createChapterSixWaves(phaseIndex) {
-  const plans = [
-    [wave([p("C6-01", 0, [2])], 0, 0), wave([p("C6-01", 0, [1, 3])], 0, 1, { rows: [1, 3] }), wave([p("C6-02", 0, [2])], 0, 2), wave([p("C6-02", 0, [0, 2, 4])], 0, 3, { rows: [0, 2, 4] })],
-    [wave([p("C6-03", 0, [2])], 1, 0), wave([p("C6-04", 0, [1, 3])], 1, 1, { rows: [1, 3] }), wave([p("C6-03", 0, [2]), p("C6-01", 4200, [0, 4])], 1, 2, { rows: [0, 2, 4] }), wave([p("C6-04", 0, [0, 2, 4])], 1, 3, { rows: [0, 2, 4] })],
-    [wave([p("C6-05", 0, [2])], 2, 0), wave([p("C6-03", 0, [1, 3])], 2, 1, { rows: [1, 3] }), wave([p("C6-06", 0, [2])], 2, 2), wave([p("C6-06", 0, [0, 2, 4])], 2, 3, { rows: [0, 2, 4] })],
-    [wave([p("C6-03", 0, [2])], 3, 0), wave([p("C6-05", 0, [1, 3])], 3, 1, { rows: [1, 3] }), wave([p("C6-06", 0, [0, 2, 4]), p("C6-01", 4800, [1, 3])], 3, 2, { rows: [0, 1, 2, 3, 4] }), wave([p("C6-07", 0, [2])], 3, 3), wave([p("C6-07", 0, [0, 2, 4]), p("C6-06", 5200, [1, 3]), p("C6-04", 10400, [2])], 3, 4, { rows: [0, 1, 2, 3, 4] })],
-    [wave([p("C6-08", 0, [2])], 4, 0), wave([p("C6-08", 0, [1, 3])], 4, 1, { rows: [1, 3] }), wave([p("C6-09", 0, [2])], 4, 2), wave([p("C6-08", 0, [0, 2, 4]), p("C6-09", 5000, [1, 3])], 4, 3, { rows: [0, 1, 2, 3, 4] }), wave([p("C6-08", 0, [1]), p("C6-09", 4200, [2]), p("C6-04", 8400, [3])], 4, 4, { rows: [1, 2, 3] })],
-    [wave([p("C6-10", 0, [2])], 5, 0), wave([p("C6-10", 0, [1, 3])], 5, 1, { rows: [1, 3] }), wave([p("C6-10", 0, [0, 4]), p("C6-08", 4200, [2])], 5, 2, { rows: [0, 2, 4] }), wave([p("C6-11", 0, [1, 3])], 5, 3, { rows: [1, 3] }), wave([p("C6-10", 0, [0]), p("C6-08", 4200, [2]), p("C6-04", 8400, [4])], 5, 4, { rows: [0, 2, 4] })],
-    [wave([p("C6-12", 0, [2])], 6, 0), wave([p("C6-12", 0, [1]), p("C6-01", 3600, [3])], 6, 1, { rows: [1, 3] }), wave([p("C6-12", 0, [2]), p("C6-05", 4200, [0, 4])], 6, 2, { rows: [0, 2, 4] }), wave([p("C6-12", 0, [0, 2, 4])], 6, 3, { rows: [0, 2, 4] }), wave([p("C6-07", 0, [1, 3]), p("C6-10", 4800, [0, 4])], 6, 4, { rows: [0, 1, 3, 4] }), wave([p("C6-12", 0, [0, 4]), p("C6-11", 5200, [1, 2, 3])], 6, 5, { rows: [0, 1, 2, 3, 4] })],
-    [wave([p("C6-03", 0, [2])], 7, 0), wave([p("C6-05", 0, [1, 3])], 7, 1, { rows: [1, 3] }), wave([p("C6-06", 0, [0, 2, 4])], 7, 2, { rows: [0, 2, 4] }), wave([p("C6-08", 0, [1, 3]), p("C6-09", 5200, [0, 2, 4])], 7, 3, { rows: [0, 1, 2, 3, 4] }), wave([p("C6-10", 0, [0, 4]), p("C6-04", 4200, [1, 3]), p("C6-08", 8400, [2]), p("C6-06", 12600, [0, 4]), p("C6-10", 16800, [1, 3])], 7, 4, { rows: [0, 1, 2, 3, 4], spawnWindowMs: 22000 }), wave([p("C6-05", 0, [1, 3]), p("C6-03", 4000, [0, 2, 4]), p("C6-08", 8000, [2]), p("C6-10", 12000, [0, 4]), p("C6-12", 16000, [1, 3])], 7, 5, { rows: [0, 1, 2, 3, 4], spawnWindowMs: 22000 })],
-  ];
-  return plans[Math.max(0, Math.min(plans.length - 1, phaseIndex))];
+  const index = Math.max(0, Math.min(7, phaseIndex));
+  return CHAPTER_SIX_PACKET_COUNTS[index].map((packetCount, waveIndex) => wave(
+    composeChapterSixWave({ phaseIndex: index, waveIndex, packetCount }), index, waveIndex,
+    CHAPTER_SIX_PACKET_GAPS[index][waveIndex],
+  ));
 }

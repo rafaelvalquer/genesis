@@ -1,3 +1,7 @@
+export const LEGACY_HIDDEN_PLANET_PARTS = new Set([
+  "GenesisWorld_IceSpikes",
+]);
+
 export const GENESIS_SURFACE_PART_NAMES = Object.freeze([
   "GenesisWorld_MainPlanet",
   "GenesisWorld_IceSpikes",

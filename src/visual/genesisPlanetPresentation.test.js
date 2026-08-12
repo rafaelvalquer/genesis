@@ -94,7 +94,7 @@ describe("apresentação cartoon compartilhada", () => {
   });
 
   it("centraliza fatores e opacidades por perfil", () => {
-    expect(GENESIS_PLANET_PRESENTATION.high.relief.GenesisWorld_IceSpikes).toBe(.45);
+    expect(GENESIS_PLANET_PRESENTATION.high.relief.GenesisWorld_IceSpikes).toBeUndefined();
     expect(GENESIS_PLANET_PRESENTATION.high.relief.GenesisWorld_CrystalSpires).toBe(.52);
     expect(GENESIS_PLANET_PRESENTATION.high.relief.GenesisWorld_SwampPods).toBe(.58);
     expect(getGenesisPresentation({ quality: "high" }, "command").moons.maxVisible).toBe(2);

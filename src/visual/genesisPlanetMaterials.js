@@ -2,6 +2,8 @@ import { compressGenesisRelief } from "./compressGenesisRelief.js";
 import { configureGenesisMoons } from "./configureGenesisMoons.js";
 import { getGenesisPresentation } from "./genesisPlanetPresentation.js";
 import { smoothGenesisGeometry } from "./smoothGenesisGeometry.js";
+import { LEGACY_HIDDEN_PLANET_PARTS } from "./normalizeGenesisPlanet.js";
+import { createGenesisAtmosphereMaterial } from "./createGenesisAtmosphereMaterial.js";
 
 export const CHAPTER_BEACON_NAMES = Object.freeze({
   chapter_01: "Beacon_Colony",
@@ -68,6 +70,13 @@ function materialForPart(THREE, object) {
   const original = Array.isArray(object.material) ? object.material[0] : object.material;
   const vertexColors = Boolean(object.geometry.getAttribute("color"));
 
+  if (name.includes("Atmosphere")) {
+    original?.dispose();
+    const material = createGenesisAtmosphereMaterial(THREE, { color: "#ffffff", opacity: .12 });
+    material.userData.genesisBaseOpacity = material.opacity;
+    return material;
+  }
+
   if (
     hasAuthoredPbrMaterial(original)
     && (
@@ -91,20 +100,13 @@ function materialForPart(THREE, object) {
       flatShading: false,
       dithering: true,
     });
-  } else if (name.includes("Atmosphere")) {
-    material = new THREE.MeshBasicMaterial({
-      color: 0xffffff, vertexColors, transparent: true, opacity: .12,
-      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-    });
   } else if (name.includes("Clouds")) {
     material = new THREE.MeshBasicMaterial({
       color: 0xffffff, vertexColors, transparent: true, opacity: .25,
       depthWrite: false, side: THREE.DoubleSide,
     });
   } else {
-    const properties = name.includes("IceSpikes")
-      ? { roughness: .65, metalness: .04 }
-      : name.includes("CrystalSpires")
+    const properties = name.includes("CrystalSpires")
         ? { roughness: .34, metalness: .14 }
         : name.includes("SwampPods")
           ? { roughness: .88, metalness: 0 }
@@ -150,7 +152,7 @@ export function getGenesisPlanetParts(model, layout = {}) {
     if (object.name === "GenesisWorld_MainPlanet") parts.mainPlanet = object;
     else if (object.name === "GenesisWorld_Atmosphere") parts.atmosphere = object;
     else if (object.name === "GenesisWorld_Clouds") parts.clouds = object;
-    else if (object.name.includes("IceSpikes") || object.name.includes("CrystalSpires") || object.name.includes("SwampPods")) {
+    else if (object.name.includes("CrystalSpires") || object.name.includes("SwampPods")) {
       parts.structures.push(object);
     }
     const chapterId = beaconByName[object.name];
@@ -188,7 +190,6 @@ function setObjectRenderOrder(object, renderOrder) {
 export function prepareGenesisPlanetModel(THREE, model, layout) {
   const smoothPartNames = new Set([
     "GenesisWorld_MainPlanet",
-    "GenesisWorld_IceSpikes",
     "GenesisWorld_CrystalSpires",
     "GenesisWorld_SwampPods",
     "GenesisMoon_Rocky",
@@ -198,6 +199,7 @@ export function prepareGenesisPlanetModel(THREE, model, layout) {
     "GenesisMoon_Ringed",
   ]);
   model.traverse((object) => {
+    if (LEGACY_HIDDEN_PLANET_PARTS.has(object.name)) object.visible = false;
     if (!object.isMesh) return;
     if (smoothPartNames.has(object.name)) smoothGenesisGeometry(object.geometry);
     else if (!object.geometry.getAttribute("normal")) object.geometry.computeVertexNormals();
@@ -217,6 +219,21 @@ export function applyGenesisPlanetChapterState({ THREE, parts, chapter, biome })
   if (!parts) return;
   if (parts.atmosphere) {
     parts.atmosphere.material.color.set(0xffffff).lerp(new THREE.Color(biome.atmosphere), .1);
+  }
+  const surface = parts.mainPlanet?.material;
+  const profile = {
+    chapter_01: { roughness: .74, metalness: .04, emissive: "#22d3ee", intensity: .022 },
+    chapter_02: { roughness: .58, metalness: .1, emissive: "#7fffd4", intensity: .018 },
+    chapter_03: { roughness: .96, metalness: 0, emissive: "#000000", intensity: 0 },
+    chapter_04: { roughness: .82, metalness: .03, emissive: "#818cf8", intensity: .013 },
+    chapter_05: { roughness: .52, metalness: .08, emissive: "#38bdf8", intensity: .012 },
+    chapter_06: { roughness: .72, metalness: .015, emissive: "#f97316", intensity: .035 },
+  }[chapter.id];
+  if (surface && profile) {
+    surface.roughness = profile.roughness;
+    surface.metalness = profile.metalness;
+    surface.emissive?.set(profile.emissive);
+    surface.emissiveIntensity = profile.intensity;
   }
   Object.entries(parts.beacons).forEach(([chapterId, beacon]) => {
     const active = chapterId === chapter.id;

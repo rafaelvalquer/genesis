@@ -51,6 +51,7 @@ describe("Cuspidor de Brasa", () => {
       burnDurationMs: 4000,
       attackEveryMs: 4500,
       chargeMs: 800,
+      repositionDistanceTiles: 0.75,
       projectileSpeed: 290,
       magmaImmune: true,
       testOnly: true,
@@ -124,5 +125,31 @@ describe("Cuspidor de Brasa", () => {
     stepBattle(session, 700);
     expect(enemy.x).toBe(start);
     expect(enemy.cuspidorState).toBe("attack");
+  });
+
+  it("reposiciona apÃ³s cada disparo antes de voltar a atacar", () => {
+    const session = sandbox();
+    addTroop(session, "direct", 0, 700, 100);
+    const enemy = spawnAt(session, 1000);
+
+    stepBattle(session, 32);
+    stepBattle(session, 800);
+    expect(enemy.cuspidorState).toBe("attack");
+    expect(enemy.moving).toBe(false);
+
+    stepBattle(session, 500);
+    expect(enemy.cuspidorState).toBe("reposition");
+    expect(enemy.moving).toBe(true);
+    const repositionStartX = enemy.x;
+
+    stepBattle(session, 500);
+    expect(enemy.x).toBeLessThan(repositionStartX);
+    expect(enemy.cuspidorState).toBe("reposition");
+
+    stepBattle(session, 500);
+    expect(enemy.cuspidorState).not.toBe("attack");
+    stepBattle(session, 3000);
+    expect(enemy.cuspidorState).toBe("attack");
+    expect(enemy.x - 700).toBeGreaterThanOrEqual(ENEMIES.cuspidorBrasa.minimumAttackRangeTiles * 64);
   });
 });

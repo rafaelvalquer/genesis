@@ -5,7 +5,7 @@ import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
 describe("contrato do capítulo 6", () => {
   it("mantém as oito fases, energia, supply e waves definidos", () => {
     expect(CHAPTER_SIX_PHASES).toHaveLength(8);
-    expect(CHAPTER_SIX_PHASES.map((phase) => phase.waves.length)).toEqual([4, 4, 4, 5, 5, 5, 6, 6]);
+    expect(CHAPTER_SIX_PHASES.map((phase) => phase.waves.length)).toEqual(Array(8).fill(6));
     expect(CHAPTER_SIX_PHASES.map((phase) => phase.energy)).toEqual([930, 960, 990, 1020, 1050, 1080, 1110, 1140]);
     CHAPTER_SIX_PHASES.forEach((phase) => {
       expect(phase.chapterId).toBe("chapter_06");
@@ -37,6 +37,6 @@ describe("contrato do capítulo 6", () => {
     expect(CHAPTER_SIX_PHASES.map((phase) => phase.chapterSixTierProfile)).toEqual([
       [100], [65, 35], [45, 55], [30, 55, 15], [25, 40, 35], [20, 35, 30, 15], [15, 30, 30, 25], [10, 25, 35, 30],
     ]);
-    expect(CHAPTER_SIX_PHASES[7].waves.at(-1).chapterSixPacketKeys).toEqual(["C6-05", "C6-03", "C6-08", "C6-10", "C6-12"]);
+    expect(CHAPTER_SIX_PHASES[7].waves.at(-1).chapterSixPacketKeys).toHaveLength(14);
   });
 });

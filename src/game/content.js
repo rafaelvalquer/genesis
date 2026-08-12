@@ -253,6 +253,7 @@ export const TROOPS = {
     emberBurnDurationFactor: 0.50,
     color: "#67e8f9",
     unlockAt: 40,
+    spriteScale: 0.92,
     assetStates: ["idle", "attack", "death"],
     idleVisual: {
       state: "idle", height: 124, aspectRatio: 0.82, durationMs: 1040, loop: true,
@@ -1925,6 +1926,7 @@ export const ENEMIES = {
     minimumAttackRangeTiles: 2.6,
     maximumAttackRangeTiles: 5,
     preferredRangeTiles: 3.7,
+    repositionDistanceTiles: 0.75,
     baseDamage: 14,
     threat: 24,
     armorClass: "medium",

@@ -25,6 +25,7 @@ import {
   setGenesisPlanetOpacity,
 } from "../visual/genesisPlanetAsset.js";
 import { applyGenesisPlanetOrientation } from "../visual/genesisPlanetOrientation.js";
+import { createGenesisAtmosphereMaterial } from "../visual/createGenesisAtmosphereMaterial.js";
 
 const vertexShader = `
   uniform float uTime;
@@ -181,10 +182,7 @@ export async function createCommandGlobeScene({
   planetModelRoot.add(proceduralPlanet);
   const proceduralAtmosphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.09, quality.atmosphereSegments, quality.atmosphereSegments / 2),
-    new THREE.MeshBasicMaterial({
-      color: biome.atmosphere, transparent: true, opacity: biome.world.atmosphereOpacityCommand,
-      side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false,
-    }),
+    createGenesisAtmosphereMaterial(THREE, { color: biome.atmosphere, opacity: biome.world.atmosphereOpacityCommand }),
   );
   planetModelRoot.add(proceduralAtmosphere);
 

@@ -1,9 +1,3 @@
-export const GENESIS_RELIEF_FACTORS = Object.freeze({
-  GenesisWorld_IceSpikes: .45,
-  GenesisWorld_CrystalSpires: .52,
-  GenesisWorld_SwampPods: .58,
-});
-
 export const GENESIS_MOON_PRIORITY = Object.freeze([
   "GenesisMoon_RingedRoot",
   "GenesisMoon_BlueRoot",
@@ -15,7 +9,6 @@ export const GENESIS_MOON_PRIORITY = Object.freeze([
 export const GENESIS_PLANET_PRESENTATION = Object.freeze({
   high: Object.freeze({
     relief: Object.freeze({
-      GenesisWorld_IceSpikes: .45,
       GenesisWorld_CrystalSpires: .52,
       GenesisWorld_SwampPods: .58,
     }),
@@ -25,7 +18,6 @@ export const GENESIS_PLANET_PRESENTATION = Object.freeze({
   }),
   medium: Object.freeze({
     relief: Object.freeze({
-      GenesisWorld_IceSpikes: .42,
       GenesisWorld_CrystalSpires: .48,
       GenesisWorld_SwampPods: .54,
     }),
@@ -35,7 +27,6 @@ export const GENESIS_PLANET_PRESENTATION = Object.freeze({
   }),
   low: Object.freeze({
     relief: Object.freeze({
-      GenesisWorld_IceSpikes: .4,
       GenesisWorld_CrystalSpires: .46,
       GenesisWorld_SwampPods: .5,
     }),

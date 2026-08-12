@@ -50,6 +50,7 @@ describe("CRYO-7 Operador Criogênico", () => {
       cryoDamageFactor: 1.35, cryoShockMs: 1000, fireCryoShockMs: 2000,
       cryoShockRecoveryMs: 4000, platformCoolingPercentPerShot: 0.04,
       thermalTerrainCompatible: false, fireDamageTakenFactor: 0.6, emberBurnDurationFactor: 0.5,
+      spriteScale: 0.92,
       assetStates: ["idle", "attack", "death"],
     });
     const root = path.join(process.cwd(), "src", "game", "assets", "troop", "cryo7");

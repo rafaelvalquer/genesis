@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CHAPTER_SIX_ENEMY_POOL,
+  CHAPTER_SIX_MAXIMUM_LIVING,
+  CHAPTER_SIX_PACKET_COUNTS,
   CHAPTER_SIX_PACKETS,
   CHAPTER_SIX_TIER_PROFILES,
   createChapterSixWaves,
@@ -27,11 +29,33 @@ describe("pacotes e ondas do capítulo 6", () => {
     ]);
   });
 
-  it("usa os oito conjuntos de ondas, com rotas e atrasos coordenados", () => {
-    expect(Array.from({ length: 8 }, (_, index) => createChapterSixWaves(index).length)).toEqual([4, 4, 4, 5, 5, 5, 6, 6]);
+  it("usa seis ondas por fase e a curva planejada de pacotes", () => {
+    expect(Array.from({ length: 8 }, (_, index) => createChapterSixWaves(index).length)).toEqual(Array(8).fill(6));
+    expect(Array.from({ length: 8 }, (_, index) => createChapterSixWaves(index).map((wave) => wave.packetCount))).toEqual(CHAPTER_SIX_PACKET_COUNTS);
+  });
+
+  it("mantém crescimento de ameaça e limite vivo por fase", () => {
+    for (let phase = 0; phase < 8; phase += 1) {
+      const waves = createChapterSixWaves(phase);
+      expect(waves.every((wave) => wave.maximumLivingEnemies === CHAPTER_SIX_MAXIMUM_LIVING[phase])).toBe(true);
+      for (let wave = 1; wave < waves.length; wave += 1) {
+        expect(waves[wave].packetCount).toBeGreaterThanOrEqual(waves[wave - 1].packetCount);
+        expect(waves[wave].packetThreat).toBeGreaterThanOrEqual(waves[wave - 1].packetThreat);
+      }
+    }
+  });
+
+  it("começa a fase 41 com uma pressão leve para permitir posicionamento", () => {
+    const firstWave = createChapterSixWaves(0)[0];
+    expect(firstWave.chapterSixPacketKeys).toEqual(Array(6).fill("C6-01"));
+    expect(firstWave.packetThreat).toBe(6 * CHAPTER_SIX_PACKETS["C6-01"].threat);
+    expect(firstWave.enemies).toEqual([{ type: "cuspidorBrasa", count: 24 }]);
+  });
+
+  it("distribui pacotes pelas cinco rotas e respeita os intervalos", () => {
     const final = createChapterSixWaves(7).at(-1);
-    expect(final.spawnBlocks.flatMap((block) => block.packets)).toHaveLength(5);
-    expect(final.spawnBlocks.flatMap((block) => block.packets).map((packet) => packet.spawnAtMs)).toEqual([0, 4000, 8000, 12000, 16000]);
+    expect(final.spawnBlocks.flatMap((block) => block.packets)).toHaveLength(14);
+    expect(final.spawnBlocks.flatMap((block) => block.packets).map((packet) => packet.spawnAtMs)).toEqual(Array.from({ length: 14 }, (_, index) => index * 3200));
     expect(new Set(final.spawnBlocks.flatMap((block) => block.packets).flatMap((packet) => packet.units.flatMap((unit) => unit.rows)))).toEqual(new Set([0, 1, 2, 3, 4]));
   });
 

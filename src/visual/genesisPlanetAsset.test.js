@@ -56,10 +56,12 @@ describe("asset compartilhado do planeta Genesis", () => {
     expect(parts.mainPlanet.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(parts.mainPlanet.material.emissive.getHex()).toBe(0x000000);
     expect(parts.mainPlanet.material.flatShading).toBe(false);
-    expect(parts.structures.find((mesh) => mesh.name.includes("IceSpikes")).material.roughness).toBe(.65);
+    expect(model.getObjectByName("GenesisWorld_IceSpikes").visible).toBe(false);
+    expect(parts.structures.some((mesh) => mesh.name.includes("IceSpikes"))).toBe(false);
     expect(parts.structures.find((mesh) => mesh.name.includes("CrystalSpires")).material.roughness).toBe(.34);
     expect(parts.structures.find((mesh) => mesh.name.includes("SwampPods")).material.roughness).toBe(.88);
-    expect(parts.atmosphere.material).toBeInstanceOf(THREE.MeshBasicMaterial);
+    expect(parts.atmosphere.material).toBeInstanceOf(THREE.ShaderMaterial);
+    expect(parts.atmosphere.material.userData.genesisAtmosphereFresnel).toBe(true);
     expect(parts.clouds.material).toBeInstanceOf(THREE.MeshBasicMaterial);
     disposeThreeObject(model);
   });
@@ -76,6 +78,26 @@ describe("asset compartilhado do planeta Genesis", () => {
     expect(Object.values(parts.beacons).map((mesh) => mesh.material)).toEqual(beaconMaterials);
     expect(parts.beacons.chapter_02.material.emissiveIntensity).toBe(.85);
     expect(parts.beacons.chapter_01.material.emissiveIntensity).toBe(.08);
+    expect(parts.mainPlanet.material.roughness).toBe(.58);
+    expect(parts.mainPlanet.material.metalness).toBe(.1);
+    disposeThreeObject(model);
+  });
+
+  it("modulates the main material for every chapter", () => {
+    const model = planetFixture();
+    const parts = prepareGenesisPlanetModel(THREE, model);
+    const expected = {
+      chapter_01: { roughness: .74, metalness: .04, emissiveIntensity: .022 },
+      chapter_02: { roughness: .58, metalness: .1, emissiveIntensity: .018 },
+      chapter_03: { roughness: .96, metalness: 0, emissiveIntensity: 0 },
+      chapter_04: { roughness: .82, metalness: .03, emissiveIntensity: .013 },
+      chapter_05: { roughness: .52, metalness: .08, emissiveIntensity: .012 },
+      chapter_06: { roughness: .72, metalness: .015, emissiveIntensity: .035 },
+    };
+    CHAPTERS.forEach((chapter) => {
+      applyGenesisPlanetChapterState({ THREE, parts, chapter, biome: getCampaignBiome(chapter.id) });
+      expect(parts.mainPlanet.material).toMatchObject(expected[chapter.id]);
+    });
     disposeThreeObject(model);
   });
 
