@@ -21,6 +21,8 @@ describe("efeitos de profundidade do globo de Comando", () => {
 
     expect(marker.userData.pulseRing?.isMesh).toBe(true);
     expect(marker.userData.surfaceGlow?.isMesh).toBe(true);
+    expect(marker.userData.terrainHalo?.isMesh).toBe(true);
     expect(marker.userData.surfaceGlow.material.blending).toBe(THREE.AdditiveBlending);
+    expect(marker.userData.terrainHalo.material.blending).toBe(THREE.AdditiveBlending);
   });
 });

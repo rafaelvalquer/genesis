@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import * as THREE from "three";
 import { createGenesisChapterEffects, updateGenesisChapterEffects } from "./createGenesisChapterEffects.js";
 
@@ -38,5 +38,16 @@ describe("efeitos 3D próximos às rotas", () => {
     expect(runtime.activeChapterId).toBe("chapter_05");
     expect(runtime.groups.chapter_05.visible).toBe(true);
     expect(runtime.groups.chapter_01.visible).toBe(false);
+  });
+
+  it("nÃ£o atualiza efeitos completamente invisÃ­veis", () => {
+    const parent = new THREE.Group();
+    const runtime = createGenesisChapterEffects({ THREE, parent, quality: { quality: "low" }, chapterId: "chapter_01" });
+    const hiddenUpdate = vi.fn();
+    runtime.groups.chapter_02.userData.update = hiddenUpdate;
+
+    updateGenesisChapterEffects(runtime, 1 / 60, 1 / 60, false);
+
+    expect(hiddenUpdate).not.toHaveBeenCalled();
   });
 });

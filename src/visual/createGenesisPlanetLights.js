@@ -11,6 +11,7 @@ function fallbackLighting(biome = {}) {
     rimPosition: [-3, .8, -3.5],
     ambientColor: "#ffffff",
     ambientIntensity: .08,
+    terminatorStrength: .78,
     exposure: 1.05,
     transitionSpeed: 5,
   };
@@ -20,6 +21,17 @@ export function getGenesisLightingState(biome = {}) {
   return {
     ...fallbackLighting(biome),
     ...(biome.lighting || {}),
+  };
+}
+
+function withTerminatorContrast(lighting) {
+  const strength = Math.max(0, Math.min(1, lighting.terminatorStrength ?? .78));
+  return {
+    ...lighting,
+    keyIntensity: lighting.keyIntensity * (1 + strength * .12),
+    fillIntensity: lighting.fillIntensity * (1 - strength * .62),
+    ambientIntensity: lighting.ambientIntensity * (1 - strength * .5),
+    rimIntensity: lighting.rimIntensity * (1 + strength * .15),
   };
 }
 
@@ -57,7 +69,7 @@ export function createGenesisPlanetLights(
   biome,
   renderer = null,
 ) {
-  const lighting = getGenesisLightingState(biome);
+  const lighting = withTerminatorContrast(getGenesisLightingState(biome));
 
   const keyLight = new THREE.DirectionalLight(
     lighting.keyColor,
@@ -89,6 +101,8 @@ export function createGenesisPlanetLights(
     ambientLight,
   );
 
+  if (renderer) renderer.toneMappingExposure = lighting.exposure;
+
   return {
     keyLight,
     fillLight,
@@ -107,7 +121,7 @@ export function applyGenesisLightState(
     renderer = lights.renderer,
   } = {},
 ) {
-  const lighting = getGenesisLightingState(biome);
+  const lighting = withTerminatorContrast(getGenesisLightingState(biome));
 
   lights.renderer = renderer || lights.renderer;
 

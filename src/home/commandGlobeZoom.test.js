@@ -27,6 +27,7 @@ describe("zoom orbital da tela Comando", () => {
 
     const closer = zoomCommandGlobeBy(runtime, -1);
     expect(closer).toBeCloseTo(4.2);
+    expect(runtime.cameraBaseDistance).toBeCloseTo(4.2);
     expect(getCommandGlobeZoomPercent(runtime)).toBeGreaterThan(100);
 
     const farther = zoomCommandGlobeBy(runtime, 2);
@@ -35,6 +36,7 @@ describe("zoom orbital da tela Comando", () => {
 
     resetCommandGlobeZoom(runtime);
     expect(runtime.camera.position.length()).toBeCloseTo(5.2);
+    expect(runtime.cameraBaseDistance).toBeCloseTo(5.2);
     expect(getCommandGlobeZoomPercent(runtime)).toBe(100);
   });
 

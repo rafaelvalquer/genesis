@@ -6,6 +6,7 @@ import {
   applyGenesisPlanetQuality,
   prepareGenesisPlanetModel,
   setGenesisPlanetOpacity,
+  updateGenesisPlanetClouds,
 } from "./genesisPlanetMaterials.js";
 
 export const GENESIS_PLANET_URL = "/models/command/genesis-planeta-multibiomas1.glb";
@@ -71,4 +72,5 @@ export async function createGenesisPlanetInstance({
 export {
   applyGenesisPlanetChapterState,
   setGenesisPlanetOpacity,
+  updateGenesisPlanetClouds,
 };

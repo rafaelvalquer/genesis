@@ -76,6 +76,9 @@ export function createChitinPlanetEffects({ THREE, profile }) {
       sandStreaks.userData.windMaterial,
       .72 + Math.sin(elapsed * 1.05) * .16,
     );
+    duneMaterial.emissiveIntensity = reduceMotion
+      ? .035
+      : .025 + (Math.sin(elapsed * .68) * .5 + .5) * .045;
   };
   return root;
 }

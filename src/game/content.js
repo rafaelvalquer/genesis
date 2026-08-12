@@ -2686,7 +2686,7 @@ export const ENEMIES = {
     label: "Carapaça de Nereida",
     role: "Tanque aquático / proteção de aliados / corpo a corpo",
     hp: 104, speed: 15, damage: 14, attackEveryMs: 1800, baseDamage: 28, threat: 30,
-    color: "#22d3ee", scale: 1.48, spriteOffsetY: -11, chapterId: "chapter_05", allowAlphaVariant: false,
+    color: "#22d3ee", scale: 1.28, spriteOffsetY: -11, chapterId: "chapter_05", allowAlphaVariant: false,
     assetStates: ["idle", "moveLand", "moveWater", "attackClaw", "shellGuard", "death", "spawnEmerge"],
     animationFrameMs: { idle: 120, moveLand: 100, moveWater: 80, shellGuard: 100, death: 120 },
     landAnimationCycleDistance: 12,

@@ -74,8 +74,8 @@ export function createStormPlanetEffects({ THREE, profile }) {
       .68 + Math.sin(elapsed * 1.35) * .24,
     );
     mountainMaterial.emissiveIntensity = reduceMotion
-      ? .035
-      : .03 + (Math.sin(elapsed * .45) * .5 + .5) * .045;
+      ? .055
+      : .045 + (Math.sin(elapsed * .45) * .5 + .5) * .08;
   };
   return root;
 }

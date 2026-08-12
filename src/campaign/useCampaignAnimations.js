@@ -88,10 +88,8 @@ export function useCampaignAnimations({
       .to(
         runtime.camera.position,
         {
-          z: reduceMotion
-            ? cameraDistance
-            : cameraDistance + .5,
-          duration: duration * .35,
+          z: reduceMotion ? cameraDistance : cameraDistance * .94,
+          duration: duration * .28,
         },
         0,
       )
@@ -197,7 +195,7 @@ export function useCampaignAnimations({
           z: cameraDistance,
           duration: duration * .42,
         },
-        duration * .68,
+        duration * .58,
       );
 
     if (chapterChanged) {

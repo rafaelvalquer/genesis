@@ -21,6 +21,7 @@ export function applyGenesisWorldTheme({
   biome,
   mode = "command",
   immediate = false,
+  stagger = false,
 }) {
   if (!runtime || !biome || !chapter) return;
 
@@ -80,7 +81,8 @@ export function applyGenesisWorldTheme({
     );
   }
 
-  if (runtime.scene?.fog) {
+  const applyFog = () => {
+    if (!runtime.scene?.fog) return;
     runtime.scene.fog.color.set(
       biome.world?.fogColor || biome.fog,
     );
@@ -92,7 +94,7 @@ export function applyGenesisWorldTheme({
         runtime.scene.fog.density,
       );
     }
-  }
+  };
 
   applyGenesisLightState(
     runtime,
@@ -103,10 +105,22 @@ export function applyGenesisWorldTheme({
     },
   );
 
-  runtime.chapterEffects?.setChapter?.(
-    chapter.id,
-    { immediate },
-  );
+  const fadeEffects = () => runtime.chapterEffects?.fadeOut?.();
+  const applyEffects = () => runtime.chapterEffects?.setChapter?.(chapter.id, { immediate });
+  if (stagger && !immediate) {
+    runtime.worldThemeTransition = {
+      elapsed: 0,
+      applyFog,
+      fadeEffects,
+      applyEffects,
+      fogApplied: false,
+      effectsFaded: false,
+      effectsApplied: false,
+    };
+  } else {
+    applyFog();
+    applyEffects();
+  }
 
   applyGenesisPlanetChapterState({
     THREE,
@@ -125,4 +139,15 @@ export function applyGenesisWorldTheme({
     runtime.mount.dataset.worldTheme = biome.key;
     runtime.mount.dataset.worldChapter = chapter.id;
   }
+}
+
+export function updateGenesisWorldThemeTransition(runtime, delta) {
+  const transition = runtime?.worldThemeTransition;
+  if (!transition) return false;
+  transition.elapsed += Math.max(0, delta) * 1000;
+  if (!transition.fogApplied && transition.elapsed >= 150) { transition.applyFog(); transition.fogApplied = true; }
+  if (!transition.effectsFaded && transition.elapsed >= 300) { transition.fadeEffects(); transition.effectsFaded = true; }
+  if (!transition.effectsApplied && transition.elapsed >= 450) { transition.applyEffects(); transition.effectsApplied = true; }
+  if (transition.effectsApplied) runtime.worldThemeTransition = null;
+  return true;
 }

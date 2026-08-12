@@ -61,6 +61,7 @@ export function setCommandGlobeZoomDistance(runtime, requestedDistance) {
   runtime.camera.lookAt?.(0, 0, 0);
   runtime.camera.updateProjectionMatrix?.();
   runtime.zoomDistance = nextDistance;
+  runtime.cameraBaseDistance = nextDistance;
 
   return nextDistance;
 }

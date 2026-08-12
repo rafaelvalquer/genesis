@@ -13,6 +13,15 @@ export const CHAPTER_BEACON_NAMES = Object.freeze({
   chapter_05: "Beacon_Eclipse",
 });
 
+const CLOUD_MOTION = Object.freeze({
+  chapter_01: { rotation: .45, driftX: .003, driftY: .0012 },
+  chapter_02: { rotation: .34, driftX: -.0022, driftY: .001 },
+  chapter_03: { rotation: .08, driftX: .0005, driftY: .0002 },
+  chapter_04: { rotation: 1.65, driftX: .0105, driftY: -.005 },
+  chapter_05: { rotation: .82, driftX: .005, driftY: .0025 },
+  chapter_06: { rotation: 1.22, driftX: -.008, driftY: .0065 },
+});
+
 const TEXTURE_KEYS = [
   "map", "alphaMap", "aoMap", "bumpMap", "displacementMap", "emissiveMap",
   "envMap", "lightMap", "metalnessMap", "normalMap", "roughnessMap",
@@ -199,7 +208,10 @@ export function prepareGenesisPlanetModel(THREE, model, layout) {
     "GenesisMoon_Ringed",
   ]);
   model.traverse((object) => {
-    if (LEGACY_HIDDEN_PLANET_PARTS.has(object.name)) object.visible = false;
+    if (LEGACY_HIDDEN_PLANET_PARTS.has(object.name)) {
+      object.visible = false;
+      return;
+    }
     if (!object.isMesh) return;
     if (smoothPartNames.has(object.name)) smoothGenesisGeometry(object.geometry);
     else if (!object.geometry.getAttribute("normal")) object.geometry.computeVertexNormals();
@@ -220,6 +232,9 @@ export function applyGenesisPlanetChapterState({ THREE, parts, chapter, biome })
   if (parts.atmosphere) {
     parts.atmosphere.material.color.set(0xffffff).lerp(new THREE.Color(biome.atmosphere), .1);
   }
+  if (parts.clouds) {
+    parts.clouds.userData.genesisCloudMotion = CLOUD_MOTION[chapter.id] || CLOUD_MOTION.chapter_01;
+  }
   const surface = parts.mainPlanet?.material;
   const profile = {
     chapter_01: { roughness: .74, metalness: .04, emissive: "#22d3ee", intensity: .022 },
@@ -239,6 +254,21 @@ export function applyGenesisPlanetChapterState({ THREE, parts, chapter, biome })
     const active = chapterId === chapter.id;
     beacon.material.emissive.set(active ? chapter.palette.primary : 0x000000);
     beacon.material.emissiveIntensity = active ? .85 : .08;
+  });
+}
+
+export function updateGenesisPlanetClouds(parts, delta, reduceMotion = false, THREE = null) {
+  const clouds = parts?.clouds;
+  const motion = clouds?.userData.genesisCloudMotion;
+  if (!clouds?.visible || !motion || reduceMotion) return;
+  const rate = delta * Math.PI * 2 / 120;
+  clouds.rotation.y += rate * motion.rotation;
+  const material = clouds.material;
+  const textures = Array.isArray(material) ? material.map((entry) => entry.map) : [material?.map];
+  textures.filter(Boolean).forEach((texture) => {
+    if (THREE) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.offset.x = (texture.offset.x + motion.driftX * delta + 1) % 1;
+    texture.offset.y = (texture.offset.y + motion.driftY * delta + 1) % 1;
   });
 }
 

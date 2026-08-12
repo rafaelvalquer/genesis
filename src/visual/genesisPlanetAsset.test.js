@@ -10,6 +10,7 @@ import {
   applyGenesisPlanetChapterState,
   prepareGenesisPlanetModel,
   setGenesisPlanetOpacity,
+  updateGenesisPlanetClouds,
 } from "./genesisPlanetMaterials.js";
 import { cloneGltfScene } from "./loadGltfModel.js";
 
@@ -48,6 +49,8 @@ function planetFixture() {
 describe("asset compartilhado do planeta Genesis", () => {
   it("preserva vertex colors, calcula normals e não tinge a superfície", () => {
     const model = planetFixture();
+    const legacyIceSpikes = model.getObjectByName("GenesisWorld_IceSpikes");
+    const legacyMaterial = legacyIceSpikes.material;
     const parts = prepareGenesisPlanetModel(THREE, model);
     expect(parts.mainPlanet.geometry.getAttribute("color")).toBeTruthy();
     expect(parts.mainPlanet.geometry.getAttribute("normal")).toBeTruthy();
@@ -56,7 +59,8 @@ describe("asset compartilhado do planeta Genesis", () => {
     expect(parts.mainPlanet.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(parts.mainPlanet.material.emissive.getHex()).toBe(0x000000);
     expect(parts.mainPlanet.material.flatShading).toBe(false);
-    expect(model.getObjectByName("GenesisWorld_IceSpikes").visible).toBe(false);
+    expect(legacyIceSpikes.visible).toBe(false);
+    expect(legacyIceSpikes.material).toBe(legacyMaterial);
     expect(parts.structures.some((mesh) => mesh.name.includes("IceSpikes"))).toBe(false);
     expect(parts.structures.find((mesh) => mesh.name.includes("CrystalSpires")).material.roughness).toBe(.34);
     expect(parts.structures.find((mesh) => mesh.name.includes("SwampPods")).material.roughness).toBe(.88);
@@ -110,6 +114,18 @@ describe("asset compartilhado do planeta Genesis", () => {
     disposeThreeObject(model);
   });
 
+  it("faz nuvens derivarem na velocidade específica do capítulo", () => {
+    const model = planetFixture();
+    const texture = new THREE.Texture();
+    model.getObjectByName("GenesisWorld_Clouds").material.map = texture;
+    const parts = prepareGenesisPlanetModel(THREE, model);
+    applyGenesisPlanetChapterState({ THREE, parts, chapter: CHAPTERS[3], biome: getCampaignBiome(CHAPTERS[3].id) });
+    updateGenesisPlanetClouds(parts, 1, false, THREE);
+    expect(parts.clouds.rotation.y).toBeGreaterThan(.08);
+    expect(texture.offset.x).not.toBe(0);
+    disposeThreeObject(model);
+  });
+
   it("clona texturas como propriedade da instância e não descarta a textura do cache", () => {
     const sourceTexture = new THREE.Texture();
     sourceTexture.dispose = vi.fn();
@@ -142,7 +158,7 @@ describe("renderer, iluminação e órbita compartilhados", () => {
     const scene = new THREE.Scene();
     const lights = createGenesisPlanetLights(THREE, scene, getCampaignBiome("chapter_01"));
     expect(scene.children).toEqual(expect.arrayContaining([lights.keyLight, lights.fillLight, lights.rimLight]));
-    expect(lights.ambientLight.intensity).toBe(.08);
+    expect(lights.ambientLight.intensity).toBeLessThan(.08);
     disposeThreeObject(scene);
   });
 

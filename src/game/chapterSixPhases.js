@@ -18,7 +18,7 @@ export const CHAPTER_SIX_PHASES = deepFreeze(Array.from({ length: 8 }, (_, index
   const thermalCycle = cycleFor(index);
   return {
     id: `fase_${String(41 + index).padStart(2, "0")}`, name: names[index], subtitle: "A superfície vulcânica exige gestão térmica.",
-    energy: 930 + index * 30, arenaId: `fase_${41 + index}`, chapterId: "chapter_06", chapterIndex: index,
+    energy: 630 + index * 30, arenaId: `fase_${41 + index}`, chapterId: "chapter_06", chapterIndex: index,
     chapterSixFocus: CHAPTER_SIX_INTRODUCTIONS[index], chapterSixTierProfile: CHAPTER_SIX_TIER_PROFILES[index],
     supplyLimit: 40, loadoutLimit: 9, baseIntegrity: 100, cadenceMs: 900, targetDurationMs: 1080000,
     waves, waveCompletionEnergy: 20, waveIntensity: waves.map((_, wave) => .4 + .6 * wave / Math.max(1, waves.length - 1)),

@@ -291,6 +291,12 @@ export function createGenesisChapterEffects({
     );
   };
 
+  runtime.fadeOut = () => {
+    Object.values(groups).forEach((group) => {
+      group.userData.targetOpacity = 0;
+    });
+  };
+
   runtime.update = (
     delta,
     elapsed,
@@ -302,6 +308,13 @@ export function createGenesisChapterEffects({
 
     Object.entries(groups).forEach(
       ([id, group]) => {
+        if (
+          group.userData.opacity <= .001
+          && group.userData.targetOpacity <= 0
+        ) {
+          return;
+        }
+
         const active = (
           id === runtime.activeChapterId
         );

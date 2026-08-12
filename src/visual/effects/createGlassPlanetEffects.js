@@ -13,7 +13,7 @@ export function createGlassPlanetEffects({ THREE, profile }) {
   const crystalMaterial = createThemeMaterial(THREE, {
     color: "#a78bfa",
     emissive: "#7fffd4",
-    emissiveIntensity: .2,
+    emissiveIntensity: .32,
     roughness: .28,
     metalness: .1,
   });
@@ -56,8 +56,8 @@ export function createGlassPlanetEffects({ THREE, profile }) {
       .72 + Math.sin(elapsed * 1.12) * .2,
     );
     crystalMaterial.emissiveIntensity = reduceMotion
-      ? .17
-      : .15 + (Math.sin(elapsed * .88) * .5 + .5) * .18;
+      ? .27
+      : .23 + (Math.sin(elapsed * .88) * .5 + .5) * .28;
   };
   return root;
 }

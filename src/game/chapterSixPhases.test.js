@@ -6,7 +6,7 @@ describe("contrato do capítulo 6", () => {
   it("mantém as oito fases, energia, supply e waves definidos", () => {
     expect(CHAPTER_SIX_PHASES).toHaveLength(8);
     expect(CHAPTER_SIX_PHASES.map((phase) => phase.waves.length)).toEqual(Array(8).fill(6));
-    expect(CHAPTER_SIX_PHASES.map((phase) => phase.energy)).toEqual([930, 960, 990, 1020, 1050, 1080, 1110, 1140]);
+    expect(CHAPTER_SIX_PHASES.map((phase) => phase.energy)).toEqual([630, 660, 690, 720, 750, 780, 810, 840]);
     CHAPTER_SIX_PHASES.forEach((phase) => {
       expect(phase.chapterId).toBe("chapter_06");
       expect(phase.supplyLimit).toBe(40);

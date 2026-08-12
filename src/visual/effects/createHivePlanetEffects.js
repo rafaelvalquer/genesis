@@ -11,7 +11,7 @@ export function createHivePlanetEffects({ THREE, profile }) {
   const rockMaterial = createThemeMaterial(THREE, {
     color: "#30424a",
     emissive: "#0f766e",
-    emissiveIntensity: .07,
+    emissiveIntensity: .13,
     roughness: .94,
     metalness: 0,
   });
@@ -54,8 +54,8 @@ export function createHivePlanetEffects({ THREE, profile }) {
       .72 + Math.sin(elapsed * .95) * .18,
     );
     rockMaterial.emissiveIntensity = reduceMotion
-      ? .06
-      : .05 + (Math.sin(elapsed * 1.05) * .5 + .5) * .07;
+      ? .11
+      : .1 + (Math.sin(elapsed * 1.05) * .5 + .5) * .11;
   };
   return root;
 }

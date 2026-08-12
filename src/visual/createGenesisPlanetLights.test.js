@@ -23,6 +23,9 @@ describe("iluminação temática do planeta", () => {
     expect(lights.fillLight.color.getHexString()).toBe("bfe7f5");
     expect(lights.rimLight.color.getHexString()).toBe("f97316");
     expect(renderer.toneMappingExposure).toBeCloseTo(.98);
+    expect(lights.fillLight.intensity).toBeLessThan(theme.lighting.fillIntensity);
+    expect(lights.ambientLight.intensity).toBeLessThan(theme.lighting.ambientIntensity);
+    expect(lights.keyLight.intensity).toBeGreaterThan(theme.lighting.keyIntensity);
   });
 
   it("interpola entre temas sem troca abrupta", () => {

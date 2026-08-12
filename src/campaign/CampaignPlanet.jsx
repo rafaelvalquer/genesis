@@ -22,7 +22,7 @@ import {
   createGenesisChapterEffects,
   updateGenesisChapterEffects,
 } from "../visual/createGenesisChapterEffects.js";
-import { applyGenesisWorldTheme } from "../visual/applyGenesisWorldTheme.js";
+import { applyGenesisWorldTheme, updateGenesisWorldThemeTransition } from "../visual/applyGenesisWorldTheme.js";
 import { disposeThreeObject } from "../visual/disposeThreeObject.js";
 import {
   createGenesisPlanetDebug,
@@ -32,9 +32,11 @@ import { fitGenesisPlanetCamera } from "../visual/fitGenesisPlanetCamera.js";
 import {
   createGenesisPlanetInstance,
   setGenesisPlanetOpacity,
+  updateGenesisPlanetClouds,
 } from "../visual/genesisPlanetAsset.js";
 import { applyGenesisPlanetOrientation } from "../visual/genesisPlanetOrientation.js";
 import { createGenesisAtmosphereMaterial } from "../visual/createGenesisAtmosphereMaterial.js";
+import { createGenesisStarField, updateGenesisStarField } from "../visual/createGenesisStarfield.js";
 
 export function supportsWebGL2() {
   try {
@@ -102,6 +104,8 @@ export default function CampaignPlanet({
       const biome = getCampaignBiome(
         nextChapter.id,
       );
+      const chapterChanged = runtime.currentChapter?.id
+        && runtime.currentChapter.id !== nextChapter.id;
 
       runtime.currentChapter = (
         nextChapter
@@ -190,6 +194,7 @@ export default function CampaignPlanet({
         mode: "campaign",
         immediate:
           !runtime.initializedTheme,
+        stagger: Boolean(chapterChanged),
       });
 
       setCampaignActiveChapter(
@@ -274,6 +279,9 @@ export default function CampaignPlanet({
           color: biome.accent, roughness: .72, metalness: .18, transparent: true,
         });
         const detailMesh = new THREE.InstancedMesh(detailGeometry, detailMaterial, quality.detailCount);
+        // O GLB Ã© o visual definitivo. Estes detalhes procedurais sÃ³ existem
+        // como contingÃªncia quando o asset nÃ£o puder ser carregado.
+        detailMesh.visible = false;
         planetModelRoot.add(detailMesh);
 
         const lights = createGenesisPlanetLights(THREE, scene, biome, renderer);
@@ -293,7 +301,7 @@ export default function CampaignPlanet({
           const material = new THREE.PointsMaterial({ color, size, transparent: true, opacity: .7, depthWrite: false });
           return new THREE.Points(geometry, material);
         };
-        const stars = makePoints(quality.stars, 5, 20, "#bde7ff", .025);
+        const stars = createGenesisStarField(THREE, { count: quality.stars, minRadius: 5, spread: 20, size: .025, opacity: .7, seed: 1337 });
         scene.add(stars);
         const particles = makePoints(quality.particles, 1.35, 1.65, biome.particle, biome.world.particleSize);
         particles.material.opacity = biome.world.particleOpacity;
@@ -382,6 +390,7 @@ export default function CampaignPlanet({
           }
           mount.dataset.planetAsset = "ready";
         }).catch((error) => {
+          detailMesh.visible = true;
           mount.dataset.planetAsset = "failed";
           console.warn("Planeta GLB indisponível na campanha; mantendo fallback procedural.", error);
         });
@@ -414,6 +423,7 @@ export default function CampaignPlanet({
           elapsed += delta;
           uniforms.uTime.value += delta;
           updateGenesisLightTransition(runtime, delta, renderer);
+          updateGenesisWorldThemeTransition(runtime, delta);
           updateGenesisChapterEffects(chapterEffects, delta, elapsed, quality.reduceMotion);
           updateCampaignChapterVisuals(runtime, delta, quality.reduceMotion);
 
@@ -425,13 +435,10 @@ export default function CampaignPlanet({
             atmosphere.material.opacity = hasAuthoredAtmosphere
               ? runtime.atmosphereBaseOpacity * (1 - runtime.glbFade)
               : runtime.atmosphereBaseOpacity;
-            detailMesh.material.opacity = 1 - runtime.glbFade;
-            detailMesh.visible = runtime.glbFade < 1;
             setGenesisPlanetOpacity(runtime.planetParts, runtime.glbFade);
             if (runtime.glbFade === 1) {
               planet.visible = false;
               atmosphere.visible = !hasAuthoredAtmosphere;
-              detailMesh.visible = false;
             }
           }
           if (!runtime.dragging && !quality.reduceMotion) {
@@ -442,9 +449,8 @@ export default function CampaignPlanet({
             if (Math.abs(runtime.velocityY) < .00008) planetGroup.rotation.y += .00035;
           }
           particles.rotation.y += quality.reduceMotion ? 0 : delta * .025;
-          if (!quality.reduceMotion && runtime.planetParts?.clouds?.visible) {
-            runtime.planetParts.clouds.rotation.y += delta * Math.PI * 2 / 120;
-          }
+          updateGenesisStarField(stars, elapsed);
+          updateGenesisPlanetClouds(runtime.planetParts, delta, quality.reduceMotion, THREE);
           projectMarkers(runtime);
           renderer.render(scene, camera);
         };

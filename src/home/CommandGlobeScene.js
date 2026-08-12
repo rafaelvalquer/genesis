@@ -13,7 +13,7 @@ import {
   createGenesisChapterEffects,
   updateGenesisChapterEffects,
 } from "../visual/createGenesisChapterEffects.js";
-import { applyGenesisWorldTheme } from "../visual/applyGenesisWorldTheme.js";
+import { applyGenesisWorldTheme, updateGenesisWorldThemeTransition } from "../visual/applyGenesisWorldTheme.js";
 import { createRocketOrbit, updateRocketOrbit } from "../visual/createRocketOrbit.js";
 import {
   createGenesisPlanetDebug,
@@ -23,9 +23,11 @@ import { fitGenesisPlanetCamera } from "../visual/fitGenesisPlanetCamera.js";
 import {
   createGenesisPlanetInstance,
   setGenesisPlanetOpacity,
+  updateGenesisPlanetClouds,
 } from "../visual/genesisPlanetAsset.js";
 import { applyGenesisPlanetOrientation } from "../visual/genesisPlanetOrientation.js";
 import { createGenesisAtmosphereMaterial } from "../visual/createGenesisAtmosphereMaterial.js";
+import { createGenesisStarField, updateGenesisStarField } from "../visual/createGenesisStarfield.js";
 
 const vertexShader = `
   uniform float uTime;
@@ -82,9 +84,8 @@ export function createStarLayers(THREE, quality) {
     { count: Math.max(64, quality.orbitalParticles * 2), radius: 9, spread: 11, size: .022, opacity: .52, speed: -.006 },
     { count: Math.max(80, quality.orbitalParticles * 3), radius: 14, spread: 16, size: .03, opacity: .72, speed: .01 },
   ];
-  return layers.map((layer) => {
-    const stars = makePoints(THREE, layer.count, layer.radius, layer.spread, "#bde7ff", layer.size);
-    stars.material.opacity = layer.opacity;
+  return layers.map((layer, index) => {
+    const stars = createGenesisStarField(THREE, { count: layer.count, minRadius: layer.radius, spread: layer.spread, size: layer.size, opacity: layer.opacity, seed: 1337 + index * 101 });
     stars.userData.parallaxSpeed = layer.speed;
     return stars;
   });
@@ -116,6 +117,13 @@ export function createMarkerMesh(THREE, phase, state, chapter) {
     surfaceGlow.position.z = -.006;
     surfaceGlow.renderOrder = 4;
     group.add(surfaceGlow);
+    const terrainHalo = new THREE.Mesh(
+      new THREE.RingGeometry(.13, .255, 32),
+      new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: .16, depthWrite: false, blending: THREE.AdditiveBlending }),
+    );
+    terrainHalo.position.z = -.012;
+    terrainHalo.renderOrder = 3;
+    group.add(terrainHalo);
     const outer = new THREE.Mesh(
       new THREE.RingGeometry(.09, .098, 24),
       new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: .55, depthWrite: false }),
@@ -123,6 +131,7 @@ export function createMarkerMesh(THREE, phase, state, chapter) {
     group.add(outer);
     outer.renderOrder = 5;
     group.userData.surfaceGlow = surfaceGlow;
+    group.userData.terrainHalo = terrainHalo;
     group.userData.pulseRing = outer;
   }
   group.userData.phaseId = phase.id;
@@ -209,12 +218,13 @@ export async function createCommandGlobeScene({
     markerVectors: new Map(), markerElements, phaseMarkerGroup: null, currentMarker: null, routeGroup: null,
     selectedPhaseId: selectedPhase.id, currentChapter: chapter, currentPhases: phases,
     dragging: false, velocityX: 0, velocityY: 0, disposed: false, killAuto: null,
-    targetRotation: getTargetRotationForPhase(selectedPhase.id),
+    targetRotation: getTargetRotationForPhase(selectedPhase.id), focusUntil: 0, cameraBaseDistance: camera.position.z,
     glbPlanet: null, planetParts: null, planetLayout: null, glbFade: 0, rocket: null,
   };
   planetReferenceFrame.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
 
   runtime.setChapter = (nextChapter, nextPhases, nextCampaign, nextSelected) => {
+    const chapterChanged = runtime.currentChapter?.id && runtime.currentChapter.id !== nextChapter.id;
     if (runtime.routeGroup) {
       mapOverlayRoot.remove(runtime.routeGroup);
       disposeThreeObject(runtime.routeGroup);
@@ -249,6 +259,7 @@ export async function createCommandGlobeScene({
       biome: nextBiome,
       mode: "command",
       immediate: !runtime.initialized,
+      stagger: chapterChanged,
     });
 
     runtime.focusPhase(nextSelected.id, !runtime.initialized);
@@ -261,6 +272,7 @@ export async function createCommandGlobeScene({
     if (immediate || quality.reduceMotion) {
       planetReferenceFrame.rotation.set(runtime.targetRotation.x, runtime.targetRotation.y, runtime.targetRotation.z);
     }
+    runtime.focusUntil = immediate ? 0 : performance.now() + 760;
   };
   runtime.setChapter(chapter, phases, campaign, selectedPhase);
 
@@ -312,11 +324,15 @@ export async function createCommandGlobeScene({
   document.addEventListener("visibilitychange", onVisibility);
   const timer = new THREE.Timer();
   timer.connect(document);
+  let mountWidth = 1;
+  let mountHeight = 1;
   const resize = () => {
     const rect = mount.getBoundingClientRect();
-    camera.aspect = Math.max(1, rect.width) / Math.max(1, rect.height);
+    mountWidth = Math.max(1, rect.width);
+    mountHeight = Math.max(1, rect.height);
+    camera.aspect = mountWidth / mountHeight;
     camera.updateProjectionMatrix();
-    renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height), false);
+    renderer.setSize(mountWidth, mountHeight, false);
   };
   const resizeObserver = new ResizeObserver(resize);
   resizeObserver.observe(mount);
@@ -338,6 +354,7 @@ export async function createCommandGlobeScene({
     elapsed += delta;
     uniforms.uTime.value += delta;
     updateGenesisLightTransition(runtime, delta, renderer);
+    updateGenesisWorldThemeTransition(runtime, delta);
     updateGenesisChapterEffects(chapterEffects, delta, elapsed, quality.reduceMotion);
 
     if (runtime.glbPlanet && runtime.glbFade < 1) {
@@ -363,6 +380,7 @@ export async function createCommandGlobeScene({
     }
     if (!quality.reduceMotion) {
       starLayers.forEach((stars, index) => {
+        updateGenesisStarField(stars, elapsed);
         stars.rotation.y += delta * stars.userData.parallaxSpeed;
         stars.rotation.x += runtime.velocityX * (.18 + index * .05);
         stars.rotation.y += runtime.velocityY * (.12 + index * .04);
@@ -372,28 +390,29 @@ export async function createCommandGlobeScene({
       const pulse = quality.reduceMotion ? .5 : (Math.sin(elapsed * 3.2) + 1) * .5;
       const scale = 1 + pulse * .13;
       runtime.currentMarker.scale.setScalar(scale);
-      const { pulseRing, surfaceGlow } = runtime.currentMarker.userData;
+      const { pulseRing, surfaceGlow, terrainHalo } = runtime.currentMarker.userData;
       if (pulseRing?.material) pulseRing.material.opacity = .42 + pulse * .32;
       if (surfaceGlow?.material) surfaceGlow.material.opacity = .14 + pulse * .18;
+      if (terrainHalo?.material) { terrainHalo.material.opacity = .07 + pulse * .13; terrainHalo.scale.setScalar(1 + pulse * .22); }
     }
-    if (!quality.reduceMotion && runtime.planetParts?.clouds?.visible) {
-      runtime.planetParts.clouds.rotation.y += delta * Math.PI * 2 / 120;
-    }
+    const focusActive = !quality.reduceMotion && performance.now() < runtime.focusUntil;
+    const targetDistance = focusActive ? runtime.cameraBaseDistance * .94 : runtime.cameraBaseDistance;
+    camera.position.z += (targetDistance - camera.position.z) * Math.min(1, delta * 5.5);
+    updateGenesisPlanetClouds(runtime.planetParts, delta, quality.reduceMotion, THREE);
     updateRocketOrbit(THREE, runtime.rocket, elapsed, quality.reduceMotion);
     const projectedMarkers = [];
-    const rect = mount.getBoundingClientRect();
+    planetReferenceFrame.getWorldPosition(planetCenter);
+    camera.getWorldPosition(cameraPosition);
     runtime.markerVectors.forEach((vector, phaseId) => {
       const element = markerElements.get(phaseId);
       if (!element) return;
       temp.copy(vector);
       mapOverlayRoot.localToWorld(temp);
       projected.copy(temp).project(camera);
-      const x = (projected.x * .5 + .5) * rect.width;
-      const y = (-projected.y * .5 + .5) * rect.height;
+      const x = (projected.x * .5 + .5) * mountWidth;
+      const y = (-projected.y * .5 + .5) * mountHeight;
       element.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
       const inFrustum = projected.z > -1 && projected.z < 1;
-      planetReferenceFrame.getWorldPosition(planetCenter);
-      camera.getWorldPosition(cameraPosition);
       surfaceNormal.copy(temp).sub(planetCenter).normalize();
       cameraDirection.copy(cameraPosition).sub(temp).normalize();
       const frontFacing = surfaceNormal.dot(cameraDirection) > .05;
