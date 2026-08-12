@@ -21,6 +21,7 @@ import {
   resetCampaign,
   saveSettings,
 } from "./campaign/storage.js";
+import { getValidLastSelectedTroopId, loadLoadoutPreferences, resetLoadoutPreferences, resolveLoadoutForPhase, saveLoadoutPreferences } from "./loadout/loadoutPreferences.js";
 
 export { LoadoutPicker, CommandPage as HomePage };
 
@@ -247,7 +248,9 @@ export function PlayPage({ campaign, setCampaign }) {
   const navigate = useNavigate();
   const phase = getPhase(phaseId);
   const phaseIndex = getPhaseIndex(phaseId);
-  const [selected, setSelected] = useState(() => phase ? getUnlockedTroops(phaseIndex).slice(0, 3).map((troop) => troop.id) : []);
+  const [loadoutPreference, setLoadoutPreference] = useState(loadLoadoutPreferences);
+  const available = phase ? getUnlockedTroops(phaseIndex) : [];
+  const [selected, setSelected] = useState(() => phase ? resolveLoadoutForPhase({ preference: loadoutPreference, availableTroops: available, loadoutLimit: phase.loadoutLimit ?? 5 }) : []);
   const [started, setStarted] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [result, setResult] = useState(null);
@@ -260,11 +263,23 @@ export function PlayPage({ campaign, setCampaign }) {
 
   useEffect(() => {
     if (!phase) return;
-    setSelected(getUnlockedTroops(phaseIndex).slice(0, 3).map((troop) => troop.id));
+    const preference = loadLoadoutPreferences();
+    setLoadoutPreference(preference);
+    setSelected(resolveLoadoutForPhase({ preference, availableTroops: getUnlockedTroops(phaseIndex), loadoutLimit: phase.loadoutLimit ?? 5 }));
     setStarted(false);
     setAttempt(0);
     setResult(null);
   }, [phaseId, phaseIndex]);
+
+  const handleTroopToggle = useCallback((troopId) => {
+    setSelected((current) => {
+      if (!current.includes(troopId) && current.length >= (phase.loadoutLimit ?? 5)) return current;
+      const next = current.includes(troopId) ? current.filter((id) => id !== troopId) : [...current, troopId];
+      const preference = saveLoadoutPreferences({ troopIds: next, lastSelectedTroopId: next.at(-1) || null });
+      setLoadoutPreference(preference);
+      return next;
+    });
+  }, [phase.loadoutLimit]);
 
   const handleFinish = useCallback((battleResult) => {
     setResult(battleResult);
@@ -279,14 +294,9 @@ export function PlayPage({ campaign, setCampaign }) {
         <LoadoutPicker
           phase={phase}
           selected={selected}
+          initialFocusedTroopId={getValidLastSelectedTroopId(loadoutPreference, available, selected)}
           unlockedPhaseIndex={campaign.unlockedPhaseIndex}
-          onToggle={(troopId) => setSelected((current) => (
-            current.includes(troopId)
-              ? current.filter((id) => id !== troopId)
-              : current.length < (phase.loadoutLimit ?? 5)
-                ? [...current, troopId]
-                : current
-          ))}
+          onToggle={handleTroopToggle}
           onStart={() => setStarted(true)}
           onBack={() => navigate(`/fases?capitulo=${chapterNumber}`)}
         />
@@ -365,6 +375,7 @@ export default function App() {
   const handleReset = () => {
     if (!window.confirm("Apagar todo o progresso local da campanha?")) return false;
     setCampaign(resetCampaign());
+    resetLoadoutPreferences();
     return true;
   };
   return <BrowserRouter><RouteTransitionProvider><AppLayout><Suspense fallback={<RouteFallback />}><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense></AppLayout></RouteTransitionProvider></BrowserRouter>;

@@ -14,7 +14,7 @@ import { useLoadoutAnimations } from "./useLoadoutAnimations.js";
 import { useLoadoutQuality } from "./useLoadoutQuality.js";
 import "./loadout.css";
 
-export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onToggle, onStart, onBack }) {
+export default function LoadoutPage({ phase, selected, initialFocusedTroopId, unlockedPhaseIndex, onToggle, onStart, onBack }) {
   const rootRef = useRef(null);
   const infoTriggerRef = useRef(null);
   const startedRef = useRef(false);
@@ -24,7 +24,7 @@ export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onTog
   const loadoutLimit = phase.loadoutLimit ?? 5;
   const available = useMemo(() => getUnlockedTroops(phaseIndex), [phaseIndex]);
   const selectedTroops = useMemo(() => selected.map((id) => available.find((troop) => troop.id === id)).filter(Boolean), [available, selected]);
-  const [focusedTroopId, setFocusedTroopId] = useState(() => selected[0] || available[0]?.id);
+  const [focusedTroopId, setFocusedTroopId] = useState(() => (available.some((troop) => troop.id === initialFocusedTroopId) ? initialFocusedTroopId : null) || selected.at(-1) || available[0]?.id);
   const [hoverTroopId, setHoverTroopId] = useState(null);
   const [infoTroop, setInfoTroop] = useState(null);
   const [runtime, setRuntime] = useState(null);
@@ -58,9 +58,14 @@ export default function LoadoutPage({ phase, selected, unlockedPhaseIndex, onTog
 
   useEffect(() => {
     if (!available.some((troop) => troop.id === focusedTroopId)) {
-      setFocusedTroopId(selected[0] || available[0]?.id);
+      setFocusedTroopId(selected.at(-1) || available[0]?.id);
     }
   }, [available, focusedTroopId, selected]);
+  useEffect(() => {
+    if (initialFocusedTroopId && available.some((troop) => troop.id === initialFocusedTroopId)) {
+      setFocusedTroopId(initialFocusedTroopId);
+    }
+  }, [initialFocusedTroopId, available]);
   useEffect(() => () => window.clearTimeout(limitTimerRef.current), []);
 
   const showLimit = () => {

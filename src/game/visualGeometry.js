@@ -92,7 +92,13 @@ export function getTroopAttackVisual(troop, troopConfig = {}) {
   }
   if (troop?.type === "interceptadorIcaro") {
     if (troop.state === "interceptionLock") return troopConfig.interceptionLockVisual;
-    if (troop.state === "interceptionFire") return troopConfig.interceptionFireVisual;
+    if (troop.state === "interceptionFire") {
+      return troop.interceptionAimDirection === "up"
+        ? troopConfig.interceptionFireUpVisual || troopConfig.interceptionFireVisual
+        : troop.interceptionAimDirection === "down"
+          ? troopConfig.interceptionFireDownVisual || troopConfig.interceptionFireVisual
+          : troopConfig.interceptionFireVisual;
+    }
     if (troop.state === "paralyzed") return troopConfig.paralyzedVisual;
     if (troop.state === "idle") return troopConfig.idleVisual;
     return troopConfig.attackVisual;
@@ -633,14 +639,24 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   const visual = getTroopAttackVisual(troop, troopConfig);
   if (troop.type === "interceptadorIcaro") {
     const paralyzed = elapsed < Number(troop.electricParalyzedUntil || 0);
-    const state = paralyzed ? "paralyzed" : troop.state || "idle";
+    const state = paralyzed
+      ? "paralyzed"
+      : troop.state === "interceptionFire" && troop.interceptionAimDirection === "up"
+        ? "interceptionFireUp"
+        : troop.state === "interceptionFire" && troop.interceptionAimDirection === "down"
+          ? "interceptionFireDown"
+          : troop.state || "idle";
     const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
     const stateVisual = paralyzed
       ? troopConfig.paralyzedVisual
       : state === "interceptionLock"
         ? troopConfig.interceptionLockVisual
-        : state === "interceptionFire"
-          ? troopConfig.interceptionFireVisual
+        : state === "interceptionFireUp"
+          ? troopConfig.interceptionFireUpVisual
+          : state === "interceptionFireDown"
+            ? troopConfig.interceptionFireDownVisual
+            : state === "interceptionFire"
+              ? troopConfig.interceptionFireVisual
           : state === "attackBurst"
             ? troopConfig.attackVisual
             : troopConfig.idleVisual;

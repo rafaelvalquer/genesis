@@ -30,9 +30,9 @@ function ControlledLoadout({ phase = PHASES[8], initial = [] }) {
 const stage = () => document.querySelector(".troop-stage");
 
 describe("baia de preparação tática", () => {
-  it("foca inicialmente a primeira tropa selecionada", () => {
+  it("foca inicialmente a última tropa selecionada", () => {
     renderLoadout({ selected: ["marine", "colono"] });
-    expect(within(stage()).getByRole("heading", { name: "Marine" })).toBeInTheDocument();
+    expect(within(stage()).getByRole("heading", { name: "Colono" })).toBeInTheDocument();
   });
 
   it("foca a primeira tropa disponível sem seleção", () => {

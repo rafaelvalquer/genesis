@@ -403,10 +403,11 @@ export async function loadBattleAssets(
           : ["idle", "attack"]
       )
     );
+    const extraStates = troop.assetDirectionalStates || [];
 
     result.troops[troopId] = {};
 
-    for (const state of states) {
+    for (const state of [...states, ...extraStates]) {
       const task = async () => {
         let frames = await loadFrameSet(
           troopFrameModules,
