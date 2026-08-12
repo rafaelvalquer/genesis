@@ -29,4 +29,14 @@ describe("contrato do capítulo 6", () => {
     expect(CHAPTER_SIX_PHASES.map((phase) => phase.magmaTerrain.visual.seed))
       .toEqual([4141, 4242, 4343, 4444, 4545, 4646, 4747, 4848]);
   });
+
+  it("expõe foco, tiers e progressão de introdução para a campanha", () => {
+    expect(CHAPTER_SIX_PHASES.map((phase) => phase.chapterSixFocus)).toEqual([
+      null, "vermeIncubador", "predadorCaldeira", null, "devoradorCaldeira", "rasgaCeusCinereo", "salamandraCinerea", null,
+    ]);
+    expect(CHAPTER_SIX_PHASES.map((phase) => phase.chapterSixTierProfile)).toEqual([
+      [100], [65, 35], [45, 55], [30, 55, 15], [25, 40, 35], [20, 35, 30, 15], [15, 30, 30, 25], [10, 25, 35, 30],
+    ]);
+    expect(CHAPTER_SIX_PHASES[7].waves.at(-1).chapterSixPacketKeys).toEqual(["C6-05", "C6-03", "C6-08", "C6-10", "C6-12"]);
+  });
 });

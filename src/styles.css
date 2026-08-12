@@ -841,6 +841,23 @@ body:has(.test-page) {
   scrollbar-width: thin;
   scrollbar-color: var(--line-bright) transparent;
 }
+.chapter-6-battle .troop-rail {
+  min-height: 0;
+}
+.chapter-6-battle .troop-grid {
+  min-height: 0;
+}
+@media (max-height: 780px) {
+  .chapter-6-battle .troop-rail {
+    max-height: calc(100vh - 160px);
+    overflow: hidden;
+  }
+  .chapter-6-battle .troop-grid {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-bright) transparent;
+  }
+}
 @media (max-width: 1050px) {
   .sandbox-battle .battle-main { grid-template-columns: 190px minmax(0, 1fr) 250px; }
   .sandbox-battle .battle-topbar { grid-template-columns: minmax(120px, 1fr) auto auto; }

@@ -2781,7 +2781,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
 
   return (
-    <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
+    <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${phase.chapterId === "chapter_06" ? "chapter-6-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
         <div className="battle-operation"><span>OPERAÇÃO</span><h1>{sandbox ? "CAMPO DE PROVAS" : phase.name}</h1></div>
         <div className="battle-stats">

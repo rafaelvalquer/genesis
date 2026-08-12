@@ -1,5 +1,5 @@
 import { createThermalHazard, DEFAULT_THERMAL_CYCLE } from "./thermalTerrain.js";
-import { createChapterSixWaves } from "./chapterSixWaves.js";
+import { CHAPTER_SIX_INTRODUCTIONS, CHAPTER_SIX_TIER_PROFILES, createChapterSixWaves } from "./chapterSixWaves.js";
 import { deepFreeze } from "./deepFreeze.js";
 
 const fullRows = (rows) => rows.flatMap((row) => Array.from({ length: 9 }, (_, col) => [row, col + 1]));
@@ -19,6 +19,7 @@ export const CHAPTER_SIX_PHASES = deepFreeze(Array.from({ length: 8 }, (_, index
   return {
     id: `fase_${String(41 + index).padStart(2, "0")}`, name: names[index], subtitle: "A superfície vulcânica exige gestão térmica.",
     energy: 930 + index * 30, arenaId: `fase_${41 + index}`, chapterId: "chapter_06", chapterIndex: index,
+    chapterSixFocus: CHAPTER_SIX_INTRODUCTIONS[index], chapterSixTierProfile: CHAPTER_SIX_TIER_PROFILES[index],
     supplyLimit: 40, loadoutLimit: 9, baseIntegrity: 100, cadenceMs: 900, targetDurationMs: 1080000,
     waves, waveCompletionEnergy: 20, waveIntensity: waves.map((_, wave) => .4 + .6 * wave / Math.max(1, waves.length - 1)),
     environment: "volcanic", ambientEffects: ["embers", "smoke", "heat", "magma"], magmaTerrain: { cells: cells[index], visual: { seed: 4141 + index * 101, flow: { x: -1, y: .025 }, speed: 26, viscosity: .82, turbulence: .16, crustDensity: crustDensities[index] } }, thermalCycle,

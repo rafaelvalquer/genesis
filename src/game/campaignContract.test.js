@@ -24,13 +24,13 @@ function waveEnemyEntries(wave) {
 
 describe("contrato estrutural da campanha", () => {
   it("mantém cinco capítulos e quarenta fases sequenciais", () => {
-    expect(CHAPTERS).toHaveLength(5);
-    expect(PHASES).toHaveLength(40);
+    expect(CHAPTERS).toHaveLength(6);
+    expect(PHASES).toHaveLength(48);
     expect(PHASES.map((phase) => phase.id)).toEqual(
-      Array.from({ length: 40 }, (_, index) => `fase_${String(index + 1).padStart(2, "0")}`),
+      Array.from({ length: 48 }, (_, index) => `fase_${String(index + 1).padStart(2, "0")}`),
     );
-    expect(new Set(PHASES.map((phase) => phase.id)).size).toBe(40);
-    expect(CHAPTERS.flatMap((chapter) => chapter.phaseIds || [])).toHaveLength(40);
+    expect(new Set(PHASES.map((phase) => phase.id)).size).toBe(48);
+    expect(CHAPTERS.flatMap((chapter) => chapter.phaseIds || [])).toHaveLength(48);
   });
 
   it.each(PHASES.map((phase) => [phase.id, phase]))(
