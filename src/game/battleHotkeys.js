@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export const BATTLE_HOTKEY_SLOT_COUNT = 8;
+export const BATTLE_HOTKEY_SLOT_COUNT = 9;
 
 const EDITABLE_TAGS = new Set([
   "INPUT",
@@ -20,11 +20,12 @@ export function isEditableKeyboardTarget(target) {
   if (!target) return false;
   if (target.isContentEditable) return true;
   if (EDITABLE_TAGS.has(target.tagName)) return true;
-  return Boolean(target.closest?.("[contenteditable='true'], [role='textbox']"));
+  const editableAncestor = target.closest?.("[contenteditable='true'], [role='textbox']");
+  return Boolean(editableAncestor?.matches?.("[contenteditable='true'], [role='textbox']"));
 }
 
 export function getLoadoutIndexFromKeyboardEvent(event) {
-  const match = /^(?:Digit|Numpad)([1-8])$/.exec(event?.code || "");
+  const match = /^(?:Digit|Numpad)([1-9])$/.exec(event?.code || "");
   return match ? Number(match[1]) - 1 : null;
 }
 

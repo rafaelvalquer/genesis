@@ -17,6 +17,7 @@ const ATTACK_LABELS = {
   arcCombo: "Combo corpo a corpo",
   icaroBurst: "Rajada antiaérea",
   leviathanCannon: "Canhão perfurante",
+  mantisSaturation: "Saturação multi-alvo",
 };
 
 const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
@@ -68,6 +69,10 @@ export function getTroopInfo(troop) {
   if (troop.interceptionCooldownMs) specials.push({
     label: "Salva de Interceptação",
     value: `Até ${troop.interceptionMaxTargets} alvos aéreos · ${formatNumber(troop.interceptionDamage)} de dano · recarga ${formatDuration(troop.interceptionCooldownMs)}`,
+  });
+  if (troop.salvoSize) specials.push({
+    label: "Salva MANTIS",
+    value: `${troop.salvoSize} micro-mísseis guiados · até ${troop.maxTargets} alvos`,
   });
   if (troop.pellets) specials.push({ label: "Dispersão", value: `${troop.pellets} pellets por ataque` });
   if (troop.shotgunMaxTargets && troop.shotgunDamageFactors) specials.push({

@@ -29,6 +29,7 @@ export const TROOP_CATALOG_META = Object.freeze({
   bombardeiro: meta("area", 1),
   krio: meta("control", 1),
   artilheiraMorteiro: meta("area", 2),
+  mantis: meta("area", 3),
   executorArco: meta("control", 3),
   colossoImpacto: meta("frontline", 1),
   medicaNanites: meta("support", 1),

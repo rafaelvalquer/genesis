@@ -40,6 +40,7 @@ import {
   selectIcaroBurstRetarget,
   updateInterceptadorIcaro,
 } from "../interceptadorIcaro.js";
+import { updateMantis } from "../mantis.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
 import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
 import { getCryoDamageFactor, getCryoShockDuration, isCryoThermalTarget, selectCryoTarget } from "../troops/cryo7.js";
@@ -4213,6 +4214,20 @@ function updateTroops(session, events, dt) {
       });
       continue;
     }
+    if (config.id === "mantis") {
+      updateMantis(session, troop, config, events, {
+        id,
+        createProjectileTrail,
+        getMuzzleWorldPosition,
+        nextEffectSeed: () => nextEffectSeed(session),
+        damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
+        recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
+        enemyOccupiesTargetRow,
+        isEnemyTargetable,
+        cellWidth: CELL.width,
+      });
+      continue;
+    }
     if (config.id === "fuzileiroVoltaico") {
       updateFuzileiroVoltaico(session, troop, config, events, {
         occupiesTargetRow: enemyOccupiesTargetRow,
@@ -4468,6 +4483,36 @@ function updateProjectiles(session, dt, events) {
         seed: projectile.seed,
       });
       projectile.active = false;
+      continue;
+    }
+    if (projectile.kind === "mantisSpike") {
+      const target = indexedEnemyById(session, projectile.targetId);
+      if (!isEnemyTargetable(target)) {
+        projectile.active = false;
+        continue;
+      }
+      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+      const angle = Math.atan2(targetPoint.y - projectile.y, targetPoint.x - projectile.x);
+      projectile.vx += (Math.cos(angle) * projectile.speed - projectile.vx) * 0.18;
+      projectile.vy += (Math.sin(angle) * projectile.speed - projectile.vy) * 0.18;
+      projectile.previousX = projectile.x;
+      projectile.previousY = projectile.y;
+      projectile.previousRenderX = projectile.x;
+      projectile.previousRenderY = projectile.y;
+      projectile.x += projectile.vx * dt / 1000;
+      projectile.y += projectile.vy * dt / 1000;
+      pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
+      if (Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y)
+        <= Math.max(26, projectile.speed * dt / 1000)) {
+        damageEnemy(session, target, projectile.damage, events, {
+          direct: true, ranged: true, sourceX: projectile.origin.x,
+          sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId,
+        });
+        events.push({ type: "mantisSpikeImpact", weapon: projectile.visualKind, sourceTroopId: projectile.sourceTroopId, targetId: target.id, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
+        projectile.active = false;
+      } else if (projectile.ageMs > 3200 || projectile.x > FIELD.width + 100 || projectile.y < -60 || projectile.y > FIELD.height + 60) {
+        projectile.active = false;
+      }
       continue;
     }
     if (projectile.kind === "executorArcSlash") {

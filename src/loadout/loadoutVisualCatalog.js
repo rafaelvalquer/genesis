@@ -16,6 +16,11 @@ export const LOADOUT_TROOP_VISUALS = {
     portraitClass: "wide-sprite",
     hologram: 1.15,
   },
+  mantis: {
+    scale: 1.08,
+    offsetY: 4,
+    stageScale: .84,
+  },
   droneSentinela: {
     scale: .8,
     offsetY: -3,

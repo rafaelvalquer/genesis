@@ -865,6 +865,20 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       if (sniper) particles.push({ kind: "ring", x: event.x, y: event.y, color, born: now, life: 250, maxRadius: 34 });
       continue;
     }
+    if (event.type === "mantisSalvo") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#e879f9", born: now, life: 300, maxRadius: 32 });
+      addSparks(particles, event, now, settings.reduceMotion ? 2 : Math.max(4, Math.round(10 * quality.density)), random, {
+        color: "#67e8f9", minSpeed: 18, speed: 64, life: 260, size: 1.6,
+      });
+      continue;
+    }
+    if (event.type === "mantisSpikeImpact") {
+      addSparks(particles, event, now, settings.reduceMotion ? 2 : Math.max(4, Math.round(9 * quality.density)), random, {
+        color: "#f0abfc", minSpeed: 24, speed: 90, life: 300, size: 1.8,
+      });
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#22d3ee", born: now, life: 220, maxRadius: 20 });
+      continue;
+    }
     if (event.type === "scarabTransitionStart") {
       addSparks(particles, event, now, Math.max(10, Math.round((event.toPhase === 3 ? 34 : 24) * quality.density)), random, {
         color: event.toPhase === 3 ? "#fbbf24" : "#fb923c", minSpeed: 35, speed: 135, life: 620, size: 3.1,
@@ -1091,6 +1105,26 @@ function drawNaniteBullet(ctx, projectile) {
   ctx.strokeStyle = "#22d3ee";
   ctx.lineWidth = 1.3;
   ctx.stroke();
+}
+
+function drawMantisSpike(ctx, projectile, quality) {
+  const angle = Math.atan2(projectile.vy || 0, projectile.vx || 1);
+  const trailLength = Math.min(projectileTrailLength(projectile.trail), quality === "low" ? 4 : 8);
+  const trailStart = projectileTrailPoint(projectile.trail, 0, trailLength);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  if (trailLength > 1) {
+    ctx.strokeStyle = "rgba(34,211,238,.58)";
+    ctx.lineWidth = quality === "low" ? 2 : 3;
+    ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(trailStart.x, trailStart.y); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
+  }
+  ctx.translate(projectile.x, projectile.y); ctx.rotate(angle);
+  ctx.shadowColor = projectile.color || "#22d3ee"; ctx.shadowBlur = quality === "low" ? 8 : 14;
+  ctx.fillStyle = "#f5f3ff";
+  ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-7, -3); ctx.lineTo(-3, 0); ctx.lineTo(-7, 3); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = projectile.color || "#e879f9"; ctx.lineWidth = 1.4; ctx.stroke();
+  ctx.restore();
 }
 
 function drawSniperBullet(ctx, projectile) {
@@ -1638,6 +1672,7 @@ export function drawProjectileCollection(
     else if (projectile.visualKind === "icaroBullet") drawIcaroBullet(ctx, projectileScratch);
     else if (projectile.visualKind === "icaroInterceptionShot") drawIcaroBullet(ctx, projectileScratch, true);
     else if (projectile.visualKind === "naniteBullet") drawNaniteBullet(ctx, projectileScratch);
+    else if (projectile.visualKind === "mantisSpike") drawMantisSpike(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "ice") drawIceProjectile(ctx, projectileScratch);
     else if (projectile.visualKind === "cryoJet") drawCryoJet(ctx, projectileScratch);
     else if (projectile.visualKind === "fireball") drawFireball(ctx, projectileScratch);

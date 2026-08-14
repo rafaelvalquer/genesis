@@ -947,6 +947,27 @@ body:has(.test-page) {
   font: 600 12px/1.4 Inter, sans-serif;
   letter-spacing: .02em;
 }
+.battle-pause-backdrop { position:absolute; inset:0; z-index:100; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at center, rgba(34,211,238,.06), rgba(2,6,12,.82) 60%); backdrop-filter:blur(6px) saturate(.65); animation:pause-fade-in .15s ease-out both; }
+.battle-pause-panel { width:min(540px,100%); padding:30px 34px; color:#d8f7ff; background:rgba(7,17,29,.96); border:1px solid rgba(34,211,238,.68); box-shadow:0 22px 70px rgba(0,0,0,.65), inset 0 2px rgba(34,211,238,.55); clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px); animation:pause-panel-in .18s ease-out both; }
+.battle-pause-kicker,.pause-loadout-label { display:block; color:#67e8f9; font:700 9px "Chakra Petch"; letter-spacing:.16em; }
+.battle-pause-panel h2 { margin:12px 0 4px; font:700 25px "Chakra Petch"; letter-spacing:.14em; }
+.battle-pause-context { margin:0 0 22px; color:#a5f3fc; font:700 12px "Chakra Petch"; letter-spacing:.12em; }
+.battle-pause-stats { display:flex; justify-content:space-between; margin:0 0 18px; color:#a5f3fc; font:700 11px "Chakra Petch"; letter-spacing:.1em; }
+.pause-action { width:100%; min-height:58px; margin:6px 0; padding:10px 16px; text-align:left; cursor:pointer; color:#e6fbff; border:1px solid rgba(34,211,238,.7); background:rgba(34,211,238,.12); font:700 13px "Chakra Petch"; letter-spacing:.08em; }
+.pause-action small { display:block; margin-top:4px; color:#9bc6d0; font:500 10px Inter; letter-spacing:0; }
+.pause-primary { background:linear-gradient(90deg,rgba(8,145,178,.42),rgba(34,211,238,.08)); }
+.pause-restart { color:#fcd34d; border-color:rgba(245,158,11,.7); background:rgba(245,158,11,.09); }
+.pause-exit { display:block; margin:20px auto 0; padding:8px 14px; color:#bae6fd; border:1px solid transparent; background:transparent; cursor:pointer; font:700 11px "Chakra Petch"; letter-spacing:.1em; }
+.pause-hint { display:block; margin-top:24px; text-align:center; color:#6b8792; font:9px "Chakra Petch"; letter-spacing:.14em; }
+.pause-confirm-copy,.pause-restarting { color:#b6d2d8; font:500 12px/1.6 Inter; }
+.pause-loadout { display:flex; gap:8px; margin:10px 0 8px; }
+.pause-loadout span { width:44px; height:44px; display:grid; place-items:center; border:1px solid var(--troop-color); background:#07111d; }
+.pause-loadout img { width:100%; height:100%; object-fit:cover; }
+.pause-loadout-names { color:#9bc6d0; font:10px Inter; }
+.pause-confirm-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.pause-confirm-actions .pause-action { width:auto; margin:0; }
+@keyframes pause-fade-in { from{opacity:0} to{opacity:1} } @keyframes pause-panel-in { from{opacity:0;transform:translateY(8px) scale(.97)} to{opacity:1;transform:none} }
+@media (prefers-reduced-motion: reduce) { .battle-pause-backdrop,.battle-pause-panel { animation:none; } }
 
 @media (max-width: 900px), (pointer: coarse) {
   .battle-hotkey-help {

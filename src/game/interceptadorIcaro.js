@@ -147,7 +147,12 @@ function launchProjectile(session, troop, config, target, special, shotIndex, de
 function startInterception(session, troop, config, targets, events, dependencies) {
   troop.icaroLockedTargetIds = targets.map((target) => target.id);
   const target = targets[0];
-  troop.interceptionAimDirection = target && target.y < troop.y ? "up" : "down";
+  const rowDelta = target ? target.row - troop.row : 0;
+  troop.interceptionAimDirection = rowDelta < 0
+    ? "up"
+    : rowDelta > 0
+      ? "down"
+      : "forward";
   troop.interceptionReadyAt = session.elapsed
     + dependencies.recoveryFor(config.interceptionCooldownMs);
   setState(troop, "interceptionLock", session.elapsed, config.interceptionLockVisual.durationMs);

@@ -21,8 +21,9 @@ describe("atalhos de batalha", () => {
   it("mapeia as teclas numéricas e o teclado numérico para os slots do loadout", () => {
     expect(getLoadoutIndexFromKeyboardEvent(keyboardEvent("Digit1"))).toBe(0);
     expect(getLoadoutIndexFromKeyboardEvent(keyboardEvent("Digit8"))).toBe(7);
+    expect(getLoadoutIndexFromKeyboardEvent(keyboardEvent("Digit9"))).toBe(8);
     expect(getLoadoutIndexFromKeyboardEvent(keyboardEvent("Numpad3"))).toBe(2);
-    expect(getLoadoutIndexFromKeyboardEvent(keyboardEvent("Digit9"))).toBeNull();
+    expect(getLoadoutIndexFromKeyboardEvent(keyboardEvent("Numpad9"))).toBe(8);
   });
 
   it("resolve pausa, remoção, início de onda, cancelamento e velocidade", () => {

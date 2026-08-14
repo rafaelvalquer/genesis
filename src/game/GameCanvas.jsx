@@ -134,6 +134,7 @@ import { installNonPassiveContextMenuGuard } from "./hooks/battleCanvasEvents.js
 import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
 import { WaveOutroCinematicOverlay } from "./waveOutro/WaveOutroCinematicOverlay.jsx";
 import { DematerializationPulseControls } from "./components/DematerializationPulseControls.jsx";
+import BattlePauseMenu from "./components/BattlePauseMenu.jsx";
 import { getWaveOutroCueState, getWaveOutroMusicVolumeFactor } from "./waveOutro/waveOutroAudio.js";
 import { getCinematicWaveOutroCameraTransform } from "./waveOutro/waveOutroCamera.js";
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
@@ -1884,6 +1885,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [snapshot, setSnapshot] = useState(() => getSnapshot(sessionRef.current));
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [runtimeRevision, setRuntimeRevision] = useState(0);
   const { pausedRef, speedRef } = useBattleLoopControls(paused, speed);
   const {
     isFullscreen,
@@ -1950,6 +1952,20 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     paused,
     windActive: sessionRef.current.windCurrent?.state === "active",
   });
+  const resetBattleRuntime = useCallback((nextSandboxSettings = sandboxSettingsState) => {
+    stopAudio();
+    sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox, ...(sandbox ? { sandboxSettings: nextSandboxSettings } : {}) });
+    particlesRef.current = [];
+    graphicsRef.current = createGraphicsRuntime();
+    battleRowsRef.current = createBattleRowBuffers();
+    hoveredCellRef.current = null;
+    finishSentRef.current = false;
+    waveOutroCueRef.current = null;
+    lastCriticalBeepRef.current = 0;
+    setSelectedTroop(null); setHoveredTroop(null); setRemoveMode(false); setTargetingDecision(null);
+    setSpeed(1); setPaused(false); setSnapshot(getSnapshot(sessionRef.current));
+    setRuntimeRevision((value) => value + 1);
+  }, [loadout, phase, sandbox, sandboxSettingsState, stopAudio]);
   const loading = useBattleAssets({
     phase,
     loadout,
@@ -2196,7 +2212,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     };
     animationId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animationId);
-  }, [loading.ready, onFinish, play, removeMode, selectedTroop, settings, showGraphicsMetrics]);
+  }, [loading.ready, onFinish, play, removeMode, selectedTroop, settings, showGraphicsMetrics, runtimeRevision]);
 
   const canvasPointFromPointer = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -2556,6 +2572,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   useBattleHotkeys((event) => {
     const action = resolveBattleHotkey(event);
     if (!action || snapshot.outcome) return;
+    if (paused && action.type !== "togglePause" && action.type !== "toggleFullscreen") return;
 
     // Deixa o navegador consumir Esc para sair da tela cheia sem cancelar a ferramenta.
     if (action.type === "cancelTool" && isFullscreen) return;
@@ -2848,7 +2865,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           </div>
           <button type="button" disabled={positionalTargeting} aria-keyshortcuts="R" className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}% <kbd>R</kbd></button>
           <div className="battle-hotkey-help" aria-label="Atalhos da batalha">
-            <span><kbd>1–8</kbd> Tropas</span><span><kbd>Espaço</kbd> Pausa</span><span><kbd>F</kbd> Tela cheia</span><span><kbd>R</kbd> Remover</span><span><kbd>Esc</kbd> Cancelar</span><span><kbd>Enter</kbd> Onda</span>
+            <span><kbd>1–9</kbd> Tropas</span><span><kbd>Espaço</kbd> Pausa</span><span><kbd>F</kbd> Tela cheia</span><span><kbd>R</kbd> Remover</span><span><kbd>Esc</kbd> Cancelar</span><span><kbd>Enter</kbd> Onda</span>
           </div>
           {inspectedTroop && <div id={`troop-help-${inspectedTroopId}`} className="troop-tooltip" role="tooltip" style={{ "--troop-color": inspectedTroop.color }}>
             <b>{inspectedTroop.label}</b>
@@ -2901,7 +2918,6 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             <span>Dec {graphicsMetrics.decals}</span>
             <span>V {graphicsMetrics.visualEntities}</span>
           </div>}
-          {paused && <div className="pause-overlay"><span>SIMULAÇÃO PAUSADA</span><small>Pressione Espaço para continuar</small><button type="button" onClick={() => setPaused(false)}>Continuar</button></div>}
         </div>
 
         {sandbox && <SandboxPanel
@@ -2936,6 +2952,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           magmaEnabled={Boolean(sessionRef.current.phase.magmaTerrain)}
         />}
       </div>
+
+      {paused && <BattlePauseMenu phase={phase} snapshot={snapshot} loadout={loadout} reduceMotion={settings.reduceMotion} onContinue={() => setPaused(false)} onRestart={async () => { await new Promise((resolve) => window.setTimeout(resolve, 280)); resetBattleRuntime(); }} onExit={handleBattleExit} />}
 
       {snapshot.adaptiveAid.status === "choosing"
         ? <FortuneChoiceModal tier={snapshot.adaptiveAid.triggerTier} options={snapshot.adaptiveAid.availableOptions} onChoose={handleFortuneChoice} />
