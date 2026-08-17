@@ -11,6 +11,10 @@ export const PERMANENT_PLANET_STRUCTURES = Object.freeze([
   "GenesisWorld_SwampPods",
 ]);
 
+export const LEGACY_HIDDEN_PLANET_PARTS = Object.freeze([
+  "GenesisWorld_IceSpikes",
+]);
+
 export const GENESIS_MOON_NAMES = Object.freeze([
   "GenesisMoon_Rocky",
   "GenesisMoon_Lava",
@@ -82,6 +86,17 @@ function createLayoutRoots(THREE, model) {
   return { surfaceRoot, moonRoot, beaconRoot, ringedMoonRoot };
 }
 
+function hideLegacyGenesisPlanetParts(model) {
+  const hidden = [];
+  model.traverse((object) => {
+    if (!LEGACY_HIDDEN_PLANET_PARTS.includes(object.name)) return;
+    object.visible = false;
+    object.userData.genesisLegacyHidden = true;
+    hidden.push(object.name);
+  });
+  return hidden;
+}
+
 function readExistingLayout(THREE, model) {
   const metadata = model.userData.genesisLayoutMetadata;
   return {
@@ -98,6 +113,7 @@ function readExistingLayout(THREE, model) {
 }
 
 export function normalizeGenesisPlanet({ THREE, model, targetRadius = 1 }) {
+  hideLegacyGenesisPlanetParts(model);
   if (model.userData.genesisLayoutNormalized) return readExistingLayout(THREE, model);
 
   model.updateMatrixWorld(true);

@@ -34,11 +34,11 @@ export function getTemporaryMagmaAt(session, row, col) {
 export function isSessionMagmaCell(session, row, col) {
   return isMagmaCell(session?.phase, row, col) || Boolean(getTemporaryMagmaAt(session, row, col));
 }
-export function createTemporaryMagmaEruption(session, row, col, sourceEnemyId, durationMs = 8000, visualDurationMs = 600) {
+export function createTemporaryMagmaHazard(session, row, col, sourceEnemyId, durationMs = 8000, visualDurationMs = 600, type = "temporaryMagma") {
   session.temporaryMagmaHazards ||= [];
   const hazard = {
     id: `incubator_fissure_${session.temporaryMagmaHazards.length + 1}_${Math.round(session.elapsed)}`,
-    type: "incubatorEruption",
+    type,
     sourceEnemyId,
     row,
     col,
@@ -50,6 +50,10 @@ export function createTemporaryMagmaEruption(session, row, col, sourceEnemyId, d
   };
   session.temporaryMagmaHazards.push(hazard);
   return hazard;
+}
+// Compatibility wrapper for the Incubator and existing save/replay contracts.
+export function createTemporaryMagmaEruption(session, row, col, sourceEnemyId, durationMs = 8000, visualDurationMs = 600) {
+  return createTemporaryMagmaHazard(session, row, col, sourceEnemyId, durationMs, visualDurationMs, "incubatorEruption");
 }
 export function updateTemporaryMagmaHazards(session, events = []) {
   for (const hazard of session.temporaryMagmaHazards || []) {
@@ -204,6 +208,10 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
     cycle.heatRatePerSecond = THERMAL_STATES[next.state]?.heatPerSecond ?? 0;
     if (next.state === "eruption") cycle.eruptionCount += 1;
     events.push({ type: "thermalCycleChanged", previousState: previous, state: next.state, endsAt: cycle.stateEndsAt });
+    if (cycle.cycleIndex === 0) {
+      cycle.completedCycles = (cycle.completedCycles || 0) + 1;
+      events.push({ type: "thermalCycleCompleted", cycleNumber: cycle.completedCycles, previousState: previous, state: next.state });
+    }
   }
   session.thermalCycle = cycle;
   const seconds = dt / 1000;

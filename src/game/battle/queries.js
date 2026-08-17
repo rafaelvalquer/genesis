@@ -14,6 +14,7 @@ export function indexedEnemyById(session, enemyId) {
 }
 
 export function getEnemyTargetableRows(enemy) {
+  if (enemy?.targetableRows) return isEnemyTargetable(enemy) ? enemy.targetableRows : [];
   if (enemy?.type === "leviathanNereida") {
     if (!enemy.leviathanTargetable) return [];
     return enemy.leviathanTargetableRows?.length ? enemy.leviathanTargetableRows : [enemy.row];
@@ -23,7 +24,9 @@ export function getEnemyTargetableRows(enemy) {
 
 export function enemyOccupiesTargetRow(enemy, row) {
   if (!isEnemyTargetable(enemy)) return false;
-  return enemy.type === "leviathanNereida"
+  return enemy.targetableRows
+    ? enemy.targetableRows.includes(row)
+    : enemy.type === "leviathanNereida"
     ? Boolean(enemy.leviathanTargetable && enemy.leviathanTargetableRows?.includes(row))
     : enemy.row === row;
 }

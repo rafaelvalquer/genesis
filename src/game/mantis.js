@@ -10,10 +10,10 @@ export function selectMantisTargets(session, troop, config, { enemyOccupiesTarge
     .sort((left, right) => right.x - left.x
       || (Number(right.speed) || 0) - (Number(left.speed) || 0)
       || left.id.localeCompare(right.id))
-    .slice(0, Math.max(1, config.maxTargets || config.salvoSize || 6));
+    .slice(0, Math.max(1, config.maxTargets || config.salvoSize || 3));
 }
 
-export function distributeMantisSalvo(targets, salvoSize = 6) {
+export function distributeMantisSalvo(targets, salvoSize = 3) {
   if (!targets.length) return [];
   return Array.from({ length: salvoSize }, (_, index) => targets[index % targets.length]);
 }

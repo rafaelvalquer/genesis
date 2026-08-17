@@ -1,8 +1,18 @@
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
-import { createMarkerMesh, createStarLayers } from "./CommandGlobeScene.js";
+import {
+  COMMAND_GLOBE_PLANET_VERTEX_SHADER,
+  createMarkerMesh,
+  createStarLayers,
+} from "./CommandGlobeScene.js";
 
 describe("efeitos de profundidade do globo de Comando", () => {
+  it("mantém a normal procedural no mesmo world space da direção de visão", () => {
+    expect(COMMAND_GLOBE_PLANET_VERTEX_SHADER).toContain("varying vec3 vWorldNormal");
+    expect(COMMAND_GLOBE_PLANET_VERTEX_SHADER).toContain("mat3(modelMatrix) * normal");
+    expect(COMMAND_GLOBE_PLANET_VERTEX_SHADER).not.toContain("normalMatrix * normal");
+  });
+
   it("cria três camadas de estrelas com paralaxe em velocidades distintas", () => {
     const layers = createStarLayers(THREE, { orbitalParticles: 32 });
 

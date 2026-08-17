@@ -29,17 +29,17 @@ import { applyGenesisPlanetOrientation } from "../visual/genesisPlanetOrientatio
 import { createGenesisAtmosphereMaterial } from "../visual/createGenesisAtmosphereMaterial.js";
 import { createGenesisStarField, updateGenesisStarField } from "../visual/createGenesisStarfield.js";
 
-const vertexShader = `
+export const COMMAND_GLOBE_PLANET_VERTEX_SHADER = `
   uniform float uTime;
   uniform float uMotion;
   varying float vRidge;
-  varying vec3 vNormal;
+  varying vec3 vWorldNormal;
   varying vec3 vWorld;
   void main() {
     float ridge = sin(position.x * 11.0 + uTime * .08 * uMotion) * sin(position.y * 13.0) * sin(position.z * 9.0);
     vec3 displaced = position + normal * ridge * .016;
     vRidge = ridge * .5 + .5;
-    vNormal = normalize(normalMatrix * normal);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
     vec4 world = modelMatrix * vec4(displaced, 1.0);
     vWorld = world.xyz;
     gl_Position = projectionMatrix * viewMatrix * world;
@@ -51,11 +51,11 @@ const fragmentShader = `
   uniform vec3 uMid;
   uniform vec3 uAccent;
   varying float vRidge;
-  varying vec3 vNormal;
+  varying vec3 vWorldNormal;
   varying vec3 vWorld;
   void main() {
     vec3 viewDir = normalize(cameraPosition - vWorld);
-    float rim = pow(1.0 - max(dot(vNormal, viewDir), 0.0), 2.3);
+    float rim = pow(1.0 - max(dot(vWorldNormal, viewDir), 0.0), 2.3);
     vec3 base = mix(uDark, uMid, smoothstep(.12, .86, vRidge));
     gl_FragColor = vec4(base + uAccent * rim * .24, 1.0);
   }
@@ -182,7 +182,7 @@ export async function createCommandGlobeScene({
     uAccent: { value: new THREE.Color(biome.accent) },
   };
   const proceduralMaterial = new THREE.ShaderMaterial({
-    uniforms, vertexShader, fragmentShader, transparent: true,
+    uniforms, vertexShader: COMMAND_GLOBE_PLANET_VERTEX_SHADER, fragmentShader, transparent: true,
   });
   const proceduralPlanet = new THREE.Mesh(
     new THREE.IcosahedronGeometry(1, quality.quality === "low" ? 3 : 5),

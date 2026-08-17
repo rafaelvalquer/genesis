@@ -90,6 +90,22 @@ describe("terreno térmico", () => {
     expect(troop.hp).toBeLessThan(hp);
   });
 
+  it("emite thermalCycleCompleted apenas ao retornar ao início do ciclo", () => {
+    const session = createBattleSession(CHAPTER_SIX_PHASES[2], [], 231, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
+    session.thermalCycle = {
+      ...session.thermalCycle,
+      state: "cooldown",
+      cycleIndex: 3,
+      stateEndsAt: 0,
+      completedCycles: 0,
+    };
+    const events = stepBattle(session, 1);
+    expect(events.filter((event) => event.type === "thermalCycleChanged")).toHaveLength(1);
+    expect(events.filter((event) => event.type === "thermalCycleCompleted")).toEqual([
+      expect.objectContaining({ cycleNumber: 1, previousState: "cooldown", state: "stable" }),
+    ]);
+  });
+
   it("renova a plataforma existente in-place, limpa calor e preserva o ID", () => {
     const session = createBattleSession(CHAPTER_SIX_PHASES[2], ["colono", "thermalPlatform"], 24, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
     const [row, col] = session.phase.magmaTerrain.cells[0];

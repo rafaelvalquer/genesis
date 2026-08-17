@@ -132,6 +132,10 @@ export function advanceWaveOutroState(session, realDt = 0, { finish, adaptiveAid
 export function getRouteTelemetry(session, enemyOccupiesTargetRow) {
   const activeEnemies = session.enemies.filter((enemy) => !enemy.dead);
   const queue = session.queue || [];
+  const scheduledAlphas = (session.alphaPressure?.pendingSpawns || []).map((entry) => ({
+    ...entry,
+    startsInMs: Math.max(0, (entry.spawnAt || 0) - (session.elapsed || 0)),
+  }));
   const wind = session.windCurrent || {};
   const affectedWindRows = new Set(wind.state === "active" ? [...(wind.selectedRows || []), wind.sourceRow, wind.targetRow].filter((row) => Number.isInteger(row) && row >= 0 && row < FIELD.rows) : []);
   const sandstormActive = session.sandstorm?.state === "active";
@@ -140,7 +144,7 @@ export function getRouteTelemetry(session, enemyOccupiesTargetRow) {
     const nearest = enemies.reduce((current, enemy) => (!current || enemy.x < current.x ? enemy : current), null);
     const advance = nearest ? clamp(((FIELD.spawnX - nearest.x) / (FIELD.spawnX - FIELD.baseX)) * 100, 0, 100) : 0;
     const activeSpecial = enemies.find((enemy) => enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss);
-    const queuedSpecial = queue.filter((entry) => (Number.isInteger(entry.row) ? entry.row : 0) === row).filter((entry) => entry.variant === "alpha" || ENEMIES[entry.type]?.boss).map((entry) => ({ ...entry, startsInMs: Math.max(0, ((session.waveStartedAt || 0) + entry.spawnAtMs) - (session.elapsed || 0)) })).sort((left, right) => left.startsInMs - right.startsInMs)[0];
+    const queuedSpecial = [...queue.filter((entry) => (Number.isInteger(entry.row) ? entry.row : 0) === row).filter((entry) => entry.variant === "alpha" || ENEMIES[entry.type]?.boss).map((entry) => ({ ...entry, startsInMs: Math.max(0, ((session.waveStartedAt || 0) + entry.spawnAtMs) - (session.elapsed || 0)) })), ...scheduledAlphas.filter((entry) => entry.row === row)].sort((left, right) => left.startsInMs - right.startsInMs)[0];
     const imminentSpecial = queuedSpecial?.startsInMs <= 5000 ? queuedSpecial : null;
     const environmentalDanger = sandstormActive || affectedWindRows.has(row);
     const pressure = Math.round(clamp(advance * 0.75 + Math.min(15, enemies.length * 3) + (activeSpecial || imminentSpecial ? 10 : 0) + (environmentalDanger ? 5 : 0), 0, 100));

@@ -52,7 +52,7 @@ export function registerEnemyInIndex(index, enemy) {
   index.enemiesByRow[enemy.row]?.push(enemy);
   const targetRows = !isEnemyTargetable(enemy)
     ? []
-    : enemy.type === "leviathanNereida" ? (enemy.leviathanTargetableRows || []) : [enemy.row];
+    : enemy.targetableRows || (enemy.type === "leviathanNereida" ? (enemy.leviathanTargetableRows || []) : [enemy.row]);
   for (const row of new Set(targetRows)) index.targetableEnemiesByRow[row]?.push(enemy);
   bucketFor(index.enemiesByTile, battleTileKey(enemy.row, enemy.x)).push(enemy);
   bucketFor(index.enemiesByType, enemy.type).push(enemy);

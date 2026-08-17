@@ -39,7 +39,7 @@ describe("efeitos dos projeteis", () => {
 
   it("renderiza feedback separado para salva, cravação e detonação da MANTIS", () => {
     const particles = pushEventParticles([], [
-      { type: "mantisSpikeSalvo", x: 120, y: 160, color: "#e879f9", seed: 2, count: 6 },
+      { type: "mantisSpikeSalvo", x: 120, y: 160, color: "#e879f9", seed: 2, count: 3 },
       { type: "mantisSpikeImpact", x: 260, y: 160, color: "#22d3ee", seed: 3 },
       { type: "mantisSpikeDetonation", x: 300, y: 160, color: "#e879f9", seed: 4, radius: 58 },
     ], 1000, { quality: "high" });

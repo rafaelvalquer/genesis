@@ -89,6 +89,17 @@ function genesisFixture() {
 }
 
 describe("normalização espacial do planeta Genesis", () => {
+  it("oculta IceSpikes legados antes de preparar o layout", () => {
+    const model = genesisFixture();
+    const legacySpikes = mesh("GenesisWorld_IceSpikes", new THREE.ConeGeometry(.1, .4, 6));
+    model.add(legacySpikes);
+
+    normalizeGenesisPlanet({ THREE, model, targetRadius: 1 });
+    expect(legacySpikes.visible).toBe(false);
+    expect(legacySpikes.userData.genesisLegacyHidden).toBe(true);
+    disposeThreeObject(model);
+  });
+
   it("detecta o centro deslocado e corrige apenas superfície e estruturas", () => {
     const model = genesisFixture();
     const atmosphere = model.getObjectByName("GenesisWorld_Atmosphere");

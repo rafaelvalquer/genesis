@@ -22,14 +22,14 @@ describe("MANTIS", () => {
     expect(targets.map((target) => target.id)).toEqual(["front", "other", "late"]);
   });
 
-  it("distribui seis spikes entre alvos e redistribui quando há poucos", () => {
+  it("distribui três spikes entre alvos e redistribui quando há poucos", () => {
     const targets = [row("a", 500), row("b", 600), row("c", 700)];
     const salvo = distributeMantisSalvo(targets, 3);
     expect(salvo.map((target) => target.id)).toEqual(["a", "b", "c"]);
     expect(distributeMantisSalvo([targets[0]], 3)).toHaveLength(3);
   });
 
-  it("executa uma rajada real na sessão e cria seis projéteis spike", () => {
+  it("executa uma rajada real na sessão e cria três projéteis spike", () => {
     const phase = PHASES.find((entry) => entry.id === "fase_45") || PHASES[44];
     const session = createBattleSession(phase, ["mantis"], 4501, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
     expect(placeTroop(session, "mantis", 1, 1).ok).toBe(true);

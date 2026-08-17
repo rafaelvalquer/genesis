@@ -170,7 +170,7 @@ export function updateBossEncounter(session, options = {}) {
   const boss = session.enemies.find(
     (enemy) => !enemy.dead && enemy.type === encounter.type,
   );
-  if (!boss || Number(session.elapsed || 0) < Number(encounter.nextReinforcementAt || 0)) {
+  if (!boss || boss.colossoDying || Number(session.elapsed || 0) < Number(encounter.nextReinforcementAt || 0)) {
     return [];
   }
 

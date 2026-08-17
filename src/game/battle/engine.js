@@ -1,6 +1,7 @@
 import { DAMAGE_TYPES, DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "../content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "../domain.js";
 import { CHAPTER_FIVE_PACKETS } from "../chapterFivePackets.js";
+import { CHAPTER_SIX_PACKETS } from "../chapterSixWaves.js";
 import {
   enqueueBossReinforcement as enqueueBossReinforcementSystem,
   initializeBossEncounterForWave,
@@ -73,6 +74,7 @@ import {
   renewThermalPlatform,
   THERMAL_STATES,
   createTemporaryMagmaEruption,
+  createTemporaryMagmaHazard,
   getTemporaryMagmaAt,
   isSessionMagmaCell,
   getThermalPlatformAt,
@@ -84,6 +86,13 @@ import {
   resumeThermalHazard,
   updateThermalTerrain,
 } from "../thermalTerrain.js";
+import {
+  CHAPTER_SIX_ALPHA_MODIFIERS,
+  countPressureTroops,
+  createAlphaPressureState,
+  evaluateAlphaPressureCycle,
+  startAlphaPressureCycle,
+} from "../chapterSixAlphaPressure.js";
 import { chapterFourAlphaMultipliers } from "../chapterFourEnemies.js";
 import {
   applyConductivity,
@@ -115,6 +124,7 @@ import {
 } from "../battleIndex.js";
 import { createProjectileTrail, pushProjectileTrail } from "../projectileTrail.js";
 import { forceLeviathanAttack as forceLeviathanAttackDomain, updateLeviathan } from "../leviathanNereida.js";
+import { debugColosso as debugColossoDomain, forceColossoAttack as forceColossoAttackDomain, getColossoDamageFactor, updateColossoCaldeira } from "../colossoCaldeira.js";
 import { createEnemyEntity } from "../enemies/enemyFactory.js";
 import { getEnemyBehavior } from "../enemies/enemyRegistry.js";
 import {
@@ -428,6 +438,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     windCurrent: createWindCurrentState(),
     tideCycle: createTideCycleState(),
     thermalCycle: { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox },
+    alphaPressure: createAlphaPressureState(sessionPhase.alphaPressure),
     temporaryMagmaHazards: [],
     supportStructures: [],
     thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0, platformRenewals: 0, aresShieldGained: 0, aresShieldAbsorbed: 0 },
@@ -439,6 +450,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
       mantisSalvos: 0, mantisSpikesLaunched: 0, mantisSpikeImpacts: 0,
       mantisSpikeDetonations: 0, mantisExplosionHits: 0, mantisCollateralHits: 0,
       mantisDamageDealt: 0,
+      alphaPressure: { cyclesEvaluated: 0, triggers: 0, peakLevel: 0, spawned: 0, resets: 0 },
     },
     troopConfigs: TROOPS,
     deployCooldowns: {},
@@ -1099,6 +1111,7 @@ export function startWave(session) {
   initializeBossEncounterForWave(session, wave, session.queue, { row: 2 });
   session.waveActive = true;
   resumeThermalHazard(session);
+  startAlphaPressureCycle(session);
   session.waveKillStart = session.killed;
   session.lastEnemyKillCandidate = null;
   session.waveOutro = { ...session.waveOutro, status: "idle", elapsedMs: 0, startedAt: null, lastKill: null, decisionOptions: null };
@@ -1386,6 +1399,25 @@ function createEnemyRuntime(session) {
     updateCuspidorBrasa: (enemy, config, dt, events) => updateCuspidorBrasa(session, enemy, config, dt, events),
     updateRasgaCeus: (enemy, config, dt, events) => updateRasgaCeus(session, enemy, config, dt, events),
     updateLeviathan: (enemy, config, events) => updateLeviathan(session, enemy, config, { damageTroop, eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor }, events),
+    updateColossoCaldeira: (enemy, config, events) => updateColossoCaldeira(session, enemy, config, {
+      damageTroop: (troop, amount) => damageTroop(session, troop, amount, events),
+      createMagmaHazard: (row, col, sourceEnemyId, durationMs) => createTemporaryMagmaHazard(session, row, col, sourceEnemyId, durationMs, 550, "colossoRift"),
+      enqueueSpawn: (entry) => {
+        session.queue.push({ ...entry, packetId: "colosso_rift", block: "boss_rift", sourceIndex: 0, spawnAtMs: Math.max(0, session.elapsed - session.waveStartedAt) });
+        session.queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs || left.sourceIndex - right.sourceIndex);
+        session.nextSpawnAt = session.waveStartedAt + session.queue[0].spawnAtMs;
+      },
+      completeDeath: () => { session.killed += 1; },
+      clearMagmaHazards: (sourceEnemyId) => {
+        for (const hazard of session.temporaryMagmaHazards || []) {
+          if (hazard.sourceEnemyId === sourceEnemyId) { hazard.active = false; hazard.endsAt = session.elapsed; }
+        }
+      },
+      cancelSummons: () => {
+        session.queue = session.queue.filter((entry) => !["boss_rift", "boss_reinforcement"].includes(entry.block));
+        session.nextSpawnAt = session.queue.length ? session.waveStartedAt + session.queue[0].spawnAtMs : Infinity;
+      },
+    }, events),
     setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
   };
 }
@@ -2062,9 +2094,50 @@ function createEnemy(session, queued) {
   return enemy;
 }
 
+function scheduleAlphaPressureSpawn(session, result, events) {
+  const spawnAt = session.elapsed + result.warningMs;
+  const scheduled = result.rows.map((row, index) => ({
+    type: result.enemyTypes[index],
+    row,
+    variant: "alpha",
+    alphaModifiers: CHAPTER_SIX_ALPHA_MODIFIERS,
+    spawnSource: "alphaPressure",
+    spawnAt,
+  }));
+  session.alphaPressure.pendingSpawns.push(...scheduled);
+  events.push({
+    type: "chapterSixAlphaPressureTriggered",
+    level: result.level,
+    troopCountStart: result.troopCountStart,
+    troopCountEnd: result.troopCountEnd,
+    alphaCount: result.alphaCount,
+    rows: [...result.rows],
+    enemyTypes: [...result.enemyTypes],
+    warningMs: result.warningMs,
+  });
+}
+
+function updateAlphaPressureSpawns(session, events) {
+  const state = session.alphaPressure;
+  if (!state?.pendingSpawns?.length || (!session.waveActive && !session.sandbox)) return;
+  const pending = [];
+  for (const scheduled of state.pendingSpawns) {
+    if (session.elapsed < scheduled.spawnAt) {
+      pending.push(scheduled);
+      continue;
+    }
+    const enemy = createEnemy(session, scheduled);
+    if (!enemy) continue;
+    state.totalAlphaSpawned += 1;
+    session.metrics.alphaPressure.spawned += 1;
+    events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
+  }
+  state.pendingSpawns = pending;
+}
+
 function enqueueBossReinforcement(session, packetKey) {
   return enqueueBossReinforcementSystem(session, packetKey, {
-    packets: CHAPTER_FIVE_PACKETS,
+    packets: session.bossEncounter?.packetCatalog === "chapterSix" ? CHAPTER_SIX_PACKETS : CHAPTER_FIVE_PACKETS,
     fieldRows: FIELD.rows,
   });
 }
@@ -2278,6 +2351,11 @@ export { getEnemyTargetableRows, enemyOccupiesTargetRow };
 
 function enemyHitPointForRow(enemy, row, elapsed) {
   const config = ENEMIES[enemy.type];
+  if (enemy.type === "colossoCaldeira") {
+    const zone = enemy.hitZones?.find((entry) => entry.rows.includes(row));
+    const xOffset = zone?.part === "leftArm" ? -82 : zone?.part === "rightArm" ? -68 : zone?.part === "core" ? -28 : -48;
+    return { x: enemy.x + xOffset, y: row * CELL.height + CELL.height / 2 };
+  }
   if (enemy.type !== "leviathanNereida") return getEnemyHitPoint(enemy, config);
   const state = enemy.leviathanState || "idleSurface";
   const animation = getEnemyAnimation(enemy, config, elapsed, { [state]: 8, idleSurface: 8 });
@@ -2319,6 +2397,22 @@ export function forceLeviathanAttack(session, attack) {
   const enemy = session.enemies.find((entry) => !entry.dead && entry.type === "leviathanNereida");
   const events = [];
   const result = forceLeviathanAttackDomain(session, enemy, attack, ENEMIES.leviathanNereida, events);
+  return { ...result, events };
+}
+
+export function forceColossoAttack(session, attack) {
+  if (!session?.sandbox) return { ok: false, reason: "Controle disponível apenas no Campo de Provas.", events: [] };
+  const enemy = session.enemies.find((entry) => !entry.dead && entry.type === "colossoCaldeira");
+  const events = [];
+  const result = forceColossoAttackDomain(session, enemy, attack, ENEMIES.colossoCaldeira, events);
+  return { ...result, events };
+}
+
+export function debugColosso(session, action) {
+  if (!session?.sandbox) return { ok: false, reason: "Controle disponível apenas no Campo de Provas.", events: [] };
+  const enemy = session.enemies.find((entry) => !entry.dead && entry.type === "colossoCaldeira");
+  const events = [];
+  const result = debugColossoDomain(session, enemy, action, ENEMIES.colossoCaldeira, events);
   return { ...result, events };
 }
 
@@ -2860,9 +2954,13 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1)
     * damageTakenFactor * chapterFourFactor * effectiveArmorFactor * ruptureFactor;
   if (enemy.type === "leviathanNereida") incoming *= enemy.leviathanDamageFactor || 1;
+  if (enemy.type === "colossoCaldeira" && context.sourceTroopId) {
+    const source = indexedTroopById(session, context.sourceTroopId);
+    if (source) incoming *= getColossoDamageFactor(enemy, source.row);
+  }
   if (nereidaProtector) incoming *= ENEMIES.carapacaNereida.escortedRangedDamageFactor;
   const sourceTroop = context.sourceTroopId ? indexedTroopById(session, context.sourceTroopId) : null;
-  const hitPoint = enemy.type === "leviathanNereida" && sourceTroop
+  const hitPoint = (enemy.type === "leviathanNereida" || enemy.type === "colossoCaldeira") && sourceTroop
     ? enemyHitPointForRow(enemy, sourceTroop.row, session.elapsed)
     : getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   if (enemy.shield > 0 && incoming > 0) {
@@ -2896,6 +2994,23 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     });
   }
   if (enemy.hp <= 0) {
+    if (enemy.type === "colossoCaldeira") {
+      // Its defeat is an event: preserve the entity long enough for the collapse
+      // animation while preventing any further attacks or rift spawns.
+      enemy.hp = 0;
+      enemy.colossoDying = true;
+      enemy.colossoRifts = [];
+      session.queue = session.queue.filter((entry) => !["boss_rift", "boss_reinforcement"].includes(entry.block));
+      session.nextSpawnAt = session.queue.length ? session.waveStartedAt + session.queue[0].spawnAtMs : Infinity;
+      for (const hazard of session.temporaryMagmaHazards || []) {
+        if (hazard.sourceEnemyId === enemy.id) { hazard.active = false; hazard.endsAt = session.elapsed; }
+      }
+      enemy.colossoState = "death";
+      enemy.colossoStateStartedAt = session.elapsed;
+      enemy.colossoStateEndsAt = session.elapsed + ENEMIES.colossoCaldeira.deathDurationMs;
+      events.push({ type: "colossoDeathStarted", bossId: enemy.id, x: enemy.x, y: enemy.y });
+      return;
+    }
     enemy.hp = 0;
     enemy.dead = true;
     notifyEnemyDeath(session, enemy, events, context);
@@ -7790,7 +7905,7 @@ function updateEnemies(session, dt, events) {
       behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
-    if (enemy.type === "leviathanNereida") {
+    if (enemy.type === "leviathanNereida" || enemy.type === "colossoCaldeira") {
       behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
@@ -8016,6 +8131,10 @@ export function stepBattle(session, dt = 32) {
   updateEnergyPickups(session, dt, events);
   updateTideCycle(session, events, { eliminateTroop });
   updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor });
+  for (const thermalEvent of events.filter((event) => event.type === "thermalCycleCompleted")) {
+    const alphaResult = evaluateAlphaPressureCycle(session);
+    if (alphaResult.triggered) scheduleAlphaPressureSpawn(session, alphaResult, events);
+  }
   updateAresThermalShields(session, events);
   updateWindCurrent(session, events, {
     troops: TROOPS,
@@ -8052,6 +8171,7 @@ export function stepBattle(session, dt = 32) {
       markBossReinforcementSpawned(session, queued);
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
+    updateAlphaPressureSpawns(session, events);
     updateDematerializationPulses(session, events);
     updatePrismaticMantle(session, events);
     updateTroops(session, events, dt);
@@ -8069,7 +8189,8 @@ export function stepBattle(session, dt = 32) {
       return events;
     }
     const waveCleared = !session.sandbox && !session.outcome && session.waveActive
-      && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0;
+      && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0
+      && session.alphaPressure.pendingSpawns.length === 0;
     if (waveCleared) {
       session.waveActive = false;
       enterThermalIntermission(session);
@@ -8243,6 +8364,17 @@ export function getSnapshot(session) {
           active: false,
         };
       }
+      const scheduledAlpha = session.alphaPressure.pendingSpawns.find((item) => item.variant === "alpha");
+      if (scheduledAlpha) {
+        return {
+          label: ENEMIES[scheduledAlpha.type]?.label || scheduledAlpha.type,
+          isAlpha: true,
+          isBoss: false,
+          row: scheduledAlpha.row,
+          startsInMs: Math.max(0, scheduledAlpha.spawnAt - session.elapsed),
+          active: false,
+        };
+      }
       return null;
     })(),
     adaptiveAid: {
@@ -8333,6 +8465,13 @@ export function getSnapshot(session) {
     },
     tideCycle: getTideSnapshot(session),
     thermal: getThermalSnapshot(session),
+    alphaPressure: {
+      enabled: session.alphaPressure.enabled,
+      level: session.alphaPressure.level,
+      troopCountStart: session.alphaPressure.cycleStartTroopCount,
+      troopCountCurrent: countPressureTroops(session),
+      pendingSpawns: session.alphaPressure.pendingSpawns.map((entry) => ({ type: entry.type, row: entry.row, startsInMs: Math.max(0, entry.spawnAt - session.elapsed) })),
+    },
     dematerializationPulses: session.dematerializationPulses.map((pulse) => ({ ...pulse })),
     nextWaveEnemyCountFactor: session.nextWaveEnemyCountFactor,
   };

@@ -7,13 +7,14 @@ const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 /** Creates the state all enemies share, independent from their behavior. */
 export function createBaseEnemy(session, queued, config, createId) {
   const alpha = queued.variant === "alpha" && config.allowAlphaVariant !== false;
+  const alphaModifiers = alpha && queued.alphaModifiers;
   const echo = Boolean(queued.isEcho);
   const mechanic = session.phase.chapterMechanic;
   const chapterFourAlpha = alpha ? chapterFourAlphaMultipliers(queued.type) : null;
-  const alphaHpFactor = chapterFourAlpha?.hp ?? (alpha ? 8 : 1);
-  const alphaDamageFactor = chapterFourAlpha?.damage ?? (alpha ? 2 : 1);
-  const alphaSpeedFactor = chapterFourAlpha?.speed ?? (alpha ? 0.75 : 1);
-  const alphaScaleFactor = chapterFourAlpha?.scale ?? (alpha ? 1.45 : 1);
+  const alphaHpFactor = alphaModifiers?.hpMultiplier ?? chapterFourAlpha?.hp ?? (alpha ? 8 : 1);
+  const alphaDamageFactor = alphaModifiers?.damageMultiplier ?? chapterFourAlpha?.damage ?? (alpha ? 2 : 1);
+  const alphaSpeedFactor = alphaModifiers?.speedMultiplier ?? chapterFourAlpha?.speed ?? (alpha ? 0.75 : 1);
+  const alphaScaleFactor = alphaModifiers?.scaleMultiplier ?? chapterFourAlpha?.scale ?? (alpha ? 1.45 : 1);
   const echoHpFactor = echo ? mechanic?.hpFactor ?? 0.45 : 1;
   const echoSpeedFactor = echo ? mechanic?.speedFactor ?? 1.2 : 1;
   const echoDamageFactor = echo ? mechanic?.damageFactor ?? 0.6 : 1;
@@ -25,7 +26,7 @@ export function createBaseEnemy(session, queued, config, createId) {
   const enemy = {
     id: createId("enemy"), type: queued.type, variant: alpha ? "alpha" : undefined, isEcho: echo,
     echoSourceId: queued.echoSourceId || null, row, x, y: row * CELL.height + CELL.height / 2,
-    spawnedAt: session.elapsed, packetId: queued.packetId || null, spawnBlock: queued.block || null,
+    spawnedAt: session.elapsed, packetId: queued.packetId || null, spawnBlock: queued.block || null, spawnSource: queued.spawnSource || "wave",
     hp: maxHp, maxHp, speed: config.speed * alphaSpeedFactor * echoSpeedFactor,
     damage: config.damage * alphaDamageFactor * echoDamageFactor,
     attackReadyAt: 0, lastAttackAt: -Infinity, casting: false, castStartedAt: -Infinity,
@@ -44,7 +45,7 @@ export function createBaseEnemy(session, queued, config, createId) {
     ramStateEndsAt: Infinity, ramIdleMode: null, ramChargeConsumed: false, ramChargeTargetId: null,
     ramChargeEndX: null, ramAttackPending: false, ramAttackImpactAt: Infinity, ramAttackTargetId: null,
     summoned: Boolean(queued.summoned), summonerId: queued.summonerId || null,
-    baseDamage: (alpha ? 40 : config.baseDamage) * echoDamageFactor,
+    baseDamage: (alphaModifiers ? config.baseDamage * alphaDamageFactor : (alpha ? 40 : config.baseDamage)) * echoDamageFactor,
     scale: config.scale * alphaScaleFactor * (echo ? 0.94 : 1), previousRenderX: x,
     previousRenderY: row * CELL.height + CELL.height / 2, dead: false,
   };

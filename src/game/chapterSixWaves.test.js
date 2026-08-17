@@ -6,15 +6,22 @@ import {
   CHAPTER_SIX_PACKETS,
   CHAPTER_SIX_PACKET_ROLES,
   CHAPTER_SIX_PHASE_POLICIES,
+  CHAPTER_SIX_UNIT_THREATS,
   CHAPTER_SIX_TIER_PROFILES,
   calculateChapterSixDifficulty,
+  analyzeChapterSixSpawnPattern,
+  buildChapterSixSpawnPattern,
   composeChapterSixWave,
   createChapterSixWaves,
+  getChapterSixPacketMetrics,
+  getChapterSixPhaseMetrics,
   instantiateChapterSixPacket,
   scoreCandidateByPolicy,
   violatesConsecutiveLimit,
   violatesRoleLimit,
+  violatesAirThreatLimit,
 } from "./chapterSixWaves.js";
+import { ENEMIES } from "./content.js";
 
 const composition = (packet) => packet.units.map((entry) => [entry.type, entry.count]);
 
@@ -35,6 +42,21 @@ describe("pacotes e ondas do capítulo 6", () => {
     expect(CHAPTER_SIX_TIER_PROFILES).toEqual([
       [100], [65, 35], [45, 55], [30, 55, 15], [25, 40, 35], [20, 35, 30, 15], [15, 30, 30, 25], [10, 25, 35, 30],
     ]);
+  });
+
+  it("keeps unit threat synchronized with the enemy catalog", () => {
+    Object.entries(CHAPTER_SIX_UNIT_THREATS).forEach(([type, threat]) => {
+      expect(threat).toBe(ENEMIES[type].threat);
+    });
+  });
+
+  it("measures air pressure by units and threat", () => {
+    const attack = getChapterSixPacketMetrics(["C6-10"]);
+    const siege = getChapterSixPacketMetrics(["C6-11"]);
+    expect(attack.airUnitCount).toBe(2);
+    expect(siege.airUnitCount).toBe(1);
+    expect(attack.airThreatRatio).toBeGreaterThan(siege.airThreatRatio);
+    expect(violatesAirThreatLimit(["C6-10"], "C6-10", { maxAirThreatRatio: .5 })).toBe(true);
   });
 
   it("usa seis ondas por fase e a curva planejada de pacotes", () => {
@@ -61,21 +83,23 @@ describe("pacotes e ondas do capítulo 6", () => {
     expect(firstWave.enemies).toEqual([{ type: "cuspidorBrasa", count: 12 }]);
   });
 
-  it("calcula dificuldade apenas pela composição e expõe seus componentes", () => {
+  it("calcula dificuldade sem depender da cadência e expõe a pressão tática", () => {
     const input = {
       packetThreat: 100,
       packetCount: 4,
       roleCounts: { pressure: 2, anchor: 1 },
       routeCounts: { 0: 4, 1: 2, 2: 1, 3: 1, 4: 0 },
-      gap: 2000,
       roleWeights: { pressure: 18, anchor: 20 },
     };
     const first = calculateChapterSixDifficulty({ ...input, waveIndex: 0 });
     const later = calculateChapterSixDifficulty({ ...input, waveIndex: 5 });
-    expect(first).toEqual(later);
     expect(first).toEqual({
-      difficulty: 289,
-      difficultyBreakdown: { packetThreat: 100, volume: 40, rolePressure: 56, routeConcentration: 48, spawnOverlap: 45, total: 289 },
+      difficulty: 244,
+      difficultyBreakdown: { packetThreat: 100, volume: 40, rolePressure: 56, routeConcentration: 48, intentPressure: 0, total: 244 },
+    });
+    expect(later).toEqual({
+      difficulty: 894,
+      difficultyBreakdown: { packetThreat: 100, volume: 40, rolePressure: 56, routeConcentration: 48, intentPressure: 650, total: 894 },
     });
   });
 
@@ -95,11 +119,23 @@ describe("pacotes e ondas do capítulo 6", () => {
     expect(scoreCandidateByPolicy("C6-04", policy, [])).toBe(CHAPTER_SIX_PACKETS["C6-04"].threat + 38);
   });
 
-  it("distribui pacotes pelas cinco rotas e respeita os intervalos", () => {
+  it("distribui pacotes pelas cinco rotas e usa burst legível no clímax", () => {
     const final = createChapterSixWaves(7).at(-1);
     expect(final.spawnBlocks.flatMap((block) => block.packets)).toHaveLength(14);
-    expect(final.spawnBlocks.flatMap((block) => block.packets).map((packet) => packet.spawnAtMs)).toEqual(Array.from({ length: 14 }, (_, index) => index * 3200));
+    expect(final.spawnBlocks.flatMap((block) => block.packets).map((packet) => packet.spawnAtMs)).toEqual(final.chapterSixSpawnPattern);
+    const cadence = analyzeChapterSixSpawnPattern(final.chapterSixSpawnPattern);
+    expect(cadence.longestBurst).toBeLessThanOrEqual(3);
+    expect(cadence.minBurstInterval).toBeGreaterThanOrEqual(900);
+    expect(cadence.maxPause).toBeGreaterThanOrEqual(3000);
     expect(new Set(final.spawnBlocks.flatMap((block) => block.packets).flatMap((packet) => packet.units.flatMap((unit) => unit.rows)))).toEqual(new Set([0, 1, 2, 3, 4]));
+  });
+
+  it("preserva W1–W3 regulares e impede que F46 W4 vire um despejo", () => {
+    const regular = buildChapterSixSpawnPattern({ phaseIndex: 5, waveIndex: 2, packetCount: 10 });
+    expect(regular[1] - regular[0]).toBe(4500);
+    const f46w4 = buildChapterSixSpawnPattern({ phaseIndex: 5, waveIndex: 3, packetCount: 10 });
+    expect(f46w4.at(-1)).toBeGreaterThan(12000);
+    expect(analyzeChapterSixSpawnPattern(f46w4).longestBurst).toBeLessThanOrEqual(3);
   });
 
   it("libera os inimigos na ordem de introdução do capítulo", () => {
@@ -128,8 +164,8 @@ describe("pacotes e ondas do capítulo 6", () => {
           expect(keys.some((key, index) => index > 1 && keys[index - 1] === key && keys[index - 2] === key)).toBe(false);
           expect(keys.some((key, index) => index > 0 && CHAPTER_SIX_PACKET_ROLES[key].includes("disruption") && CHAPTER_SIX_PACKET_ROLES[keys[index - 1]].includes("disruption"))).toBe(false);
         }
-        const airRatio = keys.filter((key) => CHAPTER_SIX_PACKET_ROLES[key].includes("air")).length / keys.length;
-        expect(airRatio).toBeLessThanOrEqual(policy.maxAirRatio || 0);
+        const airMetrics = getChapterSixPacketMetrics(keys);
+        expect(airMetrics.airThreatRatio).toBeLessThanOrEqual(policy.maxAirThreatRatio || 0);
       }
     }
   });

@@ -65,6 +65,7 @@ import {
   drawWetReflections, getSpriteFilter, getTroopSpriteFilter, presentScene,
 } from "./graphicsRenderer.js";
 import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
+import { drawColossoBossHealth, drawColossoCaldeira } from "./colossoCaldeiraRenderer.js";
 import { isRasgamarSubmerged } from "./enemyTargeting.js";
 import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "./thermalBurningTroopRenderer.js";
 import {
@@ -86,6 +87,8 @@ import {
   forceExecutorCombo,
   forceLeviathanAttack,
   debugLeviathan,
+  forceColossoAttack,
+  debugColosso,
   createPositionalConfirmationEvent,
   getPositionalTargetPreview,
   injureSandboxTroops,
@@ -1390,6 +1393,13 @@ function drawRasgaCeusTargetMarker(ctx, session, enemy) {
 
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
+  if (logicalEntity.type === "colossoCaldeira") {
+    const state = logicalEntity.dead ? "death" : logicalEntity.colossoState || "idle";
+    const image = assets.enemies.colossoCaldeira?.[state]?.[0] || assets.enemies.colossoCaldeira?.idle?.[0] || null;
+    drawColossoCaldeira(ctx, logicalEntity, settings, image);
+    drawColossoBossHealth(ctx, logicalEntity);
+    return;
+  }
   if (logicalEntity.type === "vermeIncubador" && logicalEntity.incubatorSubmerged) return;
   if (isRasgamarShadowOnly(logicalEntity, session.elapsed)) return;
   const config = ENEMIES[logicalEntity.type];
@@ -1521,7 +1531,7 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
     let lastHaloX = -Infinity;
     for (const entry of buffers.rows[row]) {
       const entity = entry.entity;
-      if (entry.kind === "enemy" && entity.type === "leviathanNereida") {
+      if (entry.kind === "enemy" && (entity.type === "leviathanNereida" || entity.type === "colossoCaldeira")) {
         bossEntries.push(entry);
         continue;
       }
@@ -1744,7 +1754,7 @@ export function FortuneChoiceModal({ tier, options, onChoose }) {
 
 export function SandboxPanel({
   selectedEnemy, onSelectEnemy, row, onRow, count, onCount, alpha, onAlpha,
-  grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo, onForceLeviathan = () => {}, onDebugLeviathan = () => {},
+  grouped, onGrouped, settings, onSetting, onRulesMode, onSpawn, onForceCombo, onForceLeviathan = () => {}, onDebugLeviathan = () => {}, onForceColosso = () => {}, onDebugColosso = () => {},
   onInjure, onClear, onReset, fortuneTier, onFortuneTier, onSimulateFortune,
   fortuneDisabled, fortuneReason, mechanicOptions = [], onMechanic, disabled = false,
   magmaEnabled = false,
@@ -1811,6 +1821,12 @@ export function SandboxPanel({
       <label className="sandbox-check"><span><b>Mostrar heatmap</b><small>Preto: crosta · amarelo/branco: calor</small></span><input type="checkbox" checked={settings.magmaShowHeatmap} onChange={(event) => onSetting("magmaShowHeatmap", event.target.checked)} /></label>
       <label className="sandbox-check"><span><b>Mostrar máscara</b><small>Exibe regiões conectadas e seus limites</small></span><input type="checkbox" checked={settings.magmaShowRegionMask} onChange={(event) => onSetting("magmaShowRegionMask", event.target.checked)} /></label>
     </section>}
+    <section className="sandbox-spawn-card">
+      <header><div><span>CHEFE VULCÂNICO</span><b>Colosso da Caldeira</b></div></header>
+      <button className="sandbox-spawn-button" onClick={() => onSelectEnemy("colossoCaldeira")}>SELECIONAR COLOSSO</button>
+      <div className="sandbox-choice"><span>Forçar ataque</span><div>{[["rift", "Fissura"], ["slam", "Punho"], ["fracture", "Fratura"], ["seismic", "Sísmico"]].map(([id, label]) => <button key={id} onClick={() => onForceColosso(id)}>{label}</button>)}</div></div>
+      <div className="sandbox-choice"><span>Depuração</span><div>{[["phase1", "Fase 1"], ["phase2", "Fase 2"], ["phase3", "Fase 3"], ["resetCooldowns", "Recargas"], ["exposeCore", "Núcleo"], ["kill", "Eliminar"]].map(([id, label]) => <button key={id} onClick={() => onDebugColosso(id)}>{label}</button>)}</div></div>
+    </section>
     <section className="sandbox-spawn-card">
       <header><div><span>CHEFE AQUÁTICO</span><b>Leviatã de Nereida</b></div></header>
       <button className="sandbox-spawn-button" onClick={() => onSelectEnemy("leviathanNereida")}>SELECIONAR LEVIATÃ</button>
@@ -2099,6 +2115,26 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => ["leviathanImpact", "leviathanSecondImpact"].includes(event.type))) play("leviathanImpact", 0.58);
         if (events.some((event) => event.type === "structuralRuptureApplied")) play("leviathanRupture", 0.72);
         if (events.some((event) => event.type === "leviathanCooldownStarted")) play("leviathanCooldown", 0.35);
+        if (events.some((event) => event.type === "colossoAwakened")) {
+          setBanner("⚠ COLOSSO DA CALDEIRA");
+          play("alert", 0.88);
+          play("melee", 0.38);
+        }
+        if (events.some((event) => event.type === "colossoTelegraph")) play("alert", 0.34);
+        if (events.some((event) => event.type === "colossoAttackImpact")) play("melee", 0.72);
+        const colossoPhaseEvent = events.find((event) => event.type === "colossoPhaseChanged");
+        if (colossoPhaseEvent) {
+          setBanner(colossoPhaseEvent.phase === 2 ? "FASE II · RUPTURA" : "FASE III · COLAPSO");
+          play("alert", 0.76);
+        }
+        if (events.some((event) => event.type === "colossoFinalCollapse")) {
+          setBanner("⚠ COLAPSO DA CALDEIRA");
+          play("alert", 0.9);
+        }
+        if (events.some((event) => event.type === "colossoDeathStarted")) {
+          setBanner("NÚCLEO INSTÁVEL · COLOSSO EM COLAPSO");
+          play("melee", 0.84);
+        }
         if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);
         if (events.some((event) => event.type === "ramImpact")) play("melee", 0.65);
@@ -2495,6 +2531,26 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setSnapshot(getSnapshot(sessionRef.current));
   };
 
+  const handleForceColosso = (attack) => {
+    const result = forceColossoAttack(sessionRef.current, attack);
+    if (result.events?.length) {
+      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+    }
+    setMessage(result.ok ? `Colosso preparado: ${attack}.` : result.reason);
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
+  const handleDebugColosso = (action) => {
+    const result = debugColosso(sessionRef.current, action);
+    if (result.events?.length) {
+      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
+    }
+    setMessage(result.ok ? `Colosso: ${action}.` : result.reason);
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
   const handleClear = (target) => {
     clearSandboxEntities(sessionRef.current, target);
     particlesRef.current = [];
@@ -2768,6 +2824,12 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const thermalBanner = thermal?.state
     ? `${thermal.paused ? "MAGMA EM PAUSA" : thermal.state === "stable" ? "🔥 ESTÁVEL" : thermal.state === "active" ? "🔥🔥 ATIVA" : thermal.state === "eruption" ? "⚠ ERUPÇÃO" : "RESFRIAMENTO"} · ${thermalRemainingSeconds}s`
     : null;
+  const alphaPressure = snapshot.alphaPressure;
+  const alphaWarning = alphaPressure?.pendingSpawns?.length
+    ? `⚠ PRESSÃO ALFA ${alphaPressure.level} · ${alphaPressure.pendingSpawns.length} ALFA${alphaPressure.pendingSpawns.length > 1 ? "S" : ""} EM APROXIMAÇÃO · ROTAS ${alphaPressure.pendingSpawns.map((entry) => entry.row + 1).join(", ")}`
+    : alphaPressure?.enabled
+      ? `PRESSÃO ALFA ${alphaPressure.level} · TROPAS ${alphaPressure.troopCountStart ?? 0}→${alphaPressure.troopCountCurrent}`
+      : null;
   const canStartWave = !sandbox
     && snapshot.preparing
     && !snapshot.pendingDecision
@@ -2795,7 +2857,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           ? "FORMAÇÃO AVANÇADA · PASSE O MOUSE E CLIQUE EM TRÊS COLUNAS"
           : targetingDecision
             ? "SELEÇÃO DE ROTA · CLIQUE PARA FORTIFICAR"
-            : tideBanner || windBanner || sandstormBanner || thermalBanner || defaultContainmentSummary;
+            : alphaWarning || tideBanner || windBanner || sandstormBanner || thermalBanner || defaultContainmentSummary;
   const inspectedTroopId = resolveInspectedTroopId({ hoveredTroop, selectedTroop });
   const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
 
@@ -2942,6 +3004,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           onForceCombo={handleForceExecutorCombo}
           onForceLeviathan={handleForceLeviathan}
           onDebugLeviathan={handleDebugLeviathan}
+          onForceColosso={handleForceColosso}
+          onDebugColosso={handleDebugColosso}
           onInjure={handleInjureTroops}
           onClear={handleClear}
           onReset={() => resetSandbox()}
