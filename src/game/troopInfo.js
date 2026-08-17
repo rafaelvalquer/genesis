@@ -17,7 +17,7 @@ const ATTACK_LABELS = {
   arcCombo: "Combo corpo a corpo",
   icaroBurst: "Rajada antiaérea",
   leviathanCannon: "Canhão perfurante",
-  mantisSaturation: "Saturação multi-alvo",
+  mantisArcSpikes: "Spikes aderentes em arco",
 };
 
 const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
@@ -26,7 +26,9 @@ const formatDuration = (milliseconds) => `${formatNumber(milliseconds / 1000)} s
 export function getTroopInfo(troop) {
   const doesNotAttack = troop.attack === "none";
   const generatesEnergy = troop.attack === "energy";
-  let damage = formatNumber(troop.damage);
+  let damage = troop.impactDamage != null && troop.detonationDamage != null
+    ? `${formatNumber(troop.impactDamage)} + ${formatNumber(troop.detonationDamage)}`
+    : formatNumber(troop.damage);
   if (doesNotAttack || generatesEnergy) damage = "—";
   else if (troop.burst || troop.burstCount) damage = `${formatNumber(troop.damage)} por disparo`;
   else if (troop.pellets) damage = `${formatNumber(troop.damage)} por pellet`;
@@ -71,8 +73,16 @@ export function getTroopInfo(troop) {
     value: `Até ${troop.interceptionMaxTargets} alvos aéreos · ${formatNumber(troop.interceptionDamage)} de dano · recarga ${formatDuration(troop.interceptionCooldownMs)}`,
   });
   if (troop.salvoSize) specials.push({
-    label: "Salva MANTIS",
-    value: `${troop.salvoSize} micro-mísseis guiados · até ${troop.maxTargets} alvos`,
+    label: "Salva de Spikes",
+    value: `${troop.salvoSize} spikes aderentes · até ${troop.maxTargets} alvos`,
+  });
+  if (troop.impactDamage != null && troop.detonationDamage != null) specials.push({
+    label: "Detonação aderente",
+    value: `${formatNumber(troop.impactDamage)} impacto + ${formatNumber(troop.detonationDamage)} explosão após ${formatDuration(troop.detonationDelayMs)}`,
+  });
+  if (troop.detonationRadius != null) specials.push({
+    label: "Área de detonação",
+    value: `${formatNumber(troop.detonationRadius)} px`,
   });
   if (troop.pellets) specials.push({ label: "Dispersão", value: `${troop.pellets} pellets por ataque` });
   if (troop.shotgunMaxTargets && troop.shotgunDamageFactors) specials.push({

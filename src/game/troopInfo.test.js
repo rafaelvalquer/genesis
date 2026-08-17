@@ -77,4 +77,17 @@ describe("apresentação das informações das tropas", () => {
       value: "4 de dano a até 2 células · alvo único terrestre",
     });
   });
+
+  it("apresenta a nova assinatura de spikes aderentes da MANTIS", () => {
+    expect(values("mantis")).toMatchObject({
+      Ataque: "Spikes aderentes em arco",
+      Dano: "3 + 6",
+      Cadência: "A cada 2,9 s",
+    });
+    expect(getTroopInfo(TROOPS.mantis).specials).toEqual(expect.arrayContaining([
+      { label: "Salva de Spikes", value: "3 spikes aderentes · até 3 alvos" },
+      { label: "Detonação aderente", value: "3 impacto + 6 explosão após 0,5 s" },
+      { label: "Área de detonação", value: "58 px" },
+    ]));
+  });
 });

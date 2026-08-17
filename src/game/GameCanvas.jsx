@@ -2089,6 +2089,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
         if (events.some((event) => event.type === "shoot" && !["icaroBullet", "icaroInterceptionShot"].includes(event.weapon))) play("shoot", 0.18);
         if (events.some((event) => event.type === "shoot" && event.weapon === "icaroBullet")) play("icaroBurstShot", 0.34);
+        if (events.some((event) => event.type === "mantisSpikeImpact")) play("shoot", 0.12);
+        if (events.some((event) => event.type === "mantisSpikeDetonation")) play("melee", 0.24);
         if (events.some((event) => event.type === "icaroTargetLock")) play("icaroInterceptionLock", 0.5);
         if (events.some((event) => event.type === "icaroInterceptionFire")) play("icaroInterceptionFire", 0.58);
         if (events.some((event) => event.type === "troopDeath" && event.entity?.type === "interceptadorIcaro")) play("icaroDeath", 0.5);

@@ -4,6 +4,7 @@ import {
 import {
   applyGenesisPlanetChapterState,
 } from "./genesisPlanetAsset.js";
+import { syncGenesisAtmosphereWithLight } from "./createGenesisAtmosphereMaterial.js";
 
 function worldValue(
   biome,
@@ -104,6 +105,8 @@ export function applyGenesisWorldTheme({
       renderer: runtime.renderer,
     },
   );
+  syncGenesisAtmosphereWithLight(runtime.atmosphere, runtime.keyLight);
+  syncGenesisAtmosphereWithLight(runtime.planetParts?.atmosphere, runtime.keyLight);
 
   const fadeEffects = () => runtime.chapterEffects?.fadeOut?.();
   const applyEffects = () => runtime.chapterEffects?.setChapter?.(chapter.id, { immediate });

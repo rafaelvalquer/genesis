@@ -8,6 +8,16 @@ export default function BattlePauseMenu({ phase, snapshot, loadout, onContinue, 
   const phaseNumber = Number(String(phase.id).match(/\d+$/)?.[0] || phase.id);
   const title = mode === "confirmRestart" ? "REINICIAR OPERAÇÃO?" : mode === "restarting" ? "REINICIALIZANDO OPERAÇÃO" : "SIMULAÇÃO PAUSADA";
   useEffect(() => { firstButtonRef.current?.focus(); }, [mode]);
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if (mode === "restarting" || event.code !== "Escape") return;
+      event.preventDefault();
+      if (mode === "confirmRestart") setMode("menu");
+      else onContinue();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mode, onContinue]);
   const confirm = async () => { setMode("restarting"); await onRestart(); };
   return <div className={`battle-pause-backdrop ${reduceMotion ? "reduce-motion" : ""}`} role="dialog" aria-modal="true" aria-labelledby="battle-pause-title">
     <div className="battle-pause-panel">

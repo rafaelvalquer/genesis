@@ -91,12 +91,12 @@ describe("asset compartilhado do planeta Genesis", () => {
     const model = planetFixture();
     const parts = prepareGenesisPlanetModel(THREE, model);
     const expected = {
-      chapter_01: { roughness: .74, metalness: .04, emissiveIntensity: .022 },
-      chapter_02: { roughness: .58, metalness: .1, emissiveIntensity: .018 },
+      chapter_01: { roughness: .74, metalness: .04, emissiveIntensity: .006 },
+      chapter_02: { roughness: .58, metalness: .1, emissiveIntensity: .004 },
       chapter_03: { roughness: .96, metalness: 0, emissiveIntensity: 0 },
-      chapter_04: { roughness: .82, metalness: .03, emissiveIntensity: .013 },
-      chapter_05: { roughness: .52, metalness: .08, emissiveIntensity: .012 },
-      chapter_06: { roughness: .72, metalness: .015, emissiveIntensity: .035 },
+      chapter_04: { roughness: .82, metalness: .03, emissiveIntensity: .003 },
+      chapter_05: { roughness: .52, metalness: .08, emissiveIntensity: .004 },
+      chapter_06: { roughness: .72, metalness: .015, emissiveIntensity: .008 },
     };
     CHAPTERS.forEach((chapter) => {
       applyGenesisPlanetChapterState({ THREE, parts, chapter, biome: getCampaignBiome(chapter.id) });

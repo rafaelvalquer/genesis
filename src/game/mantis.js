@@ -1,4 +1,4 @@
-/** MANTIS: artilharia de saturação com seis micro-mísseis guiados. */
+/** MANTIS V2: spikes-mísseis aderentes com trajetória em arco. */
 
 export function selectMantisTargets(session, troop, config, { enemyOccupiesTargetRow, isEnemyTargetable, cellWidth = 64 }) {
   const maxDistance = config.range * cellWidth;
@@ -18,50 +18,74 @@ export function distributeMantisSalvo(targets, salvoSize = 6) {
   return Array.from({ length: salvoSize }, (_, index) => targets[index % targets.length]);
 }
 
+export function createMantisSpike({ id, sourceTroopId, troopType, target, shotIndex, origin, now, config, trail, seed, damageMultiplier }) {
+  return {
+    id, kind: "mantisSpike", visualKind: "mantisSpike", troopType, sourceTroopId,
+    targetId: target.id, targetRow: target.row, shotIndex,
+    x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
+    previousRenderX: origin.x, previousRenderY: origin.y, origin: { ...origin },
+    ageMs: 0, trail, phase: "pending", launched: false,
+    flightStartedAt: null, flightMs: config.spikeFlightMs, arcHeight: config.spikeArcHeight,
+    impactDamage: config.impactDamage * damageMultiplier(target),
+    detonationDamage: config.detonationDamage * damageMultiplier(target),
+    detonationRadius: config.detonationRadius, detonationDelayMs: config.detonationDelayMs,
+    launchAt: now + config.launchIntervalMs * shotIndex,
+    color: config.color, active: true, seed,
+  };
+}
+
+export function sampleMantisArc(spike, targetPoint, progress) {
+  const t = Math.max(0, Math.min(1, progress));
+  const p0 = spike.origin;
+  const p1 = { x: p0.x + Math.max(54, (targetPoint.x - p0.x) * 0.42), y: p0.y - spike.arcHeight };
+  const oneMinus = 1 - t;
+  return {
+    x: oneMinus * oneMinus * p0.x + 2 * oneMinus * t * p1.x + t * t * targetPoint.x,
+    y: oneMinus * oneMinus * p0.y + 2 * oneMinus * t * p1.y + t * t * targetPoint.y,
+  };
+}
+
 export function updateMantis(session, troop, config, events, deps) {
   if (troop.state === "targetLock" && session.elapsed >= troop.mantisFireAt) {
     const targets = selectMantisTargets(session, troop, config, deps);
     const assignments = distributeMantisSalvo(targets, config.salvoSize);
-    if (assignments.length) {
-      assignments.forEach((target, shotIndex) => {
-        const origin = deps.getMuzzleWorldPosition(troop, config, shotIndex % 3);
-        session.projectiles.push({
-          id: deps.id("mantis_spike"), kind: "mantisSpike", visualKind: "mantisSpike",
-          troopType: troop.type, sourceTroopId: troop.id, targetId: target.id, shotIndex,
-          x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
-          previousRenderX: origin.x, previousRenderY: origin.y, origin: { ...origin },
-          ageMs: 0, trail: deps.createProjectileTrail(10, origin.x, origin.y),
-          vx: config.projectileSpeed, vy: 0, speed: config.projectileSpeed,
-          damage: config.damage * deps.damageMultiplier(target), color: config.color,
-          active: true, launched: false, seed: deps.nextEffectSeed(),
-          launchAt: session.elapsed + (config.burstIntervalMs || 0) * shotIndex,
-        });
-      });
-      troop.mantisTargets = assignments.map((target) => target.id);
-      troop.state = "attackBurst";
-      troop.stateStartedAt = session.elapsed;
-      troop.stateEndsAt = session.elapsed + config.attackVisual.durationMs;
-      troop.lastAttackAt = session.elapsed;
-      events.push({ type: "mantisSalvo", sourceTroopId: troop.id, x: troop.x, y: troop.y - 32, color: config.color, seed: deps.nextEffectSeed(), count: assignments.length });
-    } else {
+    if (!assignments.length) {
       troop.state = "idle";
+      return;
     }
-    return;
-  }
-  if (troop.state === "attackBurst" && session.elapsed >= troop.stateEndsAt) {
-    troop.state = "reload";
+    // Switch to the attack pose before sampling the muzzle. This makes the
+    // projectile originate from the raised crossbow, not the troop's torso.
+    troop.state = "arcSpikeAttack";
     troop.stateStartedAt = session.elapsed;
-    troop.stateEndsAt = session.elapsed + config.reloadVisual.durationMs;
+    assignments.forEach((target, shotIndex) => {
+      const origin = deps.getMuzzleWorldPosition(troop, config, shotIndex % 3, shotIndex % 3);
+      session.projectiles.push(createMantisSpike({
+        id: deps.id("mantis_spike"), sourceTroopId: troop.id, troopType: troop.type,
+        target, shotIndex, origin, now: session.elapsed, config,
+        trail: deps.createProjectileTrail(12, origin.x, origin.y),
+        seed: deps.nextEffectSeed(), damageMultiplier: deps.damageMultiplier,
+      }));
+    });
+    troop.mantisTargets = assignments.map((target) => target.id);
+    troop.stateEndsAt = session.elapsed + config.attackVisual.durationMs;
+    troop.lastAttackAt = session.elapsed;
+    session.metrics.mantisSalvos = (session.metrics.mantisSalvos || 0) + 1;
+    events.push({ type: "mantisSpikeSalvo", sourceTroopId: troop.id, x: troop.x, y: troop.y - 32, color: config.color, seed: deps.nextEffectSeed(), count: assignments.length });
     return;
   }
-  if (troop.state === "reload" && session.elapsed >= troop.stateEndsAt) {
+  if (troop.state === "arcSpikeAttack" && session.elapsed >= troop.stateEndsAt) {
+    troop.state = "rearm";
+    troop.stateStartedAt = session.elapsed;
+    troop.stateEndsAt = session.elapsed + config.rearmVisual.durationMs;
+    return;
+  }
+  if (troop.state === "rearm" && session.elapsed >= troop.stateEndsAt) {
     troop.state = "idle";
     troop.stateStartedAt = session.elapsed;
     troop.mantisTargets = [];
   }
   if (session.elapsed < troop.attackReadyAt || troop.state !== "idle") return;
-  const targets = selectMantisTargets(session, troop, config, deps);
-  if (!targets.length) return;
+  if (!selectMantisTargets(session, troop, config, deps).length) return;
   troop.state = "targetLock";
   troop.stateStartedAt = session.elapsed;
   troop.stateEndsAt = session.elapsed + config.targetLockVisual.durationMs;

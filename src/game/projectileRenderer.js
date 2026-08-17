@@ -865,7 +865,7 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       if (sniper) particles.push({ kind: "ring", x: event.x, y: event.y, color, born: now, life: 250, maxRadius: 34 });
       continue;
     }
-    if (event.type === "mantisSalvo") {
+    if (event.type === "mantisSpikeSalvo") {
       particles.push({ kind: "ring", x: event.x, y: event.y, color: "#e879f9", born: now, life: 300, maxRadius: 32 });
       addSparks(particles, event, now, settings.reduceMotion ? 2 : Math.max(4, Math.round(10 * quality.density)), random, {
         color: "#67e8f9", minSpeed: 18, speed: 64, life: 260, size: 1.6,
@@ -877,6 +877,14 @@ export function pushEventParticles(particles, events, now, settings = {}) {
         color: "#f0abfc", minSpeed: 24, speed: 90, life: 300, size: 1.8,
       });
       particles.push({ kind: "ring", x: event.x, y: event.y, color: "#22d3ee", born: now, life: 220, maxRadius: 20 });
+      continue;
+    }
+    if (event.type === "mantisSpikeDetonation") {
+      particles.push({ kind: "ring", x: event.x, y: event.y, color: "#e879f9", born: now, life: 360, maxRadius: Math.min(74, event.radius || 58) });
+      particles.push({ kind: "muzzle", x: event.x, y: event.y, color: "#f5d0fe", born: now, life: 150, size: 24 });
+      addSparks(particles, event, now, settings.reduceMotion ? 3 : Math.max(7, Math.round(16 * quality.density)), random, {
+        color: "#67e8f9", minSpeed: 28, speed: 105, life: 420, size: 2,
+      });
       continue;
     }
     if (event.type === "scarabTransitionStart") {
@@ -1109,13 +1117,14 @@ function drawNaniteBullet(ctx, projectile) {
 
 function drawMantisSpike(ctx, projectile, quality) {
   const angle = Math.atan2(projectile.vy || 0, projectile.vx || 1);
-  const trailLength = Math.min(projectileTrailLength(projectile.trail), quality === "low" ? 4 : 8);
+  // Spikes are compact missiles: keep only a tiny motion accent instead of a long comet tail.
+  const trailLength = Math.min(projectileTrailLength(projectile.trail), quality === "low" ? 2 : 3);
   const trailStart = projectileTrailPoint(projectile.trail, 0, trailLength);
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  if (trailLength > 1) {
+  if (projectile.phase !== "attached" && trailLength > 1) {
     ctx.strokeStyle = "rgba(34,211,238,.58)";
-    ctx.lineWidth = quality === "low" ? 2 : 3;
+    ctx.lineWidth = quality === "low" ? 1.5 : 2;
     ctx.lineCap = "round";
     ctx.beginPath(); ctx.moveTo(trailStart.x, trailStart.y); ctx.lineTo(projectile.x, projectile.y); ctx.stroke();
   }
@@ -1124,6 +1133,13 @@ function drawMantisSpike(ctx, projectile, quality) {
   ctx.fillStyle = "#f5f3ff";
   ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-7, -3); ctx.lineTo(-3, 0); ctx.lineTo(-7, 3); ctx.closePath(); ctx.fill();
   ctx.strokeStyle = projectile.color || "#e879f9"; ctx.lineWidth = 1.4; ctx.stroke();
+  if (projectile.phase === "attached") {
+    const pulse = 1 + Math.sin((projectile.detonationProgress || 0) * Math.PI * 4) * 0.12;
+    ctx.shadowBlur = (quality === "low" ? 8 : 14) * pulse;
+    ctx.strokeStyle = projectile.color || "#e879f9";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(-2, 0, 7 * pulse, 0, Math.PI * 2); ctx.stroke();
+  }
   ctx.restore();
 }
 

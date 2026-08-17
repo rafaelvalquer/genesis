@@ -37,6 +37,17 @@ describe("efeitos dos projeteis", () => {
     expect(particles.some((particle) => particle.kind === "flame")).toBe(true);
   });
 
+  it("renderiza feedback separado para salva, cravação e detonação da MANTIS", () => {
+    const particles = pushEventParticles([], [
+      { type: "mantisSpikeSalvo", x: 120, y: 160, color: "#e879f9", seed: 2, count: 6 },
+      { type: "mantisSpikeImpact", x: 260, y: 160, color: "#22d3ee", seed: 3 },
+      { type: "mantisSpikeDetonation", x: 300, y: 160, color: "#e879f9", seed: 4, radius: 58 },
+    ], 1000, { quality: "high" });
+    expect(particles.some((particle) => particle.kind === "ring" && particle.color === "#e879f9")).toBe(true);
+    expect(particles.some((particle) => particle.kind === "ring" && particle.color === "#22d3ee")).toBe(true);
+    expect(particles.some((particle) => particle.kind === "muzzle" && particle.color === "#f5d0fe")).toBe(true);
+  });
+
   it("emite partículas douradas ao coletar uma esfera de energia", () => {
     const particles = pushEventParticles([], [
       { type: "energyCollected", x: 240, y: 160, amount: 1, color: "#fbbf24", seed: 81 },

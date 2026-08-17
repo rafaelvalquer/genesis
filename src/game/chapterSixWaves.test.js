@@ -4,7 +4,10 @@ import {
   CHAPTER_SIX_MAXIMUM_LIVING,
   CHAPTER_SIX_PACKET_COUNTS,
   CHAPTER_SIX_PACKETS,
+  CHAPTER_SIX_PACKET_ROLES,
+  CHAPTER_SIX_PHASE_POLICIES,
   CHAPTER_SIX_TIER_PROFILES,
+  composeChapterSixWave,
   createChapterSixWaves,
 } from "./chapterSixWaves.js";
 
@@ -34,13 +37,13 @@ describe("pacotes e ondas do capítulo 6", () => {
     expect(Array.from({ length: 8 }, (_, index) => createChapterSixWaves(index).map((wave) => wave.packetCount))).toEqual(CHAPTER_SIX_PACKET_COUNTS);
   });
 
-  it("mantém crescimento de ameaça e limite vivo por fase", () => {
+  it("mantém progressão estrita de dificuldade e limite vivo por fase", () => {
     for (let phase = 0; phase < 8; phase += 1) {
       const waves = createChapterSixWaves(phase);
       expect(waves.every((wave) => wave.maximumLivingEnemies === CHAPTER_SIX_MAXIMUM_LIVING[phase])).toBe(true);
       for (let wave = 1; wave < waves.length; wave += 1) {
         expect(waves[wave].packetCount).toBeGreaterThanOrEqual(waves[wave - 1].packetCount);
-        expect(waves[wave].packetThreat).toBeGreaterThanOrEqual(waves[wave - 1].packetThreat);
+        expect(waves[wave].difficulty).toBeGreaterThan(waves[wave - 1].difficulty);
       }
     }
   });
@@ -72,5 +75,38 @@ describe("pacotes e ondas do capítulo 6", () => {
     expect(firstSeen.get("rasgaCeusCinereo")).toBe(5);
     expect(firstSeen.get("salamandraCinerea")).toBe(6);
     createChapterSixWaves(7).flatMap((wave) => wave.enemies).forEach((enemy) => expect(CHAPTER_SIX_ENEMY_POOL).toContain(enemy.type));
+  });
+
+  it("compõe de forma determinística, sem spam, e respeita as políticas", () => {
+    for (let phase = 0; phase < 8; phase += 1) {
+      const policy = CHAPTER_SIX_PHASE_POLICIES[phase];
+      for (let wave = 0; wave < 6; wave += 1) {
+        const keys = composeChapterSixWave({ phaseIndex: phase, waveIndex: wave, packetCount: CHAPTER_SIX_PACKET_COUNTS[phase][wave] }).map((entry) => entry.key);
+        expect(keys).toEqual(composeChapterSixWave({ phaseIndex: phase, waveIndex: wave, packetCount: CHAPTER_SIX_PACKET_COUNTS[phase][wave] }).map((entry) => entry.key));
+        expect(keys.every((key) => policy.allowedPackets.includes(key))).toBe(true);
+        if (!(phase === 0 && wave === 0)) {
+          expect(keys.some((key, index) => index > 1 && keys[index - 1] === key && keys[index - 2] === key)).toBe(false);
+        }
+        const airRatio = keys.filter((key) => CHAPTER_SIX_PACKET_ROLES[key].includes("air")).length / keys.length;
+        expect(airRatio).toBeLessThanOrEqual(policy.maxAirRatio || 0);
+      }
+    }
+  });
+
+  it("introduz cada função na fase correta e fecha F48 com diversidade real", () => {
+    const rolesByPhase = Array.from({ length: 8 }, (_, phase) => new Set(createChapterSixWaves(phase).flatMap((wave) => wave.chapterSixPacketKeys).flatMap((key) => CHAPTER_SIX_PACKET_ROLES[key])));
+    expect(rolesByPhase[1]).toContain("disruption");
+    expect(rolesByPhase[2]).toContain("assault");
+    expect(rolesByPhase[4]).toContain("anchor");
+    expect(rolesByPhase[5]).toContain("air");
+    expect(rolesByPhase[6]).toContain("finisher");
+    ["anchor", "artillery", "disruption", "assault", "air", "finisher"].forEach((role) => expect(rolesByPhase[7]).toContain(role));
+    expect(new Set(createChapterSixWaves(7).at(-1).chapterSixPacketKeys).size).toBeGreaterThanOrEqual(7);
+  });
+
+  it("usa estratégias de rota e cria uma rota quente nas ondas avançadas", () => {
+    const advanced = createChapterSixWaves(7).at(-1).spawnBlocks[0].packets;
+    expect(new Set(advanced.map((packet) => packet.routeStrategy))).toEqual(new Set(["focused", "split", "spread"]));
+    expect(Object.values(createChapterSixWaves(7).at(-1).chapterSixRouteCounts).some((count) => count >= 3)).toBe(true);
   });
 });

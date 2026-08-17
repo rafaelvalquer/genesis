@@ -113,8 +113,9 @@ describe("normalização espacial do planeta Genesis", () => {
     expect(layout.surfaceRoot.name).toBe("GenesisPlanetSurfaceRoot");
     expect(model.position.length()).toBe(0);
     expect(centerOf(model.getObjectByName("GenesisWorld_MainPlanet")).length()).toBeLessThan(.01);
-    ["GenesisWorld_IceSpikes", "GenesisWorld_CrystalSpires", "GenesisWorld_SwampPods"]
+    ["GenesisWorld_CrystalSpires", "GenesisWorld_SwampPods"]
       .forEach((name) => expect(model.getObjectByName(name).parent).toBe(layout.surfaceRoot));
+    expect(model.getObjectByName("GenesisWorld_IceSpikes")).toBeFalsy();
     expect(centerOf(atmosphere).distanceTo(atmosphereCenter)).toBeLessThan(.001);
     expect(centerOf(clouds).distanceTo(cloudCenter)).toBeLessThan(.001);
     expect(centerOf(moon).distanceTo(moonCenter)).toBeLessThan(.001);

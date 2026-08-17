@@ -29,6 +29,7 @@
     "test": "vitest run",
     "test:unit": "vitest run src/game",
     "test:watch": "vitest",
+    "audit:chapter-six": "node scripts/audit-chapter-six.mjs",
     "sprites:audit": "node tools/auditSprites.mjs",
     "sprites:audit:icaro": "node scripts/audit-icaro-sprites.mjs",
     "assets:leviathan:process": "node scripts/process-leviathan-nereida-sprites.mjs",

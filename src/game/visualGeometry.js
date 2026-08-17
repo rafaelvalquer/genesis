@@ -639,7 +639,7 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   const visual = getTroopAttackVisual(troop, troopConfig);
   if (troop.type === "mantis") {
     const paralyzed = elapsed < Number(troop.electricParalyzedUntil || 0);
-    const state = paralyzed ? "paralyzed" : ["targetLock", "attackBurst", "reload", "death"].includes(troop.state)
+    const state = paralyzed ? "paralyzed" : ["targetLock", "arcSpikeAttack", "rearm", "death"].includes(troop.state)
       ? troop.state : troop.state === "dead" ? "death" : "idle";
     const stateVisual = troopConfig[`${state}Visual`] || troopConfig.idleVisual;
     const count = Math.max(1, frameCounts[state] || frameCounts.idle || 8);

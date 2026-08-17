@@ -12,6 +12,7 @@ function fallbackLighting(biome = {}) {
     ambientColor: "#ffffff",
     ambientIntensity: .08,
     terminatorStrength: .78,
+    nightFloor: .05,
     exposure: 1.05,
     transitionSpeed: 5,
   };
@@ -29,8 +30,8 @@ function withTerminatorContrast(lighting) {
   return {
     ...lighting,
     keyIntensity: lighting.keyIntensity * (1 + strength * .12),
-    fillIntensity: lighting.fillIntensity * (1 - strength * .62),
-    ambientIntensity: lighting.ambientIntensity * (1 - strength * .5),
+    fillIntensity: Math.max(lighting.nightFloor ?? .04, lighting.fillIntensity * (1 - strength * .62)),
+    ambientIntensity: Math.max((lighting.nightFloor ?? .04) * .5, lighting.ambientIntensity * (1 - strength * .5)),
     rimIntensity: lighting.rimIntensity * (1 + strength * .15),
   };
 }
@@ -171,6 +172,11 @@ export function updateGenesisLightTransition(
   const target = lights?._genesisLightTransition;
   if (!target) return false;
 
+  const syncAtmospheres = () => {
+    lights.atmosphere?.material?.userData?.setGenesisLightDirection?.(lights.keyLight.position);
+    lights.planetParts?.atmosphere?.material?.userData?.setGenesisLightDirection?.(lights.keyLight.position);
+  };
+
   const blend = 1 - Math.exp(
     -Math.max(0, delta) * target.speed,
   );
@@ -264,6 +270,8 @@ export function updateGenesisLightTransition(
 
     lights._genesisLightTransition = null;
   }
+
+  syncAtmospheres();
 
   return true;
 }

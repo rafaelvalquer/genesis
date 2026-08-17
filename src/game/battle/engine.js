@@ -40,7 +40,7 @@ import {
   selectIcaroBurstRetarget,
   updateInterceptadorIcaro,
 } from "../interceptadorIcaro.js";
-import { updateMantis } from "../mantis.js";
+import { sampleMantisArc, updateMantis } from "../mantis.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
 import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
 import { getCryoDamageFactor, getCryoShockDuration, isCryoThermalTarget, selectCryoTarget } from "../troops/cryo7.js";
@@ -436,6 +436,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
       cryo7BonusDamage: 0, cryo7ShockApplications: 0, cryo7NormalFreezeMs: 0,
       cryo7FireFreezeMs: 0, cryo7ShockBlockedByRecovery: 0, cryo7ShockImmuneTargets: 0,
       cryo7PlatformHeatRemoved: 0,
+      mantisSalvos: 0, mantisSpikesLaunched: 0, mantisSpikeImpacts: 0,
+      mantisSpikeDetonations: 0, mantisExplosionHits: 0, mantisCollateralHits: 0,
+      mantisDamageDealt: 0,
     },
     troopConfigs: TROOPS,
     deployCooldowns: {},
@@ -601,6 +604,7 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
       ? session.elapsed + config.interceptionCooldownMs
       : Infinity,
     icaroLockedTargetIds: [],
+    mantisTargets: [], mantisFireAt: Infinity,
     energyAccumulator: 0, energyChargeProgress: 0, energyPickupSpawnTimes: [],
     lastAttackAt: -Infinity, attackStartedAt: -Infinity,
     channelingAttack: false, channelTickAccumulator: 0, lastAttackMode: null,
@@ -4352,11 +4356,13 @@ function updateProjectiles(session, dt, events) {
       }
       projectile.launched = true;
       if (projectile.kind === "cryoJet") session.metrics.cryo7Shots += 1;
-      events.push({
-        type: projectile.kind === "mine" ? "mineLaunch" : "shoot", weapon: projectile.visualKind, troopType: projectile.troopType,
-        sourceTroopId: projectile.sourceTroopId, shotIndex: projectile.shotIndex,
-        x: projectile.x, y: projectile.y, color: projectile.color, seed: projectile.seed,
-      });
+      if (projectile.kind !== "mantisSpike") {
+        events.push({
+          type: projectile.kind === "mine" ? "mineLaunch" : "shoot", weapon: projectile.visualKind, troopType: projectile.troopType,
+          sourceTroopId: projectile.sourceTroopId, shotIndex: projectile.shotIndex,
+          x: projectile.x, y: projectile.y, color: projectile.color, seed: projectile.seed,
+        });
+      }
     }
     projectile.ageMs += dt;
     if (projectile.kind === "leviathanRound") {
@@ -4486,31 +4492,87 @@ function updateProjectiles(session, dt, events) {
       continue;
     }
     if (projectile.kind === "mantisSpike") {
-      const target = indexedEnemyById(session, projectile.targetId);
-      if (!isEnemyTargetable(target)) {
-        projectile.active = false;
+      if (projectile.phase === "pending") {
+        if (session.elapsed < projectile.launchAt) continue;
+        let target = indexedEnemyById(session, projectile.targetId);
+        if (!isEnemyTargetable(target) || !enemyOccupiesTargetRow(target, projectile.targetRow)) {
+          target = session.enemies
+            .filter((enemy) => isEnemyTargetable(enemy) && enemyOccupiesTargetRow(enemy, projectile.targetRow)
+              && enemy.x >= projectile.origin.x && enemy.x - projectile.origin.x <= TROOPS.mantis.range * CELL.width)
+            .sort((left, right) => right.x - left.x)[0] || null;
+          projectile.targetId = target?.id || null;
+        }
+        if (!target) { projectile.active = false; continue; }
+        projectile.phase = "flight";
+        projectile.flightStartedAt = session.elapsed;
+        projectile.launched = true;
+        session.metrics.mantisSpikesLaunched = (session.metrics.mantisSpikesLaunched || 0) + 1;
+        events.push({ type: "shoot", weapon: "mantisSpike", troopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId, shotIndex: projectile.shotIndex, x: projectile.x, y: projectile.y, color: projectile.color, seed: projectile.seed });
+      }
+      if (projectile.phase === "flight") {
+        let target = indexedEnemyById(session, projectile.targetId);
+        if (!isEnemyTargetable(target) || !enemyOccupiesTargetRow(target, projectile.targetRow)) {
+          target = session.enemies
+            .filter((enemy) => isEnemyTargetable(enemy) && enemyOccupiesTargetRow(enemy, projectile.targetRow)
+              && enemy.x >= projectile.x && enemy.x - projectile.x <= TROOPS.mantis.range * CELL.width)
+            .sort((left, right) => right.x - left.x)[0] || null;
+          if (target) projectile.targetId = target.id;
+        }
+        const targetPoint = target && isEnemyTargetable(target)
+          ? getEnemyHitPoint(target, ENEMIES[target.type])
+          : { x: projectile.attachedX ?? projectile.x + 80, y: projectile.attachedY ?? projectile.y };
+        const progress = Math.max(0, Math.min(1, (session.elapsed - projectile.flightStartedAt) / projectile.flightMs));
+        const nextPoint = sampleMantisArc(projectile, targetPoint, progress);
+        const nextX = nextPoint.x;
+        const nextY = nextPoint.y;
+        projectile.previousX = projectile.x; projectile.previousY = projectile.y;
+        projectile.previousRenderX = projectile.x; projectile.previousRenderY = projectile.y;
+        projectile.x = nextX; projectile.y = nextY;
+        projectile.vx = (nextX - projectile.previousX) * 1000 / Math.max(1, dt);
+        projectile.vy = (nextY - projectile.previousY) * 1000 / Math.max(1, dt);
+        pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
+        if (progress < 1) continue;
+        projectile.attachedX = targetPoint.x; projectile.attachedY = targetPoint.y;
+        projectile.x = targetPoint.x; projectile.y = targetPoint.y;
+        if (target && isEnemyTargetable(target)) {
+          damageEnemy(session, target, projectile.impactDamage, events, {
+            direct: true, ranged: true, sourceX: projectile.origin.x,
+            sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId,
+          });
+          session.metrics.mantisSpikeImpacts = (session.metrics.mantisSpikeImpacts || 0) + 1;
+          session.metrics.mantisDamageDealt = (session.metrics.mantisDamageDealt || 0) + projectile.impactDamage;
+          events.push({ type: "mantisSpikeImpact", weapon: projectile.visualKind, sourceTroopId: projectile.sourceTroopId, targetId: target.id, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
+        }
+        projectile.phase = "attached";
+        projectile.attachedTargetId = target?.id || projectile.targetId;
+        projectile.detonateAt = session.elapsed + projectile.detonationDelayMs;
         continue;
       }
-      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
-      const angle = Math.atan2(targetPoint.y - projectile.y, targetPoint.x - projectile.x);
-      projectile.vx += (Math.cos(angle) * projectile.speed - projectile.vx) * 0.18;
-      projectile.vy += (Math.sin(angle) * projectile.speed - projectile.vy) * 0.18;
-      projectile.previousX = projectile.x;
-      projectile.previousY = projectile.y;
-      projectile.previousRenderX = projectile.x;
-      projectile.previousRenderY = projectile.y;
-      projectile.x += projectile.vx * dt / 1000;
-      projectile.y += projectile.vy * dt / 1000;
-      pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
-      if (Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y)
-        <= Math.max(26, projectile.speed * dt / 1000)) {
-        damageEnemy(session, target, projectile.damage, events, {
-          direct: true, ranged: true, sourceX: projectile.origin.x,
-          sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId,
+      if (projectile.phase === "attached") {
+        const attachedTarget = indexedEnemyById(session, projectile.attachedTargetId);
+        if (attachedTarget && !attachedTarget.dead) {
+          const point = getEnemyHitPoint(attachedTarget, ENEMIES[attachedTarget.type]);
+          projectile.attachedX = point.x; projectile.attachedY = point.y;
+          projectile.x = point.x; projectile.y = point.y;
+        } else {
+          projectile.x = projectile.attachedX; projectile.y = projectile.attachedY;
+        }
+        projectile.detonationProgress = Math.max(0, Math.min(1,
+          1 - (projectile.detonateAt - session.elapsed) / Math.max(1, projectile.detonationDelayMs)));
+        if (session.elapsed < projectile.detonateAt) continue;
+        const affected = session.enemies.filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, projectile.targetRow)
+          && Math.hypot(enemy.x - projectile.attachedX, enemy.y - projectile.attachedY) <= projectile.detonationRadius);
+        affected.forEach((enemy) => {
+          damageEnemy(session, enemy, projectile.detonationDamage, events, {
+            direct: true, ranged: true, sourceX: projectile.origin.x,
+            sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId,
+          });
+          session.metrics.mantisExplosionHits = (session.metrics.mantisExplosionHits || 0) + 1;
+          if (enemy.id !== projectile.attachedTargetId) session.metrics.mantisCollateralHits = (session.metrics.mantisCollateralHits || 0) + 1;
+          session.metrics.mantisDamageDealt = (session.metrics.mantisDamageDealt || 0) + projectile.detonationDamage;
         });
-        events.push({ type: "mantisSpikeImpact", weapon: projectile.visualKind, sourceTroopId: projectile.sourceTroopId, targetId: target.id, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
-        projectile.active = false;
-      } else if (projectile.ageMs > 3200 || projectile.x > FIELD.width + 100 || projectile.y < -60 || projectile.y > FIELD.height + 60) {
+        session.metrics.mantisSpikeDetonations = (session.metrics.mantisSpikeDetonations || 0) + 1;
+        events.push({ type: "mantisSpikeDetonation", weapon: projectile.visualKind, sourceTroopId: projectile.sourceTroopId, targetId: projectile.attachedTargetId, targetIds: affected.map((enemy) => enemy.id), x: projectile.attachedX, y: projectile.attachedY, radius: projectile.detonationRadius, color: projectile.color, seed: projectile.seed });
         projectile.active = false;
       }
       continue;

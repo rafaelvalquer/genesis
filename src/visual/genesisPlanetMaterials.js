@@ -13,6 +13,16 @@ export const CHAPTER_BEACON_NAMES = Object.freeze({
   chapter_05: "Beacon_Eclipse",
 });
 
+// The base sphere stays almost dark; chapter effects provide the localized glow.
+export const GENESIS_CHAPTER_SURFACE_PROFILES = Object.freeze({
+  chapter_01: { roughness: .74, metalness: .04, baseEmissive: "#22d3ee", baseEmissiveIntensity: .006, effectEmissiveIntensity: .72 },
+  chapter_02: { roughness: .58, metalness: .1, baseEmissive: "#7fffd4", baseEmissiveIntensity: .004, effectEmissiveIntensity: .36 },
+  chapter_03: { roughness: .96, metalness: 0, baseEmissive: "#000000", baseEmissiveIntensity: 0, effectEmissiveIntensity: 0 },
+  chapter_04: { roughness: .82, metalness: .03, baseEmissive: "#818cf8", baseEmissiveIntensity: .003, effectEmissiveIntensity: .9 },
+  chapter_05: { roughness: .52, metalness: .08, baseEmissive: "#38bdf8", baseEmissiveIntensity: .004, effectEmissiveIntensity: .62 },
+  chapter_06: { roughness: .72, metalness: .015, baseEmissive: "#f97316", baseEmissiveIntensity: .008, effectEmissiveIntensity: 1 },
+});
+
 const CLOUD_MOTION = Object.freeze({
   chapter_01: { rotation: .45, driftX: .003, driftY: .0012 },
   chapter_02: { rotation: .34, driftX: -.0022, driftY: .001 },
@@ -236,20 +246,18 @@ export function applyGenesisPlanetChapterState({ THREE, parts, chapter, biome })
     parts.clouds.userData.genesisCloudMotion = CLOUD_MOTION[chapter.id] || CLOUD_MOTION.chapter_01;
   }
   const surface = parts.mainPlanet?.material;
-  const profile = {
-    chapter_01: { roughness: .74, metalness: .04, emissive: "#22d3ee", intensity: .022 },
-    chapter_02: { roughness: .58, metalness: .1, emissive: "#7fffd4", intensity: .018 },
-    chapter_03: { roughness: .96, metalness: 0, emissive: "#000000", intensity: 0 },
-    chapter_04: { roughness: .82, metalness: .03, emissive: "#818cf8", intensity: .013 },
-    chapter_05: { roughness: .52, metalness: .08, emissive: "#38bdf8", intensity: .012 },
-    chapter_06: { roughness: .72, metalness: .015, emissive: "#f97316", intensity: .035 },
-  }[chapter.id];
+  const profile = GENESIS_CHAPTER_SURFACE_PROFILES[chapter.id];
   if (surface && profile) {
     surface.roughness = profile.roughness;
     surface.metalness = profile.metalness;
-    surface.emissive?.set(profile.emissive);
-    surface.emissiveIntensity = profile.intensity;
+    surface.emissive?.set(profile.baseEmissive);
+    surface.emissiveIntensity = profile.baseEmissiveIntensity;
   }
+  parts.structures.forEach((structure) => {
+    const crystal = structure.name.includes("CrystalSpires");
+    structure.material.emissive?.set(crystal && chapter.id === "chapter_02" ? "#7fffd4" : 0x000000);
+    structure.material.emissiveIntensity = crystal && chapter.id === "chapter_02" ? profile.effectEmissiveIntensity : 0;
+  });
   Object.entries(parts.beacons).forEach(([chapterId, beacon]) => {
     const active = chapterId === chapter.id;
     beacon.material.emissive.set(active ? chapter.palette.primary : 0x000000);
