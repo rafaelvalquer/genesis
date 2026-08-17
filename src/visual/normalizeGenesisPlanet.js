@@ -1,6 +1,4 @@
-export const LEGACY_HIDDEN_PLANET_PARTS = new Set([
-  "GenesisWorld_IceSpikes",
-]);
+import { GENESIS_BEACON_NAMES } from "./genesisChapterBeacons.js";
 
 export const GENESIS_SURFACE_PART_NAMES = Object.freeze([
   "GenesisWorld_MainPlanet",
@@ -18,13 +16,6 @@ export const GENESIS_MOON_NAMES = Object.freeze([
   "GenesisMoon_Lava",
   "GenesisMoon_Blue",
   "GenesisMoon_Red",
-]);
-
-export const GENESIS_BEACON_NAMES = Object.freeze([
-  "Beacon_Colony",
-  "Beacon_Glass",
-  "Beacon_Chitin",
-  "Beacon_Storm",
 ]);
 
 function collectVerticesInModelSpace(THREE, mesh, model) {
@@ -91,20 +82,6 @@ function createLayoutRoots(THREE, model) {
   return { surfaceRoot, moonRoot, beaconRoot, ringedMoonRoot };
 }
 
-/** Removes retired GLB nodes before they can be normalized or materialized. */
-export function removeLegacyPlanetParts(model) {
-  const retired = [];
-  model.traverse((object) => {
-    if (LEGACY_HIDDEN_PLANET_PARTS.has(object.name)) retired.push(object);
-  });
-  retired.forEach((object) => {
-    object.parent?.remove(object);
-    object.geometry?.dispose?.();
-    (Array.isArray(object.material) ? object.material : [object.material]).forEach((material) => material?.dispose?.());
-  });
-  return retired.length;
-}
-
 function readExistingLayout(THREE, model) {
   const metadata = model.userData.genesisLayoutMetadata;
   return {
@@ -122,8 +99,6 @@ function readExistingLayout(THREE, model) {
 
 export function normalizeGenesisPlanet({ THREE, model, targetRadius = 1 }) {
   if (model.userData.genesisLayoutNormalized) return readExistingLayout(THREE, model);
-
-  removeLegacyPlanetParts(model);
 
   model.updateMatrixWorld(true);
   const mainPlanet = model.getObjectByName("GenesisWorld_MainPlanet");

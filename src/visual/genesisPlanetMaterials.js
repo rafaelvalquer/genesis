@@ -2,16 +2,10 @@ import { compressGenesisRelief } from "./compressGenesisRelief.js";
 import { configureGenesisMoons } from "./configureGenesisMoons.js";
 import { getGenesisPresentation } from "./genesisPlanetPresentation.js";
 import { smoothGenesisGeometry } from "./smoothGenesisGeometry.js";
-import { LEGACY_HIDDEN_PLANET_PARTS } from "./normalizeGenesisPlanet.js";
 import { createGenesisAtmosphereMaterial } from "./createGenesisAtmosphereMaterial.js";
+import { GENESIS_CHAPTER_BEACONS } from "./genesisChapterBeacons.js";
 
-export const CHAPTER_BEACON_NAMES = Object.freeze({
-  chapter_01: "Beacon_Colony",
-  chapter_02: "Beacon_Glass",
-  chapter_03: "Beacon_Chitin",
-  chapter_04: "Beacon_Storm",
-  chapter_05: "Beacon_Eclipse",
-});
+export { GENESIS_CHAPTER_BEACONS } from "./genesisChapterBeacons.js";
 
 // The base sphere stays almost dark; chapter effects provide the localized glow.
 export const GENESIS_CHAPTER_SURFACE_PROFILES = Object.freeze({
@@ -164,7 +158,7 @@ export function getGenesisPlanetParts(model, layout = {}) {
     materials: [],
   };
   const beaconByName = Object.fromEntries(
-    Object.entries(CHAPTER_BEACON_NAMES).map(([chapterId, name]) => [name, chapterId]),
+    Object.entries(GENESIS_CHAPTER_BEACONS).map(([chapterId, name]) => [name, chapterId]),
   );
   model.traverse((object) => {
     if (!object.isMesh) return;
@@ -218,10 +212,6 @@ export function prepareGenesisPlanetModel(THREE, model, layout) {
     "GenesisMoon_Ringed",
   ]);
   model.traverse((object) => {
-    if (LEGACY_HIDDEN_PLANET_PARTS.has(object.name)) {
-      object.visible = false;
-      return;
-    }
     if (!object.isMesh) return;
     if (smoothPartNames.has(object.name)) smoothGenesisGeometry(object.geometry);
     else if (!object.geometry.getAttribute("normal")) object.geometry.computeVertexNormals();

@@ -1,10 +1,11 @@
 const VERTEX_SHADER = `
-  varying vec3 vNormal;
-  varying vec3 vViewDirection;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPosition;
   void main() {
     vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
-    vNormal = normalize(normalMatrix * normal);
-    vViewDirection = normalize(-viewPosition.xyz);
+    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+    vWorldNormal = normalize(mat3(modelMatrix) * normal);
+    vWorldPosition = worldPosition.xyz;
     gl_Position = projectionMatrix * viewPosition;
   }
 `;
@@ -16,11 +17,12 @@ const FRAGMENT_SHADER = `
   uniform float uRimPower;
   uniform float uDayIntensity;
   uniform float uNightIntensity;
-  varying vec3 vNormal;
-  varying vec3 vViewDirection;
+  varying vec3 vWorldNormal;
+  varying vec3 vWorldPosition;
   void main() {
-    float rim = pow(1.0 - max(0.0, dot(normalize(vNormal), normalize(vViewDirection))), uRimPower);
-    float day = max(0.0, dot(normalize(vNormal), normalize(uLightDirection)));
+    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
+    float rim = pow(1.0 - max(0.0, dot(normalize(vWorldNormal), viewDirection)), uRimPower);
+    float day = max(0.0, dot(normalize(vWorldNormal), normalize(uLightDirection)));
     float litSide = mix(uNightIntensity, uDayIntensity, day);
     gl_FragColor = vec4(uColor, rim * litSide * uOpacity);
   }

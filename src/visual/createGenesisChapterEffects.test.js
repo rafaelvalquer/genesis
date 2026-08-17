@@ -12,22 +12,24 @@ describe("efeitos 3D próximos às rotas", () => {
   it("cria cinco kits e ativa somente o capítulo selecionado", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({ THREE, parent, quality: { quality: "medium" }, chapterId: "chapter_01" });
-    expect(Object.keys(runtime.groups)).toHaveLength(6);
+    expect(Object.keys(runtime.groups)).toEqual(["chapter_01"]);
     expect(runtime.groups.chapter_01.visible).toBe(true);
-    expect(runtime.groups.chapter_05.visible).toBe(false);
+    expect(runtime.groups.chapter_05).toBeUndefined();
   });
 
   it("usa os modelos reconhecíveis pedidos para cada capítulo", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({ THREE, parent, quality: { quality: "low" }, chapterId: "chapter_01" });
     expect(countNamed(parent, "HiveRouteRocks")).toBe(1);
+    expect(countNamed(parent, "GlassRouteCrystals")).toBe(0);
+    expect(countNamed(parent, "Chapter06_MagmaEffects")).toBe(0);
+    runtime.setChapter("chapter_02", { immediate: true });
     expect(countNamed(parent, "GlassRouteCrystals")).toBe(1);
-    expect(countNamed(parent, "ChitinRouteDunes")).toBe(1);
-    expect(countNamed(parent, "StormRouteMountains")).toBe(1);
-    expect(countNamed(parent, "StormRouteWinds")).toBe(1);
-    expect(countNamed(parent, "OceanRouteCurrent")).toBe(1);
-    expect(countNamed(parent, "OceanRouteRipples")).toBe(1);
-    expect(countNamed(parent, "Chapter06_MagmaEffects")).toBe(1);
+    const glass = runtime.groups.chapter_02;
+    runtime.setChapter("chapter_01", { immediate: true });
+    runtime.setChapter("chapter_02", { immediate: true });
+    expect(runtime.groups.chapter_02).toBe(glass);
+    expect(countNamed(parent, "Chapter06_MagmaEffects")).toBe(0);
   });
 
   it("troca para o oceano por crossfade", () => {
@@ -44,7 +46,7 @@ describe("efeitos 3D próximos às rotas", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({ THREE, parent, quality: { quality: "low" }, chapterId: "chapter_01" });
     const hiddenUpdate = vi.fn();
-    runtime.groups.chapter_02.userData.update = hiddenUpdate;
+    runtime.ensureChapter("chapter_02").userData.update = hiddenUpdate;
 
     updateGenesisChapterEffects(runtime, 1 / 60, 1 / 60, false);
 

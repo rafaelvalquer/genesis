@@ -18,7 +18,10 @@ export function distributeMantisSalvo(targets, salvoSize = 6) {
   return Array.from({ length: salvoSize }, (_, index) => targets[index % targets.length]);
 }
 
-export function createMantisSpike({ id, sourceTroopId, troopType, target, shotIndex, origin, now, config, trail, seed, damageMultiplier }) {
+export function createMantisSpike({
+  id, sourceTroopId, troopType, target, shotIndex, origin, now, config, trail, seed,
+  impactDamageMultiplier, detonationDamageMultiplier, detonationRadiusMultiplier,
+}) {
   return {
     id, kind: "mantisSpike", visualKind: "mantisSpike", troopType, sourceTroopId,
     targetId: target.id, targetRow: target.row, shotIndex,
@@ -26,22 +29,43 @@ export function createMantisSpike({ id, sourceTroopId, troopType, target, shotIn
     previousRenderX: origin.x, previousRenderY: origin.y, origin: { ...origin },
     ageMs: 0, trail, phase: "pending", launched: false,
     flightStartedAt: null, flightMs: config.spikeFlightMs, arcHeight: config.spikeArcHeight,
-    impactDamage: config.impactDamage * damageMultiplier(target),
-    detonationDamage: config.detonationDamage * damageMultiplier(target),
-    detonationRadius: config.detonationRadius, detonationDelayMs: config.detonationDelayMs,
+    launchOrigin: null, launchControl: null, cruiseControl: null, launchTargetPoint: null,
+    impactDamage: config.impactDamage * impactDamageMultiplier(target),
+    detonationDamage: config.detonationDamage * detonationDamageMultiplier(target),
+    detonationRadius: config.detonationRadius * detonationRadiusMultiplier,
+    detonationDelayMs: config.detonationDelayMs,
     launchAt: now + config.launchIntervalMs * shotIndex,
     color: config.color, active: true, seed,
   };
 }
 
+export function initializeMantisFlightPath(spike, targetPoint) {
+  if (spike.launchOrigin) return;
+  const origin = { ...spike.origin };
+  const target = { ...targetPoint };
+  const dx = target.x - origin.x;
+  spike.launchOrigin = origin;
+  spike.launchTargetPoint = target;
+  spike.launchControl = {
+    x: origin.x + Math.max(54, dx * .2),
+    y: origin.y - spike.arcHeight,
+  };
+  spike.cruiseControl = {
+    x: origin.x + dx * .72,
+    y: origin.y - spike.arcHeight * .28,
+  };
+}
+
 export function sampleMantisArc(spike, targetPoint, progress) {
   const t = Math.max(0, Math.min(1, progress));
-  const p0 = spike.origin;
-  const p1 = { x: p0.x + Math.max(54, (targetPoint.x - p0.x) * 0.42), y: p0.y - spike.arcHeight };
+  initializeMantisFlightPath(spike, targetPoint);
+  const p0 = spike.launchOrigin;
+  const p1 = spike.launchControl;
+  const p2 = spike.cruiseControl;
   const oneMinus = 1 - t;
   return {
-    x: oneMinus * oneMinus * p0.x + 2 * oneMinus * t * p1.x + t * t * targetPoint.x,
-    y: oneMinus * oneMinus * p0.y + 2 * oneMinus * t * p1.y + t * t * targetPoint.y,
+    x: oneMinus ** 3 * p0.x + 3 * oneMinus * oneMinus * t * p1.x + 3 * oneMinus * t * t * p2.x + t ** 3 * targetPoint.x,
+    y: oneMinus ** 3 * p0.y + 3 * oneMinus * oneMinus * t * p1.y + 3 * oneMinus * t * t * p2.y + t ** 3 * targetPoint.y,
   };
 }
 
@@ -63,7 +87,10 @@ export function updateMantis(session, troop, config, events, deps) {
         id: deps.id("mantis_spike"), sourceTroopId: troop.id, troopType: troop.type,
         target, shotIndex, origin, now: session.elapsed, config,
         trail: deps.createProjectileTrail(12, origin.x, origin.y),
-        seed: deps.nextEffectSeed(), damageMultiplier: deps.damageMultiplier,
+        seed: deps.nextEffectSeed(),
+        impactDamageMultiplier: deps.impactDamageMultiplier,
+        detonationDamageMultiplier: deps.detonationDamageMultiplier,
+        detonationRadiusMultiplier: deps.detonationRadiusMultiplier,
       }));
     });
     troop.mantisTargets = assignments.map((target) => target.id);

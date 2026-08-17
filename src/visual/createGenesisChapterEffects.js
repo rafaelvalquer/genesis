@@ -138,6 +138,15 @@ function targetOpacityForGroup(
     : runtime.lockedOpacity;
 }
 
+const EFFECT_FACTORIES = Object.freeze({
+  chapter_01: createHivePlanetEffects,
+  chapter_02: createGlassPlanetEffects,
+  chapter_03: createChitinPlanetEffects,
+  chapter_04: createStormPlanetEffects,
+  chapter_05: createOceanPlanetEffects,
+  chapter_06: createMagmaPlanetEffects,
+});
+
 export function createGenesisChapterEffects({
   THREE,
   parent,
@@ -155,50 +164,7 @@ export function createGenesisChapterEffects({
   const root = new THREE.Group();
   root.name = "GenesisChapterEffectsRoot";
 
-  const groups = {
-    chapter_01: createHivePlanetEffects({
-      THREE,
-      profile,
-    }),
-    chapter_02: createGlassPlanetEffects({
-      THREE,
-      profile,
-    }),
-    chapter_03: createChitinPlanetEffects({
-      THREE,
-      profile,
-    }),
-    chapter_04: createStormPlanetEffects({
-      THREE,
-      profile,
-    }),
-    chapter_05: createOceanPlanetEffects({
-      THREE,
-      profile,
-    }),
-    chapter_06: createMagmaPlanetEffects({ THREE, profile }),
-  };
-
-  Object.entries(groups).forEach(
-    ([id, group]) => {
-      const microEvents = createGenesisMicroEvents({ THREE, chapterId: id, profile });
-      const updateChapterEffects = group.userData.update;
-      group.add(microEvents);
-      group.userData.update = (delta, elapsed, reduceMotion) => {
-        updateChapterEffects?.(delta, elapsed, reduceMotion);
-        microEvents.userData.update?.(elapsed, reduceMotion);
-      };
-      group.userData.chapterId = id;
-      group.userData.effectMaterials = (
-        collectMaterials(group)
-      );
-      group.userData.opacity = 0;
-      group.userData.targetOpacity = 0;
-      group.userData.frameIndex = 0;
-      applyGroupOpacity(group, 0);
-      root.add(group);
-    },
-  );
+  const groups = {};
 
   parent.add(root);
 
@@ -222,6 +188,30 @@ export function createGenesisChapterEffects({
     frameIndex: 0,
   };
 
+  const createGroup = (id) => {
+    if (groups[id]) return groups[id];
+    const factory = EFFECT_FACTORIES[id];
+    if (!factory) return null;
+    const group = factory({ THREE, profile });
+    const microEvents = createGenesisMicroEvents({ THREE, chapterId: id, profile });
+    const updateChapterEffects = group.userData.update;
+    group.add(microEvents);
+    group.userData.update = (delta, elapsed, reduceMotion) => {
+      updateChapterEffects?.(delta, elapsed, reduceMotion);
+      microEvents.userData.update?.(elapsed, reduceMotion);
+    };
+    group.userData.chapterId = id;
+    group.userData.effectMaterials = collectMaterials(group);
+    group.userData.opacity = 0;
+    group.userData.targetOpacity = 0;
+    applyGroupOpacity(group, 0);
+    root.add(group);
+    groups[id] = group;
+    return group;
+  };
+
+  runtime.ensureChapter = createGroup;
+
   runtime.setChapter = (
     nextChapterId,
     {
@@ -234,11 +224,10 @@ export function createGenesisChapterEffects({
         nextLockedOpacity,
     } = {},
   ) => {
-    runtime.activeChapterId = (
-      groups[nextChapterId]
-        ? nextChapterId
-        : "chapter_01"
-    );
+    runtime.activeChapterId = EFFECT_FACTORIES[nextChapterId]
+      ? nextChapterId
+      : "chapter_01";
+    createGroup(runtime.activeChapterId);
 
     if (nextUnlockedChapterIds) {
       runtime.unlockedChapterIds = new Set(

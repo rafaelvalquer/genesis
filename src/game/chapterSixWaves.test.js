@@ -7,8 +7,13 @@ import {
   CHAPTER_SIX_PACKET_ROLES,
   CHAPTER_SIX_PHASE_POLICIES,
   CHAPTER_SIX_TIER_PROFILES,
+  calculateChapterSixDifficulty,
   composeChapterSixWave,
   createChapterSixWaves,
+  instantiateChapterSixPacket,
+  scoreCandidateByPolicy,
+  violatesConsecutiveLimit,
+  violatesRoleLimit,
 } from "./chapterSixWaves.js";
 
 const composition = (packet) => packet.units.map((entry) => [entry.type, entry.count]);
@@ -43,7 +48,8 @@ describe("pacotes e ondas do capítulo 6", () => {
       expect(waves.every((wave) => wave.maximumLivingEnemies === CHAPTER_SIX_MAXIMUM_LIVING[phase])).toBe(true);
       for (let wave = 1; wave < waves.length; wave += 1) {
         expect(waves[wave].packetCount).toBeGreaterThanOrEqual(waves[wave - 1].packetCount);
-        expect(waves[wave].difficulty).toBeGreaterThan(waves[wave - 1].difficulty);
+        expect(waves[wave].difficulty).toBeGreaterThanOrEqual(Math.ceil(waves[wave - 1].difficulty * 1.05));
+        expect(waves[wave].difficultyBreakdown.total).toBe(waves[wave].difficulty);
       }
     }
   });
@@ -52,7 +58,41 @@ describe("pacotes e ondas do capítulo 6", () => {
     const firstWave = createChapterSixWaves(0)[0];
     expect(firstWave.chapterSixPacketKeys).toEqual(Array(6).fill("C6-01"));
     expect(firstWave.packetThreat).toBe(6 * CHAPTER_SIX_PACKETS["C6-01"].threat);
-    expect(firstWave.enemies).toEqual([{ type: "cuspidorBrasa", count: 24 }]);
+    expect(firstWave.enemies).toEqual([{ type: "cuspidorBrasa", count: 12 }]);
+  });
+
+  it("calcula dificuldade apenas pela composição e expõe seus componentes", () => {
+    const input = {
+      packetThreat: 100,
+      packetCount: 4,
+      roleCounts: { pressure: 2, anchor: 1 },
+      routeCounts: { 0: 4, 1: 2, 2: 1, 3: 1, 4: 0 },
+      gap: 2000,
+      roleWeights: { pressure: 18, anchor: 20 },
+    };
+    const first = calculateChapterSixDifficulty({ ...input, waveIndex: 0 });
+    const later = calculateChapterSixDifficulty({ ...input, waveIndex: 5 });
+    expect(first).toEqual(later);
+    expect(first).toEqual({
+      difficulty: 289,
+      difficultyBreakdown: { packetThreat: 100, volume: 40, rolePressure: 56, routeConcentration: 48, spawnOverlap: 45, total: 289 },
+    });
+  });
+
+  it("distribui contagens nas rotas sem replicar a quantidade do pacote", () => {
+    const packet = instantiateChapterSixPacket("C6-02", 0, 0, "main", [0, 2, 4], { distribute: true });
+    expect(packet.units.map((entry) => [entry.rows, entry.countPerRow])).toEqual([[[0], 1], [[2], 1], [[4], 1]]);
+    expect(packet.units.reduce((total, entry) => total + entry.countPerRow, 0)).toBe(3);
+    const splitPacket = instantiateChapterSixPacket("C6-02", 0, 0, "main", [1, 3], { distribute: true });
+    expect(splitPacket.units.map((entry) => [entry.rows, entry.countPerRow])).toEqual([[[1], 2], [[3], 1]]);
+    expect(splitPacket.units.reduce((total, entry) => total + entry.countPerRow, 0)).toBe(3);
+  });
+
+  it("deriva limites e preferência de candidatos da política", () => {
+    const policy = { maxConsecutiveSame: 2, maxDisruptionConsecutive: 1, roleWeights: { disruption: 18, artillery: 20 } };
+    expect(violatesConsecutiveLimit(["C6-01", "C6-01"], "C6-01", policy)).toBe(true);
+    expect(violatesRoleLimit(["C6-03"], "C6-04", policy)).toBe(true);
+    expect(scoreCandidateByPolicy("C6-04", policy, [])).toBe(CHAPTER_SIX_PACKETS["C6-04"].threat + 38);
   });
 
   it("distribui pacotes pelas cinco rotas e respeita os intervalos", () => {
@@ -86,6 +126,7 @@ describe("pacotes e ondas do capítulo 6", () => {
         expect(keys.every((key) => policy.allowedPackets.includes(key))).toBe(true);
         if (!(phase === 0 && wave === 0)) {
           expect(keys.some((key, index) => index > 1 && keys[index - 1] === key && keys[index - 2] === key)).toBe(false);
+          expect(keys.some((key, index) => index > 0 && CHAPTER_SIX_PACKET_ROLES[key].includes("disruption") && CHAPTER_SIX_PACKET_ROLES[keys[index - 1]].includes("disruption"))).toBe(false);
         }
         const airRatio = keys.filter((key) => CHAPTER_SIX_PACKET_ROLES[key].includes("air")).length / keys.length;
         expect(airRatio).toBeLessThanOrEqual(policy.maxAirRatio || 0);

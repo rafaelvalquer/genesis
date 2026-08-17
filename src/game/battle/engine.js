@@ -40,7 +40,7 @@ import {
   selectIcaroBurstRetarget,
   updateInterceptadorIcaro,
 } from "../interceptadorIcaro.js";
-import { sampleMantisArc, updateMantis } from "../mantis.js";
+import { initializeMantisFlightPath, sampleMantisArc, updateMantis } from "../mantis.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
 import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
 import { getCryoDamageFactor, getCryoShockDuration, isCryoThermalTarget, selectCryoTarget } from "../troops/cryo7.js";
@@ -4224,7 +4224,9 @@ function updateTroops(session, events, dt) {
         createProjectileTrail,
         getMuzzleWorldPosition,
         nextEffectSeed: () => nextEffectSeed(session),
-        damageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
+        impactDamageMultiplier: (target) => attackDamageMultiplier(session, troop, { target }),
+        detonationDamageMultiplier: (target) => attackDamageMultiplier(session, troop, { explosive: true, target }),
+        detonationRadiusMultiplier: session.modifiers.explosiveRadius,
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
         enemyOccupiesTargetRow,
         isEnemyTargetable,
@@ -4503,6 +4505,7 @@ function updateProjectiles(session, dt, events) {
           projectile.targetId = target?.id || null;
         }
         if (!target) { projectile.active = false; continue; }
+        initializeMantisFlightPath(projectile, getEnemyHitPoint(target, ENEMIES[target.type]));
         projectile.phase = "flight";
         projectile.flightStartedAt = session.elapsed;
         projectile.launched = true;

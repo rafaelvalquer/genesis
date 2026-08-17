@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createMantisSpike, distributeMantisSalvo, sampleMantisArc, selectMantisTargets } from "./mantis.js";
+import { createMantisSpike, distributeMantisSalvo, initializeMantisFlightPath, sampleMantisArc, selectMantisTargets } from "./mantis.js";
 import { getUnlockedTroops, PHASES, TROOPS } from "./content.js";
 import { createBattleSession, placeTroop, spawnEnemy, stepBattle } from "./battleModel.js";
 
@@ -48,22 +48,63 @@ describe("MANTIS", () => {
     expect(session.projectiles.every((projectile) => ["flight", "attached"].includes(projectile.phase))).toBe(true);
   });
 
+  it("aplica Especialização Explosiva apenas à detonação e ao raio", () => {
+    const phase = PHASES.find((entry) => entry.id === "fase_45") || PHASES[44];
+    const session = createBattleSession(phase, ["mantis"], 4502, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
+    session.modifiers.explosiveDamage = 1.15;
+    session.modifiers.explosiveRadius = 1.1;
+    expect(placeTroop(session, "mantis", 1, 1).ok).toBe(true);
+    const enemy = spawnEnemy(session, { type: "medu", row: 1 }).enemies[0];
+    Object.assign(enemy, { x: 650, y: 180, speed: 0, previousX: 650, previousRenderX: 650 });
+    for (let index = 0; index < 20; index += 1) stepBattle(session, 32);
+    const spike = session.projectiles.find((projectile) => projectile.kind === "mantisSpike");
+    expect(spike.impactDamage).toBe(TROOPS.mantis.impactDamage);
+    expect(spike.detonationDamage).toBeCloseTo(TROOPS.mantis.detonationDamage * 1.15);
+    expect(spike.detonationRadius).toBeCloseTo(TROOPS.mantis.detonationRadius * 1.1);
+  });
+
   it("usa fases pending e attached com dano separado", () => {
     const spike = createMantisSpike({
       id: "spike", sourceTroopId: "mantis_1", troopType: "mantis", target: row("target", 700),
       shotIndex: 0, origin: { x: 200, y: 200 }, now: 0,
       config: { spikeFlightMs: 900, spikeArcHeight: 170, impactDamage: 3, detonationDamage: 6, detonationRadius: 58, detonationDelayMs: 500, launchIntervalMs: 80, color: "#e879f9" },
-      trail: [], seed: 1, damageMultiplier: () => 1,
+      trail: [], seed: 1,
+      impactDamageMultiplier: () => 1,
+      detonationDamageMultiplier: () => 1.15,
+      detonationRadiusMultiplier: 1.1,
     });
     expect(spike.phase).toBe("pending");
     expect(spike.impactDamage).toBe(3);
-    expect(spike.detonationDamage).toBe(6);
+    expect(spike.detonationDamage).toBeCloseTo(6.9);
+    expect(spike.detonationRadius).toBeCloseTo(63.8);
     expect(spike.detonationDelayMs).toBe(500);
+    initializeMantisFlightPath(spike, { x: 700, y: 200 });
     const start = sampleMantisArc(spike, { x: 700, y: 200 }, 0);
     const apex = sampleMantisArc(spike, { x: 700, y: 200 }, 0.35);
     const end = sampleMantisArc(spike, { x: 700, y: 200 }, 1);
     expect(apex.y).toBeLessThan(start.y);
     expect(end.x).toBeCloseTo(700);
     expect(end.y).toBeCloseTo(200);
+  });
+
+  it("congela a subida no lançamento e corrige o homing somente perto do alvo", () => {
+    const spike = createMantisSpike({
+      id: "path", sourceTroopId: "mantis_1", troopType: "mantis", target: row("target", 700), shotIndex: 0,
+      origin: { x: 200, y: 200 }, now: 0,
+      config: { spikeFlightMs: 900, spikeArcHeight: 170, impactDamage: 3, detonationDamage: 6, detonationRadius: 58, detonationDelayMs: 500, launchIntervalMs: 80, color: "#e879f9" },
+      trail: [], seed: 1, impactDamageMultiplier: () => 1, detonationDamageMultiplier: () => 1, detonationRadiusMultiplier: 1,
+    });
+    const initialTarget = { x: 700, y: 200 };
+    const retarget = { x: 900, y: 120 };
+    initializeMantisFlightPath(spike, initialTarget);
+    const controls = [spike.launchOrigin, spike.launchControl, spike.cruiseControl, spike.launchTargetPoint].map((point) => ({ ...point }));
+    const earlyInitial = sampleMantisArc(spike, initialTarget, .15);
+    const earlyRetarget = sampleMantisArc(spike, retarget, .15);
+    const lateInitial = sampleMantisArc(spike, initialTarget, .75);
+    const lateRetarget = sampleMantisArc(spike, retarget, .75);
+    expect(Math.hypot(earlyInitial.x - earlyRetarget.x, earlyInitial.y - earlyRetarget.y)).toBeLessThan(1);
+    expect(Math.hypot(lateInitial.x - lateRetarget.x, lateInitial.y - lateRetarget.y)).toBeGreaterThan(20);
+    expect(sampleMantisArc(spike, retarget, 1)).toEqual(retarget);
+    expect([spike.launchOrigin, spike.launchControl, spike.cruiseControl, spike.launchTargetPoint]).toEqual(controls);
   });
 });

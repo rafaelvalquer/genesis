@@ -31,13 +31,14 @@ function planetFixture() {
     "GenesisWorld_MainPlanet",
     "GenesisWorld_Atmosphere",
     "GenesisWorld_Clouds",
-    "GenesisWorld_IceSpikes",
     "GenesisWorld_CrystalSpires",
     "GenesisWorld_SwampPods",
     "Beacon_Colony",
     "Beacon_Glass",
     "Beacon_Chitin",
     "Beacon_Storm",
+    "Beacon_Eclipse",
+    "Beacon_Magma",
   ].forEach((name) => {
     const mesh = new THREE.Mesh(coloredGeometry(), new THREE.MeshBasicMaterial());
     mesh.name = name;
@@ -49,8 +50,6 @@ function planetFixture() {
 describe("asset compartilhado do planeta Genesis", () => {
   it("preserva vertex colors, calcula normals e não tinge a superfície", () => {
     const model = planetFixture();
-    const legacyIceSpikes = model.getObjectByName("GenesisWorld_IceSpikes");
-    const legacyMaterial = legacyIceSpikes.material;
     const parts = prepareGenesisPlanetModel(THREE, model);
     expect(parts.mainPlanet.geometry.getAttribute("color")).toBeTruthy();
     expect(parts.mainPlanet.geometry.getAttribute("normal")).toBeTruthy();
@@ -59,9 +58,9 @@ describe("asset compartilhado do planeta Genesis", () => {
     expect(parts.mainPlanet.material).toBeInstanceOf(THREE.MeshStandardMaterial);
     expect(parts.mainPlanet.material.emissive.getHex()).toBe(0x000000);
     expect(parts.mainPlanet.material.flatShading).toBe(false);
-    expect(legacyIceSpikes.visible).toBe(false);
-    expect(legacyIceSpikes.material).toBe(legacyMaterial);
-    expect(parts.structures.some((mesh) => mesh.name.includes("IceSpikes"))).toBe(false);
+    expect(Object.keys(parts.beacons)).toEqual([
+      "chapter_01", "chapter_02", "chapter_03", "chapter_04", "chapter_05", "chapter_06",
+    ]);
     expect(parts.structures.find((mesh) => mesh.name.includes("CrystalSpires")).material.roughness).toBe(.34);
     expect(parts.structures.find((mesh) => mesh.name.includes("SwampPods")).material.roughness).toBe(.88);
     expect(parts.atmosphere.material).toBeInstanceOf(THREE.ShaderMaterial);

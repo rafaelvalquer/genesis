@@ -41,13 +41,6 @@ function genesisFixture() {
     mesh("GenesisWorld_Atmosphere", new THREE.SphereGeometry(1.03, 16, 12)),
     mesh("GenesisWorld_Clouds", new THREE.SphereGeometry(1.014, 16, 12)),
     mesh(
-      "GenesisWorld_IceSpikes",
-      translatedGeometry(
-        new THREE.BoxGeometry(.08, .2, .08),
-        SOURCE_CENTER.clone().add(new THREE.Vector3(0, 1.05, 0)),
-      ),
-    ),
-    mesh(
       "GenesisWorld_CrystalSpires",
       translatedGeometry(
         new THREE.BoxGeometry(.08, .22, .08),
@@ -83,6 +76,8 @@ function genesisFixture() {
     ["Beacon_Glass", new THREE.Vector3(-1.01, 0, 0)],
     ["Beacon_Chitin", new THREE.Vector3(0, 1.01, 0)],
     ["Beacon_Storm", new THREE.Vector3(0, -1.01, 0)],
+    ["Beacon_Eclipse", new THREE.Vector3(0, 0, 1.01)],
+    ["Beacon_Magma", new THREE.Vector3(0, 0, -1.01)],
   ].forEach(([name, position]) => {
     world.add(mesh(
       name,
@@ -115,7 +110,6 @@ describe("normalização espacial do planeta Genesis", () => {
     expect(centerOf(model.getObjectByName("GenesisWorld_MainPlanet")).length()).toBeLessThan(.01);
     ["GenesisWorld_CrystalSpires", "GenesisWorld_SwampPods"]
       .forEach((name) => expect(model.getObjectByName(name).parent).toBe(layout.surfaceRoot));
-    expect(model.getObjectByName("GenesisWorld_IceSpikes")).toBeFalsy();
     expect(centerOf(atmosphere).distanceTo(atmosphereCenter)).toBeLessThan(.001);
     expect(centerOf(clouds).distanceTo(cloudCenter)).toBeLessThan(.001);
     expect(centerOf(moon).distanceTo(moonCenter)).toBeLessThan(.001);
@@ -136,7 +130,7 @@ describe("normalização espacial do planeta Genesis", () => {
     layout.moonRoot.children.forEach((moon) => {
       expect(centerOf(moon).length()).toBeGreaterThan(1.8);
     });
-    ["Beacon_Colony", "Beacon_Glass", "Beacon_Chitin", "Beacon_Storm"].forEach((name) => {
+    ["Beacon_Colony", "Beacon_Glass", "Beacon_Chitin", "Beacon_Storm", "Beacon_Eclipse", "Beacon_Magma"].forEach((name) => {
       expect(centerOf(model.getObjectByName(name)).length()).toBeGreaterThan(.95);
     });
     disposeThreeObject(model);
