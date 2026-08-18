@@ -128,8 +128,12 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
       sourceData[(y * sourceInfo.width + x) * sourceInfo.channels + 3] = 0;
     }
   }
-  const { data, info } = await sharp(sourceData, { raw: sourceInfo }).resize(720, 720, { fit: "contain", background: transparent })
-    .extend({ top: 24, bottom: 24, left: 24, right: 24, background: transparent })
+  // Spawn poses have a wider awakening silhouette; give them a little more
+  // safety padding before applying the fixed root anchor.
+  const contentSize = state === "spawnAwakening" ? 660 : 720;
+  const border = (768 - contentSize) / 2;
+  const { data, info } = await sharp(sourceData, { raw: sourceInfo }).resize(contentSize, contentSize, { fit: "contain", background: transparent })
+    .extend({ top: border, bottom: border, left: border, right: border, background: transparent })
     .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   let minX = info.width; let minY = info.height; let maxX = -1; let maxY = -1;
   for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
@@ -142,8 +146,13 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
   if (maxX >= 0) {
     const sourceAnchorX = minX + (maxX - minX) * contentRoot.x;
     const sourceAnchorY = minY + (maxY - minY) * contentRoot.y;
-    const dx = Math.round(768 * frameAnchor.x - sourceAnchorX);
-    const dy = Math.round(768 * frameAnchor.y - sourceAnchorY);
+    let dx = Math.round(768 * frameAnchor.x - sourceAnchorX);
+    let dy = Math.round(768 * frameAnchor.y - sourceAnchorY);
+    // Never let an authored pose clip against the fixed canvas. Keeping a
+    // small transparent safety margin is preferable to losing hands, feet or
+    // head pixels when an AI sheet uses a slightly wider silhouette.
+    dx = Math.min(Math.max(dx, 2 - minX), 765 - maxX);
+    dy = Math.min(Math.max(dy, 2 - minY), 765 - maxY);
     actualAnchor = { ...frameAnchor, x: Number(((sourceAnchorX + dx) / 768).toFixed(5)), y: Number(((sourceAnchorY + dy) / 768).toFixed(5)) };
     for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
       const targetX = x + dx; const targetY = y + dy;
@@ -154,6 +163,25 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
   }
   await sharp(aligned, { raw: { width: 768, height: 768, channels: info.channels } })
     .png({ palette: true, quality: 46, colours: 48, compressionLevel: 9 }).toFile(destination);
+  // Re-measure the encoded frame. Palette quantization can alter the outer
+  // alpha boundary by a pixel or two; store the anchor that exactly maps the
+  // final bounding box to the canonical canvas point so the audit and runtime
+  // use the same geometry.
+  const encoded = await sharp(destination).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  let outMinX = encoded.info.width; let outMinY = encoded.info.height;
+  let outMaxX = -1; let outMaxY = -1;
+  for (let y = 0; y < encoded.info.height; y += 1) for (let x = 0; x < encoded.info.width; x += 1) {
+    if (encoded.data[(y * encoded.info.width + x) * encoded.info.channels + 3] > 10) {
+      outMinX = Math.min(outMinX, x); outMinY = Math.min(outMinY, y);
+      outMaxX = Math.max(outMaxX, x); outMaxY = Math.max(outMaxY, y);
+    }
+  }
+  if (outMaxX >= 0) {
+    const spanX = outMaxX - outMinX; const spanY = outMaxY - outMinY;
+    const anchorX = spanX >= 768 ? actualAnchor.x : outMinX / Math.max(1, 768 - spanX);
+    const anchorY = spanY >= 768 ? actualAnchor.y : outMinY / Math.max(1, 768 - spanY);
+    return { ...actualAnchor, x: Number(anchorX.toFixed(5)), y: Number(anchorY.toFixed(5)) };
+  }
   return actualAnchor;
 }
 
