@@ -51,7 +51,7 @@ h1, h2, .brand, .eyebrow, .primary-button, .secondary-button, .battle-stats { fo
 .brand > span:last-child { display: flex; flex-direction: column; line-height: 1; }
 .brand b { font-size: 16px; }
 .brand small { color: var(--cyan); font-size: 10px; letter-spacing: .28em; margin-top: 5px; }
-.site-header nav { display: flex; align-self: stretch; gap: 36px; }
+.site-header nav { display: flex; align-self: stretch; gap: clamp(18px, 2.2vw, 32px); }
 .site-header nav a { display: grid; place-items: center; position: relative; color: var(--muted); font-size: 13px; font-weight: 600; }
 .site-header nav a.active, .site-header nav a:hover { color: var(--text); }
 .site-header nav a.active::after { content: ""; position: absolute; height: 2px; left: 0; right: 0; bottom: 0; background: var(--cyan); box-shadow: 0 0 14px var(--cyan); }
@@ -1040,6 +1040,54 @@ body:has(.test-page) {
   .fullscreen-button {
     display: none;
   }
+}
+
+/* Animation Lab */
+.animation-lab-page { width: min(1480px, calc(100% - 56px)); }
+.animation-lab-count { color: var(--cyan); font: 700 38px "Chakra Petch", sans-serif; }
+.animation-lab-count small { color: var(--muted); font: 600 11px Inter, sans-serif; }
+.animation-lab-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+.animation-lab-tabs button, .animation-speed button { border: 1px solid var(--line); background: rgba(9,17,31,.78); color: var(--muted); cursor: pointer; }
+.animation-lab-tabs button { min-width: 150px; padding: 13px 20px; font: 700 12px "Chakra Petch", sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+.animation-lab-tabs button.active, .animation-speed button.active { border-color: var(--cyan); color: var(--cyan-soft); background: rgba(34,211,238,.1); }
+.animation-lab-layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); gap: 18px; border: 1px solid var(--line); background: rgba(7,16,29,.72); }
+.animation-lab-sidebar { padding: 18px; border-right: 1px solid var(--line); }
+.animation-lab-select { display: grid; gap: 8px; color: var(--muted); font: 700 10px "Chakra Petch", sans-serif; letter-spacing: .14em; }
+.animation-lab-select select { width: 100%; min-height: 42px; border: 1px solid var(--line-bright); background: var(--panel-strong); color: var(--text); padding: 0 10px; }
+.animation-state-list { display: grid; gap: 5px; margin-top: 28px; }
+.animation-state-list .eyebrow { margin-bottom: 5px; }
+.animation-state-list button { display: flex; justify-content: space-between; align-items: center; min-height: 38px; border: 1px solid transparent; background: transparent; color: var(--muted); padding: 0 10px; text-align: left; cursor: pointer; }
+.animation-state-list button:hover, .animation-state-list button.active { border-color: var(--cyan); color: var(--text); background: rgba(34,211,238,.09); }
+.animation-state-list button small { color: #547389; font-size: 9px; }
+.animation-lab-main { min-width: 0; padding: 18px; }
+.animation-preview { position: relative; display: grid; place-items: center; min-height: 480px; border: 1px solid var(--line); background: radial-gradient(circle at 50% 60%, rgba(34,211,238,.1), transparent 55%), #07111d; overflow: hidden; }
+.animation-preview-canvas { display: block; width: min(100%, 620px); height: auto; image-rendering: auto; }
+.animation-lab-error { position: absolute; inset: auto 18px 18px; margin: 0; padding: 10px; border: 1px solid var(--danger); background: rgba(80,7,28,.82); color: #fecdd3; font: 700 11px "Chakra Petch", sans-serif; }
+.animation-lab-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.animation-lab-controls .primary-button, .animation-lab-controls .secondary-button { min-height: 38px; padding-inline: 17px; }
+.animation-speed { display: flex; gap: 4px; margin-left: 8px; }
+.animation-speed button { min-width: 42px; min-height: 32px; padding: 0 8px; font-size: 11px; }
+.animation-check { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 11px; margin-left: auto; }
+.animation-lab-technical { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 14px 0; color: var(--muted); font-size: 11px; }
+.animation-lab-technical strong { flex-basis: 100%; color: var(--text); font: 700 18px "Chakra Petch", sans-serif; text-transform: uppercase; }
+.animation-lab-technical b { color: var(--cyan-soft); font-weight: 700; }
+.animation-filmstrip { display: flex; gap: 8px; overflow-x: auto; padding-top: 12px; border-top: 1px solid var(--line); scrollbar-width: thin; }
+.animation-filmstrip button { flex: 0 0 84px; display: grid; gap: 4px; padding: 5px; border: 1px solid var(--line); background: #07111d; color: var(--muted); cursor: pointer; }
+.animation-filmstrip button.active { border-color: var(--amber); box-shadow: 0 0 14px rgba(251,191,36,.18); color: var(--amber); }
+.animation-filmstrip span { display: grid; place-items: center; height: 74px; background: #0b1828; }
+.animation-filmstrip img, .animation-filmstrip canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
+.animation-filmstrip i { color: var(--danger); font-style: normal; font-size: 24px; }
+.animation-filmstrip small { font: 700 10px "Chakra Petch", sans-serif; }
+@media (max-width: 900px) {
+  body:has(.animation-lab-page) { min-width: 0; }
+  body:has(.animation-lab-page) .site-header { height: auto; min-height: 72px; flex-wrap: wrap; gap: 10px; padding-block: 10px; }
+  body:has(.animation-lab-page) .site-header nav { order: 3; width: 100%; height: 42px; justify-content: space-between; gap: 8px; }
+  body:has(.animation-lab-page) .system-status { display: none; }
+  .animation-lab-page { width: min(100% - 28px, 720px); padding-top: 30px; }
+  .animation-lab-layout { grid-template-columns: 1fr; }
+  .animation-lab-sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+  .animation-state-list { grid-template-columns: repeat(3, 1fr); }
+  .animation-state-list .eyebrow { grid-column: 1 / -1; }
 }
 
 

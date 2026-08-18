@@ -9,6 +9,7 @@ const CampaignPage = lazy(() => import("./campaign/CampaignPage.jsx"));
 const LoadoutPicker = lazy(loadLoadoutModule);
 const CommandPage = lazy(() => import("./home/CommandPage.jsx"));
 const MaintenancePanel = lazy(() => import("./settings/MaintenancePanel.jsx"));
+const AnimationLabPage = lazy(() => import("./animationLab/AnimationLabPage.jsx"));
 import { getEnemyPreviewUrl } from "./game/assets/enemyPreviewCatalog.js";
 import { getTroopPreviewUrl } from "./game/assets/troopPreviewCatalog.js";
 import { ENEMIES, getEnemyCatalogEntries, getChapterForPhase, getPhase, getPhaseIndex, getUnlockedTroops, PHASES, TROOPS } from "./game/content.js";
@@ -75,6 +76,7 @@ export function AppLayout({ children }) {
         <NavLink to="/enciclopedia">Enciclopédia</NavLink>
         <NavLink to="/testes">Testes</NavLink>
         <NavLink to="/configuracoes">Configurações</NavLink>
+        <NavLink to="/animacoes">Animações</NavLink>
       </nav>
       <span className="system-status"><i /> SISTEMA LOCAL</span>
     </header>
@@ -378,5 +380,5 @@ export default function App() {
     resetLoadoutPreferences();
     return true;
   };
-  return <BrowserRouter><RouteTransitionProvider><AppLayout><Suspense fallback={<RouteFallback />}><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense></AppLayout></RouteTransitionProvider></BrowserRouter>;
+  return <BrowserRouter><RouteTransitionProvider><AppLayout><Suspense fallback={<RouteFallback />}><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="/animacoes" element={<AnimationLabPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense></AppLayout></RouteTransitionProvider></BrowserRouter>;
 }

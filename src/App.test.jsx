@@ -114,6 +114,13 @@ describe("Enciclopédia", () => {
     expect(screen.getByRole("heading", { name: "Enciclopédia" })).toBeInTheDocument();
   });
 
+  it("oferece a aba Animações ao lado de Configurações", () => {
+    render(<MemoryRouter initialEntries={["/animacoes"]}><AppLayout><div /></AppLayout></MemoryRouter>);
+    expect(screen.getByRole("link", { name: "Configurações" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Animações" })).toHaveClass("active");
+    expect(screen.getByRole("link", { name: "Animações" })).toHaveAttribute("href", "/animacoes");
+  });
+
   it("separa tropas e inimigos e protege registros futuros", () => {
     render(<MemoryRouter><EncyclopediaPage campaign={{ unlockedPhaseIndex: 0, phaseStats: {} }} /></MemoryRouter>);
 

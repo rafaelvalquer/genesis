@@ -12,7 +12,8 @@ const required = {
   seismicTelegraph: 8, seismicAttack: 8, phaseTransition2: 10, phaseTransition3: 10,
   finalCollapse: 12, coreExposed: 8, death: 14,
 };
-const impact = { riftAttack: { impactFrame: 3, impactMs: 377 }, slamAttack: { impactFrame: 4, impactMs: 527 }, fractureAttack: { impactFrame: 4, impactMs: 798 }, seismicAttack: { impactFrame: 3, impactMs: 630 } };
+const impact = { riftAttack: { impactFrame: 3, impactMs: 520 }, slamAttack: { impactFrame: 4, impactMs: 720 }, fractureAttack: { impactFrame: 4, impactMs: 798 }, seismicAttack: { impactFrame: 3, impactMs: 630 } };
+const frameMs = { idle: 190, riftTelegraph: 185, riftAttack: 220, slamTelegraph: 185, slamAttack: 220, coreExposed: 110 };
 const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
 const contentRoot = manifest.anchor || { x: .68, y: .72 };
 const isCalibratedV5 = manifest.frameAnchorStrategy === "calibrated-v5" && !process.argv.includes("--recalibrate");
@@ -51,7 +52,10 @@ function removeCornerResidue(data, info) {
       || component.maxY < main.minY - 40 || component.minY > main.maxY + 40;
     // Keep sparks and rubble near the silhouette, but discard detached sheet
     // leftovers even when they are long thin strips rather than tiny specks.
-    if (!nearMain && separatedFromMain && (touchesOuterEdge || component.pixels.length < main.pixels.length * .20)) {
+    // Spawn sheets were assembled from several exports and may contain full
+    // strips/limbs from an adjacent frame. Keep only the connected Colosso
+    // silhouette; detached components are never valid animation content.
+    if (component !== main) {
       for (const index of component.pixels) data[index * info.channels + 3] = 0;
     }
   }
@@ -111,11 +115,19 @@ async function calibrationForState(state, frames) {
   }, []);
 }
 
-async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCorners = false) {
+async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCorners = false, state = "") {
   const sourceRaw = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { data: sourceData, info: sourceInfo } = sourceRaw;
   removeGreen(sourceData, sourceInfo);
   if (cleanCorners) removeCornerResidue(sourceData, sourceInfo);
+  // The original spawn sheet had three foreign cels laid across the upper
+  // edge of frames 4–6. They are outside the Colosso silhouette and must not
+  // survive the cut, even when antialiasing accidentally joins them.
+  if (state === "spawnAwakening" && frameAnchor && [4, 5, 6].includes(Number(path.basename(source, ".png").replace("frame", "")))) {
+    for (let y = 0; y < 56; y += 1) for (let x = 0; x < sourceInfo.width; x += 1) {
+      sourceData[(y * sourceInfo.width + x) * sourceInfo.channels + 3] = 0;
+    }
+  }
   const { data, info } = await sharp(sourceData, { raw: sourceInfo }).resize(720, 720, { fit: "contain", background: transparent })
     .extend({ top: 24, bottom: 24, left: 24, right: 24, background: transparent })
     .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -156,13 +168,14 @@ for (const [state, frames] of Object.entries(required)) {
     const sourceFrame = state === "death" && frame === 13 ? 12 : frame;
     const source = path.join(authoredFolder, `frame${sourceFrame}.png`);
     try { await fs.access(source); } catch { throw new Error(`Missing authored pose: ${source}`); }
-    frameAnchors[state][frame] = await normalizeAuthoredFrame(source, path.join(runtimeFolder, `frame${frame}.png`), calibration[frame], state === "death");
+    const smoothStates = new Set(["idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack"]);
+    frameAnchors[state][frame] = await normalizeAuthoredFrame(source, path.join(runtimeFolder, `frame${frame}.png`), calibration[frame], state === "death" || state === "spawnAwakening" || smoothStates.has(state), state);
   }
 }
 
 manifest.animations = Object.fromEntries(Object.entries(required).map(([state, frames]) => [state, {
   frames,
-  frameMs: manifest.animationFrameMs?.[state] || (state === "death" ? 330 : 120),
+  frameMs: manifest.animationFrameMs?.[state] || frameMs[state] || (state === "death" ? 330 : 120),
   loop: state === "idle" || state === "coreExposed",
   ...(impact[state] || {}),
 }]));
