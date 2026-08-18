@@ -97,7 +97,7 @@ function spawnRift(session, enemy, config, hooks, events) {
   if (enemy.colossoRifts.length >= config.rift.maxActive[enemy.colossoPhase]) return;
   const target = enemy.colossoRiftTarget || chooseRiftTarget(session, enemy);
   const hazard = hooks.createMagmaHazard(target.row, target.col, enemy.id, config.rift.durationMs);
-  enemy.colossoRifts.push({ id: hazard.id, row: target.row, col: target.col, endsAt: hazard.endsAt, spawned: false });
+    enemy.colossoRifts.push({ id: hazard.id, row: target.row, col: target.col, startedAt: session.elapsed, endsAt: hazard.endsAt, spawned: false });
   events.push({ type: "colossoRiftOpened", bossId: enemy.id, row: target.row, col: target.col, x: target.col * CELL.width + CELL.width / 2, y: target.row * CELL.height + CELL.height / 2 });
 }
 
@@ -230,14 +230,15 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
 
 export function getColossoDamageFactor(enemy, row) { return [...(enemy.hitZones || [])].sort((a, b) => b.priority - a.priority).find((zone) => zone.rows.includes(row))?.damageFactor ?? 1; }
 
-export function getColossoAnimation(enemy, elapsed, frameCounts = {}) {
+export function getColossoAnimation(enemy, elapsed, frameCounts = {}, reduceMotion = false) {
   const state = enemy?.dead ? "death" : enemy?.colossoState || "idle";
   const count = Math.max(1, Number(frameCounts[state] || 1));
   const elapsedState = Math.max(0, elapsed - Number(enemy?.colossoStateStartedAt || 0));
   const loop = state === "idle" || state === "coreExposed";
   const duration = Math.max(1, Number(enemy?.colossoStateEndsAt || 0) - Number(enemy?.colossoStateStartedAt || 0));
   const frameMs = Number(enemy?._colossoConfig?.animationFrameMs?.[state] || 120);
-  const frame = loop ? Math.floor(elapsedState / frameMs) % count : Math.min(count - 1, Math.floor(elapsedState / duration * count));
+  // Reduced motion preserves the state silhouette without stopping gameplay.
+  const frame = reduceMotion ? (loop ? 0 : Math.min(count - 1, Math.floor(elapsedState / duration * count))) : (loop ? Math.floor(elapsedState / frameMs) % count : Math.min(count - 1, Math.floor(elapsedState / duration * count)));
   return { state, frame, loop };
 }
 

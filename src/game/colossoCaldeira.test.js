@@ -90,6 +90,7 @@ describe("Colosso da Caldeira", () => {
     const counts = { idle: 8, death: 14, slamAttack: 8 };
     const first = getColossoAnimation(boss, session.elapsed, counts); const later = getColossoAnimation(boss, session.elapsed + 360, counts);
     expect(later.frame).not.toBe(first.frame);
+    expect(getColossoAnimation(boss, session.elapsed + 360, counts, true).frame).toBe(0);
     boss.colossoState = "slamAttack"; boss.colossoStateStartedAt = 1000; boss.colossoStateEndsAt = 1850;
     expect(getColossoAnimation(boss, 1600, counts)).toMatchObject({ state: "slamAttack", frame: 5 });
     boss.colossoState = "death"; boss.colossoStateStartedAt = 1000; boss.colossoStateEndsAt = 5600;

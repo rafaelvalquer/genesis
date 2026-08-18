@@ -1396,7 +1396,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
   const logicalEntity = entry.entity;
   if (logicalEntity.type === "colossoCaldeira") {
     const enemyAssets = assets.enemies.colossoCaldeira || {};
-    const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets));
+    const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets), settings.reduceMotion);
     const image = enemyAssets?.[animation.state]?.[animation.frame] || enemyAssets?.idle?.[0] || null;
     drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation }, image, assets.effects);
     drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
