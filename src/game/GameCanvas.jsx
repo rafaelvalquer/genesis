@@ -1399,6 +1399,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     const enemyAssets = assets.enemies.colossoCaldeira || {};
     const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets), settings.reduceMotion);
     const image = enemyAssets?.[animation.state]?.[animation.frame] || null;
+    const transitionImage = animation.previousState ? enemyAssets?.[animation.previousState]?.[animation.previousFrame] || null : null;
     if (!image) {
       const missingKey = `${animation.state}:${animation.frame}`;
       if (!missingColossoAssetWarnings.has(missingKey)) {
@@ -1406,7 +1407,7 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
         console.error(`[Colosso] Asset ausente para ${missingKey}; fallback para idle desativado.`);
       }
     }
-    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation }, image, assets.effects);
+    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation, transitionImage }, image, assets.effects);
     drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
     return;
   }

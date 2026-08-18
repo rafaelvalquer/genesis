@@ -39,7 +39,7 @@ describe("Colosso da Caldeira", () => {
   });
 
   it("declara frames de impacto dentro da animação de cada ataque", () => {
-    expect(ENEMIES.colossoCaldeira.attackImpactFrame).toEqual({ rift: 3, slam: 4, fracture: 3, seismic: 3 });
+    expect(ENEMIES.colossoCaldeira.attackImpactFrame).toEqual({ rift: 3, slam: 4, fracture: 4, seismic: 3 });
     for (const attack of ["rift", "slam", "fracture", "seismic"]) {
       expect(ENEMIES.colossoCaldeira.attackImpactMs[attack]).toBeLessThan(ENEMIES.colossoCaldeira.attackExecutionMs[attack]);
     }
@@ -70,7 +70,7 @@ describe("Colosso da Caldeira", () => {
     expect(boss.colossoState).toBe("riftTelegraph");
     stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.rift[1] + 1);
     expect(boss.colossoState).toBe("riftAttack");
-    const impact = stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.rift * .58 + 2);
+    const impact = stepBattle(session, ENEMIES.colossoCaldeira.attackImpactMs.rift + 2);
     expect(impact).toContainEqual(expect.objectContaining({ type: "colossoRiftOpened", row: target.row, col: target.col }));
     const rift = boss.colossoRifts[0];
     expect(session.temporaryMagmaHazards.some((hazard) => hazard.row === target.row && hazard.col === target.col)).toBe(true);
@@ -87,7 +87,7 @@ describe("Colosso da Caldeira", () => {
     const troop = placed.troop;
     stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.slam[1] + 1);
     expect(boss.colossoState).toBe("slamAttack"); expect(troop.hp).toBe(troop.maxHp);
-    const impact = stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.slam * .62 + 2);
+    const impact = stepBattle(session, ENEMIES.colossoCaldeira.attackImpactMs.slam + 2);
     expect(impact.filter((event) => event.type === "colossoAttackImpact" && event.attack === "slam")).toHaveLength(1);
     expect(troop.hp).toBeLessThan(troop.maxHp);
   });
@@ -123,9 +123,19 @@ describe("Colosso da Caldeira", () => {
     expect(later.frame).not.toBe(first.frame);
     expect(getColossoAnimation(boss, session.elapsed + 360, counts, true).frame).toBe(0);
     boss.colossoState = "slamAttack"; boss.colossoStateStartedAt = 1000; boss.colossoStateEndsAt = 1850;
-    expect(getColossoAnimation(boss, 1600, counts)).toMatchObject({ state: "slamAttack", frame: 5 });
+    expect(getColossoAnimation(boss, 1600, counts)).toMatchObject({ state: "slamAttack", frame: 4 });
     boss.colossoState = "death"; boss.colossoStateStartedAt = 1000; boss.colossoStateEndsAt = 5600;
     expect(getColossoAnimation(boss, 9999, counts).frame).toBe(13);
+  });
+
+  it("usa marcos não lineares e faz a transição visual de ataque para idle", () => {
+    const { boss } = encounter();
+    const counts = { idle: 8, fractureAttack: 8, slamAttack: 8 };
+    boss.colossoState = "fractureAttack"; boss.colossoStateStartedAt = 1000; boss.colossoStateEndsAt = 2900;
+    expect(getColossoAnimation(boss, 1798, counts).frame).toBe(4);
+    boss.colossoPreviousState = "slamAttack"; boss.colossoState = "idle"; boss.colossoStateStartedAt = 3000; boss.colossoStateEndsAt = Infinity;
+    expect(getColossoAnimation(boss, 3040, counts)).toMatchObject({ previousState: "slamAttack", previousFrame: 7 });
+    expect(getColossoAnimation(boss, 3120, counts).previousState).toBeNull();
   });
 
   it("cancela fissuras, magma e summons pendentes ao morrer", () => {

@@ -42,9 +42,14 @@ function drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, elapsed = 0) {
   ctx.restore();
 }
 
-function drawColossoBackBody(ctx, layout, image, animation) {
+function drawColossoBackBody(ctx, layout, image, animation, previous = null) {
   ctx.save();
   ctx.shadowBlur = 18; ctx.shadowColor = "#f97316";
+  if (previous?.image) {
+    ctx.globalAlpha = Math.max(0, 1 - previous.progress);
+    ctx.drawImage(previous.image, previous.layout.left, previous.layout.top, previous.layout.width, previous.layout.height);
+    ctx.globalAlpha = Math.min(1, previous.progress);
+  }
   if (image) ctx.drawImage(image, layout.left, layout.top, layout.width, layout.height);
   else {
     ctx.fillStyle = "rgba(220,38,38,.22)"; ctx.strokeStyle = "#f87171"; ctx.lineWidth = 3;
@@ -71,9 +76,14 @@ function drawTelegraphs(ctx, enemy, settings, pulse) {
 
 export function drawColossoCaldeira(ctx, enemy, settings = {}, image = null, effects = {}) {
   const layout = getColossoSpriteLayout(enemy, settings.animation, colossoManifest);
+  const previous = settings.transitionImage ? {
+    image: settings.transitionImage,
+    layout: getColossoSpriteLayout(enemy, { state: settings.animation?.previousState, frame: settings.animation?.previousFrame }, colossoManifest),
+    progress: settings.animation?.transitionProgress ?? 1,
+  } : null;
   const elapsed = Number(settings.elapsed || 0); const pulse = settings.reduceMotion ? .5 : .5 + .5 * Math.sin(elapsed / 180);
   drawColossoUnderlay(ctx, enemy, layout.rootX, layout.rootY, pulse, effects, settings.elapsed);
-  drawColossoBackBody(ctx, layout, image, settings.animation);
+  drawColossoBackBody(ctx, layout, image, settings.animation, previous);
   drawTelegraphs(ctx, enemy, settings, pulse);
   if (anchorDebugEnabled) {
     ctx.save();

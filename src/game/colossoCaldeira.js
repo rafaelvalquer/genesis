@@ -21,6 +21,7 @@ export function syncColossoHitZones(enemy, config) {
 }
 
 function setState(session, enemy, state, durationMs = Infinity) {
+  enemy.colossoPreviousState = enemy.colossoState || null;
   enemy.colossoState = state;
   enemy.colossoStateStartedAt = session.elapsed;
   enemy.colossoStateEndsAt = Number.isFinite(durationMs) ? session.elapsed + durationMs : Infinity;
@@ -237,9 +238,19 @@ export function getColossoAnimation(enemy, elapsed, frameCounts = {}, reduceMoti
   const loop = state === "idle" || state === "coreExposed";
   const duration = Math.max(1, Number(enemy?.colossoStateEndsAt || 0) - Number(enemy?.colossoStateStartedAt || 0));
   const frameMs = Number(enemy?._colossoConfig?.animationFrameMs?.[state] || 120);
+  const progress = Math.min(1, elapsedState / duration);
+  const landmarks = enemy?._colossoConfig?.animationFrameProgress?.[state];
+  const timedFrame = Array.isArray(landmarks) && landmarks.length === count
+    ? landmarks.reduce((frame, at, index) => progress >= at ? index : frame, 0)
+    : Math.min(count - 1, Math.floor(progress * count));
   // Reduced motion preserves the state silhouette without stopping gameplay.
-  const frame = reduceMotion ? (loop ? 0 : Math.min(count - 1, Math.floor(elapsedState / duration * count))) : (loop ? Math.floor(elapsedState / frameMs) % count : Math.min(count - 1, Math.floor(elapsedState / duration * count)));
-  return { state, frame, loop };
+  const frame = reduceMotion ? (loop ? 0 : timedFrame) : (loop ? Math.floor(elapsedState / frameMs) % count : timedFrame);
+  const transitionMs = loop ? 110 : 85;
+  const previousState = enemy?.colossoPreviousState;
+  const previousCount = Math.max(0, Number(frameCounts[previousState] || 0));
+  const transitionProgress = !reduceMotion && previousState && previousState !== state && previousCount && elapsedState < transitionMs
+    ? elapsedState / transitionMs : 1;
+  return { state, frame, loop, previousState: transitionProgress < 1 ? previousState : null, previousFrame: Math.max(0, previousCount - 1), transitionProgress };
 }
 
 export function forceColossoAttack(session, enemy, attack, config, events = []) {

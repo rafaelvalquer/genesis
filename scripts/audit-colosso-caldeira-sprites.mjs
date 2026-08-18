@@ -11,6 +11,13 @@ const rendererSource = await fs.readFile(path.resolve("src/game/GameCanvas.jsx")
 const errors = [];
 const hashes = new Map();
 const subtleStates = new Set(["idle", "coreExposed"]);
+const transitionPairs = [
+  ["idle", 7, "riftTelegraph", 0], ["riftTelegraph", 5, "riftAttack", 0], ["riftAttack", 5, "idle", 0],
+  ["idle", 7, "slamTelegraph", 0], ["slamTelegraph", 5, "slamAttack", 0], ["slamAttack", 7, "idle", 0],
+  ["idle", 7, "fractureTelegraph", 0], ["fractureTelegraph", 7, "fractureAttack", 0], ["fractureAttack", 7, "idle", 0],
+  ["idle", 7, "seismicTelegraph", 0], ["seismicTelegraph", 7, "seismicAttack", 0], ["seismicAttack", 7, "idle", 0],
+  ["phaseTransition2", 9, "idle", 0], ["phaseTransition3", 9, "idle", 0], ["finalCollapse", 11, "coreExposed", 0],
+];
 
 async function visualDistance(first, second) {
   const [left, right] = await Promise.all([
@@ -74,6 +81,14 @@ for (const [state, count] of Object.entries(expected)) {
     const minMad = subtleStates.has(state) ? 0.24 : 0.36;
     const minChanged = subtleStates.has(state) ? 0.00025 : 0.0005;
     if (result.mad < minMad || result.changed < minChanged) errors.push(`${state}: frames ${index - 1}/${index} are visually too similar (MAD ${result.mad.toFixed(2)}, changed ${(result.changed * 100).toFixed(2)}%)`);
+    const maxMad = state === "death" || state === "finalCollapse" ? 88 : 76;
+    if (result.mad > maxMad) errors.push(`${state}: frames ${index - 1}/${index} change too abruptly (MAD ${result.mad.toFixed(2)} > ${maxMad})`);
+  }
+  const anchors = manifest.frameAnchors?.[state] || [];
+  for (let index = 1; index < anchors.length; index += 1) {
+    if (state === "death") continue;
+    const previous = anchors[index - 1]; const current = anchors[index];
+    if (Math.abs((current?.scale ?? 1) - (previous?.scale ?? 1)) > .0401) errors.push(`${state}: scale jump exceeds 4% at frames ${index - 1}/${index}`);
   }
 }
 if (!manifest.anchor || !Number.isFinite(manifest.anchor.x) || !Number.isFinite(manifest.anchor.y)) errors.push("invalid anchor");
@@ -85,8 +100,17 @@ for (const [attack, frame] of Object.entries(ENEMIES.colossoCaldeira?.attackImpa
   if (!expected[state] || frame < 0 || frame >= expected[state]) errors.push(`${attack}: invalid impactFrame ${frame}`);
   const impactMs = ENEMIES.colossoCaldeira.attackImpactMs?.[attack];
   if (!Number.isFinite(impactMs) || impactMs < 0 || impactMs > ENEMIES.colossoCaldeira.attackExecutionMs[attack]) errors.push(`${attack}: invalid impactMs ${impactMs}`);
+  if (manifest.animations?.[state]?.impactFrame !== frame || manifest.animations?.[state]?.impactMs !== impactMs) errors.push(`${attack}: manifest impact metadata mismatch`);
+  const timeline = ENEMIES.colossoCaldeira.animationFrameProgress?.[state];
+  if (!Array.isArray(timeline) || timeline.length !== expected[state] || timeline.some((at, index) => !Number.isFinite(at) || at < 0 || at > 1 || (index && at <= timeline[index - 1]))) errors.push(`${state}: invalid non-linear frame timeline`);
+  else if (Math.abs(timeline[frame] * ENEMIES.colossoCaldeira.attackExecutionMs[attack] - impactMs) > 1) errors.push(`${attack}: impact timeline does not land on impactMs`);
 }
 const deathHold = await visualDistance(path.join(root, "death", "frame12.png"), path.join(root, "death", "frame13.png"));
 if (deathHold.mad > 2 || deathHold.changed > .03) errors.push(`death final hold is not stable (MAD ${deathHold.mad.toFixed(2)})`);
+for (const [fromState, fromFrame, toState, toFrame] of transitionPairs) {
+  const result = await visualDistance(path.join(root, fromState, `frame${fromFrame}.png`), path.join(root, toState, `frame${toFrame}.png`));
+  const maxMad = fromState === "finalCollapse" ? 100 : 65;
+  if (result.mad > maxMad) errors.push(`${fromState}/${fromFrame} → ${toState}/${toFrame} is too abrupt (MAD ${result.mad.toFixed(2)} > ${maxMad})`);
+}
 const totalFrames = Object.values(expected).reduce((total, count) => total + count, 0);
 if (errors.length) { console.error(errors.join("\n")); process.exitCode = 1; } else console.log(`Colosso sprite audit passed: ${totalFrames} validated, visibly distinct alpha frames (death final hold allowed).`);
