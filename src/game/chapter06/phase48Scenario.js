@@ -18,11 +18,6 @@ export const PHASE_48_SCENARIO = Object.freeze({
       cuspidorBrasa: 7, vermeIncubador: 4, predadorCaldeira: 6,
       devoradorCaldeira: 4, rasgaCeusCinereo: 4, salamandraCinerea: 7,
     }),
-    riftSpawnLimits: Object.freeze({
-      phase1: Object.freeze({ active: 1, totalEnemies: 5 }),
-      phase2: Object.freeze({ active: 2, totalEnemies: 9 }),
-      phase3: Object.freeze({ active: 3, totalEnemies: 13 }),
-    }),
   }),
 });
 

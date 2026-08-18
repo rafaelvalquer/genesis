@@ -65,6 +65,7 @@ import {
   drawWetReflections, getSpriteFilter, getTroopSpriteFilter, presentScene,
 } from "./graphicsRenderer.js";
 import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
+import { getColossoAnimation } from "./colossoCaldeira.js";
 import { drawColossoBossHealth, drawColossoCaldeira } from "./colossoCaldeiraRenderer.js";
 import { isRasgamarSubmerged } from "./enemyTargeting.js";
 import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "./thermalBurningTroopRenderer.js";
@@ -1394,10 +1395,11 @@ function drawRasgaCeusTargetMarker(ctx, session, enemy) {
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   if (logicalEntity.type === "colossoCaldeira") {
-    const state = logicalEntity.dead ? "death" : logicalEntity.colossoState || "idle";
-    const image = assets.enemies.colossoCaldeira?.[state]?.[0] || assets.enemies.colossoCaldeira?.idle?.[0] || null;
-    drawColossoCaldeira(ctx, logicalEntity, settings, image);
-    drawColossoBossHealth(ctx, logicalEntity);
+    const enemyAssets = assets.enemies.colossoCaldeira || {};
+    const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets));
+    const image = enemyAssets?.[animation.state]?.[animation.frame] || enemyAssets?.idle?.[0] || null;
+    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation }, image, assets.effects);
+    drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
     return;
   }
   if (logicalEntity.type === "vermeIncubador" && logicalEntity.incubatorSubmerged) return;
@@ -2117,23 +2119,24 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "leviathanCooldownStarted")) play("leviathanCooldown", 0.35);
         if (events.some((event) => event.type === "colossoAwakened")) {
           setBanner("⚠ COLOSSO DA CALDEIRA");
-          play("alert", 0.88);
-          play("melee", 0.38);
+          play("colossoAwaken", 0.88);
         }
-        if (events.some((event) => event.type === "colossoTelegraph")) play("alert", 0.34);
-        if (events.some((event) => event.type === "colossoAttackImpact")) play("melee", 0.72);
+        const colossoTelegraph = events.find((event) => event.type === "colossoTelegraph");
+        if (colossoTelegraph) play({ rift: "colossoRiftCharge", slam: "colossoSlamCharge", fracture: "colossoFracture", seismic: "colossoSeismicCharge" }[colossoTelegraph.attack], 0.52);
+        const colossoImpact = events.find((event) => event.type === "colossoAttackImpact");
+        if (colossoImpact) play({ rift: "colossoRiftOpen", slam: "colossoSlamImpact", fracture: "colossoFracture", seismic: "colossoSeismicImpact", finalCollapse: "colossoFinalCollapse" }[colossoImpact.attack], 0.72);
         const colossoPhaseEvent = events.find((event) => event.type === "colossoPhaseChanged");
         if (colossoPhaseEvent) {
           setBanner(colossoPhaseEvent.phase === 2 ? "FASE II · RUPTURA" : "FASE III · COLAPSO");
-          play("alert", 0.76);
+          play(colossoPhaseEvent.phase === 2 ? "colossoPhase2" : "colossoPhase3", 0.76);
         }
         if (events.some((event) => event.type === "colossoFinalCollapse")) {
           setBanner("⚠ COLAPSO DA CALDEIRA");
-          play("alert", 0.9);
+          play("colossoFinalCollapse", 0.9);
         }
         if (events.some((event) => event.type === "colossoDeathStarted")) {
           setBanner("NÚCLEO INSTÁVEL · COLOSSO EM COLAPSO");
-          play("melee", 0.84);
+          play("colossoDeath", 0.84);
         }
         if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
         if (events.some((event) => event.type === "melee")) play("melee", 0.2);

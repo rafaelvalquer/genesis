@@ -8,6 +8,7 @@ import {
 } from "../src/game/chapterSixWaves.js";
 import { CHAPTER_SIX_PHASES } from "../src/game/chapterSixPhases.js";
 import { PHASE_48_SCENARIO } from "../src/game/chapter06/phase48Scenario.js";
+import { ENEMIES } from "../src/game/content.js";
 
 let errors = 0;
 for (let phase = 0; phase < 8; phase += 1) {
@@ -44,7 +45,8 @@ const phase48BossIssues = [
   phase48?.waves?.slice(0, PHASE_48_SCENARIO.finalWaveIndex).some((wave) => wave.bossEncounter) && "boss fora da Wave 6",
   phase48?.waves?.[PHASE_48_SCENARIO.finalWaveIndex]?.bossEncounter?.type !== "colossoCaldeira" && "Colosso ausente na Wave 6",
   phase48?.waves?.[PHASE_48_SCENARIO.finalWaveIndex]?.maximumLivingEnemies > PHASE_48_SCENARIO.maximumLivingEnemies && "limite de inimigos do boss inválido",
-  !Number.isFinite(PHASE_48_SCENARIO.bossEncounter?.riftSpawnLimits?.phase3?.active) && "limite de fissuras da fase 3 ausente",
+  ENEMIES.colossoCaldeira?.rift?.maxActive?.[3] !== 3 && "limite de fissuras da fase 3 ausente",
+  ENEMIES.colossoCaldeira?.rift?.maxSpawnedEnemies?.[3] !== 13 && "limite de invocações da fase 3 ausente",
 ].filter(Boolean);
 console.log(`F48 boss=${phase48?.waves?.[5]?.bossEncounter?.type || "ausente"} maxLiving=${phase48?.waves?.[5]?.maximumLivingEnemies ?? "n/a"}${phase48BossIssues.length ? ` ERROR: ${phase48BossIssues.join("; ")}` : ""}`);
 errors += phase48BossIssues.length;

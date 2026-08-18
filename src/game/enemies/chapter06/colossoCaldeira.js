@@ -8,7 +8,7 @@ export const colossoCaldeiraBehavior = enemyBehavior({
     colossoTargetable: false, targetableRows: [], hitZones: [], colossoPreviousAttack: null,
     colossoQueuedAttack: null, colossoNextDecisionAt: session.elapsed + config.spawnDurationMs + 1100,
     colossoAttackReadyAt: session.elapsed + config.spawnDurationMs + 1100,
-    colossoAttackApplied: false, colossoRecentRows: [], colossoRifts: [], colossoCollapseRows: [], colossoCollapseIndex: 0,
+    colossoAttackApplied: false, colossoRecentRows: [], colossoRecentCells: [], colossoRecentAttackSequence: [], colossoRifts: [], colossoRiftSpawnCounts: { 1: 0, 2: 0, 3: 0 }, colossoTargetCells: [], colossoRiftTarget: null, colossoImpactQueue: [], colossoCollapseRows: [], colossoCollapseIndex: 0,
     colossoFinalCollapseUsed: false, colossoDying: false,
   }),
   onSpawn: (session, enemy, config) => {

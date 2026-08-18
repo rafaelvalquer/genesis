@@ -3,5 +3,85 @@
   "frameWidth": 768,
   "frameHeight": 768,
   "direction": "left",
-  "anchor": { "x": 0.68, "y": 0.72 }
+  "anchor": {
+    "x": 0.68,
+    "y": 0.72
+  },
+  "animations": {
+    "spawnAwakening": {
+      "frames": 12,
+      "frameMs": 120,
+      "loop": false
+    },
+    "idle": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": true
+    },
+    "riftTelegraph": {
+      "frames": 6,
+      "frameMs": 120,
+      "loop": false
+    },
+    "riftCast": {
+      "frames": 6,
+      "frameMs": 120,
+      "loop": false
+    },
+    "slamTelegraph": {
+      "frames": 6,
+      "frameMs": 120,
+      "loop": false
+    },
+    "slamAttack": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": false
+    },
+    "fractureTelegraph": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": false
+    },
+    "fractureAttack": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": false
+    },
+    "seismicTelegraph": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": false
+    },
+    "seismicAttack": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": false
+    },
+    "phaseTransition2": {
+      "frames": 10,
+      "frameMs": 120,
+      "loop": false
+    },
+    "phaseTransition3": {
+      "frames": 10,
+      "frameMs": 120,
+      "loop": false
+    },
+    "finalCollapse": {
+      "frames": 12,
+      "frameMs": 120,
+      "loop": false
+    },
+    "coreExposed": {
+      "frames": 8,
+      "frameMs": 120,
+      "loop": true
+    },
+    "death": {
+      "frames": 14,
+      "frameMs": 330,
+      "loop": false
+    }
+  }
 }
