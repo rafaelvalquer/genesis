@@ -4,7 +4,7 @@ import sharp from "sharp";
 
 const sourceRoot = path.resolve("src/game/assets-source/enemy/colossoCaldeira");
 const sheets = {
-  spawnAwakening: [12, 4, 3], idle: [8, 4, 2], riftTelegraph: [6, 3, 2], riftCast: [6, 3, 2],
+  spawnAwakening: [12, 4, 3], idle: [8, 4, 2], riftTelegraph: [6, 3, 2], riftAttack: [6, 3, 2],
   slamTelegraph: [6, 3, 2], slamAttack: [8, 4, 2], fractureTelegraph: [8, 4, 2], fractureAttack: [8, 4, 2],
   seismicTelegraph: [8, 4, 2], seismicAttack: [8, 4, 2], phaseTransition2: [10, 5, 2], phaseTransition3: [10, 5, 2],
   finalCollapse: [12, 4, 3], coreExposed: [8, 4, 2], death: [14, 4, 4],

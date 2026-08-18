@@ -4,6 +4,7 @@ import { ENEMIES } from "./content.js";
 import { createBattleSession, debugColosso, forceColossoAttack, placeTroop, startWave, stepBattle } from "./battleModel.js";
 import { enemyOccupiesTargetRow } from "./battle/queries.js";
 import { getColossoAnimation, getColossoDamageFactor } from "./colossoCaldeira.js";
+import { getColossoSpriteLayout } from "./colossoCaldeiraRenderer.js";
 
 const phase48 = () => CHAPTER_SIX_PHASES.find((phase) => phase.id === "fase_48");
 
@@ -21,10 +22,40 @@ function encounter() {
 function execute(session, attack) {
   const forced = forceColossoAttack(session, attack); expect(forced.ok).toBe(true);
   stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs[attack][session.enemies.find((entry) => entry.type === "colossoCaldeira").colossoPhase] + 1);
-  return stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs[attack] * ENEMIES.colossoCaldeira.attackImpactProgress[attack] + 2);
+  return stepBattle(session, ENEMIES.colossoCaldeira.attackImpactMs[attack] + 2);
 }
 
 describe("Colosso da Caldeira", () => {
+  it("usa riftAttack como asset de execução e mantém a lane física fixa", () => {
+    expect(ENEMIES.colossoCaldeira.assetStates).toContain("riftAttack");
+    expect(ENEMIES.colossoCaldeira.assetStates).not.toContain("riftCast");
+    const { session, boss } = encounter();
+    const root = { x: boss.x, y: boss.y, row: boss.row };
+    expect(forceColossoAttack(session, "rift").ok).toBe(true);
+    stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.rift[1] + 1);
+    expect(boss.colossoState).toBe("riftAttack");
+    stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.rift + 1);
+    expect({ x: boss.x, y: boss.y, row: boss.row }).toEqual(root);
+  });
+
+  it("declara frames de impacto dentro da animação de cada ataque", () => {
+    expect(ENEMIES.colossoCaldeira.attackImpactFrame).toEqual({ rift: 3, slam: 4, fracture: 3, seismic: 3 });
+    for (const attack of ["rift", "slam", "fracture", "seismic"]) {
+      expect(ENEMIES.colossoCaldeira.attackImpactMs[attack]).toBeLessThan(ENEMIES.colossoCaldeira.attackExecutionMs[attack]);
+    }
+  });
+
+  it("fixa o ponto raiz mesmo quando um frame possui anchor específico", () => {
+    const layout = getColossoSpriteLayout(
+      { x: 320, y: 288 },
+      { state: "slamAttack", frame: 4 },
+      { anchor: { x: .68, y: .72 }, frameAnchors: { slamAttack: Array.from({ length: 8 }, () => ({ x: .5, y: .8, scale: 1.1 })) } },
+    );
+    expect(layout.rootX).toBe(320); expect(layout.rootY).toBe(288);
+    expect(layout.left + layout.width * layout.anchor.x).toBeCloseTo(layout.rootX);
+    expect(layout.top + layout.height * layout.anchor.y).toBeCloseTo(layout.rootY);
+  });
+
   it("desperta aos 15 segundos e fica alvo em todas as rotas", () => {
     const { session, boss } = encounter();
     expect(session.bossEncounter.spawned).toBe(true); expect(boss.colossoState).toBe("idle");

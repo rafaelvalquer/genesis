@@ -989,6 +989,7 @@ function drawEnergyPickups(ctx, pickups, elapsed, settings) {
 
 const enemyFrameCountsCache = new WeakMap();
 const troopFrameCountsCache = new WeakMap();
+const missingColossoAssetWarnings = new Set();
 
 function getTroopFrameCounts(troopAssets) {
   let counts = troopFrameCountsCache.get(troopAssets);
@@ -1397,7 +1398,14 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
   if (logicalEntity.type === "colossoCaldeira") {
     const enemyAssets = assets.enemies.colossoCaldeira || {};
     const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets), settings.reduceMotion);
-    const image = enemyAssets?.[animation.state]?.[animation.frame] || enemyAssets?.idle?.[0] || null;
+    const image = enemyAssets?.[animation.state]?.[animation.frame] || null;
+    if (!image) {
+      const missingKey = `${animation.state}:${animation.frame}`;
+      if (!missingColossoAssetWarnings.has(missingKey)) {
+        missingColossoAssetWarnings.add(missingKey);
+        console.error(`[Colosso] Asset ausente para ${missingKey}; fallback para idle desativado.`);
+      }
+    }
     drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation }, image, assets.effects);
     drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
     return;

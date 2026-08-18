@@ -218,8 +218,8 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
   }
   if (enemy.colossoState.endsWith("Attack")) {
     const attack = attackName(enemy.colossoState);
-    const progress = (session.elapsed - enemy.colossoStateStartedAt) / Math.max(1, config.attackExecutionMs[attack]);
-    if (!enemy.colossoImpactStarted && progress >= config.attackImpactProgress[attack]) beginAttackImpact(session, enemy, config, hooks, events);
+    const impactMs = config.attackImpactMs?.[attack] ?? config.attackExecutionMs[attack] * config.attackImpactProgress[attack];
+    if (!enemy.colossoImpactStarted && session.elapsed - enemy.colossoStateStartedAt >= impactMs) beginAttackImpact(session, enemy, config, hooks, events);
     updateImpactQueue(session, enemy, config, hooks, events);
     if (session.elapsed >= enemy.colossoStateEndsAt && enemy.colossoAttackApplied) { enemy.colossoQueuedAttack = null; setState(session, enemy, "idle"); enemy.colossoAttackReadyAt = session.elapsed + config.attackCooldownMs[enemy.colossoPhase]; }
     return;

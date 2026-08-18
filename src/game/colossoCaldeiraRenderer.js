@@ -1,8 +1,29 @@
 import { CELL } from "./visualGeometry.js";
+import colossoManifest from "./assets/enemy/colossoCaldeira/manifest.json";
 
 const laneY = (row) => row * CELL.height + CELL.height / 2;
 const cellX = (col) => col * CELL.width + CELL.width / 2;
 const attackState = (state = "") => /(?:Telegraph|Attack|finalCollapse)/.test(state);
+const anchorDebugEnabled = import.meta.env.DEV
+  && typeof window !== "undefined"
+  && new URLSearchParams(window.location.search).has("debugColossoAnchor");
+
+export function getColossoSpriteLayout(enemy, animation = {}, manifest = colossoManifest) {
+  const state = animation.state || "idle";
+  const frame = Math.max(0, Number(animation.frame) || 0);
+  const frameAnchor = manifest?.frameAnchors?.[state]?.[frame] || manifest?.anchor || { x: .68, y: .72 };
+  const scale = Number(frameAnchor.scale) > 0 ? Number(frameAnchor.scale) : 1;
+  const width = 424 * scale;
+  const height = 424 * scale;
+  const rootX = Number.isFinite(enemy?.x) ? enemy.x : 0;
+  const rootY = Number.isFinite(enemy?.y) ? enemy.y : laneY(2);
+  return {
+    rootX, rootY, width, height,
+    left: rootX - width * frameAnchor.x,
+    top: rootY - height * frameAnchor.y,
+    anchor: frameAnchor,
+  };
+}
 
 function drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, elapsed = 0) {
   ctx.save();
@@ -21,12 +42,17 @@ function drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, elapsed = 0) {
   ctx.restore();
 }
 
-function drawColossoBackBody(ctx, enemy, x, y, pulse, image) {
-  ctx.save(); ctx.translate(x, y);
+function drawColossoBackBody(ctx, layout, image, animation) {
+  ctx.save();
   ctx.shadowBlur = 18; ctx.shadowColor = "#f97316";
-  if (image) ctx.drawImage(image, -212, -212, 424, 424);
-  else { ctx.fillStyle = "#29110c"; ctx.beginPath(); ctx.ellipse(0, 0, 118, 155, 0, 0, Math.PI * 2); ctx.fill(); }
-  ctx.globalAlpha = .3 + pulse * .2; ctx.fillStyle = "#fb923c"; ctx.beginPath(); ctx.ellipse(-35, 15, 62, 84, 0, 0, Math.PI * 2); ctx.fill();
+  if (image) ctx.drawImage(image, layout.left, layout.top, layout.width, layout.height);
+  else {
+    ctx.fillStyle = "rgba(220,38,38,.22)"; ctx.strokeStyle = "#f87171"; ctx.lineWidth = 3;
+    ctx.strokeRect(layout.left, layout.top, layout.width, layout.height);
+    ctx.fillRect(layout.left, layout.top, layout.width, layout.height);
+    ctx.fillStyle = "#fecaca"; ctx.font = "700 14px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(`COLOSSO ASSET AUSENTE: ${animation?.state || "?"}/${animation?.frame ?? "?"}`, layout.rootX, layout.rootY - layout.height * .55);
+  }
   ctx.restore();
 }
 
@@ -44,11 +70,20 @@ function drawTelegraphs(ctx, enemy, settings, pulse) {
 }
 
 export function drawColossoCaldeira(ctx, enemy, settings = {}, image = null, effects = {}) {
-  const x = enemy.x - 72; const y = laneY(2);
+  const layout = getColossoSpriteLayout(enemy, settings.animation, colossoManifest);
   const elapsed = Number(settings.elapsed || 0); const pulse = settings.reduceMotion ? .5 : .5 + .5 * Math.sin(elapsed / 180);
-  drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, settings.elapsed);
-  drawColossoBackBody(ctx, enemy, x, y, pulse, image);
+  drawColossoUnderlay(ctx, enemy, layout.rootX, layout.rootY, pulse, effects, settings.elapsed);
+  drawColossoBackBody(ctx, layout, image, settings.animation);
   drawTelegraphs(ctx, enemy, settings, pulse);
+  if (anchorDebugEnabled) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(34,211,238,.85)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, layout.rootY); ctx.lineTo(ctx.canvas.width, layout.rootY); ctx.stroke();
+    ctx.fillStyle = "#fef08a"; ctx.beginPath(); ctx.arc(layout.rootX, layout.rootY, 6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#e0f2fe"; ctx.font = "700 14px system-ui"; ctx.textAlign = "left";
+    ctx.fillText(`${settings.animation?.state || "idle"} · frame ${settings.animation?.frame ?? 0}`, layout.rootX + 10, layout.rootY - 10);
+    ctx.restore();
+  }
 }
 
 export function drawColossoBossHealth(ctx, enemy, elapsed = 0) {
