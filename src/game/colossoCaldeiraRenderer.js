@@ -15,8 +15,10 @@ export function getColossoSpriteLayout(enemy, animation = {}, manifest = colosso
   const scale = Number(frameAnchor.scale) > 0 ? Number(frameAnchor.scale) : 1;
   const width = 424 * scale;
   const height = 424 * scale;
-  const rootX = Number.isFinite(enemy?.x) ? enemy.x : 0;
-  const rootY = Number.isFinite(enemy?.y) ? enemy.y : laneY(2);
+  const visualOffsetX = Number(manifest?.visualOffsetX) || 0;
+  const visualOffsetY = Number(manifest?.visualOffsetY) || 0;
+  const rootX = (Number.isFinite(enemy?.x) ? enemy.x : 0) + visualOffsetX;
+  const rootY = (Number.isFinite(enemy?.y) ? enemy.y : laneY(2)) + visualOffsetY;
   return {
     rootX, rootY, width, height,
     left: rootX - width * frameAnchor.x,
@@ -28,7 +30,10 @@ export function getColossoSpriteLayout(enemy, animation = {}, manifest = colosso
 function drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, elapsed = 0) {
   ctx.save();
   ctx.fillStyle = "rgba(69,10,10,.52)";
-  ctx.beginPath(); ctx.ellipse(x + 8, y + 72, 172, 42, 0, 0, Math.PI * 2); ctx.fill();
+  // `y` is the fixed midpoint between the Colosso's feet. Keep the contact
+  // shadow at that same ground plane; the former +72 offset belonged to the
+  // pre-anchor art and visibly floated below the new bipedal sprite.
+  ctx.beginPath(); ctx.ellipse(x + 8, y + 12, 172, 34, 0, 0, Math.PI * 2); ctx.fill();
   for (const rift of enemy.colossoRifts || []) {
     const rx = cellX(rift.col); const ry = laneY(rift.row);
     ctx.strokeStyle = `rgba(251,146,60,${.52 + pulse * .38})`; ctx.lineWidth = 6 + pulse * 4;

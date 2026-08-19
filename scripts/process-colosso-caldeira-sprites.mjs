@@ -14,9 +14,24 @@ const required = {
 };
 const impact = { riftAttack: { impactFrame: 3, impactMs: 520 }, slamAttack: { impactFrame: 4, impactMs: 720 }, fractureAttack: { impactFrame: 4, impactMs: 798 }, seismicAttack: { impactFrame: 3, impactMs: 630 } };
 const frameMs = { idle: 190, riftTelegraph: 185, riftAttack: 220, slamTelegraph: 185, slamAttack: 220, coreExposed: 110 };
+// Rift sheets use wider 3×2 cells and were authored with a noticeably smaller
+// character. Bring them to the same on-screen stature as idle without moving
+// the fixed feet anchor.
+// These source sheets have a more generous transparent canvas than Idle.
+// Keep every pose at the same on-screen character scale while the fixed
+// anchor continues to pin the feet to the lane.
+const stateVisualScale = {
+  spawnAwakening: 1.32,
+  riftTelegraph: 1.48,
+  riftAttack: 1.48,
+  slamTelegraph: 1.42,
+  slamAttack: 1.42,
+};
 const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
-const contentRoot = manifest.anchor || { x: .68, y: .72 };
-const isCalibratedV5 = manifest.frameAnchorStrategy === "calibrated-v5" && !process.argv.includes("--recalibrate");
+// The root is the midpoint between the feet, never a value inferred from a
+// changing silhouette. Every exported frame uses this same canvas point.
+const contentRoot = { x: .5, y: .86 };
+const isCalibratedV5 = false;
 
 function removeCornerResidue(data, info) {
   const pixelCount = info.width * info.height;
@@ -68,6 +83,18 @@ function removeGreen(data, info) {
   }
 }
 
+function removeLightChecker(data, info) {
+  // Some image-generation exports encode the transparency preview as nearly
+  // neutral white/grey squares. It is never part of the Colosso artwork and
+  // must be cleared before measuring or anchoring Final Collapse frames.
+  for (let offset = 0; offset < data.length; offset += info.channels) {
+    const [red, green, blue] = data.subarray(offset, offset + 3);
+    if (red > 232 && green > 232 && blue > 232 && Math.max(red, green, blue) - Math.min(red, green, blue) < 14) {
+      data[offset + 3] = 0;
+    }
+  }
+}
+
 function geometry(data, info) {
   let minX = info.width; let minY = info.height; let maxX = -1; let maxY = -1;
   for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
@@ -81,6 +108,7 @@ function geometry(data, info) {
 async function authoredGeometry(source, cleanCorners = false) {
   const raw = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   removeGreen(raw.data, raw.info);
+  if (source.includes(`${path.sep}finalCollapse${path.sep}`)) removeLightChecker(raw.data, raw.info);
   if (cleanCorners) removeCornerResidue(raw.data, raw.info);
   const box = geometry(raw.data, raw.info);
   const canvasSize = Math.max(raw.info.width, raw.info.height);
@@ -104,7 +132,8 @@ async function calibrationForState(state, frames) {
     if (stored) return stored;
     // Death intentionally changes silhouette size; all other states receive a small,
     // bounded correction so pose padding never becomes a visible scale jump.
-    const scale = state === "death" ? 1 : Math.max(.96, Math.min(1.04, baseline / Math.max(.001, box.metric)));
+    const normalizedScale = state === "death" ? 1 : Math.max(.96, Math.min(1.04, baseline / Math.max(.001, box.metric)));
+    const scale = stateVisualScale[state] || normalizedScale;
     return { x: contentRoot.x, y: contentRoot.y, scale: Number(scale.toFixed(4)) };
   });
   if (state === "death" || isCalibratedV5) return anchors;
@@ -119,15 +148,8 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
   const sourceRaw = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const { data: sourceData, info: sourceInfo } = sourceRaw;
   removeGreen(sourceData, sourceInfo);
+  if (state === "finalCollapse") removeLightChecker(sourceData, sourceInfo);
   if (cleanCorners) removeCornerResidue(sourceData, sourceInfo);
-  // The original spawn sheet had three foreign cels laid across the upper
-  // edge of frames 4–6. They are outside the Colosso silhouette and must not
-  // survive the cut, even when antialiasing accidentally joins them.
-  if (state === "spawnAwakening" && frameAnchor && [4, 5, 6].includes(Number(path.basename(source, ".png").replace("frame", "")))) {
-    for (let y = 0; y < 56; y += 1) for (let x = 0; x < sourceInfo.width; x += 1) {
-      sourceData[(y * sourceInfo.width + x) * sourceInfo.channels + 3] = 0;
-    }
-  }
   // Spawn poses have a wider awakening silhouette; give them a little more
   // safety padding before applying the fixed root anchor.
   const contentSize = state === "spawnAwakening" ? 660 : 720;
@@ -144,16 +166,16 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
   const aligned = Buffer.alloc(data.length);
   let actualAnchor = frameAnchor;
   if (maxX >= 0) {
-    const sourceAnchorX = minX + (maxX - minX) * contentRoot.x;
-    const sourceAnchorY = minY + (maxY - minY) * contentRoot.y;
-    let dx = Math.round(768 * frameAnchor.x - sourceAnchorX);
-    let dy = Math.round(768 * frameAnchor.y - sourceAnchorY);
+    const sourceAnchorX = (minX + maxX) / 2;
+    const sourceAnchorY = maxY;
+    let dx = Math.round(768 * contentRoot.x - sourceAnchorX);
+    let dy = Math.round(768 * contentRoot.y - sourceAnchorY);
     // Never let an authored pose clip against the fixed canvas. Keeping a
     // small transparent safety margin is preferable to losing hands, feet or
     // head pixels when an AI sheet uses a slightly wider silhouette.
     dx = Math.min(Math.max(dx, 2 - minX), 765 - maxX);
     dy = Math.min(Math.max(dy, 2 - minY), 765 - maxY);
-    actualAnchor = { ...frameAnchor, x: Number(((sourceAnchorX + dx) / 768).toFixed(5)), y: Number(((sourceAnchorY + dy) / 768).toFixed(5)) };
+    actualAnchor = { ...frameAnchor, ...contentRoot };
     for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
       const targetX = x + dx; const targetY = y + dy;
       if (targetX < 0 || targetX >= 768 || targetY < 0 || targetY >= 768) continue;
@@ -163,25 +185,6 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
   }
   await sharp(aligned, { raw: { width: 768, height: 768, channels: info.channels } })
     .png({ palette: true, quality: 46, colours: 48, compressionLevel: 9 }).toFile(destination);
-  // Re-measure the encoded frame. Palette quantization can alter the outer
-  // alpha boundary by a pixel or two; store the anchor that exactly maps the
-  // final bounding box to the canonical canvas point so the audit and runtime
-  // use the same geometry.
-  const encoded = await sharp(destination).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  let outMinX = encoded.info.width; let outMinY = encoded.info.height;
-  let outMaxX = -1; let outMaxY = -1;
-  for (let y = 0; y < encoded.info.height; y += 1) for (let x = 0; x < encoded.info.width; x += 1) {
-    if (encoded.data[(y * encoded.info.width + x) * encoded.info.channels + 3] > 10) {
-      outMinX = Math.min(outMinX, x); outMinY = Math.min(outMinY, y);
-      outMaxX = Math.max(outMaxX, x); outMaxY = Math.max(outMaxY, y);
-    }
-  }
-  if (outMaxX >= 0) {
-    const spanX = outMaxX - outMinX; const spanY = outMaxY - outMinY;
-    const anchorX = spanX >= 768 ? actualAnchor.x : outMinX / Math.max(1, 768 - spanX);
-    const anchorY = spanY >= 768 ? actualAnchor.y : outMinY / Math.max(1, 768 - spanY);
-    return { ...actualAnchor, x: Number(anchorX.toFixed(5)), y: Number(anchorY.toFixed(5)) };
-  }
   return actualAnchor;
 }
 
@@ -197,7 +200,7 @@ for (const [state, frames] of Object.entries(required)) {
     const source = path.join(authoredFolder, `frame${sourceFrame}.png`);
     try { await fs.access(source); } catch { throw new Error(`Missing authored pose: ${source}`); }
     const smoothStates = new Set(["idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack"]);
-    frameAnchors[state][frame] = await normalizeAuthoredFrame(source, path.join(runtimeFolder, `frame${frame}.png`), calibration[frame], state === "death" || state === "spawnAwakening" || smoothStates.has(state), state);
+    frameAnchors[state][frame] = await normalizeAuthoredFrame(source, path.join(runtimeFolder, `frame${frame}.png`), calibration[frame], state === "death" || smoothStates.has(state), state);
   }
 }
 
@@ -208,6 +211,7 @@ manifest.animations = Object.fromEntries(Object.entries(required).map(([state, f
   ...(impact[state] || {}),
 }]));
 manifest.frameAnchors = frameAnchors;
-manifest.frameAnchorStrategy = "calibrated-v5";
+manifest.anchor = contentRoot;
+manifest.frameAnchorStrategy = "fixed-feet-v6";
 await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 console.log(`Processed ${Object.values(required).reduce((total, frames) => total + frames, 0)} individually-authored Colosso frames.`);

@@ -26,6 +26,33 @@ function frameAnchor(asset, state, frame) {
     || { x: 0.5, y: 1, scale: 1 };
 }
 
+// The Colosso is anchored close to its feet. Some attack poses legitimately
+// occupy much more vertical space, so applying their game scale blindly in a
+// fixed 768px preview can crop the head or raised fist. Fit the already-scaled
+// image into the preview with a small safety margin; this never distorts it.
+function previewScaleForImage(image, anchor, requestedScale) {
+  if (!image || typeof document === "undefined") return requestedScale;
+  const scratch = document.createElement("canvas"); scratch.width = scratch.height = 768;
+  const context = scratch.getContext("2d", { willReadFrequently: true });
+  if (!context) return requestedScale;
+  context.drawImage(image, 0, 0, 768, 768);
+  const pixels = context.getImageData(0, 0, 768, 768).data;
+  let minX = 768; let minY = 768; let maxX = -1; let maxY = -1;
+  for (let y = 0; y < 768; y += 1) for (let x = 0; x < 768; x += 1) {
+    if (pixels[(y * 768 + x) * 4 + 3] < 16) continue;
+    minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+  }
+  if (maxX < 0) return requestedScale;
+  const rootX = 768 * (anchor?.x ?? .5); const rootY = 768 * (anchor?.y ?? 1); const margin = 14;
+  const limits = [
+    minX < rootX ? (rootX - margin) / (rootX - minX) : Infinity,
+    maxX > rootX ? (768 - margin - rootX) / (maxX - rootX) : Infinity,
+    minY < rootY ? (rootY - margin) / (rootY - minY) : Infinity,
+    maxY > rootY ? (768 - margin - rootY) / (maxY - rootY) : Infinity,
+  ];
+  return Math.max(.1, Math.min(requestedScale, ...limits) * .995);
+}
+
 function PreviewCanvas({ image, anchor, showGrid, showAnchor, state, frame }) {
   const ref = useRef(null);
   useEffect(() => {
@@ -40,7 +67,8 @@ function PreviewCanvas({ image, anchor, showGrid, showAnchor, state, frame }) {
       ctx.strokeStyle = "rgba(251,191,36,.45)"; ctx.beginPath(); ctx.moveTo(384, 0); ctx.lineTo(384, 768); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0, 384); ctx.lineTo(768, 384); ctx.stroke();
     }
     if (image) {
-      const scale = Number(anchor?.scale) > 0 ? Number(anchor.scale) : 1;
+      const requestedScale = Number(anchor?.scale) > 0 ? Number(anchor.scale) : 1;
+      const scale = previewScaleForImage(image, anchor, requestedScale);
       ctx.save(); ctx.translate(768 * (anchor?.x ?? .5), 768 * (anchor?.y ?? 1)); ctx.scale(scale, scale); ctx.translate(-768 * (anchor?.x ?? .5), -768 * (anchor?.y ?? 1));
       ctx.drawImage(image, 0, 0, 768, 768); ctx.restore();
     } else {

@@ -5,21 +5,21 @@ import sharp from "sharp";
 const root = path.resolve("src/game/assets-source/enemy/colossoCaldeira");
 const generated = "C:/Users/Z565244/.codex/generated_images/01a0118b-4554-7b61-97d6-81b8d6f707c2";
 const sheets = {
-  spawnAwakening: ["exec-eceef2fa-983b-4c7b-9fc4-e897b47e7e92.png", 4, 3],
-  idle: ["exec-afff3b86-f4c3-4df1-b89a-4705d02052b2.png", 4, 2],
-  riftTelegraph: ["exec-89df87ad-1e8c-4556-9f19-b903808d48e0.png", 3, 2],
-  riftAttack: ["exec-d7633d36-aa3f-4954-a256-f9f191b86eef.png", 3, 2],
-  slamTelegraph: ["exec-4001fcde-f0f1-4a0c-a600-2fe23099e861.png", 3, 2],
-  slamAttack: ["exec-ce1b317a-2337-4a3e-8e69-d5677692de9f.png", 4, 2],
-  fractureTelegraph: ["exec-7b3ef590-d7fc-4e24-a4e5-a31db39cdbab.png", 4, 2],
-  fractureAttack: ["exec-49ab7313-412b-4045-9213-206b1f1fbeae.png", 4, 2],
-  seismicTelegraph: ["exec-8d0b6bcb-9649-45a9-818a-c46c71cec6cc.png", 4, 2],
-  seismicAttack: ["exec-d4a51def-ac6c-4358-9991-3d4e457b0edd.png", 4, 2],
-  phaseTransition2: ["exec-b36f203a-9f61-4500-97af-9aece1588d27.png", 5, 2],
-  phaseTransition3: ["exec-db95c4df-568c-48b1-b37e-fc49490ce0c6.png", 5, 2],
-  finalCollapse: ["exec-a026588b-69b7-4383-8092-1160ae413561.png", 4, 3],
-  coreExposed: ["exec-5ed1fe5c-5899-42f9-8c74-465133f9a01b.png", 4, 2],
-  death: ["exec-a4b4e3b2-9bbd-4bfd-b7c3-16bf1c96f020.png", 4, 4],
+  spawnAwakening: ["exec-827fd333-6117-482a-9caa-d8572af622a5.png", 4, 3],
+  idle: ["exec-71326066-f655-4146-977a-4ffd8c973f24.png", 4, 2],
+  riftTelegraph: ["exec-6a765132-068e-470c-b789-5766d1cfde4d.png", 3, 2],
+  riftAttack: ["exec-e2ae2425-7229-4997-91b0-42351d8bdc7e.png", 3, 2],
+  slamTelegraph: ["exec-30abf1ad-f5f8-4a47-8458-d6e04bbe9190.png", 3, 2],
+  slamAttack: ["exec-4fbb553f-be63-4a93-ac06-67c775ac6305.png", 4, 2],
+  fractureTelegraph: ["exec-70e2df49-d605-47a3-abe2-67cd60d08be8.png", 4, 2],
+  fractureAttack: ["exec-6ff9048a-f549-475a-9b84-5c657812e0ca.png", 4, 2],
+  seismicTelegraph: ["exec-81f9bf19-6b53-42c7-b4b4-4927e5986108.png", 4, 2],
+  seismicAttack: ["exec-1c02ed87-836a-43e7-950e-1bf4dd19008c.png", 4, 2],
+  phaseTransition2: ["exec-e5885f5e-be56-4c93-83f6-4e0e5ae5dc69.png", 5, 2],
+  phaseTransition3: ["exec-7e65b5ed-852f-4753-9ac3-9039ab9d948e.png", 5, 2],
+  finalCollapse: ["exec-2f0e279f-4727-47cf-a306-2da8162c1e29.png", 4, 3],
+  coreExposed: ["exec-36d420bf-791b-430b-bc9e-d1a320c250b5.png", 4, 2],
+  death: ["exec-bbda3029-760a-4c09-b98b-5776e9042feb.png", 4, 4],
 };
 
 function isBackground(data, offset, channels) {
