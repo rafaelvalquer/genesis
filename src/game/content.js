@@ -2721,7 +2721,10 @@ export const ENEMIES = {
       fractureTelegraph: [0, .13, .26, .39, .52, .65, .78, .90], fractureAttack: [0, .084, .174, .316, .42, .474, .605, .763],
       seismicTelegraph: [0, .125, .25, .375, .50, .625, .75, .875], seismicAttack: [0, .15, .30, .45, .57, .69, .81, .92],
       phaseTransition2: [0, .10, .20, .30, .40, .50, .60, .70, .80, .90], phaseTransition3: [0, .10, .20, .30, .40, .50, .60, .70, .80, .90],
-      finalCollapse: [0, .09, .18, .27, .36, .45, .54, .63, .72, .80, .87, .93], death: [0, .08, .16, .24, .32, .40, .48, .56, .64, .72, .80, .87, .93, .97],
+      finalCollapse: [0, .09, .18, .27, .36, .45, .54, .63, .72, .80, .87, .93],
+      // 4.6s death cadence: impact hold, loss of strength, readable fall,
+      // floor contact, accommodation, then an inert corpse hold.
+      death: [0, .04, .217, .326, .435, .543, .652, .739, .804, .87, .913, .945, .967, .99],
     },
     effectDependencies: Object.freeze(["colossoRift", "colossoSlam", "colossoFracture", "colossoSeismic", "colossoCore", "colossoDeath"]),
     transitionMs: 1900, deathDurationMs: 4600, attackCooldownMs: { 1: 6100, 2: 5000, 3: 4100 },

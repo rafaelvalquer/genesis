@@ -10,6 +10,7 @@ const expected = { spawnAwakening: 12, idle: 8, riftTelegraph: 6, riftAttack: 6,
 const manifest = JSON.parse(await fs.readFile(path.join(root, "manifest.json"), "utf8"));
 const curation = JSON.parse(await fs.readFile(path.join(sourceRoot, "curation.json"), "utf8"));
 const rendererSource = await fs.readFile(path.resolve("src/game/GameCanvas.jsx"), "utf8");
+const colossoSource = await fs.readFile(path.resolve("src/game/colossoCaldeira.js"), "utf8");
 const errors = [];
 const hashes = new Map();
 const subtleStates = new Set(["idle", "coreExposed"]);
@@ -56,7 +57,25 @@ async function alphaGeometry(source) {
     minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
     if ((x < cornerSize || x >= info.width - cornerSize) && (y < cornerSize || y >= info.height - cornerSize)) cornerPixels += 1;
   }
-  return { width: info.width, height: info.height, minX, minY, maxX, maxY, cornerPixels };
+  const reduced = await sharp(source).resize(96, 96, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const visited = new Uint8Array(reduced.info.width * reduced.info.height);
+  const queue = new Int32Array(visited.length);
+  let components = 0;
+  for (let start = 0; start < visited.length; start += 1) {
+    if (visited[start] || reduced.data[start * reduced.info.channels + 3] < 20) continue;
+    components += 1;
+    let head = 0; let tail = 0; queue[tail++] = start; visited[start] = 1;
+    while (head < tail) {
+      const index = queue[head++]; const x = index % reduced.info.width; const y = Math.floor(index / reduced.info.width);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx; const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= reduced.info.width || ny >= reduced.info.height) continue;
+        const next = ny * reduced.info.width + nx;
+        if (!visited[next] && reduced.data[next * reduced.info.channels + 3] >= 20) { visited[next] = 1; queue[tail++] = next; }
+      }
+    }
+  }
+  return { width: info.width, height: info.height, minX, minY, maxX, maxY, cornerPixels, components };
 }
 for (const [state, count] of Object.entries(expected)) {
   const folder = path.join(root, state);
@@ -78,6 +97,7 @@ for (const [state, count] of Object.entries(expected)) {
       const margin = Math.min(geometry.minX, geometry.minY, geometry.width - 1 - geometry.maxX, geometry.height - 1 - geometry.maxY);
       if (margin < 2) errors.push(`${state}/${file}: transparent margin too small (${margin}px)`);
       if (geometry.cornerPixels > 0) errors.push(`${state}/${file}: isolated alpha residue in a corner (${geometry.cornerPixels}px)`);
+      if (state === "death" && geometry.components > 2) errors.push(`${state}/${file}: possible ghosting (${geometry.components} alpha components)`);
       const anchor = manifest.frameAnchors?.[state]?.[Number(file.match(/\d+/)[0])] || manifest.anchor;
       if (anchor) {
         if (Math.abs(anchor.x - .5) > .0001 || Math.abs(anchor.y - .86) > .0001) errors.push(`${state}/${file}: root anchor must be the fixed feet midpoint`);
@@ -119,6 +139,8 @@ if (manifest.frameAnchorStrategy !== "curated-feet-v7") errors.push("manifest do
 const configuredStates = ENEMIES.colossoCaldeira?.assetStates || [];
 if (JSON.stringify(configuredStates) !== JSON.stringify(Object.keys(expected))) errors.push(`logic assetStates mismatch: ${configuredStates.join(",")}`);
 if (rendererSource.includes("enemyAssets?.idle?.[0]")) errors.push("silent Colosso fallback to idle[0] still present");
+if (colossoSource.includes("colossoStateEndsAt +=")) errors.push("finalCollapse must not extend the visual state clock");
+if (!colossoSource.includes("colossoNextCollapseImpactAt")) errors.push("finalCollapse is missing its independent impact clock");
 for (const [attack, frame] of Object.entries(ENEMIES.colossoCaldeira?.attackImpactFrame || {})) {
   const state = attack === "rift" ? "riftAttack" : `${attack}Attack`;
   if (!expected[state] || frame < 0 || frame >= expected[state]) errors.push(`${attack}: invalid impactFrame ${frame}`);
@@ -131,6 +153,13 @@ for (const [attack, frame] of Object.entries(ENEMIES.colossoCaldeira?.attackImpa
 }
 const deathHold = await visualDistance(path.join(root, "death", "frame12.png"), path.join(root, "death", "frame13.png"));
 if (deathHold.mad > 2 || deathHold.changed > .03) errors.push(`death final hold is not stable (MAD ${deathHold.mad.toFixed(2)})`);
+const deathGeometry = [];
+for (let index = 0; index < expected.death; index += 1) deathGeometry.push(await alphaGeometry(path.join(root, "death", `frame${index}.png`)));
+const centerOfMassY = (geometry) => (geometry.minY + geometry.maxY) / 2;
+for (let index = 1; index < deathGeometry.length; index += 1) {
+  if (centerOfMassY(deathGeometry[index]) + 8 < centerOfMassY(deathGeometry[index - 1])) errors.push(`death: center of mass rises unexpectedly at frame ${index}`);
+  if (index >= 2 && deathGeometry[index].minY + 12 < deathGeometry[index - 1].minY) errors.push(`death: head rises unexpectedly at frame ${index}`);
+}
 for (const [fromState, fromFrame, toState, toFrame] of transitionPairs) {
   const result = await visualDistance(path.join(root, fromState, `frame${fromFrame}.png`), path.join(root, toState, `frame${toFrame}.png`));
   // Slam starts from a deliberately raised-fist silhouette. The renderer

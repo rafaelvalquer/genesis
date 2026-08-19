@@ -8,7 +8,7 @@ const sheets = {
   finalCollapse: ["exec-bc28a4ec-0ebc-4b81-9336-c6fc4a0d7223.png", 4, 3, 12],
   phaseTransition3: ["exec-c87ad8b0-b7d3-47f5-931a-ce625d7b1ae9.png", 5, 2, 10],
   spawnAwakening: ["exec-e61c9a89-9fa7-4e20-9b18-f5a31b2386de.png", 4, 3, 12],
-  death: ["exec-b889de5a-74dd-4504-ab78-946e91056946.png", 4, 4, 14],
+  death: ["exec-80193431-c844-4690-b71e-adab389839d7.png", 4, 4, 14],
 };
 const state = process.argv[2];
 const spec = sheets[state];

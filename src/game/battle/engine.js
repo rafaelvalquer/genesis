@@ -3,6 +3,7 @@ import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDeci
 import { CHAPTER_FIVE_PACKETS } from "../chapterFivePackets.js";
 import { CHAPTER_SIX_PACKETS } from "../chapterSixWaves.js";
 import {
+  BOSS_ENCOUNTER_PACKET_ID,
   enqueueBossReinforcement as enqueueBossReinforcementSystem,
   initializeBossEncounterForWave,
   markBossEncounterSpawned,
@@ -76,6 +77,8 @@ import {
   createTemporaryMagmaEruption,
   createTemporaryMagmaHazard,
   getTemporaryMagmaAt,
+  activatePermanentThermalHazards,
+  deactivatePermanentThermalHazards,
   isSessionMagmaCell,
   getThermalPlatformAt,
   coolThermalPlatform,
@@ -440,6 +443,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     thermalCycle: { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox },
     alphaPressure: createAlphaPressureState(sessionPhase.alphaPressure),
     temporaryMagmaHazards: [],
+    permanentThermalHazards: [],
     supportStructures: [],
     thermalMetrics: { burnDamage: 0, troopsLost: 0, heatSampleTotal: 0, heatSampleCount: 0, platformRenewals: 0, aresShieldGained: 0, aresShieldAbsorbed: 0 },
     metrics: {
@@ -1109,6 +1113,7 @@ export function startWave(session) {
   const wave = session.phase.waves[session.waveIndex];
   session.queue = buildSpawnQueue(session.phase, session.waveIndex, session.seed + session.waveIndex * 997, enemyCountFactor);
   initializeBossEncounterForWave(session, wave, session.queue, { row: 2 });
+  session.permanentThermalHazards = [];
   session.waveActive = true;
   resumeThermalHazard(session);
   startAlphaPressureCycle(session);
@@ -1413,6 +1418,7 @@ function createEnemyRuntime(session) {
           if (hazard.sourceEnemyId === sourceEnemyId) { hazard.active = false; hazard.endsAt = session.elapsed; }
         }
       },
+      clearPermanentThermalHazards: (sourceEnemyId) => deactivatePermanentThermalHazards(session, sourceEnemyId),
       cancelSummons: () => {
         session.queue = session.queue.filter((entry) => !["boss_rift", "boss_reinforcement"].includes(entry.block));
         session.nextSpawnAt = session.queue.length ? session.waveStartedAt + session.queue[0].spawnAtMs : Infinity;
@@ -2321,6 +2327,7 @@ export function clearSandboxEntities(session, target = "all") {
   session.energyPickups = [];
   session.energyPickupPointer = null;
   session.temporaryMagmaHazards = [];
+  session.permanentThermalHazards = [];
   session.effects = [];
   return true;
 }
@@ -8170,6 +8177,16 @@ export function stepBattle(session, dt = 32) {
         : Infinity;
       if (!enemy) continue;
       markBossEncounterSpawned(session, queued);
+      if (queued.packetId === BOSS_ENCOUNTER_PACKET_ID && session.bossEncounter?.permanentEruption) {
+        activatePermanentThermalHazards(session, session.bossEncounter, enemy.id);
+        events.push({
+          type: "permanentThermalHazardStarted",
+          hazardType: "permanentEruption",
+          sourceEnemyId: enemy.id,
+          cells: session.bossEncounter.permanentEruption.cells,
+          warningMs: 1800,
+        });
+      }
       markBossReinforcementSpawned(session, queued);
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }

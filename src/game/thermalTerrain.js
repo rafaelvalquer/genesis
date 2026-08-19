@@ -31,8 +31,37 @@ export function getTemporaryMagmaAt(session, row, col) {
   return (session?.temporaryMagmaHazards || []).find((hazard) => hazard.active
     && hazard.row === row && hazard.col === col) || null;
 }
+export function getPermanentThermalHazardAt(session, row, col) {
+  return (session?.permanentThermalHazards || []).find((hazard) => hazard.active !== false
+    && hazard.cells?.some(([r, c]) => r === row && c === col)) || null;
+}
+export function getSessionThermalStateAt(session, row, col) {
+  return getPermanentThermalHazardAt(session, row, col)?.thermalState
+    || session?.thermalCycle?.state || "stable";
+}
 export function isSessionMagmaCell(session, row, col) {
-  return isMagmaCell(session?.phase, row, col) || Boolean(getTemporaryMagmaAt(session, row, col));
+  return isMagmaCell(session?.phase, row, col)
+    || Boolean(getTemporaryMagmaAt(session, row, col))
+    || Boolean(getPermanentThermalHazardAt(session, row, col));
+}
+export function activatePermanentThermalHazards(session, encounter, sourceEnemyId) {
+  const definition = encounter?.permanentEruption;
+  if (!definition?.cells?.length) return [];
+  session.permanentThermalHazards = [{
+    id: `${definition.type || "permanentHazard"}_${sourceEnemyId}`,
+    type: definition.type || "permanentThermalHazard",
+    thermalState: definition.thermalState || "eruption",
+    cells: definition.cells.map(([row, col]) => [row, col]),
+    sourceEnemyId,
+    active: true,
+    startedAt: session.elapsed,
+  }];
+  return session.permanentThermalHazards;
+}
+export function deactivatePermanentThermalHazards(session, sourceEnemyId = null) {
+  session.permanentThermalHazards = (session.permanentThermalHazards || []).filter((hazard) => (
+    sourceEnemyId && hazard.sourceEnemyId !== sourceEnemyId
+  ));
 }
 export function createTemporaryMagmaHazard(session, row, col, sourceEnemyId, durationMs = 8000, visualDurationMs = 600, type = "temporaryMagma") {
   session.temporaryMagmaHazards ||= [];
@@ -217,8 +246,9 @@ export function updateThermalTerrain(session, dt, events, { eliminateTroop, refr
   const seconds = dt / 1000;
   for (const platform of [...(session.supportStructures || [])]) {
     if (platform.destroyed) continue;
-      const localHazard = getTemporaryMagmaAt(session, platform.row, platform.col);
-      const heatRate = localHazard ? THERMAL_STATES.eruption.heatPerSecond : cycle.heatRatePerSecond;
+      const localState = getPermanentThermalHazardAt(session, platform.row, platform.col)?.thermalState
+        || getTemporaryMagmaAt(session, platform.row, platform.col)?.thermalState;
+      const heatRate = localState ? THERMAL_STATES[localState]?.heatPerSecond ?? cycle.heatRatePerSecond : cycle.heatRatePerSecond;
       platform.heat = clamp(platform.heat + heatRate * seconds, 0, platform.maxHeat);
     platform.overheated = platform.overheated
       ? platform.heat > platform.maxHeat * 0.95
@@ -265,5 +295,12 @@ export function getThermalSnapshot(session) {
   const heatRate = forcedState && forcedState !== "auto" && THERMAL_STATES[forcedState]
     ? THERMAL_STATES[forcedState].heatPerSecond
     : cycle?.paused ? 0 : cycle?.heatRatePerSecond || 0;
-  return { state, nextStateAt: cycle?.stateEndsAt || null, remainingMs: cycle ? Math.max(0, cycle.stateEndsAt - session.elapsed) : 0, paused: Boolean(cycle?.paused), heatRate, eruptionCount: cycle?.eruptionCount || 0, platforms: (session?.supportStructures || []).map(({ id, row, col, hp, maxHp, heat, maxHeat, overheated }) => ({ id, row, col, hp, maxHp, heat, maxHeat, overheated })) };
+  return {
+    state, nextStateAt: cycle?.stateEndsAt || null,
+    remainingMs: cycle ? Math.max(0, cycle.stateEndsAt - session.elapsed) : 0,
+    paused: Boolean(cycle?.paused), heatRate, eruptionCount: cycle?.eruptionCount || 0,
+    permanentHazards: (session?.permanentThermalHazards || []).filter((hazard) => hazard.active !== false)
+      .map(({ id, type, thermalState, cells, sourceEnemyId, startedAt }) => ({ id, type, thermalState, cells, sourceEnemyId, startedAt })),
+    platforms: (session?.supportStructures || []).map(({ id, row, col, hp, maxHp, heat, maxHeat, overheated }) => ({ id, row, col, hp, maxHp, heat, maxHeat, overheated })),
+  };
 }

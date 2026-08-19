@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
 import { canPlaceTroop, createBattleSession, createTroopEntity, eliminateTroop, placeTroop, setSandboxSettings, startWave, stepBattle } from "./battleModel.js";
-import { getThermalPlatformAt, getThermalSnapshot } from "./thermalTerrain.js";
+import { getPermanentThermalHazardAt, getSessionThermalStateAt, getThermalPlatformAt, getThermalSnapshot, isSessionMagmaCell } from "./thermalTerrain.js";
 import { getThermalPlatformVisual } from "./thermalPlatformRenderer.js";
 
 describe("terreno térmico", () => {
+  it("prioriza a erupção permanente sobre o ciclo térmico local", () => {
+    const session = { phase: { magmaTerrain: { cells: [] } }, thermalCycle: { state: "cooldown" }, permanentThermalHazards: [{ thermalState: "eruption", cells: [[0, 9]], active: true }] };
+    expect(getPermanentThermalHazardAt(session, 0, 9)?.thermalState).toBe("eruption");
+    expect(isSessionMagmaCell(session, 0, 9)).toBe(true);
+    expect(getSessionThermalStateAt(session, 0, 9)).toBe("eruption");
+    expect(getSessionThermalStateAt(session, 0, 8)).toBe("cooldown");
+  });
+
   it("bloqueia tropas comuns no magma, aceita Drone e permite resgate com plataforma", () => {
     const session = createBattleSession(CHAPTER_SIX_PHASES[2], ["colono", "droneSentinela", "thermalPlatform"], 7, { sandbox: true, sandboxSettings: { rulesMode: "free" } });
     const [row, col] = session.phase.magmaTerrain.cells[0];

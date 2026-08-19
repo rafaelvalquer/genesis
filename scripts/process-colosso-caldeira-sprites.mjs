@@ -20,12 +20,8 @@ const selectedStates = process.env.COLOSSO_STATES
 for (const state of selectedStates) {
   if (!(state in required)) throw new Error(`Unknown Colosso state: ${state}`);
 }
-// The authored death sheet contains a group of intermediate exports with
-// detached torso/limb fragments. Those are not usable as full-body poses: the
-// cleanup stage rightly removes the disconnected pieces, leaving a visibly
-// cropped Colosso. Hold the complete standing poses briefly, then transition
-// to the two complete grounded poses instead.
-const deathSourceFrames = [0, 0, 1, 1, 2, 2, 3, 3, 12, 12, 12, 12, 12, 12];
+// Death is now authored as 14 clean, sequential full-body source poses.
+const deathSourceFrames = Array.from({ length: 14 }, (_, frame) => frame);
 const curation = JSON.parse(await fs.readFile(curationPath, "utf8"));
 const impact = { riftAttack: { impactFrame: 3, impactMs: 520 }, slamAttack: { impactFrame: 4, impactMs: 720 }, fractureAttack: { impactFrame: 4, impactMs: 798 }, seismicAttack: { impactFrame: 3, impactMs: 630 } };
 const frameMs = { idle: 190, riftTelegraph: 185, riftAttack: 220, slamTelegraph: 185, slamAttack: 220, coreExposed: 110 };
@@ -203,7 +199,7 @@ for (const state of selectedStates) {
     const sourceFrame = state === "death" ? deathSourceFrames[frame] : frame;
     const source = path.join(authoredFolder, `frame${sourceFrame}.png`);
     try { await fs.access(source); } catch { throw new Error(`Missing authored pose: ${source}`); }
-    const smoothStates = new Set(["idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack"]);
+    const smoothStates = new Set(["idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack", "spawnAwakening"]);
     // Death poses may legitimately contain separated arms as the body sags;
     // their source frames were already re-framed and audited. Do not erase
     // those authored pose differences as if they were corner debris.

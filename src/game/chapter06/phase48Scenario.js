@@ -8,6 +8,11 @@ export const PHASE_48_SCENARIO = Object.freeze({
   bossEncounter: Object.freeze({
     type: "colossoCaldeira",
     spawnAtMs: 15000,
+    permanentEruption: Object.freeze({
+      type: "permanentEruption",
+      thermalState: "eruption",
+      cells: Object.freeze(Array.from({ length: 5 }, (_, row) => Object.freeze([row, 9]))),
+    }),
     packetCatalog: "chapterSix",
     reinforcementIntervalMs: 1100,
     reinforcements: freezeEntries([

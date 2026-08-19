@@ -211,6 +211,20 @@ describe("Colosso da Caldeira", () => {
     expect(getColossoAnimation(boss, 3120, counts).previousState).toBeNull();
   });
 
+  it("entra em death a partir do último frame realmente exibido", () => {
+    const { boss } = encounter();
+    boss.colossoPreviousState = "seismicAttack";
+    boss.colossoPreviousFrame = 3;
+    boss.colossoState = "death";
+    boss.colossoStateStartedAt = 1000;
+    boss.colossoStateEndsAt = 5600;
+    expect(getColossoAnimation(boss, 1020, { death: 14, seismicAttack: 8 })).toMatchObject({
+      previousState: "seismicAttack",
+      previousFrame: 3,
+      transitionProgress: .5,
+    });
+  });
+
   it("cancela fissuras, magma e summons pendentes ao morrer", () => {
     const { session, boss } = encounter(); execute(session, "rift");
     boss.hp = 0; stepBattle(session, 1);
@@ -225,6 +239,26 @@ describe("Colosso da Caldeira", () => {
     const resolved = stepBattle(session, ENEMIES.colossoCaldeira.finalCollapse.telegraphMs + 1);
     expect(resolved).toContainEqual(expect.objectContaining({ type: "colossoAttackImpact", attack: "finalCollapse", rows: [0] }));
     stepBattle(session, 900); expect(boss.colossoState).toBe("coreExposed"); expect(getColossoDamageFactor(boss, 3)).toBe(1.6);
+  });
+
+  it("separa o relógio visual dos impactos do Colapso Final", () => {
+    const { session, boss } = encounter(); boss.colossoPhase = 3; boss.hp = boss.maxHp * .14;
+    stepBattle(session, 1);
+    const visualEnd = boss.colossoStateEndsAt;
+    expect(boss.colossoNextCollapseImpactAt).toBe(visualEnd);
+    const first = stepBattle(session, ENEMIES.colossoCaldeira.finalCollapse.telegraphMs + 1);
+    expect(first).toContainEqual(expect.objectContaining({ attack: "finalCollapse", rows: [0] }));
+    expect(boss.colossoStateEndsAt).toBe(visualEnd);
+    expect(boss.colossoNextCollapseImpactAt).toBe(visualEnd + 300);
+    expect(getColossoAnimation(boss, visualEnd + 1, { finalCollapse: 12 }).frame).toBe(11);
+    const second = stepBattle(session, 300);
+    expect(second).toContainEqual(expect.objectContaining({ attack: "finalCollapse", rows: [4] }));
+    expect(boss.colossoStateEndsAt).toBe(visualEnd);
+    expect(boss.colossoNextCollapseImpactAt).toBe(visualEnd + 600);
+    const third = stepBattle(session, 300);
+    expect(third).toContainEqual(expect.objectContaining({ attack: "finalCollapse", rows: [2] }));
+    expect(boss.colossoState).toBe("coreExposed");
+    expect(getColossoAnimation(boss, session.elapsed + 100, { coreExposed: 8 }).state).toBe("coreExposed");
   });
 
   it("expõe controles de laboratório", () => {

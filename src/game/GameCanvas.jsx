@@ -2130,6 +2130,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           setBanner("⚠ COLOSSO DA CALDEIRA");
           play("colossoAwaken", 0.88);
         }
+        if (events.some((event) => event.type === "permanentThermalHazardStarted")) {
+          setBanner("⚠ A CALDEIRA ENTROU EM ERUPÇÃO · LINHA FRONTAL INSTÁVEL");
+          play("alert", 0.72);
+        }
         const colossoTelegraph = events.find((event) => event.type === "colossoTelegraph");
         if (colossoTelegraph) play({ rift: "colossoRiftCharge", slam: "colossoSlamCharge", fracture: "colossoFracture", seismic: "colossoSeismicCharge" }[colossoTelegraph.attack], 0.52);
         const colossoImpact = events.find((event) => event.type === "colossoAttackImpact");

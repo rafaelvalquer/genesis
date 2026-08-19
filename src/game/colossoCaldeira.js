@@ -21,6 +21,9 @@ export function syncColossoHitZones(enemy, config) {
 }
 
 function setState(session, enemy, state, durationMs = Infinity) {
+  if (enemy.colossoState && enemy.colossoState !== state && Number.isInteger(enemy.colossoDisplayedFrame)) {
+    enemy.colossoPreviousFrame = enemy.colossoDisplayedFrame;
+  }
   enemy.colossoPreviousState = enemy.colossoState || null;
   enemy.colossoState = state;
   enemy.colossoStateStartedAt = session.elapsed;
@@ -29,6 +32,7 @@ function setState(session, enemy, state, durationMs = Infinity) {
   enemy.colossoImpactStarted = false;
   enemy.colossoImpactQueue = [];
   enemy.colossoNextImpactAt = Infinity;
+  enemy.colossoNextCollapseImpactAt = Infinity;
   syncColossoHitZones(enemy, enemy._colossoConfig);
 }
 
@@ -180,15 +184,15 @@ function updateRifts(session, enemy, config, hooks, events) {
 }
 
 function updateFinalCollapse(session, enemy, config, hooks, events) {
-  if (session.elapsed < enemy.colossoStateEndsAt) return;
-  while ((enemy.colossoCollapseIndex || 0) < enemy.colossoCollapseRows.length && session.elapsed >= enemy.colossoStateEndsAt) {
+  if (!Number.isFinite(enemy.colossoNextCollapseImpactAt) || session.elapsed < enemy.colossoNextCollapseImpactAt) return;
+  while ((enemy.colossoCollapseIndex || 0) < enemy.colossoCollapseRows.length && session.elapsed >= enemy.colossoNextCollapseImpactAt) {
     const index = enemy.colossoCollapseIndex || 0;
     enemy.colossoTargetRows = [enemy.colossoCollapseRows[index]];
     impact(session, enemy, config, hooks, events, "finalCollapse", enemy.colossoTargetRows, []);
     enemy.colossoCollapseIndex = index + 1;
-    enemy.colossoStateEndsAt += config.finalCollapse.rowIntervalMs;
+    enemy.colossoNextCollapseImpactAt += config.finalCollapse.rowIntervalMs;
   }
-  if (enemy.colossoCollapseIndex >= enemy.colossoCollapseRows.length && session.elapsed >= enemy.colossoStateEndsAt) {
+  if (enemy.colossoCollapseIndex >= enemy.colossoCollapseRows.length) {
     enemy.colossoQueuedAttack = null;
     setState(session, enemy, "coreExposed", config.core.exposedMs);
   }
@@ -207,7 +211,7 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
   enemy._colossoConfig = config;
   syncColossoHitZones(enemy, config);
   if (enemy.colossoDying) {
-    if (session.elapsed >= enemy.colossoStateEndsAt) { enemy.dead = true; hooks.completeDeath?.(enemy); events.push({ type: "bossDeath", x: enemy.x, y: enemy.y, entity: { ...enemy }, bossId: enemy.id }); }
+    if (session.elapsed >= enemy.colossoStateEndsAt) { enemy.dead = true; hooks.clearPermanentThermalHazards?.(enemy.id); hooks.completeDeath?.(enemy); events.push({ type: "bossDeath", x: enemy.x, y: enemy.y, entity: { ...enemy }, bossId: enemy.id }); }
     return;
   }
   updateRifts(session, enemy, config, hooks, events);
@@ -221,7 +225,9 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
   }
   if (!enemy.colossoPendingPhase && !enemy.colossoFinalCollapseUsed && enemy.colossoState === "idle" && enemy.hp / enemy.maxHp <= .15) {
     enemy.colossoFinalCollapseUsed = true; enemy.colossoQueuedAttack = "finalCollapse"; enemy.colossoCollapseRows = [0, 4, 2]; enemy.colossoCollapseIndex = 0; enemy.colossoTargetRows = [...enemy.colossoCollapseRows];
-    setState(session, enemy, "finalCollapse", config.finalCollapse.telegraphMs); events.push({ type: "colossoFinalCollapse", bossId: enemy.id, rows: [...enemy.colossoCollapseRows], shake: 7 }); return;
+    setState(session, enemy, "finalCollapse", config.finalCollapse.telegraphMs);
+    enemy.colossoNextCollapseImpactAt = enemy.colossoStateEndsAt;
+    events.push({ type: "colossoFinalCollapse", bossId: enemy.id, rows: [...enemy.colossoCollapseRows], shake: 7 }); return;
   }
   if (enemy.colossoState === "spawnAwakening" && session.elapsed >= enemy.colossoStateEndsAt) { enemy.colossoTargetable = true; setState(session, enemy, "idle"); events.push({ type: "colossoAwakened", bossId: enemy.id }); return; }
   if (["phaseTransition2", "phaseTransition3"].includes(enemy.colossoState) && session.elapsed >= enemy.colossoStateEndsAt) { enemy.colossoTargetable = true; setState(session, enemy, "idle"); return; }
@@ -259,12 +265,22 @@ export function getColossoAnimation(enemy, elapsed, frameCounts = {}, reduceMoti
     : Math.min(count - 1, Math.floor(progress * count));
   // Reduced motion preserves the state silhouette without stopping gameplay.
   const frame = reduceMotion ? (loop ? 0 : timedFrame) : (loop ? Math.floor(elapsedState / frameMs) % count : timedFrame);
-  const transitionMs = loop ? 110 : 85;
+  if (enemy && !reduceMotion) enemy.colossoDisplayedFrame = frame;
   const previousState = enemy?.colossoPreviousState;
   const previousCount = Math.max(0, Number(frameCounts[previousState] || 0));
+  const transitionMs = loop ? 110 : (state === "death" || previousState === "death" ? 40 : 85);
   const transitionProgress = !reduceMotion && previousState && previousState !== state && previousCount && elapsedState < transitionMs
     ? elapsedState / transitionMs : 1;
-  return { state, frame, loop, previousState: transitionProgress < 1 ? previousState : null, previousFrame: Math.max(0, previousCount - 1), transitionProgress };
+  return {
+    state,
+    frame,
+    loop,
+    previousState: transitionProgress < 1 ? previousState : null,
+    previousFrame: Number.isInteger(enemy?.colossoPreviousFrame)
+      ? Math.max(0, enemy.colossoPreviousFrame)
+      : Math.max(0, previousCount - 1),
+    transitionProgress,
+  };
 }
 
 export function forceColossoAttack(session, enemy, attack, config, events = []) {

@@ -1,4 +1,5 @@
 import { CELL } from "../visualGeometry.js";
+import { getSessionThermalStateAt } from "../thermalTerrain.js";
 
 const STATE = {
   stable: { fire: .28, crack: .35, hotspots: .28 },
@@ -48,7 +49,10 @@ function drawFire(ctx, x, y, seed, intensity, time) {
 // This deliberately paints on the existing arena rather than replacing it with a
 // liquid canvas. The logical cell list still controls all thermal gameplay.
 export function drawMagmaGround(ctx, session, time = 0, settings = {}) {
-  const cells = session?.phase?.magmaTerrain?.cells || [];
+  const baseCells = session?.phase?.magmaTerrain?.cells || [];
+  const permanentCells = session?.permanentThermalHazards?.filter((hazard) => hazard.active !== false)
+    .flatMap((hazard) => hazard.cells || []) || [];
+  const cells = [...baseCells, ...permanentCells.filter(([row, col]) => !baseCells.some(([r, c]) => r === row && c === col))];
   if (!cells.length) return;
   const state = settings.thermalState || session.thermalCycle?.state || "stable";
   const level = settingsFor(state);
@@ -83,6 +87,22 @@ export function drawMagmaGround(ctx, session, time = 0, settings = {}) {
   for (let index = 0; index < desiredFires; index += 1) {
     const cell = cells[Math.floor(hash(seed + index * 79) * cellCount)];
     drawFire(ctx, cell[1] * CELL.width + 12 + hash(seed + index * 83) * 74, cell[0] * CELL.height + 70 + hash(seed + index * 89) * 20, seed + index * 97, level.fire, time);
+  }
+  if (permanentCells?.length) {
+    for (const [row, col] of permanentCells) {
+      const cellState = getSessionThermalStateAt(session, row, col);
+      const cellLevel = settingsFor(cellState);
+      const x = col * CELL.width; const y = row * CELL.height;
+      const pulse = .72 + Math.sin(time * .004 + row * 1.7) * .18;
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,174,32,${.55 * pulse})`;
+      ctx.lineWidth = 2.5;
+      ctx.strokeRect(x + 2, y + 2, CELL.width - 4, CELL.height - 4);
+      ctx.restore();
+      drawFire(ctx, x + CELL.width * .2, y + CELL.height - 4, seed + row * 101 + col * 17, cellLevel.fire, time);
+      drawFire(ctx, x + CELL.width * .5, y + CELL.height - 4, seed + row * 103 + col * 19, cellLevel.fire, time + 180);
+      drawFire(ctx, x + CELL.width * .8, y + CELL.height - 4, seed + row * 107 + col * 23, cellLevel.fire, time + 360);
+    }
   }
   ctx.restore();
 }

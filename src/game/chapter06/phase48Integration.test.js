@@ -15,6 +15,12 @@ describe("encontro integrado da Wave 6 da Fase 48", () => {
     for (let elapsed = 0; elapsed < 19800; elapsed += 300) events.push(...stepBattle(session, 300));
     const boss = session.enemies.find((enemy) => enemy.type === "colossoCaldeira");
     expect(boss).toBeTruthy(); expect(session.bossEncounter.spawned).toBe(true);
+    expect(session.permanentThermalHazards).toEqual([expect.objectContaining({
+      sourceEnemyId: boss.id,
+      thermalState: "eruption",
+      cells: [[0, 9], [1, 9], [2, 9], [3, 9], [4, 9]],
+      active: true,
+    })]);
     expect(session.enemies.filter((enemy) => !enemy.dead).length).toBeLessThanOrEqual(54);
     for (let elapsed = 0; elapsed < ENEMIES.colossoCaldeira.spawnDurationMs + 9000 && boss.colossoState !== "idle"; elapsed += 100) events.push(...stepBattle(session, 100));
     boss.colossoRifts = [];

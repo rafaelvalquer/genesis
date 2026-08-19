@@ -16,4 +16,12 @@ describe("cenário da Fase 48", () => {
     expect(ENEMIES.colossoCaldeira).toMatchObject({ boss: true, stationary: true, multiRowBoss: true, chapterId: "chapter_06" });
     expect(PHASE_48_SCENARIO.bossEncounter.maximumLivingByType.salamandraCinerea).toBeGreaterThan(0);
   });
+
+  it("declara a coluna 9 como erupção permanente do encounter", () => {
+    expect(PHASE_48_SCENARIO.bossEncounter.permanentEruption).toMatchObject({
+      type: "permanentEruption",
+      thermalState: "eruption",
+      cells: [[0, 9], [1, 9], [2, 9], [3, 9], [4, 9]],
+    });
+  });
 });
