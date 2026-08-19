@@ -1,7 +1,7 @@
 import { cloneGltfScene, loadGltfModel } from "./loadGltfModel.js";
 import { centerAndScaleModel } from "./normalizeGltfModel.js";
 
-export const GENESIS_ROCKET_URL = "/models/command/low-poly-rocket-ship.glb";
+export const GENESIS_ROCKET_URL = `${import.meta.env.BASE_URL}models/command/low-poly-rocket-ship.glb`;
 // The source GLB is long on its local Y axis, with the engines at -Y. Align
 // its nose (+Y) with the orbital forward axis (-Z).
 export const ROCKET_FORWARD_VECTOR = Object.freeze({ x: 0, y: 0, z: -1 });
@@ -82,7 +82,7 @@ export function updateRocketOrbit(THREE, rocket, elapsed, reduceMotion) {
   const next = new THREE.Vector3(
     Math.cos(nextAngle) * 1.55,
     Math.sin(nextAngle * .65) * .25,
-    Math.sin(nextAngle) * 1.25,
+    Math.sin(angle) * 1.25,
   );
   const tangent = next.sub(current).normalize();
   const radialUp = current.clone().normalize();
