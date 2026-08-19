@@ -82,7 +82,7 @@ export function updateRocketOrbit(THREE, rocket, elapsed, reduceMotion) {
   const next = new THREE.Vector3(
     Math.cos(nextAngle) * 1.55,
     Math.sin(nextAngle * .65) * .25,
-    Math.sin(angle) * 1.25,
+    Math.sin(nextAngle) * 1.25,
   );
   const tangent = next.sub(current).normalize();
   const radialUp = current.clone().normalize();
