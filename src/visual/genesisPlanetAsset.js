@@ -9,7 +9,7 @@ import {
   updateGenesisPlanetClouds,
 } from "./genesisPlanetMaterials.js";
 
-export const GENESIS_PLANET_URL = "/models/command/genesis-planeta-multibiomas1.glb";
+export const GENESIS_PLANET_URL = `${import.meta.env.BASE_URL}models/command/genesis-planeta-multibiomas1.glb`;
 
 // Mantido para compatibilidade com imports/testes existentes.
 // Enquanto não houver um LOD específico, ambos apontam para o mesmo asset.

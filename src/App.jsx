@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { HashRouter as BrowserRouter, Link, NavLink, Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { createRetryableLazyModule } from "./routing/retryableLazyModule.js";
 import { RouteTransitionProvider } from "./routing/RouteTransitionProvider.jsx";
 import { loadLoadoutModule } from "./routing/routeModules.js";
