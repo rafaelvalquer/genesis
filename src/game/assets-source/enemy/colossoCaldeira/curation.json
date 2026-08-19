@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "coordinateSpace": "normalized-frame",
+  "canonicalBodyHeightPx": 489,
+  "description": "Each root is the midpoint between the soles in the reference frame of its animation sheet. It is authored once per state and must never be inferred from the full silhouette.",
+  "states": {
+    "spawnAwakening": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.4596 },
+    "idle": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.2227 },
+    "riftTelegraph": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.4362 },
+    "riftAttack": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.4362 },
+    "slamTelegraph": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.4141 },
+    "slamAttack": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.4141 },
+    "fractureTelegraph": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.2227 },
+    "fractureAttack": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.2279 },
+    "seismicTelegraph": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.237 },
+    "seismicAttack": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.2461 },
+    "phaseTransition2": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.2565 },
+    "phaseTransition3": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.2331 },
+    "finalCollapse": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.349 },
+    "coreExposed": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.3919 },
+    "death": { "root": { "x": 0.5, "y": 0.859375 }, "headTop": 0.4857 }
+  }
+}

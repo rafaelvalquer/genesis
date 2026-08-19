@@ -6,6 +6,9 @@ const sheets = {
   slamTelegraph: ["exec-30abf1ad-f5f8-4a47-8458-d6e04bbe9190.png", 3, 2, 6],
   slamAttack: ["exec-4fbb553f-be63-4a93-ac06-67c775ac6305.png", 4, 2, 8],
   finalCollapse: ["exec-bc28a4ec-0ebc-4b81-9336-c6fc4a0d7223.png", 4, 3, 12],
+  phaseTransition3: ["exec-c87ad8b0-b7d3-47f5-931a-ce625d7b1ae9.png", 5, 2, 10],
+  spawnAwakening: ["exec-e61c9a89-9fa7-4e20-9b18-f5a31b2386de.png", 4, 3, 12],
+  death: ["exec-b889de5a-74dd-4504-ab78-946e91056946.png", 4, 4, 14],
 };
 const state = process.argv[2];
 const spec = sheets[state];

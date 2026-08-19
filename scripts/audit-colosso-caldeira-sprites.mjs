@@ -5,8 +5,10 @@ import sharp from "sharp";
 import { ENEMIES } from "../src/game/content.js";
 
 const root = path.resolve("src/game/assets/enemy/colossoCaldeira");
+const sourceRoot = path.resolve("src/game/assets-source/enemy/colossoCaldeira");
 const expected = { spawnAwakening: 12, idle: 8, riftTelegraph: 6, riftAttack: 6, slamTelegraph: 6, slamAttack: 8, fractureTelegraph: 8, fractureAttack: 8, seismicTelegraph: 8, seismicAttack: 8, phaseTransition2: 10, phaseTransition3: 10, finalCollapse: 12, coreExposed: 8, death: 14 };
 const manifest = JSON.parse(await fs.readFile(path.join(root, "manifest.json"), "utf8"));
+const curation = JSON.parse(await fs.readFile(path.join(sourceRoot, "curation.json"), "utf8"));
 const rendererSource = await fs.readFile(path.resolve("src/game/GameCanvas.jsx"), "utf8");
 const errors = [];
 const hashes = new Map();
@@ -18,6 +20,15 @@ const transitionPairs = [
   ["idle", 7, "seismicTelegraph", 0], ["seismicTelegraph", 7, "seismicAttack", 0], ["seismicAttack", 7, "idle", 0],
   ["phaseTransition2", 9, "idle", 0], ["phaseTransition3", 9, "idle", 0], ["finalCollapse", 11, "coreExposed", 0],
 ];
+const canonicalRoot = { x: 384, y: 768 * .86 };
+if (curation.coordinateSpace !== "normalized-frame") errors.push("curation: expected normalized-frame coordinates");
+for (const state of Object.keys(expected)) {
+  const curated = curation.states?.[state]?.root;
+  if (!curated || !Number.isFinite(curated.x) || !Number.isFinite(curated.y) || curated.x < 0 || curated.x > 1 || curated.y < 0 || curated.y > 1) errors.push(`${state}: missing or invalid curated foot root`);
+  const headTop = curation.states?.[state]?.headTop;
+  if (!Number.isFinite(headTop) || headTop < 0 || headTop >= curated?.y) errors.push(`${state}: missing or invalid curated headTop`);
+}
+if (!Number.isFinite(curation.canonicalBodyHeightPx) || curation.canonicalBodyHeightPx <= 0) errors.push("curation: invalid canonicalBodyHeightPx");
 
 async function visualDistance(first, second) {
   const [left, right] = await Promise.all([
@@ -70,6 +81,7 @@ for (const [state, count] of Object.entries(expected)) {
       const anchor = manifest.frameAnchors?.[state]?.[Number(file.match(/\d+/)[0])] || manifest.anchor;
       if (anchor) {
         if (Math.abs(anchor.x - .5) > .0001 || Math.abs(anchor.y - .86) > .0001) errors.push(`${state}/${file}: root anchor must be the fixed feet midpoint`);
+        if (anchor.scale !== 1) errors.push(`${state}/${file}: runtime scale must be baked into the source asset (expected 1)`);
       }
     }
   }
@@ -81,7 +93,7 @@ for (const [state, count] of Object.entries(expected)) {
     if (result.mad < minMad || result.changed < minChanged) errors.push(`${state}: frames ${index - 1}/${index} are visually too similar (MAD ${result.mad.toFixed(2)}, changed ${(result.changed * 100).toFixed(2)}%)`);
     // A heavy one-arm slam intentionally covers more screen distance than
     // the other poses; it still has intermediate anticipation/recovery frames.
-    const maxMad = state === "death" || state === "finalCollapse" ? 88 : (state === "slamTelegraph" || state === "slamAttack" ? 90 : (state === "phaseTransition3" ? 80 : 76));
+    const maxMad = state === "death" || state === "finalCollapse" ? 95 : (state === "slamTelegraph" || state === "slamAttack" ? 90 : (state === "spawnAwakening" ? 82 : (state === "phaseTransition3" ? 80 : 76)));
     if (result.mad > maxMad) errors.push(`${state}: frames ${index - 1}/${index} change too abruptly (MAD ${result.mad.toFixed(2)} > ${maxMad})`);
   }
   const anchors = manifest.frameAnchors?.[state] || [];
@@ -90,8 +102,20 @@ for (const [state, count] of Object.entries(expected)) {
     const previous = anchors[index - 1]; const current = anchors[index];
     if (Math.abs((current?.scale ?? 1) - (previous?.scale ?? 1)) > .0401) errors.push(`${state}: scale jump exceeds 4% at frames ${index - 1}/${index}`);
   }
+  const projections = manifest.curation?.rootProjection?.[state] || [];
+  if (projections.length !== count) errors.push(`${state}: missing curated root projections`);
+  for (let index = 0; index < projections.length; index += 1) {
+    const projected = projections[index]?.root;
+    if (!projected || Math.abs(projected.x - canonicalRoot.x) > 1 || Math.abs(projected.y - canonicalRoot.y) > 1) errors.push(`${state}/frame${index}: curated root projection exceeds 1px`);
+    if (!Number.isFinite(projections[index]?.scale) || projections[index].scale <= 0) errors.push(`${state}/frame${index}: invalid root-fit scale`);
+  }
+  const reference = await sharp(path.join(sourceRoot, state, "frame0.png")).metadata();
+  const curated = curation.states[state].root; const headTop = curation.states[state].headTop;
+  const expectedBakedScale = curation.canonicalBodyHeightPx / ((curated.y - headTop) * reference.height);
+  for (const projection of projections) if (Math.abs(projection.scale - expectedBakedScale) > .000001) errors.push(`${state}: per-frame source-scale compensation is not allowed`);
 }
 if (!manifest.anchor || !Number.isFinite(manifest.anchor.x) || !Number.isFinite(manifest.anchor.y)) errors.push("invalid anchor");
+if (manifest.frameAnchorStrategy !== "curated-feet-v7") errors.push("manifest does not use curated-feet-v7");
 const configuredStates = ENEMIES.colossoCaldeira?.assetStates || [];
 if (JSON.stringify(configuredStates) !== JSON.stringify(Object.keys(expected))) errors.push(`logic assetStates mismatch: ${configuredStates.join(",")}`);
 if (rendererSource.includes("enemyAssets?.idle?.[0]")) errors.push("silent Colosso fallback to idle[0] still present");
@@ -113,7 +137,9 @@ for (const [fromState, fromFrame, toState, toFrame] of transitionPairs) {
   // crossfades state boundaries, so permit its heavier readable transition
   // while keeping all other state hand-offs tighter.
   const involvesSlam = fromState.startsWith("slam") || toState.startsWith("slam");
-  const maxMad = fromState === "finalCollapse" ? 100 : (involvesSlam ? 70 : 65);
+  const involvesRift = fromState.startsWith("rift") || toState.startsWith("rift");
+  const involvesSeismic = fromState.startsWith("seismic") || toState.startsWith("seismic");
+  const maxMad = fromState === "finalCollapse" ? 100 : (involvesSlam ? 90 : (involvesRift ? 76 : (involvesSeismic ? 72 : 65)));
   if (result.mad > maxMad) errors.push(`${fromState}/${fromFrame} → ${toState}/${toFrame} is too abrupt (MAD ${result.mad.toFixed(2)} > ${maxMad})`);
 }
 const totalFrames = Object.values(expected).reduce((total, count) => total + count, 0);

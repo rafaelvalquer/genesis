@@ -2709,7 +2709,7 @@ export const ENEMIES = {
     id: "colossoCaldeira", label: "Colosso da Caldeira", role: "Chefe vulcânico / controle territorial / ruptura de formação",
     boss: true, chapterId: "chapter_06", allowWaveSpawn: false, allowRandomSpawn: false, allowAlphaVariant: false,
     stationary: true, multiRowBoss: true, hp: 8400, maxHp: 8400, damage: 0, baseDamage: 0, speed: 0, attackEveryMs: 0, threat: 1300,
-    color: "#f97316", scale: 3.25, visualOffsetY: -42, bossAnchorRow: 2, spawnDurationMs: 6000,
+    color: "#f97316", scale: 3.25, bossAnchorRow: 2, spawnDurationMs: 6000,
     assetStates: ["spawnAwakening", "idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack", "fractureTelegraph", "fractureAttack", "seismicTelegraph", "seismicAttack", "phaseTransition2", "phaseTransition3", "finalCollapse", "coreExposed", "death"],
     animationFrameMs: { idle: 190, riftTelegraph: 185, riftAttack: 220, slamTelegraph: 185, slamAttack: 220, coreExposed: 110 },
     animationFrameProgress: {

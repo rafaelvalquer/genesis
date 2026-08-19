@@ -17,7 +17,7 @@ describe("Laboratório de Animações", () => {
     await waitFor(() => expect(screen.getAllByText(/8 frames/).length).toBeGreaterThan(0));
   });
 
-  it("permite frame manual, play/pause, velocidade, grade e anchor", async () => {
+  it("permite frame manual, play/pause, velocidade, grade, anchor e hit zones do Colosso", async () => {
     render(<MemoryRouter><AnimationLabPage /></MemoryRouter>);
     await waitFor(() => expect(screen.getByRole("button", { name: "Próximo frame" })).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Próximo frame" }));
@@ -28,6 +28,9 @@ describe("Laboratório de Animações", () => {
     expect(screen.getByRole("button", { name: "0.25x" })).toHaveClass("active");
     fireEvent.click(screen.getByRole("checkbox", { name: "Grade" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Anchor" }));
+    expect(screen.getByRole("checkbox", { name: "Hit zones" })).toBeChecked();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Hit zones" }));
+    expect(screen.getByRole("checkbox", { name: "Hit zones" })).not.toBeChecked();
   });
 
   it("não resolve frame ausente usando Idle", () => {

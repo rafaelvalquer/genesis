@@ -194,6 +194,15 @@ function updateFinalCollapse(session, enemy, config, hooks, events) {
   }
 }
 
+function beginPhaseTransition(session, enemy, config, events) {
+  const phase = enemy.colossoPendingPhase;
+  enemy.colossoPendingPhase = null;
+  enemy.colossoPhase = phase;
+  enemy.colossoTargetable = false;
+  setState(session, enemy, `phaseTransition${phase}`, config.transitionMs);
+  events.push({ type: "colossoPhaseChanged", bossId: enemy.id, phase, shake: phase === 3 ? 7 : 5 });
+}
+
 export function updateColossoCaldeira(session, enemy, config, hooks, events) {
   enemy._colossoConfig = config;
   syncColossoHitZones(enemy, config);
@@ -204,8 +213,13 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
   updateRifts(session, enemy, config, hooks, events);
   if (enemy.hp <= 0) { enemy.colossoDying = true; enemy.colossoRifts = []; hooks.clearMagmaHazards?.(enemy.id); hooks.cancelSummons?.(); setState(session, enemy, "death", config.deathDurationMs); events.push({ type: "colossoDeathStarted", bossId: enemy.id, shake: 12 }); return; }
   const phase = phaseFor(enemy);
-  if (phase !== enemy.colossoPhase) { enemy.colossoPhase = phase; enemy.colossoTargetable = false; setState(session, enemy, `phaseTransition${phase}`, config.transitionMs); events.push({ type: "colossoPhaseChanged", bossId: enemy.id, phase, shake: phase === 3 ? 7 : 5 }); return; }
-  if (!enemy.colossoFinalCollapseUsed && enemy.hp / enemy.maxHp <= .15) {
+  if (phase > enemy.colossoPhase) enemy.colossoPendingPhase = Math.max(enemy.colossoPendingPhase || enemy.colossoPhase, phase);
+  // A threshold never cuts a telegraph, attack, or its queued impacts short.
+  // Once recovery ends, transition before another attack can be selected.
+  if (enemy.colossoPendingPhase && enemy.colossoState === "idle" && session.elapsed >= enemy.colossoAttackReadyAt) {
+    beginPhaseTransition(session, enemy, config, events); return;
+  }
+  if (!enemy.colossoPendingPhase && !enemy.colossoFinalCollapseUsed && enemy.colossoState === "idle" && enemy.hp / enemy.maxHp <= .15) {
     enemy.colossoFinalCollapseUsed = true; enemy.colossoQueuedAttack = "finalCollapse"; enemy.colossoCollapseRows = [0, 4, 2]; enemy.colossoCollapseIndex = 0; enemy.colossoTargetRows = [...enemy.colossoCollapseRows];
     setState(session, enemy, "finalCollapse", config.finalCollapse.telegraphMs); events.push({ type: "colossoFinalCollapse", bossId: enemy.id, rows: [...enemy.colossoCollapseRows], shake: 7 }); return;
   }
@@ -256,6 +270,7 @@ export function getColossoAnimation(enemy, elapsed, frameCounts = {}, reduceMoti
 export function forceColossoAttack(session, enemy, attack, config, events = []) {
   if (!enemy || enemy.dead || enemy.type !== "colossoCaldeira") return { ok: false, reason: "Colosso não está ativo." };
   if (enemy.colossoDying || enemy.colossoState !== "idle") return { ok: false, reason: "Aguarde o Colosso terminar a ação atual." };
+  if (enemy.colossoPendingPhase) return { ok: false, reason: "Aguarde a transição de fase pendente." };
   const available = ["rift", "slam", ...(enemy.colossoPhase >= 2 ? ["fracture"] : []), ...(enemy.colossoPhase >= 3 ? ["seismic"] : [])];
   if (!available.includes(attack)) return { ok: false, reason: "Ataque indisponível nesta fase." };
   if (attack === "rift" && enemy.colossoRifts.length >= config.rift.maxActive[enemy.colossoPhase]) return { ok: false, reason: "Limite de fissuras ativas atingido." };
@@ -267,7 +282,7 @@ export function debugColosso(session, enemy, action, config, events = []) {
   if (!enemy || enemy.dead || enemy.type !== "colossoCaldeira") return { ok: false, reason: "Colosso não está ativo." };
   if (["phase1", "phase2", "phase3"].includes(action)) {
     const ratio = action === "phase1" ? 1 : action === "phase2" ? .70 : .35;
-    enemy.hp = enemy.maxHp * ratio; enemy.colossoPhase = Number(action.at(-1)); enemy.colossoTargetable = enemy.colossoPhase === 1;
+    enemy.hp = enemy.maxHp * ratio; enemy.colossoPhase = Number(action.at(-1)); enemy.colossoPendingPhase = null; enemy.colossoTargetable = enemy.colossoPhase === 1;
     setState(session, enemy, enemy.colossoPhase === 1 ? "idle" : `phaseTransition${enemy.colossoPhase}`, enemy.colossoPhase === 1 ? Infinity : config.transitionMs);
   } else if (action === "exposeCore") setState(session, enemy, "coreExposed", config.core.exposedMs);
   else if (action === "resetCooldowns") { enemy.colossoAttackReadyAt = session.elapsed; enemy.colossoPreviousAttack = null; }

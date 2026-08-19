@@ -1,10 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
+import { getCuratedRootPlacement } from "../src/game/colossoFootRoot.js";
 
 const runtimeRoot = path.resolve("src/game/assets/enemy/colossoCaldeira");
 const sourceRoot = path.resolve("src/game/assets-source/enemy/colossoCaldeira");
 const manifestPath = path.join(runtimeRoot, "manifest.json");
+const curationPath = path.join(sourceRoot, "curation.json");
 const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
 const required = {
   spawnAwakening: 12, idle: 8, riftTelegraph: 6, riftAttack: 6,
@@ -12,26 +14,45 @@ const required = {
   seismicTelegraph: 8, seismicAttack: 8, phaseTransition2: 10, phaseTransition3: 10,
   finalCollapse: 12, coreExposed: 8, death: 14,
 };
+const selectedStates = process.env.COLOSSO_STATES
+  ? process.env.COLOSSO_STATES.split(",").map((state) => state.trim()).filter(Boolean)
+  : Object.keys(required);
+for (const state of selectedStates) {
+  if (!(state in required)) throw new Error(`Unknown Colosso state: ${state}`);
+}
+// The authored death sheet contains a group of intermediate exports with
+// detached torso/limb fragments. Those are not usable as full-body poses: the
+// cleanup stage rightly removes the disconnected pieces, leaving a visibly
+// cropped Colosso. Hold the complete standing poses briefly, then transition
+// to the two complete grounded poses instead.
+const deathSourceFrames = [0, 0, 1, 1, 2, 2, 3, 3, 12, 12, 12, 12, 12, 12];
+const curation = JSON.parse(await fs.readFile(curationPath, "utf8"));
 const impact = { riftAttack: { impactFrame: 3, impactMs: 520 }, slamAttack: { impactFrame: 4, impactMs: 720 }, fractureAttack: { impactFrame: 4, impactMs: 798 }, seismicAttack: { impactFrame: 3, impactMs: 630 } };
 const frameMs = { idle: 190, riftTelegraph: 185, riftAttack: 220, slamTelegraph: 185, slamAttack: 220, coreExposed: 110 };
-// Rift sheets use wider 3×2 cells and were authored with a noticeably smaller
-// character. Bring them to the same on-screen stature as idle without moving
-// the fixed feet anchor.
-// These source sheets have a more generous transparent canvas than Idle.
-// Keep every pose at the same on-screen character scale while the fixed
-// anchor continues to pin the feet to the lane.
-const stateVisualScale = {
-  spawnAwakening: 1.32,
-  riftTelegraph: 1.48,
-  riftAttack: 1.48,
-  slamTelegraph: 1.42,
-  slamAttack: 1.42,
-};
 const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
 // The root is the midpoint between the feet, never a value inferred from a
 // changing silhouette. Every exported frame uses this same canvas point.
 const contentRoot = { x: .5, y: .86 };
 const isCalibratedV5 = false;
+const finalRootPx = { x: 768 * contentRoot.x, y: 768 * contentRoot.y };
+const safetyMargin = 8;
+
+function curatedRootFor(state) {
+  const root = curation?.states?.[state]?.root;
+  if (!root || !Number.isFinite(root.x) || !Number.isFinite(root.y) || root.x < 0 || root.x > 1 || root.y < 0 || root.y > 1) {
+    throw new Error(`Missing or invalid curated foot root for ${state} in ${curationPath}`);
+  }
+  return root;
+}
+
+function curatedHeadTopFor(state) {
+  const headTop = curation?.states?.[state]?.headTop;
+  const root = curatedRootFor(state);
+  if (!Number.isFinite(headTop) || headTop < 0 || headTop >= root.y) throw new Error(`Missing or invalid curated headTop for ${state} in ${curationPath}`);
+  return headTop;
+}
+
+for (const state of selectedStates) { curatedRootFor(state); curatedHeadTopFor(state); }
 
 function removeCornerResidue(data, info) {
   const pixelCount = info.width * info.height;
@@ -120,28 +141,15 @@ function median(values) {
   return sorted[Math.floor(sorted.length / 2)] || 1;
 }
 
-async function calibrationForState(state, frames) {
-  const authoredFolder = path.join(sourceRoot, state);
-  const boxes = await Promise.all(Array.from({ length: frames }, async (_, frame) => {
-    const sourceFrame = state === "death" && frame === 13 ? 12 : frame;
-    return authoredGeometry(path.join(authoredFolder, `frame${sourceFrame}.png`), state === "death");
-  }));
-  const baseline = median(boxes.map((box) => box.metric));
-  const anchors = boxes.map((box, frame) => {
-    const stored = isCalibratedV5 ? manifest.frameAnchors?.[state]?.[frame] : null;
-    if (stored) return stored;
-    // Death intentionally changes silhouette size; all other states receive a small,
-    // bounded correction so pose padding never becomes a visible scale jump.
-    const normalizedScale = state === "death" ? 1 : Math.max(.96, Math.min(1.04, baseline / Math.max(.001, box.metric)));
-    const scale = stateVisualScale[state] || normalizedScale;
-    return { x: contentRoot.x, y: contentRoot.y, scale: Number(scale.toFixed(4)) };
-  });
-  if (state === "death" || isCalibratedV5) return anchors;
-  return anchors.reduce((smoothed, anchor) => {
-    const previous = smoothed.at(-1);
-    smoothed.push(!previous ? anchor : { ...anchor, scale: Number(Math.max(previous.scale - .04, Math.min(previous.scale + .04, anchor.scale)).toFixed(4)) });
-    return smoothed;
-  }, []);
+const bakedSheetScale = new Map();
+async function bakedScaleForState(state) {
+  if (bakedSheetScale.has(state)) return bakedSheetScale.get(state);
+  const reference = await sharp(path.join(sourceRoot, state, "frame0.png")).metadata();
+  const root = curatedRootFor(state); const headTop = curatedHeadTopFor(state);
+  const scale = curation.canonicalBodyHeightPx / ((root.y - headTop) * reference.height);
+  if (!Number.isFinite(scale) || scale <= 0) throw new Error(`${state}: cannot derive canonical baked scale`);
+  bakedSheetScale.set(state, scale);
+  return scale;
 }
 
 async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCorners = false, state = "") {
@@ -150,68 +158,85 @@ async function normalizeAuthoredFrame(source, destination, frameAnchor, cleanCor
   removeGreen(sourceData, sourceInfo);
   if (state === "finalCollapse") removeLightChecker(sourceData, sourceInfo);
   if (cleanCorners) removeCornerResidue(sourceData, sourceInfo);
-  // Spawn poses have a wider awakening silhouette; give them a little more
-  // safety padding before applying the fixed root anchor.
-  const contentSize = state === "spawnAwakening" ? 660 : 720;
-  const border = (768 - contentSize) / 2;
-  const { data, info } = await sharp(sourceData, { raw: sourceInfo }).resize(contentSize, contentSize, { fit: "contain", background: transparent })
-    .extend({ top: border, bottom: border, left: border, right: border, background: transparent })
-    .ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  let minX = info.width; let minY = info.height; let maxX = -1; let maxY = -1;
+  const box = geometry(sourceData, sourceInfo);
+  const root = curatedRootFor(state);
+  const rootInSource = { x: root.x * sourceInfo.width, y: root.y * sourceInfo.height };
+  // Scale around the curated foot root. Never compensate for an extended arm
+  // by moving the full sprite: when a pose is too wide/tall, it is reduced
+  // uniformly until its alpha bounds fit the fixed 768px canvas.
+  const scale = await bakedScaleForState(state);
+  const placement = getCuratedRootPlacement({ bounds: box, sourceRoot: rootInSource, targetRoot: finalRootPx, preferredScale: scale, margin: safetyMargin });
+  if (Math.abs(placement.scale - scale) > .000001) throw new Error(`${state}: frame cannot fit canonical body scale without clipping; repair the source sheet padding instead`);
+  const targetWidth = Math.max(1, Math.round(sourceInfo.width * scale));
+  const targetHeight = Math.max(1, Math.round(sourceInfo.height * scale));
+  const { data, info } = await sharp(sourceData, { raw: sourceInfo }).resize(targetWidth, targetHeight, { fit: "fill" }).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const scaledRoot = { x: root.x * info.width, y: root.y * info.height };
+  const dx = Math.round(finalRootPx.x - scaledRoot.x);
+  const dy = Math.round(finalRootPx.y - scaledRoot.y);
+  const aligned = Buffer.alloc(768 * 768 * info.channels);
   for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
-    if (data[(y * info.width + x) * info.channels + 3] > 10) {
-      minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
-    }
+    const targetX = x + dx; const targetY = y + dy;
+    if (targetX < 0 || targetX >= 768 || targetY < 0 || targetY >= 768) continue;
+    const sourceOffset = (y * info.width + x) * info.channels;
+    data.copy(aligned, (targetY * 768 + targetX) * info.channels, sourceOffset, sourceOffset + info.channels);
   }
-  const aligned = Buffer.alloc(data.length);
-  let actualAnchor = frameAnchor;
-  if (maxX >= 0) {
-    const sourceAnchorX = (minX + maxX) / 2;
-    const sourceAnchorY = maxY;
-    let dx = Math.round(768 * contentRoot.x - sourceAnchorX);
-    let dy = Math.round(768 * contentRoot.y - sourceAnchorY);
-    // Never let an authored pose clip against the fixed canvas. Keeping a
-    // small transparent safety margin is preferable to losing hands, feet or
-    // head pixels when an AI sheet uses a slightly wider silhouette.
-    dx = Math.min(Math.max(dx, 2 - minX), 765 - maxX);
-    dy = Math.min(Math.max(dy, 2 - minY), 765 - maxY);
-    actualAnchor = { ...frameAnchor, ...contentRoot };
-    for (let y = 0; y < info.height; y += 1) for (let x = 0; x < info.width; x += 1) {
-      const targetX = x + dx; const targetY = y + dy;
-      if (targetX < 0 || targetX >= 768 || targetY < 0 || targetY >= 768) continue;
-      const sourceOffset = (y * info.width + x) * info.channels;
-      data.copy(aligned, (targetY * 768 + targetX) * info.channels, sourceOffset, sourceOffset + info.channels);
-    }
-  }
-  await sharp(aligned, { raw: { width: 768, height: 768, channels: info.channels } })
-    .png({ palette: true, quality: 46, colours: 48, compressionLevel: 9 }).toFile(destination);
-  return actualAnchor;
+  const projectedRoot = { x: dx + scaledRoot.x, y: dy + scaledRoot.y };
+  if (Math.abs(projectedRoot.x - finalRootPx.x) > 1 || Math.abs(projectedRoot.y - finalRootPx.y) > 1) throw new Error(`${state}: curated root projection drift exceeds 1px`);
+  const output = sharp(aligned, { raw: { width: 768, height: 768, channels: info.channels } });
+  // Preserve the subtle authored core-fade between death poses. Palette
+  // quantization merged those distinct late frames back into duplicates.
+  if (state === "death") await output.png({ compressionLevel: 9 }).toFile(destination);
+  else await output.png({ palette: true, quality: 46, colours: 48, compressionLevel: 9 }).toFile(destination);
+  return { anchor: { x: contentRoot.x, y: contentRoot.y, scale: 1 }, projection: { root: projectedRoot, scale } };
 }
 
-const frameAnchors = {};
-for (const [state, frames] of Object.entries(required)) {
+const frameAnchors = { ...manifest.frameAnchors };
+const rootProjection = { ...(manifest.curation?.rootProjection || {}) };
+for (const state of selectedStates) {
+  const frames = required[state];
   const authoredFolder = path.join(sourceRoot, state);
   const runtimeFolder = path.join(runtimeRoot, state);
   await fs.mkdir(runtimeFolder, { recursive: true });
-  const calibration = await calibrationForState(state, frames);
   frameAnchors[state] = [];
+  rootProjection[state] = [];
   for (let frame = 0; frame < frames; frame += 1) {
-    const sourceFrame = state === "death" && frame === 13 ? 12 : frame;
+    const sourceFrame = state === "death" ? deathSourceFrames[frame] : frame;
     const source = path.join(authoredFolder, `frame${sourceFrame}.png`);
     try { await fs.access(source); } catch { throw new Error(`Missing authored pose: ${source}`); }
     const smoothStates = new Set(["idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack"]);
-    frameAnchors[state][frame] = await normalizeAuthoredFrame(source, path.join(runtimeFolder, `frame${frame}.png`), calibration[frame], state === "death" || smoothStates.has(state), state);
+    // Death poses may legitimately contain separated arms as the body sags;
+    // their source frames were already re-framed and audited. Do not erase
+    // those authored pose differences as if they were corner debris.
+    const normalized = await normalizeAuthoredFrame(source, path.join(runtimeFolder, `frame${frame}.png`), { x: contentRoot.x, y: contentRoot.y, scale: 1 }, smoothStates.has(state), state);
+    frameAnchors[state][frame] = normalized.anchor;
+    rootProjection[state][frame] = normalized.projection;
   }
 }
 
-manifest.animations = Object.fromEntries(Object.entries(required).map(([state, frames]) => [state, {
-  frames,
-  frameMs: manifest.animationFrameMs?.[state] || frameMs[state] || (state === "death" ? 330 : 120),
-  loop: state === "idle" || state === "coreExposed",
-  ...(impact[state] || {}),
-}]));
+for (const state of selectedStates) {
+  const frames = required[state];
+  manifest.animations[state] = {
+    frames,
+    frameMs: manifest.animationFrameMs?.[state] || frameMs[state] || (state === "death" ? 330 : 120),
+    loop: state === "idle" || state === "coreExposed",
+    ...(impact[state] || {}),
+  };
+}
 manifest.frameAnchors = frameAnchors;
 manifest.anchor = contentRoot;
-manifest.frameAnchorStrategy = "fixed-feet-v6";
-await fs.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-console.log(`Processed ${Object.values(required).reduce((total, frames) => total + frames, 0)} individually-authored Colosso frames.`);
+manifest.frameAnchorStrategy = "curated-feet-v7";
+manifest.curation = { version: curation.version, coordinateSpace: curation.coordinateSpace, canonicalBodyHeightPx: curation.canonicalBodyHeightPx, target: finalRootPx, states: curation.states, rootProjection };
+const serializedManifest = `${JSON.stringify(manifest, null, 2)}\n`;
+let manifestWriteError;
+for (let attempt = 0; attempt < 5; attempt += 1) {
+  try {
+    await fs.writeFile(manifestPath, serializedManifest);
+    manifestWriteError = undefined;
+    break;
+  } catch (error) {
+    manifestWriteError = error;
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)));
+  }
+}
+if (manifestWriteError) throw manifestWriteError;
+console.log(`Processed ${selectedStates.reduce((total, state) => total + required[state], 0)} individually-authored Colosso frames.`);

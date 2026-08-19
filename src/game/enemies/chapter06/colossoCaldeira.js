@@ -4,7 +4,7 @@ import { enemyBehavior } from "../enemyBehavior.js";
 export const colossoCaldeiraBehavior = enemyBehavior({
   createState: (session, queued, config) => ({
     colossoState: "spawnAwakening", colossoStateStartedAt: session.elapsed,
-    colossoStateEndsAt: session.elapsed + config.spawnDurationMs, colossoPhase: 1,
+    colossoStateEndsAt: session.elapsed + config.spawnDurationMs, colossoPhase: 1, colossoPendingPhase: null,
     colossoTargetable: false, targetableRows: [], hitZones: [], colossoPreviousAttack: null,
     colossoQueuedAttack: null, colossoNextDecisionAt: session.elapsed + config.spawnDurationMs + 1100,
     colossoAttackReadyAt: session.elapsed + config.spawnDurationMs + 1100,

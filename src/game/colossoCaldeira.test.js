@@ -5,6 +5,7 @@ import { createBattleSession, debugColosso, forceColossoAttack, placeTroop, star
 import { enemyOccupiesTargetRow } from "./battle/queries.js";
 import { getColossoAnimation, getColossoDamageFactor } from "./colossoCaldeira.js";
 import { getColossoSpriteLayout } from "./colossoCaldeiraRenderer.js";
+import manifest from "./assets/enemy/colossoCaldeira/manifest.json";
 
 const phase48 = () => CHAPTER_SIX_PHASES.find((phase) => phase.id === "fase_48");
 
@@ -56,6 +57,41 @@ describe("Colosso da Caldeira", () => {
     expect(layout.top + layout.height * layout.anchor.y).toBeCloseTo(layout.rootY);
   });
 
+  it("usa somente visualRootOffset do manifest para a raiz visual", () => {
+    const layout = getColossoSpriteLayout(
+      { x: 320, y: 288 },
+      { state: "idle", frame: 0 },
+      {
+        anchor: { x: .5, y: .86 },
+        visualRootOffset: { x: -42, y: 190 },
+        visualOffsetX: 999,
+        visualOffsetY: 999,
+      },
+    );
+    expect(layout.rootX).toBe(278);
+    expect(layout.rootY).toBe(478);
+    expect(ENEMIES.colossoCaldeira).not.toHaveProperty("visualOffsetY");
+  });
+
+  it("declara raízes de pés curadas e escala unitária em todos os 132 frames", () => {
+    expect(manifest.frameAnchorStrategy).toBe("curated-feet-v7");
+    for (const [state, frames] of Object.entries(manifest.frameAnchors)) {
+      expect(manifest.curation.states[state].root).toEqual(expect.objectContaining({ x: expect.any(Number), y: expect.any(Number) }));
+      expect(frames).toHaveLength(manifest.animations[state].frames);
+      for (const anchor of frames) expect(anchor).toEqual({ x: .5, y: .86, scale: 1 });
+    }
+  });
+
+  it("normaliza Rift e Slam na altura corporal canônica do Idle", () => {
+    const canonicalHeight = manifest.curation.canonicalBodyHeightPx;
+    for (const state of ["idle", "riftTelegraph", "riftAttack", "slamTelegraph", "slamAttack"]) {
+      const source = manifest.curation.states[state];
+      const projection = manifest.curation.rootProjection[state][0];
+      const sourceHeight = (source.root.y - source.headTop) * 768;
+      expect(sourceHeight * projection.scale).toBeCloseTo(canonicalHeight, 6);
+    }
+  });
+
   it("desperta aos 15 segundos e fica alvo em todas as rotas", () => {
     const { session, boss } = encounter();
     expect(session.bossEncounter.spawned).toBe(true); expect(boss.colossoState).toBe("idle");
@@ -92,15 +128,51 @@ describe("Colosso da Caldeira", () => {
     expect(troop.hp).toBeLessThan(troop.maxHp);
   });
 
+  it("adianta a fase pendente somente após Slam, recovery e cooldown", () => {
+    const { session, boss } = encounter();
+    expect(forceColossoAttack(session, "slam").ok).toBe(true);
+    boss.hp = boss.maxHp * .6;
+    stepBattle(session, 1);
+    expect(boss).toMatchObject({ colossoState: "slamTelegraph", colossoPhase: 1, colossoPendingPhase: 2, colossoTargetable: true });
+
+    stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.slam[1] + 1);
+    expect(boss.colossoState).toBe("slamAttack");
+    stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.slam + 1);
+    expect(boss).toMatchObject({ colossoState: "idle", colossoPhase: 1, colossoPendingPhase: 2, colossoTargetable: true });
+    expect(forceColossoAttack(session, "slam")).toMatchObject({ ok: false });
+
+    stepBattle(session, ENEMIES.colossoCaldeira.attackCooldownMs[1] - 1);
+    expect(boss.colossoState).toBe("idle");
+    const changed = stepBattle(session, 2);
+    expect(changed).toContainEqual(expect.objectContaining({ type: "colossoPhaseChanged", phase: 2 }));
+    expect(boss).toMatchObject({ colossoState: "phaseTransition2", colossoPhase: 2, colossoPendingPhase: null, colossoTargetable: false });
+  });
+
+  it("conclui impactos enfileirados antes de transicionar para a fase pendente", () => {
+    const { session, boss } = encounter();
+    boss.colossoPhase = 2;
+    expect(forceColossoAttack(session, "fracture").ok).toBe(true);
+    stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.fracture[2] + 1);
+    boss.hp = boss.maxHp * .3;
+    const firstImpact = stepBattle(session, ENEMIES.colossoCaldeira.attackImpactMs.fracture + 2);
+    expect(firstImpact).toContainEqual(expect.objectContaining({ type: "colossoAttackImpact", attack: "fracture" }));
+    expect(boss).toMatchObject({ colossoState: "fractureAttack", colossoPhase: 2, colossoPendingPhase: 3 });
+    stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.fracture);
+    expect(boss.colossoState).toBe("idle");
+    expect(session.temporaryMagmaHazards.filter((hazard) => hazard.sourceEnemyId === boss.id)).toHaveLength(10);
+  });
+
   it("progride Fratura por célula e Sísmico por rota", () => {
     const { session, boss } = encounter();
+    boss.colossoAttackReadyAt = session.elapsed;
     boss.hp = boss.maxHp * .6; stepBattle(session, 1); stepBattle(session, ENEMIES.colossoCaldeira.transitionMs + 1);
     execute(session, "fracture");
     expect(session.temporaryMagmaHazards.filter((hazard) => hazard.sourceEnemyId === boss.id)).toHaveLength(1);
     for (let index = 0; index < 10; index += 1) stepBattle(session, ENEMIES.colossoCaldeira.fracture.cellIntervalMs);
     const fractureCells = session.temporaryMagmaHazards.filter((hazard) => hazard.sourceEnemyId === boss.id).map((hazard) => `${hazard.row}:${hazard.col}`);
     expect(new Set(fractureCells)).toHaveLength(10);
-    boss.hp = boss.maxHp * .3; stepBattle(session, 1); stepBattle(session, ENEMIES.colossoCaldeira.transitionMs + 1);
+    boss.hp = boss.maxHp * .3; stepBattle(session, 1);
+    stepBattle(session, ENEMIES.colossoCaldeira.attackCooldownMs[2] + 1); stepBattle(session, ENEMIES.colossoCaldeira.transitionMs + 1);
     expect(forceColossoAttack(session, "seismic").ok).toBe(true);
     const rows = [...boss.colossoTargetRows]; stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.seismic[3] + ENEMIES.colossoCaldeira.attackExecutionMs.seismic * .45 + 2);
     expect(boss.colossoImpactQueue.length).toBeLessThan(rows.length);
@@ -110,6 +182,7 @@ describe("Colosso da Caldeira", () => {
     const { session, boss } = encounter();
     expect([0, 1, 2, 3, 4].every((row) => enemyOccupiesTargetRow(boss, row))).toBe(true);
     expect(getColossoDamageFactor(boss, 2)).toBeCloseTo(.35);
+    boss.colossoAttackReadyAt = session.elapsed;
     boss.hp = boss.maxHp * .6; stepBattle(session, 1);
     expect(boss.colossoTargetable).toBe(false); expect(boss.targetableRows).toEqual([]);
     stepBattle(session, ENEMIES.colossoCaldeira.transitionMs + 1); expect(boss.colossoTargetable).toBe(true);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getEnemyCatalogEntries, TROOPS } from "../game/content.js";
 import { loadAnimationEntity, releaseAnimationEntityAssets } from "./animationLabAssetLoader.js";
+import { drawColossoHitZoneOverlay } from "../game/colossoHitZoneDebug.js";
 
 const SPEEDS = [0.25, 0.5, 1, 1.5, 2];
 const labelFor = (state) => state.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/^./, (char) => char.toUpperCase());
@@ -53,7 +54,7 @@ function previewScaleForImage(image, anchor, requestedScale) {
   return Math.max(.1, Math.min(requestedScale, ...limits) * .995);
 }
 
-function PreviewCanvas({ image, anchor, showGrid, showAnchor, state, frame }) {
+function PreviewCanvas({ image, anchor, showGrid, showAnchor, showHitZones, state, frame }) {
   const ref = useRef(null);
   useEffect(() => {
     if (import.meta.env.MODE === "test") return;
@@ -75,8 +76,14 @@ function PreviewCanvas({ image, anchor, showGrid, showAnchor, state, frame }) {
       ctx.fillStyle = "rgba(251,113,133,.14)"; ctx.fillRect(48, 48, 672, 672); ctx.strokeStyle = "#fb7185"; ctx.strokeRect(48, 48, 672, 672);
       ctx.fillStyle = "#fecdd3"; ctx.textAlign = "center"; ctx.font = "700 22px Chakra Petch, sans-serif"; ctx.fillText("SPRITE AUSENTE", 384, 365); ctx.font = "14px Inter, sans-serif"; ctx.fillText(`${state} / frame ${frame}`, 384, 400);
     }
-    if (showAnchor) { const x = 768 * (anchor?.x ?? .5); const y = 768 * (anchor?.y ?? 1); ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x + 14, y); ctx.moveTo(x, y - 14); ctx.lineTo(x, y + 14); ctx.stroke(); ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
-  }, [image, anchor, showGrid, showAnchor, state, frame]);
+    const anchorX = 768 * (anchor?.x ?? .5); const anchorY = 768 * (anchor?.y ?? 1);
+    if (showHitZones) {
+      const requestedScale = Number(anchor?.scale) > 0 ? Number(anchor.scale) : 1;
+      const scale = previewScaleForImage(image, anchor, requestedScale);
+      drawColossoHitZoneOverlay(ctx, { anchorX, anchorY, rowHeight: 96 * scale * 768 / (424 * requestedScale), fontSize: 14 });
+    }
+    if (showAnchor) { const x = anchorX; const y = anchorY; ctx.strokeStyle = "#fbbf24"; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 14, y); ctx.lineTo(x + 14, y); ctx.moveTo(x, y - 14); ctx.lineTo(x, y + 14); ctx.stroke(); ctx.fillStyle = "#fbbf24"; ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill(); }
+  }, [image, anchor, showGrid, showAnchor, showHitZones, state, frame]);
   return <canvas ref={ref} className="animation-preview-canvas" width="768" height="768" aria-label={`Preview ${state} frame ${frame}`} />;
 }
 
@@ -96,7 +103,7 @@ export default function AnimationLabPage() {
   const entries = category === "troops" ? troopEntries : getEnemyCatalogEntries();
   const [selectedId, setSelectedId] = useState("colossoCaldeira");
   const [asset, setAsset] = useState(null); const [error, setError] = useState("");
-  const [state, setState] = useState("idle"); const [frame, setFrame] = useState(0); const [playing, setPlaying] = useState(false); const [speed, setSpeed] = useState(1); const [showGrid, setShowGrid] = useState(true); const [showAnchor, setShowAnchor] = useState(true);
+  const [state, setState] = useState("idle"); const [frame, setFrame] = useState(0); const [playing, setPlaying] = useState(false); const [speed, setSpeed] = useState(1); const [showGrid, setShowGrid] = useState(true); const [showAnchor, setShowAnchor] = useState(true); const [showHitZones, setShowHitZones] = useState(true);
   const selected = entries.find((entry) => entry.id === selectedId) || entries[0];
   const states = useMemo(() => selected?.assetStates || (category === "troops" ? ["idle", "attack"] : ["walking", "attack", "idle"]), [category, selected]);
   useEffect(() => { if (!states.includes(state)) { setState(states[0] || "idle"); setFrame(0); } }, [states, state]);
@@ -115,7 +122,7 @@ export default function AnimationLabPage() {
     <div className="animation-lab-tabs" role="tablist" aria-label="Categorias do laboratório">{[["troops", "Tropas"], ["enemies", "Monstros"]].map(([id, label]) => <button key={id} role="tab" aria-selected={category === id} className={category === id ? "active" : ""} onClick={() => selectCategory(id)}>{label}</button>)}</div>
     <section className="animation-lab-layout">
       <aside className="animation-lab-sidebar"><label className="animation-lab-select"><span>PERSONAGEM</span><select value={selected?.id || ""} onChange={(event) => setSelectedId(event.target.value)}>{entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.label}</option>)}</select></label><div className="animation-state-list"><span className="eyebrow">ANIMAÇÕES</span>{states.map((entry) => <button key={entry} className={state === entry ? "active" : ""} onClick={() => { setState(entry); setFrame(0); }}>{labelFor(entry)}<small>{asset?.states?.[entry]?.length || "—"} frames</small></button>)}</div></aside>
-      <div className="animation-lab-main"><div className="animation-preview"><PreviewCanvas image={image} anchor={anchor} showGrid={showGrid} showAnchor={showAnchor} state={state} frame={frame} />{error && <p className="animation-lab-error">{error}</p>}</div><div className="animation-lab-controls"><button className="secondary-button" aria-label="Frame anterior" onClick={() => setFrame((current) => frames.length ? (current - 1 + frames.length) % frames.length : 0)}>◀</button><button className="primary-button" onClick={() => setPlaying((current) => !current)}>{playing ? "Pausar" : "Play"}</button><button className="secondary-button" aria-label="Próximo frame" onClick={() => setFrame((current) => frames.length ? (current + 1) % frames.length : 0)}>▶</button><div className="animation-speed" role="group" aria-label="Velocidade">{SPEEDS.map((value) => <button key={value} className={speed === value ? "active" : ""} onClick={() => setSpeed(value)}>{value}x</button>)}</div><label className="animation-check"><input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} /> Grade</label><label className="animation-check"><input type="checkbox" checked={showAnchor} onChange={(event) => setShowAnchor(event.target.checked)} /> Anchor</label></div><div className="animation-lab-technical"><strong>{selected?.label || "—"} · {labelFor(state)}</strong><span>Frame: <b>{frames.length ? frame : "—"} / {frames.length}</b></span><span>Arquivo: <b>{asset?.files?.[state]?.[frame] || `frame${frame}.png`}</b></span><span>Dimensão: <b>{image ? `${image.width} × ${image.height}` : "—"}</b></span><span>Timing: <b>{Math.round(meta.frameMs)} ms/frame · {Math.round(meta.durationMs)} ms total</b></span><span>Anchor: <b>{Number(anchor.x).toFixed(4)} / {Number(anchor.y).toFixed(4)}</b></span><span>Scale: <b>{Number(anchor.scale || 1).toFixed(4)}</b></span>{meta.impactFrame != null && <span>Impacto: <b>frame {meta.impactFrame} · {meta.impactMs} ms</b></span>}</div><div className="animation-filmstrip" aria-label="Frames da animação">{(frames.length ? frames : [null]).map((entry, index) => <button key={index} className={frame === index ? "active" : ""} aria-label={`Selecionar frame ${index}`} onClick={() => { setFrame(index); setPlaying(false); }}><span><FrameThumb image={entry} /></span><small>{index}</small></button>)}</div></div>
+      <div className="animation-lab-main"><div className="animation-preview"><PreviewCanvas image={image} anchor={anchor} showGrid={showGrid} showAnchor={showAnchor} showHitZones={selected?.id === "colossoCaldeira" && showHitZones} state={state} frame={frame} />{error && <p className="animation-lab-error">{error}</p>}</div><div className="animation-lab-controls"><button className="secondary-button" aria-label="Frame anterior" onClick={() => setFrame((current) => frames.length ? (current - 1 + frames.length) % frames.length : 0)}>◀</button><button className="primary-button" onClick={() => setPlaying((current) => !current)}>{playing ? "Pausar" : "Play"}</button><button className="secondary-button" aria-label="Próximo frame" onClick={() => setFrame((current) => frames.length ? (current + 1) % frames.length : 0)}>▶</button><div className="animation-speed" role="group" aria-label="Velocidade">{SPEEDS.map((value) => <button key={value} className={speed === value ? "active" : ""} onClick={() => setSpeed(value)}>{value}x</button>)}</div><label className="animation-check"><input type="checkbox" checked={showGrid} onChange={(event) => setShowGrid(event.target.checked)} /> Grade</label><label className="animation-check"><input type="checkbox" checked={showAnchor} onChange={(event) => setShowAnchor(event.target.checked)} /> Anchor</label>{selected?.id === "colossoCaldeira" && <label className="animation-check"><input type="checkbox" checked={showHitZones} onChange={(event) => setShowHitZones(event.target.checked)} /> Hit zones</label>}</div><div className="animation-lab-technical"><strong>{selected?.label || "—"} · {labelFor(state)}</strong><span>Frame: <b>{frames.length ? frame : "—"} / {frames.length}</b></span><span>Arquivo: <b>{asset?.files?.[state]?.[frame] || `frame${frame}.png`}</b></span><span>Dimensão: <b>{image ? `${image.width} × ${image.height}` : "—"}</b></span><span>Timing: <b>{Math.round(meta.frameMs)} ms/frame · {Math.round(meta.durationMs)} ms total</b></span><span>Anchor: <b>{Number(anchor.x).toFixed(4)} / {Number(anchor.y).toFixed(4)}</b></span><span>Scale: <b>{Number(anchor.scale || 1).toFixed(4)}</b></span>{meta.impactFrame != null && <span>Impacto: <b>frame {meta.impactFrame} · {meta.impactMs} ms</b></span>}</div><div className="animation-filmstrip" aria-label="Frames da animação">{(frames.length ? frames : [null]).map((entry, index) => <button key={index} className={frame === index ? "active" : ""} aria-label={`Selecionar frame ${index}`} onClick={() => { setFrame(index); setPlaying(false); }}><span><FrameThumb image={entry} /></span><small>{index}</small></button>)}</div></div>
     </section>
   </main>;
 }

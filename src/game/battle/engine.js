@@ -2353,8 +2353,10 @@ function enemyHitPointForRow(enemy, row, elapsed) {
   const config = ENEMIES[enemy.type];
   if (enemy.type === "colossoCaldeira") {
     const zone = enemy.hitZones?.find((entry) => entry.rows.includes(row));
-    const xOffset = zone?.part === "leftArm" ? -82 : zone?.part === "rightArm" ? -68 : zone?.part === "core" ? -28 : -48;
-    return { x: enemy.x + xOffset, y: row * CELL.height + CELL.height / 2 };
+    // The Colosso occupies several logical lanes, but all impact feedback must
+    // land on the body. Row-derived coordinates placed hits above its head.
+    const xOffset = zone?.part === "leftArm" ? -112 : zone?.part === "rightArm" ? -76 : zone?.part === "core" ? -94 : -88;
+    return { x: enemy.x + xOffset, y: enemy.y - 72 };
   }
   if (enemy.type !== "leviathanNereida") return getEnemyHitPoint(enemy, config);
   const state = enemy.leviathanState || "idleSurface";
