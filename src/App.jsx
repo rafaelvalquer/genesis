@@ -26,6 +26,10 @@ import { getValidLastSelectedTroopId, loadLoadoutPreferences, resetLoadoutPrefer
 
 export { LoadoutPicker, CommandPage as HomePage };
 
+// Labs are development tooling. Vite replaces this flag at build time, so
+// production builds neither advertise nor route to the internal test pages.
+export const DEV_TOOLS_ENABLED = import.meta.env.DEV;
+
 const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";
   const total = Math.floor(milliseconds / 1000);
@@ -74,9 +78,9 @@ export function AppLayout({ children }) {
         <NavLink to="/" end>Comando</NavLink>
         <NavLink to="/fases">Campanha</NavLink>
         <NavLink to="/enciclopedia">Enciclopédia</NavLink>
-        <NavLink to="/testes">Testes</NavLink>
+        {DEV_TOOLS_ENABLED && <NavLink to="/testes">Testes</NavLink>}
         <NavLink to="/configuracoes">Configurações</NavLink>
-        <NavLink to="/animacoes">Animações</NavLink>
+        {DEV_TOOLS_ENABLED && <NavLink to="/animacoes">Animações</NavLink>}
       </nav>
       <span className="system-status"><i /> SISTEMA LOCAL</span>
     </header>
@@ -380,5 +384,5 @@ export default function App() {
     resetLoadoutPreferences();
     return true;
   };
-  return <BrowserRouter><RouteTransitionProvider><AppLayout><Suspense fallback={<RouteFallback />}><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} /><Route path="/testes" element={<TestLabPage />} /><Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="/animacoes" element={<AnimationLabPage />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense></AppLayout></RouteTransitionProvider></BrowserRouter>;
+  return <BrowserRouter><RouteTransitionProvider><AppLayout><Suspense fallback={<RouteFallback />}><Routes><Route path="/" element={<CommandPage campaign={campaign} />} /><Route path="/fases" element={<PhaseSelectPage campaign={campaign} />} /><Route path="/enciclopedia" element={<EncyclopediaPage campaign={campaign} />} /><Route path="/jogar/:phaseId" element={<PlayPage campaign={campaign} setCampaign={setCampaign} />} />{DEV_TOOLS_ENABLED && <><Route path="/testes" element={<TestLabPage />} /><Route path="/animacoes" element={<AnimationLabPage />} /></>}<Route path="/configuracoes" element={<SettingsPage onReset={handleReset} />} /><Route path="*" element={<Navigate to="/" replace />} /></Routes></Suspense></AppLayout></RouteTransitionProvider></BrowserRouter>;
 }
