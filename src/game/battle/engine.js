@@ -8506,6 +8506,7 @@ export function getSnapshot(session) {
       enabled: session.alphaPressure.enabled,
       nextCheckInMs: Number.isFinite(session.alphaPressure.nextCheckAt) ? Math.max(0, session.alphaPressure.nextCheckAt - session.elapsed) : 0,
       checksThisWave: session.alphaPressure.checksThisWave,
+      failedChecksThisWave: session.alphaPressure.failedChecksThisWave,
       spawnsThisWave: session.alphaPressure.spawnsThisWave,
       totalAlphaSpawned: session.alphaPressure.totalAlphaSpawned,
       lastCheckAt: session.alphaPressure.lastCheckAt,

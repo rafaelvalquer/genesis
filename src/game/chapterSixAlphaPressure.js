@@ -6,7 +6,7 @@ export const CHAPTER_SIX_ALPHA_MODIFIERS = Object.freeze({
 const numeric = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
 
 export function createAlphaPressureState(config) {
-  return { enabled: Boolean(config?.enabled), nextCheckAt: Infinity, checksThisWave: 0, spawnsThisWave: 0, totalAlphaSpawned: 0, lastCheckAt: null, lastTriggeredAt: null, lastSpawnType: null, lastSpawnRow: null, pendingSpawns: [] };
+  return { enabled: Boolean(config?.enabled), nextCheckAt: Infinity, checksThisWave: 0, failedChecksThisWave: 0, spawnsThisWave: 0, totalAlphaSpawned: 0, lastCheckAt: null, lastTriggeredAt: null, lastSpawnType: null, lastSpawnRow: null, pendingSpawns: [] };
 }
 
 export function countPressureTroops(session) {
@@ -19,7 +19,7 @@ export function resetAlphaPressureForWave(session, config = session?.phase?.alph
   if (!state) return false;
   state.enabled = Boolean(config?.enabled);
   state.nextCheckAt = state.enabled ? session.elapsed + numeric(config.firstCheckDelayMs, 18000) : Infinity;
-  state.checksThisWave = 0; state.spawnsThisWave = 0; state.lastCheckAt = null; state.lastTriggeredAt = null;
+  state.checksThisWave = 0; state.failedChecksThisWave = 0; state.spawnsThisWave = 0; state.lastCheckAt = null; state.lastTriggeredAt = null;
   state.lastSpawnType = null; state.lastSpawnRow = null; state.pendingSpawns = [];
   return true;
 }
@@ -29,22 +29,26 @@ export function calculateAlphaChance(troopCount, config = {}) {
   return Math.min(numeric(config.maxChance, .4), numeric(config.baseChance, .04) + (troopCount - numeric(config.minTroops, 5)) * numeric(config.chancePerExtraTroop, .035));
 }
 
-export function hasActiveAlpha(session) {
-  return Boolean(session?.alphaPressure?.pendingSpawns?.length)
-    || (session?.enemies || []).some((enemy) => !enemy.dead && enemy.variant === "alpha" && enemy.spawnSource === "alphaPressure");
+export function hasActiveAlpha(session, config = session?.phase?.alphaPressure) {
+  const activeCount = (session?.alphaPressure?.pendingSpawns || []).length
+    + (session?.enemies || []).filter((enemy) => !enemy.dead && enemy.variant === "alpha" && enemy.spawnSource === "alphaPressure").length;
+  return activeCount >= Math.max(1, numeric(config?.maximumAlphaAlive, 1));
 }
 
 export function getAlphaEligibleEnemyTypes(session, config = session?.phase?.alphaPressure, enemyCatalog = {}) {
   const wave = session?.phase?.waves?.[session.waveIndex];
   const waveTypes = [...(wave?.enemies || []).map((entry) => entry.type), ...(session?.queue || []).map((entry) => entry.type), ...(session?.enemies || []).filter((enemy) => !enemy.dead && enemy.spawnSource !== "alphaPressure").map((enemy) => enemy.type)];
   const candidates = config?.enemyPool?.length ? config.enemyPool : waveTypes;
-  const eligible = [...new Set(candidates)].filter((type) => {
+  let eligible = [...new Set(candidates)].filter((type) => {
     const entry = enemyCatalog[type] || {};
     return type && entry.boss !== true && entry.allowAlphaVariant !== false && entry.summoned !== true && entry.hiddenFromCatalog !== true;
   });
+  if (eligible.length > 1 && statefulLastType(session)) eligible = eligible.filter((type) => type !== statefulLastType(session));
   if (eligible.length) return eligible;
   return [...new Set(waveTypes)].filter((type) => enemyCatalog[type]?.boss !== true && enemyCatalog[type]?.allowAlphaVariant !== false);
 }
+
+function statefulLastType(session) { return session?.alphaPressure?.lastSpawnType || null; }
 
 function selectAlphaSpawnRow(session, state) {
   const previous = Number.isInteger(state.lastSpawnRow) ? state.lastSpawnRow : null;
@@ -58,8 +62,14 @@ export function evaluateAlphaPressure(session, config = session?.phase?.alphaPre
   state.lastCheckAt = session.elapsed; state.checksThisWave += 1; state.nextCheckAt = session.elapsed + numeric(config.checkEveryMs, 12000);
   const troopCount = countPressureTroops(session);
   const result = { checked: true, triggered: false, troopCount, chance: calculateAlphaChance(troopCount, config), nextCheckAt: state.nextCheckAt };
-  if (troopCount < numeric(config.minTroops, 5) || hasActiveAlpha(session)) return result;
-  if (session.rng() >= result.chance) return result;
+  if (troopCount < numeric(config.minTroops, 5) || hasActiveAlpha(session, config)) return result;
+  const failures = state.failedChecksThisWave || 0;
+  const adjustedChance = failures >= 3
+    ? 1
+    : Math.min(numeric(config.maxChance, .4), result.chance + (failures >= 2 ? .10 : failures >= 1 ? .05 : 0));
+  result.chance = adjustedChance;
+  if (session.rng() >= adjustedChance) { state.failedChecksThisWave = failures + 1; return result; }
+  state.failedChecksThisWave = 0;
   const types = getAlphaEligibleEnemyTypes(session, config, enemyCatalog);
   if (!types.length) return result;
   const type = types[Math.min(types.length - 1, Math.floor(session.rng() * types.length))];

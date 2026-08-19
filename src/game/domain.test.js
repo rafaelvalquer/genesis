@@ -41,6 +41,13 @@ describe("campanha e ondas", () => {
     expect([...split].sort()).not.toEqual([...spread].sort());
     expect(chooseDistinctRows({ count: 3, rng: () => .2, pressure: Array(5).fill(0) })).toHaveLength(3);
   });
+
+  it("distribui o pacote dinâmico expandido entre todas as rotas selecionadas", () => {
+    const phase = { waves: [{ spawnBlocks: [{ id: "test", packets: [{ id: "packet", spawnAtMs: 0, dynamicRoutes: true, routeStrategy: "spread", units: [{ type: "cuspidorBrasa", rows: [2], countPerRow: 3 }] }] }] }] };
+    const queue = buildSpawnQueue(phase, 0, 42);
+    expect(queue).toHaveLength(3);
+    expect(new Set(queue.map((entry) => entry.row)).size).toBe(3);
+  });
   it("mantem as familias Medu e Crix apoiadas mais perto da rota", () => {
     expect([ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis].map((enemy) => enemy.spriteOffsetY))
       .toEqual([2, 2, 2]);

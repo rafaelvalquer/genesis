@@ -56,4 +56,30 @@ describe("Chapter Six alpha pressure", () => {
     expect(getAlphaEligibleEnemyTypes({ ...session, queue: [], phase: { waves: [{ enemies: [{ type: "colossoCaldeira", count: 1 }] }] } }, { ...config, enemyPool: ["colossoCaldeira", "predadorCaldeira"] }, catalog)).toEqual(["predadorCaldeira"]);
     expect(CHAPTER_SIX_ALPHA_MODIFIERS).toMatchObject({ hpMultiplier: 1.65, damageMultiplier: 1.25, speedMultiplier: 1.1, scaleMultiplier: 1.12 });
   });
+
+  it("aumenta a chance após falhas e garante o Alpha na quarta tentativa", () => {
+    const session = makeSession(() => .99); resetAlphaPressureForWave(session, config);
+    for (const elapsed of [18000, 30000, 42000]) {
+      session.elapsed = elapsed;
+      const result = evaluateAlphaPressure(session, config, catalog);
+      expect(result.triggered).toBe(false);
+    }
+    session.elapsed = 54000;
+    expect(evaluateAlphaPressure(session, config, catalog)).toMatchObject({ triggered: true, chance: 1 });
+  });
+
+  it("evita repetir o tipo anterior quando há candidatos suficientes", () => {
+    const session = makeSession(() => 0); session.phase.waves[0].enemies.push({ type: "predadorCaldeira", count: 1 });
+    session.alphaPressure.lastSpawnType = "cuspidorBrasa";
+    expect(getAlphaEligibleEnemyTypes(session, config, catalog)).toEqual(["predadorCaldeira"]);
+  });
+
+  it("respeita maximumAlphaAlive em vez de bloquear por um valor implícito", () => {
+    const session = makeSession(() => 0); const tuned = { ...config, maximumAlphaAlive: 2 };
+    resetAlphaPressureForWave(session, tuned); session.elapsed = 18000;
+    session.alphaPressure.pendingSpawns = [{ variant: "alpha" }];
+    expect(hasActiveAlpha(session, tuned)).toBe(false);
+    session.alphaPressure.pendingSpawns.push({ variant: "alpha" });
+    expect(hasActiveAlpha(session, tuned)).toBe(true);
+  });
 });

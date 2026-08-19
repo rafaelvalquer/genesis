@@ -128,6 +128,14 @@ describe("Colosso da Caldeira", () => {
     expect(troop.hp).toBeLessThan(troop.maxHp);
   });
 
+  it("escolhe a rota ocupada para o Slam quando existe uma tropa viva", () => {
+    const { session, boss } = encounter();
+    expect(placeTroop(session, "marine", 4, 2).ok).toBe(true);
+    expect(forceColossoAttack(session, "slam").ok).toBe(true);
+    expect(boss.colossoTargetRows).toEqual([4]);
+    expect(boss.colossoTargetCells.every((cell) => cell.row === 4)).toBe(true);
+  });
+
   it("adianta a fase pendente imediatamente após concluir o Slam", () => {
     const { session, boss } = encounter();
     expect(forceColossoAttack(session, "slam").ok).toBe(true);

@@ -45,9 +45,10 @@ function shuffle(session, values) {
   return result;
 }
 
-function chooseRows(session, enemy, count = 1) {
-  const fresh = rows().filter((row) => !enemy.colossoRecentRows.includes(row));
-  const selected = [...shuffle(session, fresh), ...shuffle(session, rows().filter((row) => enemy.colossoRecentRows.includes(row)))].slice(0, count);
+function chooseRows(session, enemy, count = 1, candidates = rows()) {
+  const pool = [...new Set(candidates)];
+  const fresh = pool.filter((row) => !enemy.colossoRecentRows.includes(row));
+  const selected = [...shuffle(session, fresh), ...shuffle(session, pool.filter((row) => enemy.colossoRecentRows.includes(row)))].slice(0, count);
   enemy.colossoRecentRows = [...enemy.colossoRecentRows, ...selected].slice(-6);
   return selected;
 }
@@ -78,7 +79,10 @@ function chooseSlamCells(session, enemy, targetRows, width) {
 
 function configureAttackTargets(session, enemy, config, attack) {
   const count = attack === "fracture" ? 2 : attack === "seismic" ? 3 : 1;
-  enemy.colossoTargetRows = chooseRows(session, enemy, count);
+  const occupiedRows = [...new Set(session.troops.filter((troop) => !troop.dead).map((troop) => troop.row))];
+  enemy.colossoTargetRows = attack === "slam" && occupiedRows.length
+    ? chooseRows(session, enemy, 1, occupiedRows)
+    : chooseRows(session, enemy, count);
   if (attack === "rift") enemy.colossoRiftTarget = chooseRiftTarget(session, enemy);
   else if (attack === "slam") enemy.colossoTargetCells = chooseSlamCells(session, enemy, enemy.colossoTargetRows, config.slam.width[enemy.colossoPhase]);
   else if (attack === "fracture") enemy.colossoTargetCells = enemy.colossoTargetRows.flatMap((row) => config.fracture.columns.map((col) => ({ row, col })));
@@ -160,7 +164,23 @@ function chooseAttack(session, enemy) {
   if (enemy.colossoPhase >= 2) available.push("fracture");
   if (enemy.colossoPhase >= 3) available.push("seismic");
   const nonRepeating = available.filter((attack) => attack !== enemy.colossoPreviousAttack);
-  return shuffle(session, nonRepeating.length ? nonRepeating : available)[0] || "slam";
+  const candidates = nonRepeating.length ? nonRepeating : available;
+  const living = session.troops.filter((troop) => !troop.dead);
+  const byRow = new Map(); living.forEach((troop) => byRow.set(troop.row, (byRow.get(troop.row) || 0) + 1));
+  const occupiedRows = byRow.size;
+  const largestCluster = Math.max(0, ...byRow.values());
+  const defensive = living.filter((troop) => troop.defenseActive || troop.shield > 0 || troop.type === "muralhaReforcada" || troop.type === "lumiUrsa7").length;
+  const weights = candidates.map((attack) => {
+    let weight = 1;
+    if (attack === "slam") weight += largestCluster >= 3 ? 4 : largestCluster >= 2 ? 2 : 0;
+    if (attack === "seismic") weight += occupiedRows >= 3 ? 4 : occupiedRows >= 2 ? 2 : 0;
+    if (attack === "fracture") weight += defensive >= 2 ? 3 : defensive ? 1 : 0;
+    if (attack === "rift") weight += enemy.colossoRifts.length < 1 ? 3 : 0;
+    return { attack, weight };
+  });
+  const total = weights.reduce((sum, item) => sum + item.weight, 0);
+  let cursor = session.rng() * total;
+  return weights.find((item) => (cursor -= item.weight) <= 0)?.attack || candidates[0] || "slam";
 }
 
 function updateRifts(session, enemy, config, hooks, events) {

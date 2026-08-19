@@ -143,9 +143,30 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
       legacyRecentRows.push(fallbackRow);
       if (legacyRecentRows.length > 2) legacyRecentRows.shift();
     }
+    if (dynamic) {
+      // Dynamic routing is a packet-level decision. Expand all preview
+      // fragments back into individual monsters before assigning rows, so a
+      // split/spread packet cannot collapse into the first selected route.
+      const expanded = packet.units.flatMap((unit) => {
+        const totalCount = unit.rows?.length ? unit.rows.length * (unit.countPerRow || 1) : unit.count;
+        return Array.from({ length: totalCount }, (_, index) => ({ unit, index }));
+      });
+      const spawnRows = selectedRows.slice(0, Math.max(1, Math.min(selectedRows.length, expanded.length)));
+      return expanded.map(({ unit, index }, indexInPacket) => ({
+        type: unit.type,
+        variant: unit.variant || null,
+        sourceIndex: indexInPacket,
+        row: spawnRows[indexInPacket % spawnRows.length],
+        packetId: packet.id,
+        block: packet.block,
+        spawnAtMs: packet.spawnAtMs + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
+        xOffsetTiles: unit.xOffsetTiles || 0,
+        formationOffsetPx: unit.spawnIntervalMs ? 0 : (index - (expanded.length - 1) / 2) * 10,
+      }));
+    }
     return packet.units.flatMap((unit) => {
       const totalCount = unit.rows?.length ? unit.rows.length * (unit.countPerRow || 1) : unit.count;
-      const rows = dynamic ? selectedRows : (unit.rows?.length ? unit.rows : [fallbackRow]);
+      const rows = unit.rows?.length ? unit.rows : [fallbackRow];
       const countsByRow = dynamic
         ? rows.map((_, rowIndex) => Math.floor(totalCount / rows.length) + (rowIndex < totalCount % rows.length ? 1 : 0))
         : rows.map(() => unit.rows?.length ? unit.countPerRow || 1 : unit.count);

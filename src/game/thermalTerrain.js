@@ -40,6 +40,10 @@ export function getTemporaryMagmaAt(session, row, col) {
   return (session?.temporaryMagmaHazards || []).find((hazard) => hazard.active
     && hazard.row === row && hazard.col === col) || null;
 }
+function getTemporaryVisualMagmaAt(session, row, col) {
+  return (session?.temporaryMagmaHazards || []).find((hazard) => session.elapsed < (hazard.visualEndsAt ?? hazard.endsAt ?? Infinity)
+    && hazard.row === row && hazard.col === col) || null;
+}
 export function getPermanentThermalHazardAt(session, row, col) {
   return (session?.permanentThermalHazards || []).find((hazard) => hazard.active !== false
     && hazard.cells?.some(([r, c]) => r === row && c === col)) || null;
@@ -50,7 +54,16 @@ function getPermanentGameplayHazardAt(session, row, col) {
     && hazard.cells?.some(([r, c]) => r === row && c === col)) || null;
 }
 export function getSessionThermalStateAt(session, row, col) {
+  return getVisualThermalStateAt(session, row, col);
+}
+export function getGameplayThermalStateAt(session, row, col) {
+  return getPermanentGameplayHazardAt(session, row, col)?.thermalState
+    || getTemporaryMagmaAt(session, row, col)?.thermalState
+    || session?.thermalCycle?.state || "stable";
+}
+export function getVisualThermalStateAt(session, row, col) {
   return getPermanentThermalHazardAt(session, row, col)?.thermalState
+    || getTemporaryVisualMagmaAt(session, row, col)?.thermalState
     || session?.thermalCycle?.state || "stable";
 }
 export function isSessionMagmaCell(session, row, col) {
