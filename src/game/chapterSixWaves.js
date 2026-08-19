@@ -138,7 +138,11 @@ const routeRows = (rows, units, distribute = false) => units.flatMap((entry, ind
 export function instantiateChapterSixPacket(key, index, spawnAtMs, block = "main", rows = [2], options = {}) {
   const source = CHAPTER_SIX_PACKETS[key];
   if (!source) throw new Error(`Pacote desconhecido: ${key}`);
-  return { id: `${source.id}_${index + 1}`, key, label: source.label, block, spawnAtMs, routeStrategy: options.routeStrategy, units: routeRows(rows, source.units, options.distribute === true) };
+  return {
+    id: `${source.id}_${index + 1}`, key, label: source.label, block, spawnAtMs,
+    routeStrategy: options.routeStrategy, fixedRows: options.fixedRows || null, dynamicRoutes: options.dynamicRoutes === true,
+    units: routeRows(rows, source.units, options.distribute === true),
+  };
 }
 
 function aggregateEnemies(packets) {
@@ -181,7 +185,7 @@ export function analyzeChapterSixSpawnPattern(pattern) {
 
 function wave(sequence, phaseIndex, waveIndex, rows = [0, 1, 2, 3, 4]) {
   const spawnPattern = buildChapterSixSpawnPattern({ phaseIndex, waveIndex, packetCount: sequence.length, packetKeys: sequence.map((entry) => entry.key) });
-  const packets = sequence.map((entry, index) => instantiateChapterSixPacket(entry.key, index, spawnPattern[index], "main", entry.rows || rows, { distribute: entry.distribute === true, routeStrategy: entry.routeStrategy }));
+  const packets = sequence.map((entry, index) => instantiateChapterSixPacket(entry.key, index, spawnPattern[index], "main", entry.previewRows || rows, { distribute: entry.distribute === true, routeStrategy: entry.routeStrategy, dynamicRoutes: true }));
   const packetThreat = packets.reduce((total, packet) => total + CHAPTER_SIX_PACKETS[packet.key].threat, 0);
   const roleCounts = Object.fromEntries(["pressure", "anchor", "artillery", "disruption", "assault", "air", "finisher", "mixed"].map((role) => [role, packets.filter((packet) => hasRole(packet.key, role)).length]));
   const routeCounts = Object.fromEntries([0, 1, 2, 3, 4].map((row) => [row, packets.reduce(
@@ -207,7 +211,7 @@ function wave(sequence, phaseIndex, waveIndex, rows = [0, 1, 2, 3, 4]) {
   };
 }
 
-const p = (key, routeStrategy, rows) => ({ key, routeStrategy, distribute: routeStrategy !== "focused", rows });
+const p = (key, routeStrategy, previewRows) => ({ key, routeStrategy, distribute: routeStrategy !== "focused", previewRows });
 const fallbacks = ["assault", "artillery", "pressure", "anchor", "disruption"];
 const routeFor = (key, index, phaseIndex, waveIndex) => {
   const roles = CHAPTER_SIX_PACKET_ROLES[key];

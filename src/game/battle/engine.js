@@ -79,6 +79,7 @@ import {
   getTemporaryMagmaAt,
   activatePermanentThermalHazards,
   deactivatePermanentThermalHazards,
+  clearPermanentThermalHazards,
   isSessionMagmaCell,
   getThermalPlatformAt,
   coolThermalPlatform,
@@ -93,8 +94,8 @@ import {
   CHAPTER_SIX_ALPHA_MODIFIERS,
   countPressureTroops,
   createAlphaPressureState,
-  evaluateAlphaPressureCycle,
-  startAlphaPressureCycle,
+  evaluateAlphaPressure,
+  resetAlphaPressureForWave,
 } from "../chapterSixAlphaPressure.js";
 import { chapterFourAlphaMultipliers } from "../chapterFourEnemies.js";
 import {
@@ -127,7 +128,7 @@ import {
 } from "../battleIndex.js";
 import { createProjectileTrail, pushProjectileTrail } from "../projectileTrail.js";
 import { forceLeviathanAttack as forceLeviathanAttackDomain, updateLeviathan } from "../leviathanNereida.js";
-import { debugColosso as debugColossoDomain, forceColossoAttack as forceColossoAttackDomain, getColossoDamageFactor, updateColossoCaldeira } from "../colossoCaldeira.js";
+import { debugColosso as debugColossoDomain, forceColossoAttack as forceColossoAttackDomain, getColossoCoreHitMetadata, getColossoDamageFactor, updateColossoCaldeira } from "../colossoCaldeira.js";
 import { createEnemyEntity } from "../enemies/enemyFactory.js";
 import { getEnemyBehavior } from "../enemies/enemyRegistry.js";
 import {
@@ -454,7 +455,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
       mantisSalvos: 0, mantisSpikesLaunched: 0, mantisSpikeImpacts: 0,
       mantisSpikeDetonations: 0, mantisExplosionHits: 0, mantisCollateralHits: 0,
       mantisDamageDealt: 0,
-      alphaPressure: { cyclesEvaluated: 0, triggers: 0, peakLevel: 0, spawned: 0, resets: 0 },
+      alphaPressure: { checks: 0, triggers: 0, spawned: 0 },
     },
     troopConfigs: TROOPS,
     deployCooldowns: {},
@@ -1116,7 +1117,7 @@ export function startWave(session) {
   session.permanentThermalHazards = [];
   session.waveActive = true;
   resumeThermalHazard(session);
-  startAlphaPressureCycle(session);
+  resetAlphaPressureForWave(session);
   session.waveKillStart = session.killed;
   session.lastEnemyKillCandidate = null;
   session.waveOutro = { ...session.waveOutro, status: "idle", elapsedMs: 0, startedAt: null, lastKill: null, decisionOptions: null };
@@ -1418,7 +1419,8 @@ function createEnemyRuntime(session) {
           if (hazard.sourceEnemyId === sourceEnemyId) { hazard.active = false; hazard.endsAt = session.elapsed; }
         }
       },
-      clearPermanentThermalHazards: (sourceEnemyId) => deactivatePermanentThermalHazards(session, sourceEnemyId),
+      deactivatePermanentThermalHazards: (sourceEnemyId) => deactivatePermanentThermalHazards(session, sourceEnemyId),
+      clearPermanentThermalHazards: (sourceEnemyId) => clearPermanentThermalHazards(session, sourceEnemyId),
       cancelSummons: () => {
         session.queue = session.queue.filter((entry) => !["boss_rift", "boss_reinforcement"].includes(entry.block));
         session.nextSpawnAt = session.queue.length ? session.waveStartedAt + session.queue[0].spawnAtMs : Infinity;
@@ -2102,23 +2104,22 @@ function createEnemy(session, queued) {
 
 function scheduleAlphaPressureSpawn(session, result, events) {
   const spawnAt = session.elapsed + result.warningMs;
-  const scheduled = result.rows.map((row, index) => ({
-    type: result.enemyTypes[index],
-    row,
+  const scheduled = [{
+    type: result.type,
+    row: result.row,
     variant: "alpha",
     alphaModifiers: CHAPTER_SIX_ALPHA_MODIFIERS,
     spawnSource: "alphaPressure",
     spawnAt,
-  }));
+  }];
   session.alphaPressure.pendingSpawns.push(...scheduled);
   events.push({
     type: "chapterSixAlphaPressureTriggered",
-    level: result.level,
-    troopCountStart: result.troopCountStart,
-    troopCountEnd: result.troopCountEnd,
-    alphaCount: result.alphaCount,
-    rows: [...result.rows],
-    enemyTypes: [...result.enemyTypes],
+    troopCount: result.troopCount,
+    chance: result.chance,
+    alphaCount: 1,
+    row: result.row,
+    type: result.type,
     warningMs: result.warningMs,
   });
 }
@@ -2135,6 +2136,7 @@ function updateAlphaPressureSpawns(session, events) {
     const enemy = createEnemy(session, scheduled);
     if (!enemy) continue;
     state.totalAlphaSpawned += 1;
+    state.spawnsThisWave += 1;
     session.metrics.alphaPressure.spawned += 1;
     events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
   }
@@ -2963,6 +2965,9 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
   let incoming = amount * (session.sandboxSettings?.troopDamageMultiplier ?? 1)
     * damageTakenFactor * chapterFourFactor * effectiveArmorFactor * ruptureFactor;
   if (enemy.type === "leviathanNereida") incoming *= enemy.leviathanDamageFactor || 1;
+  const colossoCoreHit = enemy.type === "colossoCaldeira" && context.sourceTroopId
+    ? getColossoCoreHitMetadata(enemy, indexedTroopById(session, context.sourceTroopId)?.row)
+    : null;
   if (enemy.type === "colossoCaldeira" && context.sourceTroopId) {
     const source = indexedTroopById(session, context.sourceTroopId);
     if (source) incoming *= getColossoDamageFactor(enemy, source.row);
@@ -3000,6 +3005,11 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     events.push({
       type: "hit", targetId: enemy.id, x: hitPoint.x, y: hitPoint.y,
       color: ENEMIES[enemy.type].color, damageTakenFactor, amount: Math.round(incoming),
+      ...(colossoCoreHit || {}),
+    });
+    if (colossoCoreHit) events.push({
+      type: "colossoCoreHit", bossId: enemy.id, x: hitPoint.x, y: hitPoint.y,
+      ...colossoCoreHit, damage: Math.round(incoming),
     });
   }
   if (enemy.hp <= 0) {
@@ -3014,6 +3024,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       for (const hazard of session.temporaryMagmaHazards || []) {
         if (hazard.sourceEnemyId === enemy.id) { hazard.active = false; hazard.endsAt = session.elapsed; }
       }
+      deactivatePermanentThermalHazards(session, enemy.id);
       enemy.colossoState = "death";
       enemy.colossoStateStartedAt = session.elapsed;
       enemy.colossoStateEndsAt = session.elapsed + ENEMIES.colossoCaldeira.deathDurationMs;
@@ -8140,9 +8151,13 @@ export function stepBattle(session, dt = 32) {
   updateEnergyPickups(session, dt, events);
   updateTideCycle(session, events, { eliminateTroop });
   updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor });
-  for (const thermalEvent of events.filter((event) => event.type === "thermalCycleCompleted")) {
-    const alphaResult = evaluateAlphaPressureCycle(session);
-    if (alphaResult.triggered) scheduleAlphaPressureSpawn(session, alphaResult, events);
+  const alphaResult = evaluateAlphaPressure(session, session.phase?.alphaPressure, ENEMIES);
+  if (alphaResult?.checked) {
+    session.metrics.alphaPressure.checks += 1;
+    if (alphaResult.triggered) {
+      session.metrics.alphaPressure.triggers += 1;
+      scheduleAlphaPressureSpawn(session, alphaResult, events);
+    }
   }
   updateAresThermalShields(session, events);
   updateWindCurrent(session, events, {
@@ -8206,6 +8221,9 @@ export function stepBattle(session, dt = 32) {
       endTideCycle(session, events, true);
       finish(session, "defeat");
       return events;
+    }
+    if (!session.sandbox && session.queue.length === 0 && session.enemies.length === 0 && session.alphaPressure.pendingSpawns.length) {
+      session.alphaPressure.pendingSpawns = [];
     }
     const waveCleared = !session.sandbox && !session.outcome && session.waveActive
       && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0
@@ -8486,8 +8504,14 @@ export function getSnapshot(session) {
     thermal: getThermalSnapshot(session),
     alphaPressure: {
       enabled: session.alphaPressure.enabled,
-      level: session.alphaPressure.level,
-      troopCountStart: session.alphaPressure.cycleStartTroopCount,
+      nextCheckInMs: Number.isFinite(session.alphaPressure.nextCheckAt) ? Math.max(0, session.alphaPressure.nextCheckAt - session.elapsed) : 0,
+      checksThisWave: session.alphaPressure.checksThisWave,
+      spawnsThisWave: session.alphaPressure.spawnsThisWave,
+      totalAlphaSpawned: session.alphaPressure.totalAlphaSpawned,
+      lastCheckAt: session.alphaPressure.lastCheckAt,
+      lastTriggeredAt: session.alphaPressure.lastTriggeredAt,
+      lastSpawnType: session.alphaPressure.lastSpawnType,
+      lastSpawnRow: session.alphaPressure.lastSpawnRow,
       troopCountCurrent: countPressureTroops(session),
       pendingSpawns: session.alphaPressure.pendingSpawns.map((entry) => ({ type: entry.type, row: entry.row, startsInMs: Math.max(0, entry.spawnAt - session.elapsed) })),
     },

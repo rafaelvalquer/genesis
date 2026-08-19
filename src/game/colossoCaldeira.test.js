@@ -3,7 +3,7 @@ import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
 import { ENEMIES } from "./content.js";
 import { createBattleSession, debugColosso, forceColossoAttack, placeTroop, startWave, stepBattle } from "./battleModel.js";
 import { enemyOccupiesTargetRow } from "./battle/queries.js";
-import { getColossoAnimation, getColossoDamageFactor } from "./colossoCaldeira.js";
+import { getColossoAnimation, getColossoCoreHitMetadata, getColossoDamageFactor } from "./colossoCaldeira.js";
 import { getColossoSpriteLayout } from "./colossoCaldeiraRenderer.js";
 import manifest from "./assets/enemy/colossoCaldeira/manifest.json";
 
@@ -128,7 +128,7 @@ describe("Colosso da Caldeira", () => {
     expect(troop.hp).toBeLessThan(troop.maxHp);
   });
 
-  it("adianta a fase pendente somente após Slam, recovery e cooldown", () => {
+  it("adianta a fase pendente imediatamente após concluir o Slam", () => {
     const { session, boss } = encounter();
     expect(forceColossoAttack(session, "slam").ok).toBe(true);
     boss.hp = boss.maxHp * .6;
@@ -138,14 +138,8 @@ describe("Colosso da Caldeira", () => {
     stepBattle(session, ENEMIES.colossoCaldeira.attackTelegraphMs.slam[1] + 1);
     expect(boss.colossoState).toBe("slamAttack");
     stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.slam + 1);
-    expect(boss).toMatchObject({ colossoState: "idle", colossoPhase: 1, colossoPendingPhase: 2, colossoTargetable: true });
-    expect(forceColossoAttack(session, "slam")).toMatchObject({ ok: false });
-
-    stepBattle(session, ENEMIES.colossoCaldeira.attackCooldownMs[1] - 1);
-    expect(boss.colossoState).toBe("idle");
-    const changed = stepBattle(session, 2);
-    expect(changed).toContainEqual(expect.objectContaining({ type: "colossoPhaseChanged", phase: 2 }));
     expect(boss).toMatchObject({ colossoState: "phaseTransition2", colossoPhase: 2, colossoPendingPhase: null, colossoTargetable: false });
+    expect(forceColossoAttack(session, "slam")).toMatchObject({ ok: false });
   });
 
   it("conclui impactos enfileirados antes de transicionar para a fase pendente", () => {
@@ -158,7 +152,7 @@ describe("Colosso da Caldeira", () => {
     expect(firstImpact).toContainEqual(expect.objectContaining({ type: "colossoAttackImpact", attack: "fracture" }));
     expect(boss).toMatchObject({ colossoState: "fractureAttack", colossoPhase: 2, colossoPendingPhase: 3 });
     stepBattle(session, ENEMIES.colossoCaldeira.attackExecutionMs.fracture);
-    expect(boss.colossoState).toBe("idle");
+    expect(boss.colossoState).toBe("phaseTransition3");
     expect(session.temporaryMagmaHazards.filter((hazard) => hazard.sourceEnemyId === boss.id)).toHaveLength(10);
   });
 
@@ -187,6 +181,18 @@ describe("Colosso da Caldeira", () => {
     expect(boss.colossoTargetable).toBe(false); expect(boss.targetableRows).toEqual([]);
     stepBattle(session, ENEMIES.colossoCaldeira.transitionMs + 1); expect(boss.colossoTargetable).toBe(true);
     boss.colossoState = "coreExposed"; stepBattle(session, 1); expect(getColossoDamageFactor(boss, 3)).toBe(1.6);
+  });
+
+  it("publica metadados de impacto coerentes com núcleo fechado e exposto", () => {
+    const { boss } = encounter();
+    expect(getColossoCoreHitMetadata(boss, 2)).toMatchObject({
+      bossPart: "core", damageFactor: .35, coreExposed: false, resisted: true,
+    });
+    boss.colossoState = "coreExposed";
+    boss.hitZones[2].damageFactor = 1.6;
+    expect(getColossoCoreHitMetadata(boss, 3)).toMatchObject({
+      bossPart: "core", damageFactor: 1.6, coreExposed: true, resisted: false,
+    });
   });
 
   it("resolve animações por tempo de sessão, congela em pausa e segura o último frame", () => {
@@ -231,6 +237,9 @@ describe("Colosso da Caldeira", () => {
     expect(boss.colossoDying).toBe(true);
     expect(session.temporaryMagmaHazards.filter((hazard) => hazard.sourceEnemyId === boss.id).every((hazard) => !hazard.active)).toBe(true);
     expect(session.queue.some((entry) => ["boss_rift", "boss_reinforcement"].includes(entry.block))).toBe(false);
+    expect(session.permanentThermalHazards[0]).toMatchObject({ active: true, gameplayActive: false, thermalState: "active" });
+    stepBattle(session, 1601);
+    expect(session.permanentThermalHazards).toHaveLength(0);
   });
 
   it("dispara o Colapso Final uma única vez e abre o núcleo", () => {

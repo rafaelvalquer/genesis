@@ -10,6 +10,34 @@ const attackState = (state = "") => /(?:Telegraph|Attack|finalCollapse)/.test(st
 // per-state or per-frame scale correction.
 const colossoRenderSize = 546;
 
+export const COLOSSO_PHASE_VISUAL = Object.freeze({
+  1: Object.freeze({ bodyGlow: 18, coreColor: "#f97316", coreInnerColor: "#fbbf24", coreGlow: 18, emberCount: 0, groundPulse: 0, smoke: 0 }),
+  2: Object.freeze({ bodyGlow: 24, coreColor: "#fb923c", coreInnerColor: "#fde047", coreGlow: 28, emberCount: 4, groundPulse: .35, smoke: 0 }),
+  3: Object.freeze({ bodyGlow: 30, coreColor: "#fde047", coreInnerColor: "#fff7ed", coreGlow: 42, emberCount: 8, groundPulse: .65, smoke: .30 }),
+});
+
+const CORE_OFFSET_BY_STATE = Object.freeze({
+  idle: { x: 0, y: 0 }, slamAttack: { x: -3, y: 4 }, seismicAttack: { x: 0, y: 5 },
+  finalCollapse: { x: -2, y: 12 }, coreExposed: { x: 0, y: 8 },
+});
+
+const EXPOSED_CORE_VISUAL = Object.freeze({ exposed: true, radius: 25, glow: 50, pulseSpeed: 260 });
+const CLOSED_CORE_VISUAL = Object.freeze({ exposed: false, radius: 18, glow: 20, pulseSpeed: 900 });
+
+export function getColossoPhaseVisual(enemy) {
+  const phase = Math.max(1, Math.min(3, Number(enemy?.colossoPhase) || 1));
+  return COLOSSO_PHASE_VISUAL[phase];
+}
+
+export function getColossoCoreVisual(enemy) {
+  return enemy?.colossoState === "coreExposed" ? EXPOSED_CORE_VISUAL : CLOSED_CORE_VISUAL;
+}
+
+export function getColossoCorePoint(layout, state = "idle") {
+  const offset = CORE_OFFSET_BY_STATE[state] || {};
+  return { x: layout.rootX + (offset.x || 0), y: layout.rootY - layout.height * .39 + (offset.y || 0) };
+}
+
 export function getColossoTelegraphVisual(enemy) {
   if (!attackState(enemy?.colossoState)) return null;
   const attack = enemy.colossoQueuedAttack;
@@ -31,6 +59,10 @@ export function isColossoAnchorDebugEnabled(search = typeof window !== "undefine
   return Boolean(isDevelopment && new URLSearchParams(search).has("debugColossoAnchor"));
 }
 
+export function isColossoCoreDebugEnabled(search = typeof window !== "undefined" ? window.location.search : "", isDevelopment = import.meta.env.DEV) {
+  return Boolean(isDevelopment && new URLSearchParams(search).has("debugColossoCore"));
+}
+
 export function getColossoSpriteLayout(enemy, animation = {}, manifest = colossoManifest) {
   const state = animation.state || "idle";
   const frame = Math.max(0, Number(animation.frame) || 0);
@@ -49,13 +81,30 @@ export function getColossoSpriteLayout(enemy, animation = {}, manifest = colosso
   };
 }
 
-function drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, elapsed = 0) {
+function drawColossoUnderlay(ctx, enemy, layout, pulse, effects, elapsed = 0, settings = {}) {
+  const phaseVisual = getColossoPhaseVisual(enemy);
+  const x = layout.rootX; const y = layout.rootY;
   ctx.save();
   ctx.fillStyle = "rgba(69,10,10,.52)";
   // `y` is the fixed midpoint between the Colosso's feet. Keep the contact
   // shadow at that same ground plane; the former +72 offset belonged to the
   // pre-anchor art and visibly floated below the new bipedal sprite.
   ctx.beginPath(); ctx.ellipse(x + 10, y + 14, 220, 43, 0, 0, Math.PI * 2); ctx.fill();
+  if (phaseVisual.groundPulse > 0) {
+    const groundPulse = settings.reduceMotion ? 0 : .5 + .5 * Math.sin(elapsed / 420);
+    ctx.globalAlpha = phaseVisual.groundPulse * (.22 + groundPulse * .28);
+    ctx.strokeStyle = phaseVisual.coreColor; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y + 12, 155 + groundPulse * 12, 30 + groundPulse * 5, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  if (phaseVisual.smoke > 0 && !settings.reduceMotion) {
+    const smokePoints = [-.22, 0, .22];
+    smokePoints.forEach((offset, index) => {
+      const smokePulse = (elapsed / (3200 + index * 330) + index * .31) % 1;
+      ctx.globalAlpha = phaseVisual.smoke * .18 * (1 - smokePulse);
+      ctx.fillStyle = "#57534e";
+      ctx.beginPath(); ctx.arc(layout.rootX + layout.width * offset, layout.rootY - layout.height * (.42 + smokePulse * .16), 13 + smokePulse * 13, 0, Math.PI * 2); ctx.fill();
+    });
+  }
   for (const rift of enemy.colossoRifts || []) {
     const rx = cellX(rift.col); const ry = laneY(rift.row);
     ctx.strokeStyle = `rgba(251,146,60,${.52 + pulse * .38})`; ctx.lineWidth = 6 + pulse * 4;
@@ -69,9 +118,9 @@ function drawColossoUnderlay(ctx, enemy, x, y, pulse, effects, elapsed = 0) {
   ctx.restore();
 }
 
-function drawColossoBackBody(ctx, layout, image, animation, previous = null) {
+function drawColossoBackBody(ctx, layout, image, animation, previous = null, phaseVisual = COLOSSO_PHASE_VISUAL[1]) {
   ctx.save();
-  ctx.shadowBlur = 18; ctx.shadowColor = "#f97316";
+  ctx.shadowBlur = phaseVisual.bodyGlow; ctx.shadowColor = phaseVisual.coreColor;
   if (previous?.image) {
     ctx.globalAlpha = Math.max(0, 1 - previous.progress);
     ctx.drawImage(previous.image, previous.layout.left, previous.layout.top, previous.layout.width, previous.layout.height);
@@ -86,6 +135,67 @@ function drawColossoBackBody(ctx, layout, image, animation, previous = null) {
     ctx.fillText(`COLOSSO ASSET AUSENTE: ${animation?.state || "?"}/${animation?.frame ?? "?"}`, layout.rootX, layout.rootY - layout.height * .55);
   }
   ctx.restore();
+}
+
+function drawColossoCoreOverlay(ctx, enemy, layout, elapsed, settings = {}) {
+  const phaseVisual = getColossoPhaseVisual(enemy);
+  const coreVisual = getColossoCoreVisual(enemy);
+  const point = getColossoCorePoint(layout, enemy.colossoState);
+  const pulse = settings.reduceMotion ? 1 : 1 + Math.sin(elapsed / coreVisual.pulseSpeed) * (coreVisual.exposed ? .12 : .04);
+  const radius = coreVisual.radius * pulse;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  const glow = ctx.createRadialGradient(point.x, point.y, 2, point.x, point.y, coreVisual.glow * 2.5);
+  glow.addColorStop(0, `${coreVisual.exposed ? "rgba(255,255,255,.98)" : "rgba(255,237,180,.9)"}`);
+  glow.addColorStop(.25, `${phaseVisual.coreColor}cc`); glow.addColorStop(1, `${phaseVisual.coreColor}00`);
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(point.x, point.y, coreVisual.glow * 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
+  if (!coreVisual.exposed) {
+    ctx.fillStyle = "rgba(69,10,10,.88)"; ctx.strokeStyle = "rgba(127,29,29,.95)"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(point.x, point.y, radius + 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.fillStyle = coreVisual.exposed ? "#fff7ed" : phaseVisual.coreInnerColor;
+  ctx.shadowBlur = coreVisual.glow; ctx.shadowColor = phaseVisual.coreColor;
+  ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill();
+  if (coreVisual.exposed) {
+    const remain = Math.max(0, Number(enemy.colossoStateEndsAt) - elapsed);
+    const ratio = Math.max(0, Math.min(1, remain / Math.max(1, Number(enemy._colossoConfig?.core?.exposedMs) || 6000)));
+    ctx.shadowBlur = 0; ctx.strokeStyle = "rgba(255,247,237,.85)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(point.x, point.y, radius + 10, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * ratio); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawColossoPhaseParticles(ctx, enemy, layout, elapsed, settings = {}) {
+  const visual = getColossoPhaseVisual(enemy);
+  if (!visual.emberCount || settings.reduceMotion) return;
+  const seed = String(enemy.id || "colosso").split("").reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  ctx.save(); ctx.fillStyle = visual.coreInnerColor; ctx.shadowBlur = 8; ctx.shadowColor = visual.coreColor;
+  for (let index = 0; index < visual.emberCount; index += 1) {
+    const phase = (elapsed / (900 + index * 73) + (seed + index * 17) * .013) % 1;
+    const x = layout.rootX + ((seed + index * 29) % 100 - 50) * .65;
+    const y = layout.rootY - 20 - phase * 105;
+    ctx.globalAlpha = .75 * (1 - phase); ctx.beginPath(); ctx.arc(x, y, 2 + (index % 2), 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawColossoCoreHitFeedback(ctx, enemy, layout, elapsed, effects = {}) {
+  const hits = (effects.colossoCoreHits || []).filter((hit) => hit.bossId === enemy.id && elapsed - hit.born < hit.life);
+  if (!hits.length) return;
+  const point = getColossoCorePoint(layout, enemy.colossoState);
+  hits.forEach((hit) => {
+    const progress = Math.max(0, Math.min(1, (elapsed - hit.born) / hit.life));
+    const strength = hit.exposed ? 1.25 : .75;
+    ctx.save(); ctx.globalAlpha = (1 - progress) * .85; ctx.strokeStyle = hit.exposed ? "#fff7ed" : "#c2410c"; ctx.lineWidth = hit.exposed ? 3 : 2;
+    ctx.beginPath(); ctx.arc(point.x, point.y, (hit.exposed ? 25 : 12) + progress * (hit.exposed ? 18 : 8), 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = hit.exposed ? "#fff7ed" : "#9a3412";
+    for (let index = 0; index < (hit.exposed ? 8 : 3); index += 1) {
+      const angle = index * Math.PI * 2 / (hit.exposed ? 8 : 3); const distance = (hit.exposed ? 16 : 8) + progress * 20;
+      ctx.beginPath(); ctx.arc(point.x + Math.cos(angle) * distance, point.y + Math.sin(angle) * distance, 2 * strength, 0, Math.PI * 2); ctx.fill();
+    }
+    if (hit.resisted && progress < .72) { ctx.font = "800 10px system-ui"; ctx.textAlign = "center"; ctx.fillText("RESISTIDO", point.x, point.y - 32 - progress * 8); }
+    ctx.restore();
+  });
 }
 
 function drawCellCrack(ctx, x, y, size = 26) {
@@ -133,10 +243,14 @@ export function drawColossoCaldeira(ctx, enemy, settings = {}, image = null, eff
     progress: settings.animation?.transitionProgress ?? 1,
   } : null;
   const elapsed = Number(settings.elapsed || 0); const pulse = settings.reduceMotion ? .5 : .5 + .5 * Math.sin(elapsed / 180);
-  drawColossoUnderlay(ctx, enemy, layout.rootX, layout.rootY, pulse, effects, settings.elapsed);
-  drawColossoBackBody(ctx, layout, image, settings.animation, previous);
+  const phaseVisual = getColossoPhaseVisual(enemy);
+  drawColossoUnderlay(ctx, enemy, layout, pulse, effects, settings.elapsed, settings);
+  drawColossoBackBody(ctx, layout, image, settings.animation, previous, phaseVisual);
+  drawColossoCoreOverlay(ctx, enemy, layout, elapsed, settings);
+  drawColossoCoreHitFeedback(ctx, enemy, layout, elapsed, effects);
+  drawColossoPhaseParticles(ctx, enemy, layout, elapsed, settings);
   drawTelegraphs(ctx, enemy, settings, pulse);
-  if (isColossoAnchorDebugEnabled()) {
+  if (isColossoAnchorDebugEnabled() || isColossoCoreDebugEnabled()) {
     const curatedRoot = colossoManifest?.curation?.states?.[settings.animation?.state || "idle"]?.root;
     drawColossoHitZoneOverlay(ctx, { anchorX: layout.rootX, anchorY: layout.rootY });
     ctx.save();
@@ -146,6 +260,11 @@ export function drawColossoCaldeira(ctx, enemy, settings = {}, image = null, eff
     ctx.fillStyle = "#e0f2fe"; ctx.font = "700 14px system-ui"; ctx.textAlign = "left";
     ctx.fillText(`${settings.animation?.state || "idle"} · frame ${settings.animation?.frame ?? 0}`, layout.rootX + 10, layout.rootY - 28);
     if (curatedRoot) ctx.fillText(`pé-fonte ${curatedRoot.x.toFixed(3)} / ${curatedRoot.y.toFixed(3)} → root 0.500 / 0.860`, layout.rootX + 10, layout.rootY - 10);
+    if (isColossoCoreDebugEnabled()) {
+      const point = getColossoCorePoint(layout, settings.animation?.state || "idle");
+      ctx.fillStyle = "#fff7ed"; ctx.strokeStyle = "#22d3ee"; ctx.beginPath(); ctx.arc(point.x, point.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillText(`CORE POINT ${Math.round(point.x)},${Math.round(point.y)} · phase ${enemy.colossoPhase} · ${enemy.colossoState}`, point.x + 10, point.y - 10);
+    }
     ctx.restore();
   }
 }

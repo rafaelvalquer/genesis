@@ -60,7 +60,12 @@ export function drawThermalPlatformHeatBars(ctx, session) {
       ctx.fillStyle = state === "overheat" ? "#fecaca" : "#e0f2fe";
       ctx.font = "700 9px Chakra Petch, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(state === "overheat" ? "SUPERAQUECIDA" : `CALOR ${percent}%`, x, y - 5);
+      const label = state === "overheat"
+        ? `SUPERAQUECIDA · -25% CADÊNCIA`
+        : state === "critical"
+          ? `CRÍTICO ${percent}% · -10% CADÊNCIA`
+          : `CALOR ${percent}%`;
+      ctx.fillText(label, x, y - 5);
     }
     const cryoSupport = (session.troops || []).some((troop) => !troop.dead
       && troop.type === "cryo7" && troop.row === platform.row && troop.col === platform.col);

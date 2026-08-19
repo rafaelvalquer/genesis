@@ -279,6 +279,7 @@ export const TROOPS = {
     unitKind: "support", spriteKey: "thermalPlatform", price: 8, supply: 0,
     deployCooldownMs: 3000, hp: 100, maxHeat: 100, maxDeployed: 20, unlockAt: 40,
     heatThresholds: { heated: 0.60, critical: 0.80, overheat: 1 },
+    attackSpeedFactors: { normal: 1, heated: 1, critical: 0.90, overheat: 0.75 },
     heatBarVisual: { width: 62, height: 7, offsetY: 46, showPercentFrom: 0.60 },
     assetStates: ["idle", "heated", "critical", "overheat", "destroyed"],
     idleVisual: { state: "idle", height: 92, aspectRatio: 1, durationMs: 0, loop: false },
@@ -287,7 +288,7 @@ export const TROOPS = {
     overheatVisual: { state: "overheat", height: 92, aspectRatio: 1, durationMs: 0, loop: false },
     destroyedVisual: { state: "destroyed", height: 92, aspectRatio: 1, durationMs: 0, loop: false },
     spriteOffsetY: 16,
-    color: "#f97316", description: "Permite posicionar tropas convencionais sobre magma.",
+    color: "#f97316", description: "Permite posicionar tropas convencionais sobre magma. Acima de 80% de calor reduz a cadência em 10%; ao superaquecer, reduz 25% e começa a sofrer dano.",
   },
   interceptadorIcaro: {
     id: "interceptadorIcaro",

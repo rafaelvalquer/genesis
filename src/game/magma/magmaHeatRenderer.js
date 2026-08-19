@@ -32,23 +32,26 @@ export function drawMagmaHeatShimmer(ctx, regionRuntime, blend, now, options) {
 
 export function drawMagmaSmoke(ctx, runtime, now, options) {
   if (!runtime?.smoke?.length || options.quality.smokeScale <= 0) return;
-  const thermal = getMagmaThermalVisual(options.thermalState);
+  const smoke = [...runtime.smoke].sort((left, right) => (
+    (right.thermalState === "eruption" ? 1 : 0) - (left.thermalState === "eruption" ? 1 : 0)
+  ));
   const desired = Math.min(
-    runtime.smoke.length,
+    smoke.length,
     Math.round(options.smokeCount[options.thermalState] * options.quality.smokeScale),
   );
   const visualTime = options.paused ? runtime.visualTimeMs : runtime.visualTimeMs + Math.max(0, now - runtime.lastClockAt);
   ctx.save();
   for (let index = 0; index < desired; index += 1) {
-    const smoke = runtime.smoke[index];
-    const progress = ((visualTime + smoke.phaseMs) % smoke.periodMs) / smoke.periodMs;
-    const rise = progress * smoke.rise;
-    const x = smoke.x + Math.sin(progress * TAU + smoke.seed) * smoke.drift;
-    const y = smoke.y - 8 - rise;
-    const radius = smoke.radius * (0.5 + progress * 0.65);
-    const fade = Math.sin(progress * Math.PI) * smoke.opacity * thermal.smokeFactor;
+    const smokeEntry = smoke[index];
+    const thermal = getMagmaThermalVisual(smokeEntry.thermalState || options.thermalState);
+    const progress = ((visualTime + smokeEntry.phaseMs) % smokeEntry.periodMs) / smokeEntry.periodMs;
+    const rise = progress * smokeEntry.rise;
+    const x = smokeEntry.x + Math.sin(progress * TAU + smokeEntry.seed) * smokeEntry.drift;
+    const y = smokeEntry.y - 8 - rise;
+    const radius = smokeEntry.radius * (0.5 + progress * 0.65);
+    const fade = Math.sin(progress * Math.PI) * smokeEntry.opacity * thermal.smokeFactor;
     for (let lobe = 0; lobe < 3; lobe += 1) {
-      const lobePhase = smoke.seed * 1.7 + lobe * 2.19 + progress * TAU * (0.7 + lobe * 0.08);
+      const lobePhase = smokeEntry.seed * 1.7 + lobe * 2.19 + progress * TAU * (0.7 + lobe * 0.08);
       const lobeRadius = radius * (0.58 + lobe * 0.13);
       const lobeX = x + Math.cos(lobePhase) * radius * (0.08 + lobe * 0.035);
       const lobeY = y + Math.sin(lobePhase) * radius * 0.055 - lobe * radius * 0.045;

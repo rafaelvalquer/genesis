@@ -71,8 +71,11 @@ export function useLoadoutAnimations({ scope, runtime, focusedTroop, selectedCou
       return;
     }
     const timeline = gsap.timeline({ onComplete });
-    timeline
-      .to(".squad-slot.occupied", { borderColor: "#67e8f9", duration: .18, stagger: .035 }, 0);
+    const root = scope?.current;
+    const occupiedSlots = root?.querySelectorAll(".squad-slot.occupied");
+    if (occupiedSlots?.length) {
+      timeline.to(occupiedSlots, { borderColor: "#67e8f9", duration: .18, stagger: .035 }, 0);
+    }
     runtime.rings.forEach((ring, index) => {
       timeline.to(ring.rotation, {
         x: Math.PI * 1.5,
@@ -80,9 +83,11 @@ export function useLoadoutAnimations({ scope, runtime, focusedTroop, selectedCou
         ease: "power3.inOut",
       }, .08 + index * .025);
     });
-    timeline
-      .to(runtime.keyLight, { intensity: 34, duration: .22, yoyo: true, repeat: 1 }, .28)
-      .to(".loadout-confirm", { filter: "brightness(1.45)", duration: .18, yoyo: true, repeat: 1 }, .44);
+    timeline.to(runtime.keyLight, { intensity: 34, duration: .22, yoyo: true, repeat: 1 }, .28);
+    const confirmButton = root?.querySelector(".loadout-confirm");
+    if (confirmButton) {
+      timeline.to(confirmButton, { filter: "brightness(1.45)", duration: .18, yoyo: true, repeat: 1 }, .44);
+    }
     confirmTimelineRef.current = timeline;
   }, [runtime, reduceMotion]);
 

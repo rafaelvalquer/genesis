@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { CHAPTERS, DECISIONS, DECISION_STAGE_RULES, ENEMIES, getChapterForPhase, getUnlockedTroops, PHASES } from "./content.js";
 import {
   buildSpawnQueue,
+  chooseDistinctRows,
+  choosePacketRows,
   calculateStars,
   decisionIsEligible,
   getDecisionStage,
@@ -17,6 +19,28 @@ import {
 import { CELL } from "./visualGeometry.js";
 
 describe("campanha e ondas", () => {
+  it("escolhe rotas dinâmicas determinísticas por estratégia", () => {
+    const phase = PHASES.find((entry) => entry.id === "fase_48");
+    const first = buildSpawnQueue(phase, 0, 101);
+    const repeat = buildSpawnQueue(phase, 0, 101);
+    const other = buildSpawnQueue(phase, 0, 102);
+    expect(first).toEqual(repeat);
+    expect(first.every((entry) => entry.row >= 0 && entry.row < 5)).toBe(true);
+    expect(first.map((entry) => entry.row)).not.toEqual(other.map((entry) => entry.row));
+  });
+
+  it("mantém split e spread com rotas distintas e evita combinações recentes", () => {
+    const pressure = Array(5).fill(0);
+    const history = [];
+    const split = choosePacketRows({ strategy: "split", rng: (() => { let n = 1; return () => (n++ * .37) % 1; })(), routePressure: pressure, recentRows: history });
+    const spread = choosePacketRows({ strategy: "spread", rng: (() => { let n = 2; return () => (n++ * .41) % 1; })(), routePressure: pressure, recentRows: history });
+    expect(split).toHaveLength(2);
+    expect(new Set(split).size).toBe(2);
+    expect(spread).toHaveLength(3);
+    expect(new Set(spread).size).toBe(3);
+    expect([...split].sort()).not.toEqual([...spread].sort());
+    expect(chooseDistinctRows({ count: 3, rng: () => .2, pressure: Array(5).fill(0) })).toHaveLength(3);
+  });
   it("mantem as familias Medu e Crix apoiadas mais perto da rota", () => {
     expect([ENEMIES.medu, ENEMIES.neurax, ENEMIES.oculis].map((enemy) => enemy.spriteOffsetY))
       .toEqual([2, 2, 2]);

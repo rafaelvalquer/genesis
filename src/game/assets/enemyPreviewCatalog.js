@@ -37,7 +37,7 @@ export function getEnemyConceptUrl(enemyId) {
       `/concepts/${enemyId}.webp`,
     ));
 
-  return match?.[1] || "";
+  return match?.[1] || null;
 }
 
 export function getEnemyPreviewCatalogSize() {

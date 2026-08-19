@@ -14,7 +14,8 @@ function spawnParticle(runtime, options) {
   const particle = runtime.particles.find((candidate) => !candidate.active);
   if (!particle || !runtime.regions.length) return false;
   const regionEntry = runtime.regions[Math.floor(nextMagmaRandom(runtime) * runtime.regions.length)];
-  const useVent = nextMagmaRandom(runtime) < (options.thermalState === "eruption" ? 0.68 : 0.34);
+  const thermalState = regionEntry.thermalState || options.thermalState;
+  const useVent = nextMagmaRandom(runtime) < (thermalState === "eruption" ? 0.68 : 0.34);
   const availableVents = [
     ...regionEntry.vents,
     ...(regionEntry.dynamic?.transientVents || []),
@@ -30,7 +31,7 @@ function spawnParticle(runtime, options) {
     x = cell[1] * CELL.width + 8 + nextMagmaRandom(runtime) * (CELL.width - 16);
     y = cell[0] * CELL.height + 12 + nextMagmaRandom(runtime) * (CELL.height - 24);
   }
-  const eruption = options.thermalState === "eruption" ? 1 : 0;
+  const eruption = thermalState === "eruption" ? 1 : 0;
   const flowVector = runtime.currentFlowVector || { x: 0, y: 0 };
   const typeRoll = nextMagmaRandom(runtime);
   const type = typeRoll < 0.43
@@ -75,6 +76,7 @@ function spawnParticle(runtime, options) {
       ? 1.3 + nextMagmaRandom(runtime) * 1.8
       : 0.8 + nextMagmaRandom(runtime) * (1.6 + eruption);
   particle.temperature = 0.72 + nextMagmaRandom(runtime) * 0.28;
+  particle.thermalState = thermalState;
   particle.seed = Math.floor(nextMagmaRandom(runtime) * 9999);
   return true;
 }
@@ -122,11 +124,13 @@ export function updateMagmaParticles(runtime, now, options) {
   }
 
   const qualityLimit = options.maxParticles[options.quality.quality] || options.maxParticles.high;
-  const desired = Math.max(0, Math.round(Math.min(
+  const baselineDesired = Math.min(
     qualityLimit,
     options.particleLimit,
     options.activeParticles[options.thermalState],
-  ) * options.quality.particleScale));
+  ) * options.quality.particleScale;
+  const permanentRegionBonus = runtime.regions.filter((entry) => entry.thermalState === "eruption").length * 2;
+  const desired = Math.max(0, Math.round(Math.min(qualityLimit, options.particleLimit, baselineDesired + permanentRegionBonus)));
   const missing = desired - activeParticleCount(runtime);
   const spawnBudget = Math.min(missing, Math.max(1, Math.ceil(deltaMs / 10)));
   for (let index = 0; index < spawnBudget; index += 1) spawnParticle(runtime, options);
@@ -159,13 +163,14 @@ function drawSplash(ctx, splash, thermal) {
 export function drawMagmaParticles(ctx, runtime, now, options) {
   if (!runtime?.particles?.length) return;
   updateMagmaParticles(runtime, now, options);
-  const thermal = getMagmaThermalVisual(options.thermalState);
   ctx.save();
   ctx.globalCompositeOperation = "screen";
   ctx.lineCap = "round";
-  for (const splash of runtime.splashes || []) drawSplash(ctx, splash, thermal);
+  const ambientThermal = getMagmaThermalVisual(options.thermalState);
+  for (const splash of runtime.splashes || []) drawSplash(ctx, splash, ambientThermal);
   for (const particle of runtime.particles) {
     if (!particle.active) continue;
+    const thermal = getMagmaThermalVisual(particle.thermalState || options.thermalState);
     const life = Math.max(0, particle.life / particle.maxLife);
     const alpha = Math.min(1, life * 1.4) * thermal.emberFactor;
     const color = particleColor(particle.temperature);

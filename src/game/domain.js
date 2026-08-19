@@ -65,26 +65,94 @@ function scaledCoordinatedPackets(spawnBlocks, countMultiplier) {
   return packets;
 }
 
+export const ROUTE_STRATEGIES = Object.freeze({
+  focused: Object.freeze({ count: 1 }),
+  split: Object.freeze({ count: 2 }),
+  spread: Object.freeze({ count: 3 }),
+  scripted: Object.freeze({ count: null }),
+});
+
+function weightedRoutePick(candidates, rng, pressure, hotLane = null) {
+  const weighted = candidates.map((row) => ({
+    row,
+    weight: (1 / (1 + (pressure[row] || 0))) * (row === hotLane ? 2.5 : 1),
+  }));
+  const total = weighted.reduce((sum, entry) => sum + entry.weight, 0);
+  let cursor = rng() * total;
+  for (const entry of weighted) {
+    cursor -= entry.weight;
+    if (cursor <= 0) return entry.row;
+  }
+  return weighted.at(-1)?.row ?? 0;
+}
+
+export function chooseDistinctRows({ count, rng = createRng(1), pressure = [], excluded = [], hotLane = null }) {
+  const available = Array.from({ length: 5 }, (_, row) => row).filter((row) => !excluded.includes(row));
+  const selected = [];
+  while (selected.length < Math.min(count, available.length)) {
+    const candidates = available.filter((row) => !selected.includes(row));
+    selected.push(weightedRoutePick(candidates, rng, pressure, hotLane));
+  }
+  return selected;
+}
+
+export function choosePacketRows({ strategy = "split", rng = createRng(1), recentRows = [], routePressure = Array(5).fill(0), packetIndex = 0, waveHotLane = null, fixedRows = null }) {
+  if (strategy === "scripted" || Array.isArray(fixedRows)) return [...new Set((fixedRows || []).filter((row) => row >= 0 && row < 5))];
+  const count = ROUTE_STRATEGIES[strategy]?.count || ROUTE_STRATEGIES.split.count;
+  const recentKeys = recentRows.slice(-3).map((rows) => [...rows].sort((a, b) => a - b).join(","));
+  const hotLane = rng() < .25 ? waveHotLane : null;
+  let selected = chooseDistinctRows({ count, rng, pressure: routePressure, hotLane });
+  for (let attempt = 0; attempt < 8 && recentKeys.includes([...selected].sort((a, b) => a - b).join(",")); attempt += 1) {
+    selected = chooseDistinctRows({ count, rng, pressure: routePressure, excluded: attempt % 2 ? selected.slice(0, 1) : [], hotLane });
+  }
+  selected.forEach((row) => { routePressure[row] = (routePressure[row] || 0) + 1; });
+  recentRows.push(selected);
+  if (recentRows.length > 3) recentRows.shift();
+  return selected;
+}
+
 function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
   const rng = createRng(seed);
   const packets = scaledCoordinatedPackets(waveEntry.spawnBlocks, countMultiplier)
     .sort((left, right) => left.spawnAtMs - right.spawnAtMs);
-  const recentRows = [];
+  const routeHistory = [];
+  const routePressure = Array(5).fill(0);
+  const hasDynamicRoutes = packets.some((packet) => packet.dynamicRoutes === true && packet.routeStrategy);
+  const waveHotLane = hasDynamicRoutes ? Math.floor(rng() * 5) : null;
+  const legacyRecentRows = [];
   const queue = packets.flatMap((packet, packetIndex) => {
-    const blockedRow = recentRows.length >= 2 && recentRows.at(-1) === recentRows.at(-2)
-      ? recentRows.at(-1)
+    const dynamic = packet.dynamicRoutes === true && packet.routeStrategy;
+    const selectedRows = dynamic
+      ? choosePacketRows({
+        strategy: packet.routeStrategy,
+        rng,
+        recentRows: routeHistory,
+        routePressure,
+        packetIndex,
+        waveHotLane,
+        fixedRows: packet.fixedRows,
+      })
       : null;
+    const blockedRow = !dynamic && legacyRecentRows.length >= 2 && legacyRecentRows.at(-1) === legacyRecentRows.at(-2)
+      ? legacyRecentRows.at(-1) : null;
     const candidates = [0, 1, 2, 3, 4].filter((row) => row !== blockedRow);
-    const row = candidates[(Math.floor(rng() * candidates.length) + packetIndex) % candidates.length];
-    recentRows.push(row);
-    if (recentRows.length > 2) recentRows.shift();
+    const fallbackRow = dynamic
+      ? Math.floor(rng() * 5)
+      : candidates[(Math.floor(rng() * candidates.length) + packetIndex) % candidates.length];
+    if (!dynamic) {
+      legacyRecentRows.push(fallbackRow);
+      if (legacyRecentRows.length > 2) legacyRecentRows.shift();
+    }
     return packet.units.flatMap((unit) => {
-      const rows = unit.rows?.length ? unit.rows : [row];
-      const count = unit.rows?.length ? unit.countPerRow || 1 : unit.count;
-      return rows.flatMap((unitRow, rowIndex) => Array.from({ length: count }, (_, index) => ({
+      const totalCount = unit.rows?.length ? unit.rows.length * (unit.countPerRow || 1) : unit.count;
+      const rows = dynamic ? selectedRows : (unit.rows?.length ? unit.rows : [fallbackRow]);
+      const countsByRow = dynamic
+        ? rows.map((_, rowIndex) => Math.floor(totalCount / rows.length) + (rowIndex < totalCount % rows.length ? 1 : 0))
+        : rows.map(() => unit.rows?.length ? unit.countPerRow || 1 : unit.count);
+      return rows.flatMap((unitRow, rowIndex) => Array.from({ length: countsByRow[rowIndex] || 0 }, (_, index) => ({
         type: unit.type,
         variant: unit.variant || null,
-        sourceIndex: rowIndex * count + index,
+        sourceIndex: rowIndex * (countsByRow[rowIndex] || 0) + index,
         row: unitRow,
         packetId: packet.id,
         block: packet.block,
@@ -92,7 +160,7 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
         xOffsetTiles: unit.xOffsetTiles || 0,
         formationOffsetPx: unit.spawnIntervalMs
           ? 0
-          : (index - (count - 1) / 2) * 10,
+          : (index - ((countsByRow[rowIndex] || 1) - 1) / 2) * 10,
       })));
     });
   });

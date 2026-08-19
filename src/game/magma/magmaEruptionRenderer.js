@@ -167,21 +167,25 @@ function drawVentByType(ctx, vent, phase, thermal, options) {
 
 export function drawMagmaEruptions(ctx, runtime, options) {
   if (!runtime?.vents?.length) return;
-  const thermal = getMagmaThermalVisual(options.thermalState);
+  const vents = [...runtime.vents].sort((left, right) => (
+    (right.thermalState === "eruption" ? 1 : 0) - (left.thermalState === "eruption" ? 1 : 0)
+  ));
   const count = Math.max(0, Math.min(
-    runtime.vents.length,
+    vents.length,
     options.ventLimit,
     options.ventCount[options.thermalState],
   ));
   ctx.save();
   for (let index = 0; index < count; index += 1) {
-    const vent = runtime.vents[index];
+    const vent = vents[index];
     const phase = getMagmaVentPhase(vent, runtime.visualTimeMs);
+    const thermal = getMagmaThermalVisual(vent.thermalState || options.thermalState);
     drawVentByType(ctx, vent, phase, thermal, options);
   }
   const transientLimit = Math.max(0, options.ventLimit - count);
   for (const vent of (runtime.transientVents || []).slice(0, transientLimit)) {
     const phase = getMagmaVentPhase(vent, runtime.visualTimeMs);
+    const thermal = getMagmaThermalVisual(vent.thermalState || options.thermalState);
     drawVentByType(ctx, vent, phase, thermal, options);
   }
   ctx.restore();

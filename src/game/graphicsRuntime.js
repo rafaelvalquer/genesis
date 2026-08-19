@@ -94,6 +94,7 @@ export function clearRenderLayer(context, canvas, scale) {
 export function createGraphicsRuntime() {
   return {
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
+    colossoCoreHits: [],
     pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [], magma: null,
     containmentArcs: [], containmentInterferenceUntil: 0,
     camera: { amplitude: 0, seed: 1, startedAt: 0 },
@@ -207,6 +208,9 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
     if (["hit", "shieldHit", "shieldBreak", "troopHit", "pulseHit"].includes(event.type) && event.targetId) {
       runtime.hits.set(event.targetId, { born: now, life: 170, direction: event.type === "hit" ? -1 : 1 });
     }
+    if (event.type === "colossoCoreHit") {
+      runtime.colossoCoreHits.push({ ...event, born: now, life: event.coreExposed ? 260 : 150 });
+    }
     if ((event.type === "enemyDeath" || event.type === "bossDeath") && event.entity) {
       const life = ENEMY_DEATH_LIFE[event.entity.type]
         || (event.type === "bossDeath" ? 900 : DEATH_LIFE.enemy);
@@ -278,6 +282,7 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
   runtime.deployments = runtime.deployments.slice(-24);
   runtime.containmentArcs = runtime.containmentArcs.slice(-18);
   runtime.windEffects = runtime.windEffects.slice(-48);
+  runtime.colossoCoreHits = runtime.colossoCoreHits.slice(-24);
 }
 
 export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
@@ -289,6 +294,7 @@ export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
   runtime.lights = runtime.lights.filter((entry) => now - entry.born < entry.life);
   runtime.deployments = runtime.deployments.filter((entry) => now - entry.born < entry.life);
   runtime.containmentArcs = runtime.containmentArcs.filter((entry) => now - entry.born < entry.life);
+  runtime.colossoCoreHits = runtime.colossoCoreHits.filter((entry) => now - entry.born < entry.life);
   updateWindCurrentGraphics(runtime, now);
   runtime.camera.amplitude *= Math.pow(0.004, frameMs / 1000);
   if (runtime.camera.amplitude < 0.05) runtime.camera.amplitude = 0;

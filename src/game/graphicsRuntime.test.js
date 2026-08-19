@@ -79,6 +79,17 @@ describe("runtime grafico", () => {
     expect(runtime.deaths).toHaveLength(0);
   });
 
+  it("retém feedback determinístico de impacto no núcleo", () => {
+    const runtime = createGraphicsRuntime();
+    consumeGraphicsEvents(runtime, [{
+      type: "colossoCoreHit", bossId: "colosso", coreExposed: false,
+      resisted: true, damageFactor: .35, x: 300, y: 180,
+    }], 100, { quality: "high", cameraShake: true });
+    expect(runtime.colossoCoreHits).toMatchObject([{ bossId: "colosso", resisted: true, life: 150 }]);
+    updateGraphicsRuntime(runtime, 251, 16, {});
+    expect(runtime.colossoCoreHits).toHaveLength(0);
+  });
+
   it("mantém a morte visual do Voltriz por 600 ms sem prolongar a entidade lógica", () => {
     const runtime = createGraphicsRuntime();
     consumeGraphicsEvents(runtime, [

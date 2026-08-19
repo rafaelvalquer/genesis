@@ -133,6 +133,34 @@ describe("runtime visual de magma", () => {
     expect(runtime.regions[0].next).toBe(firstPrevious);
   });
 
+  it("inclui células de erupção permanente e reinicializa ao mudar o estado visual", () => {
+    const runtime = createMagmaFlowRuntime();
+    const session = {
+      phase: {
+        id: "magma-permanent-eruption-test",
+        magmaTerrain: { cells: [[2, 9]], visual: { seed: 83 } },
+      },
+      thermalCycle: { state: "stable" },
+      sandboxSettings: {},
+      permanentThermalHazards: [{
+        active: true,
+        thermalState: "eruption",
+        cells: [[0, 9]],
+      }],
+    };
+
+    prepareMagmaFlowRuntime(runtime, session, 1000, { quality: "high" }, {}, canvasFactory);
+    const eruptionEntry = runtime.regions.find((entry) => entry.region.cells.some(([row, col]) => row === 0 && col === 9));
+    expect(eruptionEntry?.thermalState).toBe("eruption");
+    expect(runtime.vents.some((vent) => vent.thermalState === "eruption")).toBe(true);
+    const signature = runtime.signature;
+
+    session.permanentThermalHazards[0].thermalState = "active";
+    prepareMagmaFlowRuntime(runtime, session, 1100, { quality: "high" }, {}, canvasFactory);
+    expect(runtime.signature).not.toBe(signature);
+    expect(runtime.regions.find((entry) => entry.region.cells.some(([row, col]) => row === 0 && col === 9))?.thermalState).toBe("active");
+  });
+
   it("mantém a distância do fluxo ao pausar ou usar multiplicador zero", () => {
     const runtime = createMagmaFlowRuntime();
     const session = {

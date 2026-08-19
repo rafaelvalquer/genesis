@@ -13,7 +13,7 @@ export function getArenaUrl(arenaId) {
       `/${arenaId}.webp`,
     ));
 
-  return match?.[1] || "";
+  return match?.[1] || null;
 }
 
 export function getArenaCatalogSize() {

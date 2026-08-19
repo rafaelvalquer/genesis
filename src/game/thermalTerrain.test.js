@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
 import { canPlaceTroop, createBattleSession, createTroopEntity, eliminateTroop, placeTroop, setSandboxSettings, startWave, stepBattle } from "./battleModel.js";
-import { getPermanentThermalHazardAt, getSessionThermalStateAt, getThermalPlatformAt, getThermalSnapshot, isSessionMagmaCell } from "./thermalTerrain.js";
+import { getPermanentThermalHazardAt, getSessionMagmaCells, getSessionThermalStateAt, getThermalPlatformAt, getThermalSnapshot, isSessionMagmaCell } from "./thermalTerrain.js";
 import { getThermalPlatformVisual } from "./thermalPlatformRenderer.js";
 
 describe("terreno térmico", () => {
@@ -11,6 +11,11 @@ describe("terreno térmico", () => {
     expect(isSessionMagmaCell(session, 0, 9)).toBe(true);
     expect(getSessionThermalStateAt(session, 0, 9)).toBe("eruption");
     expect(getSessionThermalStateAt(session, 0, 8)).toBe("cooldown");
+  });
+
+  it("inclui células permanentes na lista usada pelo runtime visual", () => {
+    const session = { phase: { magmaTerrain: { cells: [[2, 9]] } }, permanentThermalHazards: [{ cells: [[0, 9], [2, 9]], active: true }] };
+    expect(getSessionMagmaCells(session)).toEqual([[2, 9], [0, 9]]);
   });
 
   it("bloqueia tropas comuns no magma, aceita Drone e permite resgate com plataforma", () => {

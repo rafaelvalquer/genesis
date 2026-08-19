@@ -1407,7 +1407,10 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
         console.error(`[Colosso] Asset ausente para ${missingKey}; fallback para idle desativado.`);
       }
     }
-    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation, transitionImage }, image, assets.effects);
+    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation, transitionImage }, image, {
+      ...(assets.effects || {}),
+      colossoCoreHits: runtime?.colossoCoreHits || [],
+    });
     drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
     return;
   }
@@ -2842,9 +2845,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     : null;
   const alphaPressure = snapshot.alphaPressure;
   const alphaWarning = alphaPressure?.pendingSpawns?.length
-    ? `⚠ PRESSÃO ALFA ${alphaPressure.level} · ${alphaPressure.pendingSpawns.length} ALFA${alphaPressure.pendingSpawns.length > 1 ? "S" : ""} EM APROXIMAÇÃO · ROTAS ${alphaPressure.pendingSpawns.map((entry) => entry.row + 1).join(", ")}`
+    ? `⚠ PRESENÇA ALPHA DETECTADA · ROTA ${alphaPressure.pendingSpawns[0].row + 1}`
     : alphaPressure?.enabled
-      ? `PRESSÃO ALFA ${alphaPressure.level} · TROPAS ${alphaPressure.troopCountStart ?? 0}→${alphaPressure.troopCountCurrent}`
+      ? `PRESSÃO ALPHA · PRÓXIMA CHECAGEM ${Math.ceil((alphaPressure.nextCheckInMs || 0) / 1000)}s · TROPAS ${alphaPressure.troopCountCurrent}`
       : null;
   const canStartWave = !sandbox
     && snapshot.preparing

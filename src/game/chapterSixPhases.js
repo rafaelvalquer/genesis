@@ -14,17 +14,12 @@ const arenaIds = ["volcanic-threshold", "magma-lake", "breathing-caldera", "natu
 const crustDensities = [.44, .43, .42, .41, .43, .42, .41, .4];
 const cycleFor = (index) => index === 0 ? [{ state: "stable", durationMs: 60000 }] : index === 1 ? [{ state: "stable", durationMs: 30000 }, { state: "active", durationMs: 18000 }] : DEFAULT_THERMAL_CYCLE;
 const alphaPressureFor = (index) => {
-  const configs = [
-    { enabled: false },
-    { enabled: true, maxLevel: 2, enemyType: "vermeIncubador" },
-    { enabled: true, maxLevel: 3, enemyType: "predadorCaldeira" },
-    { enabled: true, maxLevel: 3, enemyType: "predadorCaldeira" },
-    { enabled: true, maxLevel: 4, enemyType: "devoradorCaldeira" },
-    { enabled: true, maxLevel: 4, enemyType: "rasgaCeusCinereo" },
-    { enabled: true, maxLevel: 5, enemyType: "salamandraCinerea" },
-    { enabled: true, maxLevel: 5, enemyPool: ["devoradorCaldeira", "rasgaCeusCinereo", "salamandraCinerea"] },
-  ];
-  return { ...configs[index], warningMs: 1800, uniqueRows: true };
+  if (index === 0) return { enabled: false };
+  return {
+    enabled: true, minTroops: 5, firstCheckDelayMs: 18000, checkEveryMs: 12000, warningMs: 1800,
+    baseChance: Math.min(.11, .04 + index * .01), chancePerExtraTroop: .035,
+    maxChance: Math.min(.40, .28 + index * .02), maximumAlphaAlive: 1,
+  };
 };
 
 export const CHAPTER_SIX_PHASES = deepFreeze(Array.from({ length: 8 }, (_, index) => {

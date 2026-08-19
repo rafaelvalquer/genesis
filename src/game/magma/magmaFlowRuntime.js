@@ -1,5 +1,5 @@
 import { CELL } from "../visualGeometry.js";
-import { getMagmaCells } from "../thermalTerrain.js";
+import { getMagmaCells, getSessionMagmaCells, getPermanentThermalHazardAt } from "../thermalTerrain.js";
 import { buildMagmaRegions } from "./magmaRegionBuilder.js";
 import { getMagmaFlowFrame } from "./magmaFlowField.js";
 import {
@@ -46,7 +46,7 @@ function pickPointInRegion(region, random, inset = 12) {
   };
 }
 
-function buildVents(region, random) {
+function buildVents(region, random, thermalState = "stable") {
   const count = Math.max(...Object.values(MAGMA_VISUAL_CONFIG.ventCount));
   return Array.from({ length: count }, (_, index) => {
     const point = pickPointInRegion(region, random, 18);
@@ -69,13 +69,15 @@ function buildVents(region, random) {
             ? "ventJet"
             : "crustBurst",
       seed: Math.floor(random() * 0x7fffffff),
+      thermalState,
     };
   });
 }
 
 function buildSmoke(regions, random) {
   return Array.from({ length: 10 }, (_, index) => {
-    const region = regions[index % Math.max(1, regions.length)];
+    const regionEntry = regions[index % Math.max(1, regions.length)];
+    const region = regionEntry?.region || regionEntry;
     const point = region ? pickPointInRegion(region, random, 8) : { x: 0, y: 0 };
     return {
       x: point.x,
@@ -87,11 +89,17 @@ function buildSmoke(regions, random) {
       phaseMs: random() * 8000,
       opacity: 0.55 + random() * 0.45,
       seed: index,
+      thermalState: regionEntry?.thermalState || region?.thermalState || "stable",
     };
   });
 }
 
 function configSignature(session, options) {
+  const permanentHazardSignature = (session?.permanentThermalHazards || [])
+    .filter((hazard) => hazard.active !== false)
+    .flatMap((hazard) => (hazard.cells || []).map(([row, col]) => `${row}:${col}:${hazard.thermalState || "eruption"}`))
+    .sort()
+    .join("|");
   return [
     session?.phase?.id,
     options.quality.quality,
@@ -100,6 +108,7 @@ function configSignature(session, options) {
     Number(options.warpMultiplier).toFixed(2),
     Number(options.majorChannelCount),
     session?.phase?.magmaTerrain?.visual?.seed || 1,
+    permanentHazardSignature,
   ].join(":");
 }
 
@@ -135,13 +144,22 @@ export function createMagmaFlowRuntime() {
 }
 
 function initializeRuntime(runtime, session, now, options, canvasFactory) {
-  const cells = getMagmaCells(session?.phase);
+  const cells = getSessionMagmaCells(session);
+  const permanentCells = new Set((session?.permanentThermalHazards || [])
+    .filter((hazard) => hazard.active !== false)
+    .flatMap((hazard) => hazard.cells || [])
+    .map(([row, col]) => `${row}:${col}`));
+  const baseCells = getMagmaCells(session?.phase).filter(([row, col]) => !permanentCells.has(`${row}:${col}`));
   const seed = session?.phase?.magmaTerrain?.visual?.seed || 1;
-  const baseRegions = buildMagmaRegions(cells, {
+  const baseRegions = buildMagmaRegions(baseCells, {
     cellWidth: CELL.width,
     cellHeight: CELL.height,
     seed,
-  });
+  }).concat(buildMagmaRegions(cells.filter(([row, col]) => permanentCells.has(`${row}:${col}`)), {
+    cellWidth: CELL.width,
+    cellHeight: CELL.height,
+    seed: seed ^ 0x9e3779b9,
+  }));
   const random = seededRandom(seed ^ 0x51f15e);
   runtime.phaseId = session?.phase?.id || null;
   runtime.signature = configSignature(session, options);
@@ -159,6 +177,10 @@ function initializeRuntime(runtime, session, now, options, canvasFactory) {
   runtime.splashes.length = 0;
   const surfaceFps = getMagmaSurfaceFps(options);
   runtime.regions = baseRegions.map((region) => {
+    const thermalState = region.cells
+      .map(([row, col]) => getPermanentThermalHazardAt(session, row, col)?.thermalState)
+      .find(Boolean) || options.thermalState;
+    region.thermalState = thermalState;
     const channelCount = Math.max(2, Math.min(
       options.majorChannelCount,
       Math.round(region.bounds.width / 320),
@@ -173,37 +195,38 @@ function initializeRuntime(runtime, session, now, options, canvasFactory) {
     const initialFlow = getMagmaFlowFrame({
       region,
       visualConfig: options,
-      thermalState: options.thermalState,
+      thermalState,
       travel: 0,
       reduceMotion: options.reduceMotion,
     });
     const nextFlow = getMagmaFlowFrame({
       region,
       visualConfig: options,
-      thermalState: options.thermalState,
+      thermalState,
       travel: initialFlow.speed * interval / 1000,
       reduceMotion: options.reduceMotion,
     });
     renderMagmaSurfaceFrame(previous, {
-      region, channels, time: 0, config: calibratedOptions, thermalState: options.thermalState,
+      region, channels, time: 0, config: calibratedOptions, thermalState,
       flowFrame: initialFlow, dynamic,
     });
     renderMagmaSurfaceFrame(next, {
-      region, channels, time: interval / 1000, config: calibratedOptions, thermalState: options.thermalState,
+      region, channels, time: interval / 1000, config: calibratedOptions, thermalState,
       flowFrame: nextFlow, dynamic,
     });
     return {
       region,
       channels,
       crustThreshold,
-      vents: buildVents(region, random),
+      thermalState,
+      vents: buildVents(region, random, thermalState),
       dynamic,
       previous,
       next,
     };
   });
   runtime.vents = runtime.regions.flatMap((entry) => entry.vents);
-  runtime.smoke = buildSmoke(baseRegions, random);
+  runtime.smoke = buildSmoke(runtime.regions, random);
   runtime.surface.lastUpdateAt = now;
   runtime.surface.blendProgress = 0;
   runtime.transientVents = [];
@@ -267,7 +290,7 @@ function scheduleWorkerSurfaceUpdate(runtime, options, interval, canvasFactory) 
     const flowFrame = getMagmaFlowFrame({
       region: entry.region,
       visualConfig: options,
-      thermalState: options.thermalState,
+      thermalState: entry.thermalState,
       travel: runtime.flowTravelPx + runtime.currentFlowSpeed * interval / 1000,
       reduceMotion: options.reduceMotion,
     });
@@ -280,7 +303,7 @@ function scheduleWorkerSurfaceUpdate(runtime, options, interval, canvasFactory) 
         channels: entry.channels,
         time: targetTime,
         config: { ...options, calibratedCrustThreshold: entry.crustThreshold },
-        thermalState: options.thermalState,
+        thermalState: entry.thermalState,
         dynamic: entry.dynamic,
         flowFrame,
       },
@@ -339,12 +362,12 @@ function updateSurfaces(runtime, now, options, canvasFactory) {
         channels: entry.channels,
         time: (runtime.visualTimeMs + interval) / 1000,
         config: { ...options, calibratedCrustThreshold: entry.crustThreshold },
-        thermalState: options.thermalState,
+        thermalState: entry.thermalState,
         dynamic: entry.dynamic,
         flowFrame: getMagmaFlowFrame({
           region: entry.region,
           visualConfig: options,
-          thermalState: options.thermalState,
+          thermalState: entry.thermalState,
           travel: runtime.flowTravelPx + runtime.currentFlowSpeed * interval / 1000,
           reduceMotion: options.reduceMotion,
         }),

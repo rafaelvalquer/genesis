@@ -1,91 +1,71 @@
-const MAX_ALPHA_SPAWNS = 5;
 const DEFAULT_WARNING_MS = 1800;
 
 export const CHAPTER_SIX_ALPHA_MODIFIERS = Object.freeze({
-  hpMultiplier: 1.65,
-  damageMultiplier: 1.25,
-  speedMultiplier: 1.10,
-  scaleMultiplier: 1.12,
+  hpMultiplier: 1.65, damageMultiplier: 1.25, speedMultiplier: 1.10, scaleMultiplier: 1.12,
 });
-
 const numeric = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
 
-export function createAlphaPressureState(config, troopCount = 0) {
-  return {
-    enabled: Boolean(config?.enabled),
-    cycleNumber: 0,
-    cycleStartTroopCount: null,
-    previousCycleEndTroopCount: troopCount,
-    level: 0,
-    totalAlphaSpawned: 0,
-    lastTriggeredAt: null,
-    pendingSpawns: [],
-  };
+export function createAlphaPressureState(config) {
+  return { enabled: Boolean(config?.enabled), nextCheckAt: Infinity, checksThisWave: 0, spawnsThisWave: 0, totalAlphaSpawned: 0, lastCheckAt: null, lastTriggeredAt: null, lastSpawnType: null, lastSpawnRow: null, pendingSpawns: [] };
 }
 
 export function countPressureTroops(session) {
-  return (session?.troops || []).filter((troop) => !troop.dead
-    && troop.type !== "thermalPlatform"
-    && troop.countsTowardAlphaPressure !== false).reduce((count, troop) => count + Math.max(1, numeric(troop.alphaPressureCount, 1)), 0);
+  return (session?.troops || []).filter((troop) => !troop.dead && troop.type !== "thermalPlatform" && troop.countsTowardAlphaPressure !== false)
+    .reduce((count, troop) => count + Math.max(1, numeric(troop.alphaPressureCount, 1)), 0);
 }
 
-export function startAlphaPressureCycle(session) {
+export function resetAlphaPressureForWave(session, config = session?.phase?.alphaPressure) {
   const state = session?.alphaPressure;
-  if (!state?.enabled || state.cycleStartTroopCount != null) return false;
-  const count = countPressureTroops(session);
-  state.cycleStartTroopCount = count;
-  state.previousCycleEndTroopCount = count;
+  if (!state) return false;
+  state.enabled = Boolean(config?.enabled);
+  state.nextCheckAt = state.enabled ? session.elapsed + numeric(config.firstCheckDelayMs, 18000) : Infinity;
+  state.checksThisWave = 0; state.spawnsThisWave = 0; state.lastCheckAt = null; state.lastTriggeredAt = null;
+  state.lastSpawnType = null; state.lastSpawnRow = null; state.pendingSpawns = [];
   return true;
 }
 
-function shuffleWithSessionRng(rows, rng) {
-  for (let index = rows.length - 1; index > 0; index -= 1) {
-    const swapIndex = Math.min(index, Math.floor(rng() * (index + 1)));
-    [rows[index], rows[swapIndex]] = [rows[swapIndex], rows[index]];
-  }
-  return rows;
+export function calculateAlphaChance(troopCount, config = {}) {
+  if (troopCount < numeric(config.minTroops, 5)) return 0;
+  return Math.min(numeric(config.maxChance, .4), numeric(config.baseChance, .04) + (troopCount - numeric(config.minTroops, 5)) * numeric(config.chancePerExtraTroop, .035));
 }
 
-export function selectAlphaSpawnRows(session, count) {
-  const rng = typeof session?.rng === "function" ? session.rng : () => .5;
-  return shuffleWithSessionRng([0, 1, 2, 3, 4], rng).slice(0, Math.max(0, Math.min(MAX_ALPHA_SPAWNS, Math.floor(count) || 0)));
+export function hasActiveAlpha(session) {
+  return Boolean(session?.alphaPressure?.pendingSpawns?.length)
+    || (session?.enemies || []).some((enemy) => !enemy.dead && enemy.variant === "alpha" && enemy.spawnSource === "alphaPressure");
 }
 
-export function selectAlphaEnemyTypes(session, config, count) {
-  const pool = config?.enemyPool?.length ? config.enemyPool : [config?.enemyType].filter(Boolean);
-  if (!pool.length) return [];
-  const rng = typeof session?.rng === "function" ? session.rng : () => .5;
-  return Array.from({ length: count }, () => pool[Math.min(pool.length - 1, Math.floor(rng() * pool.length))]);
+export function getAlphaEligibleEnemyTypes(session, config = session?.phase?.alphaPressure, enemyCatalog = {}) {
+  const wave = session?.phase?.waves?.[session.waveIndex];
+  const waveTypes = [...(wave?.enemies || []).map((entry) => entry.type), ...(session?.queue || []).map((entry) => entry.type), ...(session?.enemies || []).filter((enemy) => !enemy.dead && enemy.spawnSource !== "alphaPressure").map((enemy) => enemy.type)];
+  const candidates = config?.enemyPool?.length ? config.enemyPool : waveTypes;
+  const eligible = [...new Set(candidates)].filter((type) => {
+    const entry = enemyCatalog[type] || {};
+    return type && entry.boss !== true && entry.allowAlphaVariant !== false && entry.summoned !== true && entry.hiddenFromCatalog !== true;
+  });
+  if (eligible.length) return eligible;
+  return [...new Set(waveTypes)].filter((type) => enemyCatalog[type]?.boss !== true && enemyCatalog[type]?.allowAlphaVariant !== false);
 }
 
-export function evaluateAlphaPressureCycle(session, config = session?.phase?.alphaPressure) {
+function selectAlphaSpawnRow(session, state) {
+  const previous = Number.isInteger(state.lastSpawnRow) ? state.lastSpawnRow : null;
+  const rows = Array.from({ length: 5 }, (_, row) => row).filter((row) => row !== previous);
+  return rows[Math.min(rows.length - 1, Math.floor(session.rng() * rows.length))] ?? 0;
+}
+
+export function evaluateAlphaPressure(session, config = session?.phase?.alphaPressure, enemyCatalog = {}) {
   const state = session?.alphaPressure;
-  if (!state?.enabled || !config?.enabled) return { evaluated: false, triggered: false };
-  startAlphaPressureCycle(session);
-  const troopCountStart = numeric(state.cycleStartTroopCount);
-  const troopCountEnd = countPressureTroops(session);
-  const metrics = session.metrics.alphaPressure;
-  const maximumLevel = Math.max(0, Math.floor(numeric(config.maxLevel, MAX_ALPHA_SPAWNS)));
-  state.cycleNumber += 1;
-  metrics.cyclesEvaluated += 1;
-  let nextLevel = 0;
-  if (troopCountEnd < troopCountStart) {
-    if (state.level > 0) metrics.resets += 1;
-  } else if (state.level === 0) {
-    nextLevel = troopCountEnd > troopCountStart ? 1 : 0;
-  } else {
-    nextLevel = Math.min(maximumLevel, state.level + 1);
-  }
-  state.level = nextLevel;
-  state.cycleStartTroopCount = troopCountEnd;
-  state.previousCycleEndTroopCount = troopCountEnd;
-  if (nextLevel <= 0) return { evaluated: true, triggered: false, level: 0, troopCountStart, troopCountEnd };
-
-  const alphaCount = Math.min(MAX_ALPHA_SPAWNS, nextLevel);
-  const rows = selectAlphaSpawnRows(session, alphaCount);
-  const enemyTypes = selectAlphaEnemyTypes(session, config, alphaCount);
-  state.lastTriggeredAt = session.elapsed;
-  metrics.triggers += 1;
-  metrics.peakLevel = Math.max(metrics.peakLevel, nextLevel);
-  return { evaluated: true, triggered: true, level: nextLevel, troopCountStart, troopCountEnd, alphaCount, rows, enemyTypes, warningMs: Math.max(0, numeric(config.warningMs, DEFAULT_WARNING_MS)) };
+  if (!state?.enabled || !config?.enabled || !session.waveActive || session.elapsed < state.nextCheckAt) return null;
+  state.lastCheckAt = session.elapsed; state.checksThisWave += 1; state.nextCheckAt = session.elapsed + numeric(config.checkEveryMs, 12000);
+  const troopCount = countPressureTroops(session);
+  const result = { checked: true, triggered: false, troopCount, chance: calculateAlphaChance(troopCount, config), nextCheckAt: state.nextCheckAt };
+  if (troopCount < numeric(config.minTroops, 5) || hasActiveAlpha(session)) return result;
+  if (session.rng() >= result.chance) return result;
+  const types = getAlphaEligibleEnemyTypes(session, config, enemyCatalog);
+  if (!types.length) return result;
+  const type = types[Math.min(types.length - 1, Math.floor(session.rng() * types.length))];
+  const row = selectAlphaSpawnRow(session, state);
+  state.lastTriggeredAt = session.elapsed; state.lastSpawnType = type; state.lastSpawnRow = row;
+  return { ...result, triggered: true, type, row, warningMs: numeric(config.warningMs, DEFAULT_WARNING_MS) };
 }
+
+export const updateAlphaPressure = evaluateAlphaPressure;

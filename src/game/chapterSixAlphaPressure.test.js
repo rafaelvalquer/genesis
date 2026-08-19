@@ -1,94 +1,59 @@
 import { describe, expect, it } from "vitest";
 import {
-  CHAPTER_SIX_ALPHA_MODIFIERS,
-  countPressureTroops,
-  createAlphaPressureState,
-  evaluateAlphaPressureCycle,
-  selectAlphaSpawnRows,
-  startAlphaPressureCycle,
+  CHAPTER_SIX_ALPHA_MODIFIERS, calculateAlphaChance, countPressureTroops,
+  createAlphaPressureState, evaluateAlphaPressure, getAlphaEligibleEnemyTypes,
+  hasActiveAlpha, resetAlphaPressureForWave,
 } from "./chapterSixAlphaPressure.js";
-import { createRng } from "./domain.js";
-import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
-import { createBattleSession, createTroopEntity, startWave, stepBattle } from "./battleModel.js";
 
-const config = { enabled: true, maxLevel: 4, enemyType: "devoradorCaldeira", warningMs: 1800 };
-
-function session(seed = 41, troopCount = 5) {
-  const state = {
-    rng: createRng(seed),
-    elapsed: 1000,
-    troops: Array.from({ length: troopCount }, (_, index) => ({ id: `troop_${index}`, type: "marine", dead: false })),
-    alphaPressure: createAlphaPressureState(config),
-    metrics: { alphaPressure: { cyclesEvaluated: 0, triggers: 0, peakLevel: 0, spawned: 0, resets: 0 } },
-  };
-  startAlphaPressureCycle(state);
-  return state;
-}
+const config = { enabled: true, minTroops: 5, firstCheckDelayMs: 18000, checkEveryMs: 12000, warningMs: 1800, baseChance: .10, chancePerExtraTroop: .035, maxChance: .4 };
+const catalog = {
+  cuspidorBrasa: { allowAlphaVariant: true }, predadorCaldeira: { allowAlphaVariant: true },
+  colossoCaldeira: { boss: true, allowAlphaVariant: false },
+};
+const makeSession = (rng = () => .99) => ({ elapsed: 0, waveActive: true, waveIndex: 0, rng, troops: Array.from({ length: 5 }, (_, index) => ({ id: `troop_${index}`, type: "marine", dead: false })), queue: [{ type: "cuspidorBrasa" }], enemies: [], phase: { waves: [{ enemies: [{ type: "cuspidorBrasa", count: 1 }] }] }, alphaPressure: createAlphaPressureState(config) });
 
 describe("Chapter Six alpha pressure", () => {
-  it("only activates the first level after the army grows, then escalates while it is maintained", () => {
-    const state = session();
-    expect(evaluateAlphaPressureCycle(state, config)).toMatchObject({ triggered: false, level: 0, troopCountStart: 5, troopCountEnd: 5 });
-
-    state.troops.push({ id: "troop_5", type: "mantis", dead: false }, { id: "troop_6", type: "droneSentinela", dead: false });
-    expect(evaluateAlphaPressureCycle(state, config)).toMatchObject({ triggered: true, level: 1, alphaCount: 1, enemyTypes: ["devoradorCaldeira"] });
-    expect(evaluateAlphaPressureCycle(state, config)).toMatchObject({ triggered: true, level: 2, alphaCount: 2 });
-    expect(state.metrics.alphaPressure).toMatchObject({ cyclesEvaluated: 3, triggers: 2, peakLevel: 2, resets: 0 });
+  it("reinicia o relógio em 18s e agenda tentativas a cada 12s", () => {
+    const session = makeSession();
+    resetAlphaPressureForWave(session, config);
+    expect(session.alphaPressure.nextCheckAt).toBe(18000);
+    expect(evaluateAlphaPressure(session, config, catalog)).toBeNull();
+    session.elapsed = 18000;
+    expect(evaluateAlphaPressure(session, config, catalog)).toMatchObject({ checked: true, triggered: false, nextCheckAt: 30000 });
   });
 
-  it("resets after a troop loss and requires growth again before pressure returns", () => {
-    const state = session();
-    state.troops.push({ id: "troop_5", type: "mantis", dead: false }, { id: "troop_6", type: "cryo7", dead: false });
-    expect(evaluateAlphaPressureCycle(state, config).level).toBe(1); // 5 -> 7
-    expect(evaluateAlphaPressureCycle(state, config).level).toBe(2); // 7 -> 7
-    state.troops.pop();
-    expect(evaluateAlphaPressureCycle(state, config)).toMatchObject({ triggered: false, level: 0, troopCountStart: 7, troopCountEnd: 6 });
-    expect(evaluateAlphaPressureCycle(state, config)).toMatchObject({ triggered: false, level: 0, troopCountStart: 6, troopCountEnd: 6 });
-    expect(state.metrics.alphaPressure.resets).toBe(1);
+  it("exige cinco tropas e calcula chance crescente com teto", () => {
+    expect(calculateAlphaChance(4, config)).toBe(0);
+    expect(calculateAlphaChance(5, config)).toBe(.1);
+    expect(calculateAlphaChance(14, config)).toBe(.4);
+    expect(countPressureTroops({ troops: [{ type: "marine", dead: false }, { type: "thermalPlatform", dead: false }] })).toBe(1);
   });
 
-  it("uses a deterministic set of unique rows and counts each drone", () => {
-    const left = { rng: createRng(123) };
-    const right = { rng: createRng(123) };
-    const rows = selectAlphaSpawnRows(left, 5);
-    expect(rows).toEqual(selectAlphaSpawnRows(right, 5));
-    expect(new Set(rows).size).toBe(5);
-    expect(countPressureTroops({ troops: [{ type: "droneSentinela", dead: false }, { type: "droneSentinela", dead: false }, { type: "thermalPlatform", dead: false }] })).toBe(2);
+  it("gera apenas um Alpha por sucesso, com tipo e rota reproduzíveis", () => {
+    const first = makeSession(() => 0);
+    const second = makeSession(() => 0);
+    resetAlphaPressureForWave(first, config); resetAlphaPressureForWave(second, config);
+    first.elapsed = second.elapsed = 18000;
+    const left = evaluateAlphaPressure(first, config, catalog);
+    const right = evaluateAlphaPressure(second, config, catalog);
+    expect(left).toEqual(right);
+    expect(left).toMatchObject({ triggered: true, type: "cuspidorBrasa", row: expect.any(Number) });
+    expect(left.row).toBeGreaterThanOrEqual(0); expect(left.row).toBeLessThan(5);
+    expect(first.alphaPressure.spawnsThisWave).toBe(0); // sobe quando o warning conclui e a entidade nasce
   });
 
-  it("caps the phase level and keeps the Chapter Six modifiers explicit", () => {
-    const state = session();
-    state.troops.push({ id: "extra", type: "mantis", dead: false });
-    evaluateAlphaPressureCycle(state, config);
-    evaluateAlphaPressureCycle(state, config);
-    evaluateAlphaPressureCycle(state, config);
-    expect(evaluateAlphaPressureCycle(state, config)).toMatchObject({ level: 4, alphaCount: 4 });
-    expect(CHAPTER_SIX_ALPHA_MODIFIERS).toEqual({ hpMultiplier: 1.65, damageMultiplier: 1.25, speedMultiplier: 1.10, scaleMultiplier: 1.12 });
+  it("não dispara segundo Alpha enquanto o anterior está vivo", () => {
+    const session = makeSession(() => 0); resetAlphaPressureForWave(session, config); session.elapsed = 18000;
+    const first = evaluateAlphaPressure(session, config, catalog); expect(first.triggered).toBe(true);
+    session.alphaPressure.pendingSpawns = [{ variant: "alpha" }]; session.elapsed = 30000;
+    expect(evaluateAlphaPressure(session, config, catalog)).toMatchObject({ checked: true, triggered: false });
+    expect(hasActiveAlpha(session)).toBe(true);
   });
 
-  it("integrates F45 with the delayed Alpha spawn and the reset rule", () => {
-    const state = createBattleSession(CHAPTER_SIX_PHASES[4], ["colono"], 415);
-    state.troops = Array.from({ length: 5 }, (_, index) => createTroopEntity(state, "colono", index, 0));
-    expect(startWave(state)).toBe(true);
-    state.queue = [];
-    state.nextSpawnAt = Infinity;
-    state.troops.push(createTroopEntity(state, "colono", 0, 1), createTroopEntity(state, "colono", 1, 1));
-    state.thermalCycle = { ...state.thermalCycle, state: "cooldown", cycleIndex: 3, stateEndsAt: 0 };
-
-    const firstCycle = stepBattle(state, 1);
-    expect(firstCycle).toContainEqual(expect.objectContaining({
-      type: "chapterSixAlphaPressureTriggered", level: 1, troopCountStart: 5, troopCountEnd: 7,
-      enemyTypes: ["devoradorCaldeira"],
-    }));
-    stepBattle(state, 1800);
-    expect(state.enemies.find((enemy) => enemy.spawnSource === "alphaPressure")).toMatchObject({ variant: "alpha", type: "devoradorCaldeira" });
-
-    state.thermalCycle = { ...state.thermalCycle, state: "cooldown", cycleIndex: 3, stateEndsAt: state.elapsed };
-    expect(stepBattle(state, 1)).toContainEqual(expect.objectContaining({ type: "chapterSixAlphaPressureTriggered", level: 2, alphaCount: 2 }));
-    state.troops.pop();
-    state.alphaPressure.pendingSpawns = [];
-    state.thermalCycle = { ...state.thermalCycle, state: "cooldown", cycleIndex: 3, stateEndsAt: state.elapsed };
-    expect(stepBattle(state, 1)).not.toContainEqual(expect.objectContaining({ type: "chapterSixAlphaPressureTriggered" }));
-    expect(state.alphaPressure.level).toBe(0);
+  it("prefere inimigos da wave e exclui chefes do fallback", () => {
+    const session = makeSession();
+    expect(getAlphaEligibleEnemyTypes(session, config, catalog)).toEqual(["cuspidorBrasa"]);
+    expect(getAlphaEligibleEnemyTypes({ ...session, queue: [], phase: { waves: [{ enemies: [{ type: "colossoCaldeira", count: 1 }] }] } }, { ...config, enemyPool: ["colossoCaldeira", "predadorCaldeira"] }, catalog)).toEqual(["predadorCaldeira"]);
+    expect(CHAPTER_SIX_ALPHA_MODIFIERS).toMatchObject({ hpMultiplier: 1.65, damageMultiplier: 1.25, speedMultiplier: 1.1, scaleMultiplier: 1.12 });
   });
 });

@@ -215,7 +215,7 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
     return;
   }
   updateRifts(session, enemy, config, hooks, events);
-  if (enemy.hp <= 0) { enemy.colossoDying = true; enemy.colossoRifts = []; hooks.clearMagmaHazards?.(enemy.id); hooks.cancelSummons?.(); setState(session, enemy, "death", config.deathDurationMs); events.push({ type: "colossoDeathStarted", bossId: enemy.id, shake: 12 }); return; }
+  if (enemy.hp <= 0) { enemy.colossoDying = true; enemy.colossoRifts = []; hooks.clearMagmaHazards?.(enemy.id); hooks.deactivatePermanentThermalHazards?.(enemy.id); hooks.cancelSummons?.(); setState(session, enemy, "death", config.deathDurationMs); events.push({ type: "colossoDeathStarted", bossId: enemy.id, shake: 12 }); return; }
   const phase = phaseFor(enemy);
   if (phase > enemy.colossoPhase) enemy.colossoPendingPhase = Math.max(enemy.colossoPendingPhase || enemy.colossoPhase, phase);
   // A threshold never cuts a telegraph, attack, or its queued impacts short.
@@ -242,7 +242,13 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
     const impactMs = config.attackImpactMs?.[attack] ?? config.attackExecutionMs[attack] * config.attackImpactProgress[attack];
     if (!enemy.colossoImpactStarted && session.elapsed - enemy.colossoStateStartedAt >= impactMs) beginAttackImpact(session, enemy, config, hooks, events);
     updateImpactQueue(session, enemy, config, hooks, events);
-    if (session.elapsed >= enemy.colossoStateEndsAt && enemy.colossoAttackApplied) { enemy.colossoQueuedAttack = null; setState(session, enemy, "idle"); enemy.colossoAttackReadyAt = session.elapsed + config.attackCooldownMs[enemy.colossoPhase]; }
+    if (session.elapsed >= enemy.colossoStateEndsAt && enemy.colossoAttackApplied) {
+      enemy.colossoQueuedAttack = null;
+      const pendingPhase = enemy.colossoPendingPhase;
+      setState(session, enemy, "idle");
+      if (pendingPhase) beginPhaseTransition(session, enemy, config, events);
+      else enemy.colossoAttackReadyAt = session.elapsed + config.attackCooldownMs[enemy.colossoPhase];
+    }
     return;
   }
   if (enemy.colossoState !== "idle" || session.elapsed < enemy.colossoAttackReadyAt) return;
@@ -250,6 +256,17 @@ export function updateColossoCaldeira(session, enemy, config, hooks, events) {
 }
 
 export function getColossoDamageFactor(enemy, row) { return [...(enemy.hitZones || [])].sort((a, b) => b.priority - a.priority).find((zone) => zone.rows.includes(row))?.damageFactor ?? 1; }
+
+export function getColossoCoreHitMetadata(enemy, row) {
+  const zone = (enemy.hitZones || []).find((entry) => entry.part === "core" && entry.rows.includes(row));
+  if (!zone) return null;
+  return {
+    bossPart: "core",
+    damageFactor: zone.damageFactor,
+    coreExposed: enemy.colossoState === "coreExposed",
+    resisted: zone.damageFactor <= .35,
+  };
+}
 
 export function getColossoAnimation(enemy, elapsed, frameCounts = {}, reduceMotion = false) {
   const state = enemy?.dead ? "death" : enemy?.colossoState || "idle";
