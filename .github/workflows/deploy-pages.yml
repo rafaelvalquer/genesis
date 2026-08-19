@@ -38,6 +38,24 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Verify GitHub Pages build
+        run: |
+          set -euo pipefail
+
+          test -f dist/index.html
+          test -f dist/models/command/genesis-planeta-multibiomas1.glb
+          test -f dist/models/command/low-poly-rocket-ship.glb
+
+          CAMPAIGN_CHUNK="$(find dist/assets -type f -name 'CampaignPage-*.js' -print -quit)"
+          if [ -z "$CAMPAIGN_CHUNK" ]; then
+            echo "CampaignPage JavaScript chunk not found in dist/assets."
+            exit 1
+          fi
+
+          echo "GitHub Pages build validated successfully."
+          echo "Campaign chunk: $CAMPAIGN_CHUNK"
+          du -sh dist
+
       - name: Configure GitHub Pages
         if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v6
