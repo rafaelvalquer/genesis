@@ -44,18 +44,21 @@ describe("Leviatã de Nereida", () => {
     const boss = session.enemies.find((enemy) => enemy.type === "leviathanNereida");
     expect(boss).toBeTruthy();
     expect(session.enemies.filter((enemy) => enemy.type === "leviathanNereida")).toHaveLength(1);
+    session.enemies = [boss];
+    session.queue = [];
 
     boss.hp = boss.maxHp * .69;
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(0);
+    expect(session.bossEncounter.reinforcementPackets.has("N6")).toBe(true);
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(0);
+    expect(session.bossEncounter.reinforcementPackets.has("N6")).toBe(true);
 
     boss.hp = boss.maxHp * .34;
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(0);
+    stepBattle(session, 900);
+    expect(session.bossEncounter.reinforcementPackets.has("N10")).toBe(true);
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(0);
+    expect(session.bossEncounter.reinforcementPackets.has("N10")).toBe(true);
   });
 
   it("declara animações de locomoção, oito frames por estado e nenhuma reação hit", () => {

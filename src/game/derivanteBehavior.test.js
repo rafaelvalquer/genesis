@@ -49,7 +49,7 @@ describe("comportamento do Derivante", () => {
     expect(enemy).toMatchObject({
       chapterFourState: "jumpPrepare",
       jumpSourceRow: 2,
-      jumpTargetRow: 0,
+      jumpTargetRow: 1,
     });
     stepBattle(session, ENEMIES.derivante.jumpPrepareMs);
     expect(enemy.chapterFourState).toBe("jumpTakeoff");
@@ -58,7 +58,7 @@ describe("comportamento do Derivante", () => {
     stepBattle(session, ENEMIES.derivante.jumpingMs / 2);
 
     const sourceY = 2 * CELL.height + CELL.height / 2;
-    const targetY = CELL.height / 2;
+    const targetY = CELL.height + CELL.height / 2;
     expect(enemy.row).toBe(2);
     expect(enemy.y).toBeCloseTo((sourceY + targetY) / 2);
     const visual = writeEnemyVisualPosition(
@@ -71,7 +71,7 @@ describe("comportamento do Derivante", () => {
     expect(visual.y).toBeCloseTo((sourceY + targetY) / 2 - ENEMIES.derivante.jumpArcHeight);
 
     stepBattle(session, ENEMIES.derivante.jumpingMs / 2);
-    expect(enemy).toMatchObject({ chapterFourState: "landing", row: 0, y: targetY });
+    expect(enemy).toMatchObject({ chapterFourState: "landing", row: 1, y: targetY });
     stepBattle(session, ENEMIES.derivante.landingMs);
     expect(enemy.chapterFourState).toBe("walking");
     expect(enemy.nextSpecialAt).toBe(session.elapsed + ENEMIES.derivante.breachCooldownMs);

@@ -93,6 +93,8 @@ describe("comportamento do Raiz-Fulgor", () => {
     troop.dead = true;
     stepBattle(session, 1);
     expect(enemy.chapterFourState).toBe("rootedIdle");
+    stepBattle(session, ENEMIES.raizFulgor.targetLostGraceMs + 1);
+    expect(enemy.chapterFourState).toBe("unrooting");
     stepBattle(session, ENEMIES.raizFulgor.unrootingMs / 2);
     const returningTroop = placeTroop(session, "colono", 2, 3).troop;
     returningTroop.attackReadyAt = Infinity;

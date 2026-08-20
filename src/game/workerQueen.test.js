@@ -35,6 +35,10 @@ function actionableTroopAt(session, row, col, hp = 200) {
   return result.troop;
 }
 
+function addForwardTroops(session, row, columns = [1, 2, 3]) {
+  return columns.map((col) => actionableTroopAt(session, row, col));
+}
+
 function readyQueen(session, row = 0) {
   const queen = spawnEnemy(session, { type: "workerQueen", row }).enemies[0];
   queen.queenState = "idle";
@@ -100,6 +104,7 @@ describe("Rainha Operária", () => {
     ].forEach(({ distanceTiles, count, tier }) => {
       const session = sandbox();
       const queen = spawnEnemy(session, { type: "workerQueen", row: 2 }).enemies[0];
+      addForwardTroops(session, 2);
       queen.x = FIELD.baseX + distanceTiles * CELL.width;
       queen.previousRenderX = queen.x;
       expect(stepBattle(session, ENEMIES.workerQueen.spawnDurationMs - 1))
@@ -126,6 +131,7 @@ describe("Rainha Operária", () => {
   it("usa qualquer Escavador à frente na mesma linha como proteção", () => {
     const session = sandbox();
     const queen = readyQueen(session, 2);
+    addForwardTroops(session, 2);
     queen.x = FIELD.baseX + 8 * CELL.width;
     queen.speed = 0;
     queen.queenGuardReadyAt = 0;
@@ -147,6 +153,7 @@ describe("Rainha Operária", () => {
   it("respeita oito segundos de recarga e o limite de oito guardas vivos", () => {
     const session = sandbox();
     const queen = readyQueen(session, 1);
+    addForwardTroops(session, 1);
     queen.x = FIELD.baseX + 8 * CELL.width;
     queen.speed = 0;
     queen.queenGuardReadyAt = 0;
@@ -172,6 +179,7 @@ describe("Rainha Operária", () => {
     const session = sandbox();
     const frontQueen = readyQueen(session, 3);
     const rearQueen = readyQueen(session, 3);
+    addForwardTroops(session, 3);
     frontQueen.x = FIELD.baseX + 8 * CELL.width;
     rearQueen.x = FIELD.baseX + 8.5 * CELL.width;
     frontQueen.speed = 0;
@@ -198,6 +206,7 @@ describe("Rainha Operária", () => {
     ["eggLay", "webAttack", "meleeAttack"].forEach((state) => {
       const session = sandbox();
       const queen = readyQueen(session, 4);
+      addForwardTroops(session, 4);
       queen.x = FIELD.baseX + 6 * CELL.width;
       queen.queenState = state;
       queen.queenStateStartedAt = session.elapsed;
@@ -215,6 +224,7 @@ describe("Rainha Operária", () => {
   it("não desconta guardas diretos da capacidade de ovos e ninhada", () => {
     const session = sandbox();
     const queen = readyQueen(session, 0);
+    addForwardTroops(session, 0);
     queen.x = FIELD.baseX + 8 * CELL.width;
     queen.speed = 0;
     queen.queenGuardReadyAt = 0;

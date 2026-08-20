@@ -526,12 +526,13 @@ describe("Crisálio e Manto Prismático", () => {
     return createBattleSession(sandboxPhase, ["colono", "marine", "sniper"], 902, { sandbox: true });
   }
 
-  it("pulsa após sete segundos e protege somente os quatro monstros permitidos em todas as rotas", () => {
+  it("pulsa após sete segundos e protege somente os elegíveis da própria rota", () => {
     const session = createMantleSession();
-    spawnEnemy(session, { type: "crisalio", row: 0 });
-    const affected = ["estilha", "vitrarca", "obsidonte", "refrator"].map((type, row) => (
-      spawnEnemy(session, { type, row: row + 1 }).enemies[0]
+    spawnEnemy(session, { type: "crisalio", row: 2 });
+    const affected = ["estilha", "vitrarca"].map((type) => (
+      spawnEnemy(session, { type, row: 2 }).enemies[0]
     ));
+    const otherLane = spawnEnemy(session, { type: "obsidonte", row: 4 }).enemies[0];
     const ordinary = spawnEnemy(session, { type: "medu", row: 4 }).enemies[0];
 
     expect(stepBattle(session, 6999).some((event) => event.type === "prismaticPulse")).toBe(false);
@@ -543,18 +544,19 @@ describe("Crisálio e Manto Prismático", () => {
       expect(enemy.shield).toBeCloseTo(expected);
       expect(enemy.shieldMax).toBeCloseTo(expected);
     });
+    expect(otherLane.shield).toBe(0);
     expect(ordinary.shield).toBe(0);
     expect(session.enemies.find((enemy) => enemy.type === "crisalio").shield).toBe(0);
   });
 
-  it("limita Alfas a 42, renova sem acumular e mantém uma única cadência com vários Crisálios", () => {
+  it("limita Alfas a 42 e mantém timers independentes por rota", () => {
     const session = createMantleSession();
     const first = spawnEnemy(session, { type: "crisalio", row: 0 }).enemies[0];
     const second = spawnEnemy(session, { type: "crisalio", row: 1 }).enemies[0];
-    const alpha = spawnEnemy(session, { type: "obsidonte", row: 2, variant: "alpha" }).enemies[0];
+    const alpha = spawnEnemy(session, { type: "obsidonte", row: 1, variant: "alpha" }).enemies[0];
 
     const firstPulse = stepBattle(session, 7000);
-    expect(firstPulse.filter((event) => event.type === "prismaticPulse")).toHaveLength(1);
+    expect(firstPulse.filter((event) => event.type === "prismaticPulse")).toHaveLength(2);
     expect(alpha.shield).toBe(42);
     alpha.shield = 3;
     first.dead = true;
@@ -1900,7 +1902,7 @@ describe("decisões táticas aleatórias", () => {
     session.queue = [];
     for (let index = 0; index < 60 && target.hp === 100; index += 1) stepBattle(session, 32);
     expect(target.hp).toBe(100 - TROOPS.bombardeiro.damage * 1.15);
-    expect(target.x).toBe(320);
+    expect(target.x).toBe(335);
   });
 
   it("bloqueia duas invasões e aplica o protocolo após consumir o escudo", () => {

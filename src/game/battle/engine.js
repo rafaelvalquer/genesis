@@ -219,7 +219,7 @@ export function validateLoadoutForPhase(phase, loadout) {
 let entityId = 1;
 const id = (prefix) => `${prefix}_${entityId++}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-export const CONCUSSIVE_IMPACT = Object.freeze({ baseDistance: 20, cooldownMs: 3000, heavyFactor: 0.5, alphaFactor: 0.25 });
+export const CONCUSSIVE_IMPACT = Object.freeze({ baseDistance: 35, cooldownMs: 3000, heavyFactor: 0.5, alphaFactor: 0.25 });
 export { WAVE_OUTRO_TIMINGS };
 const ENERGY_PICKUP_LIFETIME_MS = 10000;
 const ENERGY_PICKUP_MAGNET_RADIUS = 140;
@@ -1207,6 +1207,12 @@ function createEnemyLegacy(session, queued) {
     structuralRuptureDamageTakenFactor: 1,
     meleeAttackPending: false, meleeAttackStartedAt: -Infinity,
     meleeImpactAt: Infinity, meleeTargetId: null,
+    salamandraChargeUntil: 0,
+    salamandraNextChargeAt: queued.type === "salamandraCinerea"
+      ? session.elapsed + (base.charge?.delayAfterSpawnMs || 0)
+      : Infinity,
+    salamandraCharges: 0,
+    salamandraInitialChargeUsed: false,
     nereidaState: queued.type === "carapacaNereida" ? "spawnEmerge" : null,
     nereidaStateStartedAt: queued.type === "carapacaNereida" ? session.elapsed : -Infinity,
     nereidaStateEndsAt: queued.type === "carapacaNereida" ? session.elapsed + base.spawnDurationMs : Infinity,
@@ -1377,7 +1383,9 @@ function createEnemyLegacy(session, queued) {
   if (queued.type === "leviathanNereida") enemy.leviathanHomeY = enemy.y;
   session.enemies.push(enemy);
   registerEnemyInIndex(getBattleIndex(session), enemy);
-  if (firstLivingCrisalio) session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + base.shieldPulseEveryMs;
+  if (queued.type === "crisalio" && !Number.isFinite(session.prismaticMantle.rows[enemy.row].nextPulseAt)) {
+    session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + base.shieldPulseEveryMs;
+  }
   return enemy;
 }
 
@@ -1448,10 +1456,14 @@ function updateSalamandra(session, enemy, config, dt, events) {
   const target = closestTroopForEnemy(session, enemy);
   const distance = target ? enemy.x - target.x : Infinity;
   const charging = session.elapsed < enemy.salamandraChargeUntil;
-  if (!charging && config.charge.enabled && target && distance >= config.charge.minDistance && distance <= config.charge.maxDistance
+  const initialChargeReady = !enemy.salamandraInitialChargeUsed
+    && session.elapsed >= enemy.spawnedAt + (config.charge.delayAfterSpawnMs || 0);
+  if (!charging && config.charge.enabled && target
+    && ((distance >= config.charge.minDistance && distance <= config.charge.maxDistance) || initialChargeReady)
     && session.elapsed >= enemy.salamandraNextChargeAt) {
     enemy.salamandraChargeUntil = session.elapsed + config.charge.durationMs;
     enemy.salamandraCharges += 1;
+    enemy.salamandraInitialChargeUsed = true;
     enemy.salamandraNextChargeAt = session.elapsed + config.charge.cooldownMs;
     session.metrics ??= {};
     session.metrics.salamanderCharges = (session.metrics.salamanderCharges || 0) + 1;
@@ -1718,7 +1730,7 @@ function updateCuspidorBrasa(session, enemy, config, dt, events) {
   if (enemy.cuspidorState === "reposition") {
     const repositionTargetX = Number(enemy.cuspidorRepositionTargetX);
     if (Number.isFinite(repositionTargetX) && enemy.x > repositionTargetX) {
-      moveEnemyTowardX(session, enemy, repositionTargetX, dt, events);
+      moveEnemyTowardX(session, enemy, repositionTargetX, dt, events, 3);
       return;
     }
     enemy.cuspidorRepositionTargetX = null;
@@ -2039,7 +2051,17 @@ function updateRasgaCeus(session, enemy, config, dt, events) {
     );
     enemy.flightAltitude = config.strikeAltitude + (enemy.diveFromAltitude - config.strikeAltitude) * (1 - progress);
     enemy.groundRangedTargetable = true;
-    if (progress >= 1) setRasgaCeusState(session, enemy, "strike", 120);
+    if (progress >= 1) {
+      setRasgaCeusState(session, enemy, "strike", 120);
+      const target = session.troops.find((troop) => troop.id === enemy.diveTargetId && !troop.dead);
+      if (!enemy.strikeConsumed && target && target.row === enemy.row) {
+        damageTroop(session, target, config.damage, events);
+        session.metrics ??= {};
+        session.metrics.rasgaCeusSuccessfulStrikes = (session.metrics.rasgaCeusSuccessfulStrikes || 0) + 1;
+        events.push({ type: "rasgaCeusStrike", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y });
+      }
+      enemy.strikeConsumed = true;
+    }
     return;
   }
   if (state === "strike") {
@@ -2098,7 +2120,9 @@ function createEnemy(session, queued) {
   const { enemy } = createEnemyEntity(session, queued, config, id);
   session.enemies.push(enemy);
   registerEnemyInIndex(getBattleIndex(session), enemy);
-  if (firstLivingCrisalio) session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
+  if (queued.type === "crisalio" && !Number.isFinite(session.prismaticMantle.rows[enemy.row].nextPulseAt)) {
+    session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
+  }
   return enemy;
 }
 
@@ -3195,32 +3219,34 @@ function updatePrismaticMantle(session, events) {
   const config = ENEMIES.crisalio;
   const mantle = session.prismaticMantle;
   if (!mantle.rows) mantle.rows = Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }]));
-  const state = mantle.rows[0];
-  const sources = session.enemies.filter((enemy) => !enemy.dead && enemy.type === "crisalio");
-  if (!sources.length) {
-    Object.values(mantle.rows).forEach((rowState) => { rowState.nextPulseAt = Infinity; });
-    return;
-  }
-  if (!Number.isFinite(state.nextPulseAt)) state.nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
-  while (session.elapsed >= state.nextPulseAt) {
-    const pulseAt = state.nextPulseAt;
-    const source = sources[0];
-    const targets = session.enemies.filter((enemy) => !enemy.dead && config.shieldTargetTypes.includes(enemy.type));
-    for (const target of targets) {
-      const value = Math.min(config.shieldCap, config.shieldBase + target.maxHp * config.shieldMaxHpFactor);
-      target.shield = value;
-      target.shieldMax = value;
-      target.lastShieldPulseAt = pulseAt;
+  for (let row = 0; row < FIELD.rows; row += 1) {
+    const state = mantle.rows[row];
+    const sources = session.enemies.filter((enemy) => !enemy.dead && enemy.type === "crisalio" && enemy.row === row);
+    if (!sources.length) {
+      state.nextPulseAt = Infinity;
+      continue;
     }
-    source.lastShieldPulseAt = session.elapsed;
-    state.lastPulseAt = pulseAt;
-    state.nextPulseAt += config.shieldPulseEveryMs;
-    events.push({
-      type: "prismaticPulse", sourceId: source.id, x: source.x, y: source.y - 34 * source.scale,
-      targetIds: targets.map((target) => target.id), color: config.color, seed: nextEffectSeed(session),
-    });
+    if (!Number.isFinite(state.nextPulseAt)) state.nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
+    while (session.elapsed >= state.nextPulseAt) {
+      const pulseAt = state.nextPulseAt;
+      const source = sources[0];
+      const targets = session.enemies.filter((enemy) => !enemy.dead
+        && enemy.row === row && config.shieldTargetTypes.includes(enemy.type));
+      for (const target of targets) {
+        const value = Math.min(config.shieldCap, config.shieldBase + target.maxHp * config.shieldMaxHpFactor);
+        target.shield = value;
+        target.shieldMax = value;
+        target.lastShieldPulseAt = pulseAt;
+      }
+      source.lastShieldPulseAt = pulseAt;
+      state.lastPulseAt = pulseAt;
+      state.nextPulseAt += config.shieldPulseEveryMs;
+      events.push({
+        type: "prismaticPulse", sourceId: source.id, x: source.x, y: source.y - 34 * source.scale,
+        row, targetIds: targets.map((target) => target.id), color: config.color, seed: nextEffectSeed(session),
+      });
+    }
   }
-  Object.values(mantle.rows).forEach((rowState) => { rowState.nextPulseAt = state.nextPulseAt; rowState.lastPulseAt = state.lastPulseAt; });
 }
 
 export function eliminateTroop(session, troop, events, reason = "enemy", options = {}) {
@@ -5262,7 +5288,9 @@ function workerQueenGuardTier(enemy, config) {
 }
 
 function maintainWorkerQueenGuard(session, enemy, config, events) {
-  if (session.elapsed < enemy.queenGuardReadyAt || workerQueenHasForwardDigger(session, enemy)) return;
+  if (countWorkerQueenForwardTroops(session, enemy) < 3
+    || session.elapsed < enemy.queenGuardReadyAt
+    || workerQueenHasForwardDigger(session, enemy)) return;
   const livingGuards = countWorkerQueenGuards(session, enemy);
   const capacity = Math.max(0, config.guardMaximumLiving - livingGuards);
   if (!capacity) return;
@@ -6516,6 +6544,8 @@ function updateNimbarca(session, enemy, config, dt, events) {
   }
 
   const target = chapterFourRangedTarget(session, enemy, config.range);
+  const hasLiveTarget = session.troops.some((troop) => !troop.dead && troop.row === enemy.row
+    && troop.x <= enemy.x && enemy.x - troop.x <= config.range * CELL.width);
   const distance = target ? enemy.x - target.x : Infinity;
   if (target && distance <= config.range * CELL.width && session.elapsed >= enemy.attackReadyAt) {
     enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
@@ -6656,7 +6686,7 @@ function updateGorjal(session, enemy, config, dt, events) {
       && troop.row === enemy.row
       && troop.x < enemy.x
     ));
-    if (!target) {
+    if (!target || !hasLiveTarget) {
       enemy.gorjalChargeTargetId = null;
       setChapterFourState(session, enemy, "walking");
       return;
@@ -6944,8 +6974,8 @@ function updateDerivante(session, enemy, config, dt, events) {
     ? (enemy.blockedSince ?? session.elapsed)
     : null;
   if (session.elapsed >= enemy.nextSpecialAt) {
-    const candidateRows = Array.from({ length: FIELD.rows }, (_, row) => row)
-      .filter((row) => row !== enemy.row);
+    const candidateRows = [enemy.row - 1, enemy.row + 1]
+      .filter((row) => row >= 0 && row < FIELD.rows);
     const currentScore = derivanteRowScore(session, enemy, enemy.row);
     const best = candidateRows.sort((a, b) => derivanteRowScore(session, enemy, b) - derivanteRowScore(session, enemy, a))[0];
     const recentWind = session.windCurrent?.state === "active"
@@ -7073,9 +7103,16 @@ function updateRaizFulgor(session, enemy, config, dt, events) {
 
   if (enemy.rooted) {
     enemy.moving = false;
-    if (!target) {
+    // Recompute from the authoritative troop list: the battle index may still
+    // contain a troop that was marked dead earlier in this tick.
+    const liveTarget = session.troops
+      .filter((troop) => !troop.dead && troop.row === enemy.row
+        && troop.x <= enemy.x
+        && enemy.x - troop.x <= config.range * CELL.width)
+      .sort((left, right) => right.x - left.x)[0] || null;
+    if (!liveTarget) {
       enemy.raizTargetLostAt ??= session.elapsed;
-      if (session.elapsed - enemy.raizTargetLostAt >= config.targetLostGraceMs) {
+      if (session.elapsed - enemy.raizTargetLostAt >= (config.targetLostGraceMs ?? 0)) {
         setChapterFourState(session, enemy, "unrooting", config.unrootingMs);
       }
       return;
@@ -7086,7 +7123,7 @@ function updateRaizFulgor(session, enemy, config, dt, events) {
       return;
     }
     if (session.elapsed >= enemy.attackReadyAt) {
-      enemy.electricAttackTargetId = target.id;
+      enemy.electricAttackTargetId = liveTarget.id;
       setChapterFourState(session, enemy, "attackCharge", config.chargeMs);
     }
     return;

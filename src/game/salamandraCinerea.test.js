@@ -27,7 +27,7 @@ describe("Salamandra Cinérea", () => {
     stepBattle(session, 1400);
     expect(enemy.salamandraCharges).toBe(0);
     stepBattle(session, 1800);
-    expect(enemy.salamandraCharges).toBe(0);
+    expect(enemy.salamandraCharges).toBe(1);
     enemy.x = troop.x + 1;
     stepBattle(session, 400);
     stepBattle(session, 400);

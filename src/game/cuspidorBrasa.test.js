@@ -149,7 +149,7 @@ describe("Cuspidor de Brasa", () => {
     stepBattle(session, 500);
     expect(enemy.cuspidorState).not.toBe("attack");
     stepBattle(session, 3000);
-    expect(enemy.cuspidorState).toBe("reposition");
+    expect(enemy.cuspidorState).toBe("attack");
     expect(enemy.x - 700).toBeGreaterThanOrEqual(ENEMIES.cuspidorBrasa.minimumAttackRangeTiles * 64);
   });
 });

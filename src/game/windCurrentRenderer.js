@@ -149,6 +149,7 @@ export function consumeWindCurrentGraphicsEvents(runtime, events, now) {
     } else if (event.type === "windTroopCollision") {
       runtime.windEffects.push({ kind: "collision", ...event, born: now, life: 420 });
     } else if (event.type === "windTroopShifted" || event.type === "windTroopChainShifted"
+      || event.type === "windEmergencyReturn"
       || event.type === "windEnemyShifted") {
       runtime.windEffects.push({ kind: "shift", ...event, born: now, life: event.durationMs || 600 });
     }

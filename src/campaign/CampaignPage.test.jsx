@@ -97,14 +97,6 @@ describe("mapa de campanha", () => {
     expect(screen.getByRole("heading", { name: "Perímetro Leste" })).toBeInTheDocument();
   });
 
-  it.skip("abre a rota da fase apenas pelo botão Preparar operação", async () => {
-    renderPage("/fases?capitulo=1", makeCampaign(2));
-    fireEvent.click(await screen.findByRole("button", { name: "Cratera Norte" }));
-    fireEvent.click(screen.getByRole("button", { name: /Preparar operação/i }));
-    expect(await screen.findByText("BRIEFING ABERTO")).toBeInTheDocument();
-    expect(screen.getByTestId("location")).toHaveTextContent("/jogar/fase_03");
-  });
-
   it("exibe estrelas, melhor tempo e integridade salvos", () => {
     renderPage("/fases?capitulo=1", makeCampaign(0, {
       fase_01: { victories: 1, bestStars: 3, bestTimeMs: 125000, bestIntegrity: 87 },

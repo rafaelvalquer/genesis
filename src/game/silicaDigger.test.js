@@ -28,6 +28,8 @@ const targetTroop = (x = 1000, row = 0) => ({
 });
 
 function summonQueenGuard(session, row = 0) {
+  // A guard is only summoned when at least three forward troops protect the lane.
+  session.troops = [1, 2, 3].map((index) => targetTroop(FIELD.baseX + index * CELL.width, row));
   const queen = spawnEnemy(session, { type: "workerQueen", row }).enemies[0];
   queen.x = FIELD.baseX + 8 * CELL.width;
   queen.previousRenderX = queen.x;
