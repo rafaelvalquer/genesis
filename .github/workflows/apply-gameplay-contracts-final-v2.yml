@@ -41,3 +41,5 @@ jobs:
           git rm -- scripts/apply-gameplay-final-v2.mjs .github/workflows/apply-gameplay-contracts-final-v2.yml
           git commit -m "fix: restore gameplay contracts and sprint 1 validation"
           git push origin HEAD:fix/gameplay-contracts-final-v2
+
+# trigger after workflow registration
