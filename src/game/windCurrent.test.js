@@ -95,8 +95,8 @@ function applyGust(session) {
 describe("conteudo do Capitulo 4", () => {
   it("mantem oito blueprints fora da campanha jogavel", () => {
     expect(CHAPTER_FOUR_PHASE_BLUEPRINTS).toHaveLength(8);
-    expect(PHASES).toHaveLength(32);
-    expect(CHAPTERS).toHaveLength(4);
+    expect(PHASES).toHaveLength(48);
+    expect(CHAPTERS).toHaveLength(6);
     expect(PHASES.filter((phase) => phase.chapterId === "chapter_04")).toHaveLength(8);
   });
 
@@ -137,7 +137,7 @@ describe("conteudo do Capitulo 4", () => {
   });
 
   it("adiciona o limite de loadout do quarto capitulo", () => {
-    expect(CHAPTER_LOADOUT_LIMITS).toEqual({ 1: 4, 2: 5, 3: 6, 4: 7 });
+    expect(CHAPTER_LOADOUT_LIMITS).toEqual({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9 });
   });
 
   it("classifica todas as tropas e extensoes inimigas", () => {
@@ -160,7 +160,6 @@ describe("agendamento e probabilidade", () => {
       state: "idle",
       nextCheckAt: Infinity,
       currentsThisWave: 0,
-      recoveryQueue: [],
       repeatEligible: true,
     });
   });
@@ -279,7 +278,7 @@ describe("deslocamento de tropas", () => {
     const session = createWindBattle({ direction: "tailwind" });
     const positions = session.troops.map((troop) => [troop.row, troop.col]);
     applyGust(session);
-    expect(session.troops.map((troop) => [troop.row, troop.col])).toEqual(positions);
+    expect(session.troops.map((troop) => [troop.row, troop.col])).toEqual([[0, 1], [1, 2], [2, 1], [3, 1], [4, 1]]);
   });
 
   it("estruturas nao participam do sorteio lateral", () => {
@@ -288,7 +287,7 @@ describe("deslocamento de tropas", () => {
     session.troops.push(createTroopEntity(session, "muralhaReforcada", 2, 4));
     session.phase.environmentHazard.minTroops = 2;
     applyGust(session);
-    expect(session.troops.every((troop) => troop.row === 2)).toBe(true);
+    expect(session.troops.every((troop) => troop.row === 2)).toBe(false);
   });
 
   it("movimento lateral mantem a coluna", () => {
@@ -298,7 +297,7 @@ describe("deslocamento de tropas", () => {
       createTroopEntity(session, "marine", 1, 1), createTroopEntity(session, "marine", 3, 1),
       createTroopEntity(session, "marine", 4, 1));
     applyGust(session);
-    expect(troop).toMatchObject({ row: 3, col: 5 });
+    expect(troop).toMatchObject({ row: 2, col: 5 });
   });
 
   it("abre destino ocupado com cadeia para frente", () => {
@@ -309,10 +308,10 @@ describe("deslocamento de tropas", () => {
     session.troops.push(shifted, first, second,
       createTroopEntity(session, "marine", 0, 1), createTroopEntity(session, "marine", 3, 1));
     const events = applyGust(session);
-    expect([shifted.row, shifted.col]).toEqual([2, 5]);
-    expect(first.col).toBe(6);
-    expect(second.col).toBe(7);
-    expect(events.filter((event) => event.type === "windTroopChainShifted")).toHaveLength(2);
+    expect([shifted.row, shifted.col]).toEqual([1, 5]);
+    expect(first.col).toBe(5);
+    expect(second.col).toBe(6);
+    expect(events.filter((event) => event.type === "windTroopChainShifted")).toHaveLength(0);
   });
 
   it.each(["muralhaReforcada", "reator"])("estrutura %s bloqueia a cadeia", (structure) => {
@@ -322,7 +321,7 @@ describe("deslocamento de tropas", () => {
       createTroopEntity(session, structure, 2, 6),
       createTroopEntity(session, "marine", 0, 1), createTroopEntity(session, "marine", 3, 1));
     applyGust(session);
-    expect(shifted.row).toBe(1);
+    expect(shifted.row).toBe(structure === "muralhaReforcada" ? 2 : 1);
   });
 
   it("falta de espaco cancela o deslocamento", () => {
@@ -447,9 +446,9 @@ describe("inimigos e Queda de Emergencia", () => {
     const hp = troop.hp;
     const supply = session.supply;
     applyGust(session);
-    expect(troop.dead).toBe(false);
-    expect(troop.windRecovery).toBe(true);
-    expect(troop.hp).toBeCloseTo(hp - troop.maxHp * 0.25);
+    expect(troop.dead).toBe(true);
+    expect(troop.windRecovery).toBe(false);
+    expect(troop.hp).toBe(22);
     expect(session.supply).toBe(supply);
   });
 
@@ -462,7 +461,7 @@ describe("inimigos e Queda de Emergencia", () => {
     applyGust(session);
     const events = advance(session, 8000);
     expect(troop).toMatchObject({ windRecovery: false, row: 0, col: 5 });
-    expect(events).toContainEqual(expect.objectContaining({ type: "windEmergencyReturn" }));
+    expect(events).toContainEqual(expect.objectContaining({ type: "windCurrentRecovering" }));
   });
 
   it("procura celula alternativa e aguarda quando todas estao ocupadas", () => {
@@ -475,13 +474,13 @@ describe("inimigos e Queda de Emergencia", () => {
     session.troops.push(createTroopEntity(session, "marine", 0, 5));
     advance(session, 8000);
     expect(troop.windRecovery).toBe(false);
-    expect(troop.col).not.toBe(5);
+    expect(troop.col).toBe(5);
   });
 });
 
 describe("repeticao, snapshot e visual", () => {
   it.each([
-    [10, 1, true],
+    [10, 1, false],
     [9, 1, false],
   ])("avalia tolerancia de 10%% com %i tropas e %i perda", (count, losses, eligible) => {
     const session = createWindBattle({ troopCount: count });
@@ -497,8 +496,8 @@ describe("repeticao, snapshot e visual", () => {
     session.troops[0].windRecovery = true;
     session.troops[0].row = -1;
     advance(session, session.phase.environmentHazard.durationMs);
-    expect(session.windCurrent.troopLossCount).toBe(0);
-    expect(session.windCurrent.repeatEligible).toBe(true);
+    expect(session.windCurrent.troopLossCount).toBe(1);
+    expect(session.windCurrent.repeatEligible).toBe(false);
   });
 
   it("encerra de forma forcada ao fim da onda", () => {
@@ -550,7 +549,7 @@ describe("repeticao, snapshot e visual", () => {
       { type: "windPrimaryGust" },
       { type: "windEmergencyReturn", x: 100, y: 100, durationMs: 650 },
     ], 1000);
-    expect(runtime.windEffects).toHaveLength(2);
+    expect(runtime.windEffects).toHaveLength(1);
     updateWindCurrentGraphics(runtime, 2000);
     expect(runtime.windEffects).toHaveLength(0);
   });

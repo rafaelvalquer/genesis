@@ -2119,7 +2119,7 @@ function scheduleAlphaPressureSpawn(session, result, events) {
     chance: result.chance,
     alphaCount: 1,
     row: result.row,
-    type: result.type,
+    enemyType: result.type,
     warningMs: result.warningMs,
   });
 }
@@ -3195,18 +3195,17 @@ function updatePrismaticMantle(session, events) {
   const config = ENEMIES.crisalio;
   const mantle = session.prismaticMantle;
   if (!mantle.rows) mantle.rows = Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }]));
-  for (let row = 0; row < FIELD.rows; row += 1) {
-    const state = mantle.rows[row];
-    const sources = session.enemies.filter((enemy) => !enemy.dead && enemy.type === "crisalio" && enemy.row === row);
-    if (!sources.length) {
-      state.nextPulseAt = Infinity;
-      continue;
-    }
-    if (!Number.isFinite(state.nextPulseAt)) state.nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
-    while (session.elapsed >= state.nextPulseAt) {
-      const pulseAt = state.nextPulseAt;
-      const source = sources[0];
-      const targets = session.enemies.filter((enemy) => !enemy.dead && enemy.row === row && config.shieldTargetTypes.includes(enemy.type));
+  const state = mantle.rows[0];
+  const sources = session.enemies.filter((enemy) => !enemy.dead && enemy.type === "crisalio");
+  if (!sources.length) {
+    Object.values(mantle.rows).forEach((rowState) => { rowState.nextPulseAt = Infinity; });
+    return;
+  }
+  if (!Number.isFinite(state.nextPulseAt)) state.nextPulseAt = session.elapsed + config.shieldPulseEveryMs;
+  while (session.elapsed >= state.nextPulseAt) {
+    const pulseAt = state.nextPulseAt;
+    const source = sources[0];
+    const targets = session.enemies.filter((enemy) => !enemy.dead && config.shieldTargetTypes.includes(enemy.type));
     for (const target of targets) {
       const value = Math.min(config.shieldCap, config.shieldBase + target.maxHp * config.shieldMaxHpFactor);
       target.shield = value;
@@ -3219,9 +3218,9 @@ function updatePrismaticMantle(session, events) {
     events.push({
       type: "prismaticPulse", sourceId: source.id, x: source.x, y: source.y - 34 * source.scale,
       targetIds: targets.map((target) => target.id), color: config.color, seed: nextEffectSeed(session),
-      });
-    }
+    });
   }
+  Object.values(mantle.rows).forEach((rowState) => { rowState.nextPulseAt = state.nextPulseAt; rowState.lastPulseAt = state.lastPulseAt; });
 }
 
 export function eliminateTroop(session, troop, events, reason = "enemy", options = {}) {
@@ -5263,8 +5262,7 @@ function workerQueenGuardTier(enemy, config) {
 }
 
 function maintainWorkerQueenGuard(session, enemy, config, events) {
-  if (countWorkerQueenForwardTroops(session, enemy) < 3
-    || session.elapsed < enemy.queenGuardReadyAt || workerQueenHasForwardDigger(session, enemy)) return;
+  if (session.elapsed < enemy.queenGuardReadyAt || workerQueenHasForwardDigger(session, enemy)) return;
   const livingGuards = countWorkerQueenGuards(session, enemy);
   const capacity = Math.max(0, config.guardMaximumLiving - livingGuards);
   if (!capacity) return;

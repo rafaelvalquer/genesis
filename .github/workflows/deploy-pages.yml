@@ -19,7 +19,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-latest
 
     steps:
@@ -35,8 +35,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Run complete CI gate
+        run: npm run ci
 
       - name: Verify GitHub Pages build
         run: |
@@ -68,7 +68,7 @@ jobs:
 
   deploy:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: quality
     runs-on: ubuntu-latest
     environment:
       name: github-pages

@@ -58,7 +58,10 @@ describe("Fuzileiro Voltaico — integração com Genesis", () => {
       55103,
       { sandbox: true },
     );
-    const troop = placeTroop(session, "fuzileiroVoltaico", row, col).troop;
+    const troop = phase.environmentHazard.permanentWaterCells
+      .map(([row, col]) => placeTroop(session, "fuzileiroVoltaico", row, col))
+      .find((result) => result.ok)?.troop;
+    expect(troop).toBeTruthy();
     const initialHp = troop.hp;
 
     stepBattle(session, 1);

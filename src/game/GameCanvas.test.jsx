@@ -153,7 +153,7 @@ describe("finalização de onda", () => {
       },
     };
     expect(getWaveOutroCameraTransform(session)).toMatchObject({
-      zoom: 1.08,
+      zoom: expect.closeTo(1.0995, 3),
       focusX: 720,
     });
     session.waveOutro.status = "cleanup";
@@ -168,7 +168,7 @@ describe("finalização de onda", () => {
       integrityPercent: 82, survivors: 4, energyGained: 20,
     }} />);
     expect(screen.getByText("ONDA 3 CONCLUÍDA")).toBeInTheDocument();
-    expect(screen.getByText(/18 inimigos eliminados/i)).toBeInTheDocument();
+    expect(screen.getByText(/18 hostis neutralizados/i)).toBeInTheDocument();
 
     rerender(<WaveOutroOverlay outro={{
       status: "decisionIntro",

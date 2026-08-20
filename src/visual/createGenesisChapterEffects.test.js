@@ -42,7 +42,7 @@ describe("efeitos 3D próximos às rotas", () => {
     expect(runtime.groups.chapter_01.visible).toBe(false);
   });
 
-  it("nÃ£o atualiza efeitos completamente invisÃ­veis", () => {
+  it("não atualiza efeitos completamente invisíveis", () => {
     const parent = new THREE.Group();
     const runtime = createGenesisChapterEffects({ THREE, parent, quality: { quality: "low" }, chapterId: "chapter_01" });
     const hiddenUpdate = vi.fn();

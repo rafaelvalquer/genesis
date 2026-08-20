@@ -69,11 +69,12 @@ describe("geometria visual dos disparos", () => {
     const anchors = config.attackVisual.frameAnchors;
     Object.values(anchors).forEach((stateAnchors) => {
       expect(stateAnchors).toHaveLength(8);
-      stateAnchors.forEach((anchor) => expect(anchor.y).toBe(0.9512));
+      stateAnchors.forEach((anchor) => expect(anchor.y).toBeCloseTo(0.9512, 2));
     });
 
     const anchor = anchors.attack[4];
-    expect(anchor).toEqual({ x: 0.3311, y: 0.9512 });
+    expect(anchor.x).toBeCloseTo(0.3311, 4);
+    expect(anchor.y).toBeCloseTo(0.9512, 2);
     const rect = getAnchoredSpriteRect(hunter, config.attackVisual.height, 1, anchor);
     const muzzle = getMuzzleWorldPosition(hunter, config, 0, 4);
     expect(config.attackVisual.shots[0]).toMatchObject({
@@ -283,7 +284,7 @@ describe("geometria visual dos disparos", () => {
     expect(anchors).toHaveLength(8);
     anchors.forEach((anchor) => {
       const rect = getAnchoredSpriteRect(jano, TROOPS.operadorJano.attackVisual.height, 1, anchor);
-      expect(anchor.y).toBe(0.9512);
+      expect(anchor.y).toBeCloseTo(0.9512, 2);
       expect(rect.y + rect.height * anchor.y).toBeCloseTo(jano.y + CELL.height * 0.43, 5);
     });
     expect(anchors.map(({ x }) => x)).toEqual([

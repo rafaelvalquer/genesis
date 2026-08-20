@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CHAPTERS, DECISIONS, DECISION_STAGE_RULES, ENEMIES, getChapterForPhase, getUnlockedTroops, PHASES } from "./content.js";
 import {
   buildSpawnQueue,
+  applyFormationOffsets,
   chooseDistinctRows,
   choosePacketRows,
   calculateStars,
@@ -19,6 +20,16 @@ import {
 import { CELL } from "./visualGeometry.js";
 
 describe("campanha e ondas", () => {
+  it("aplica formação por pacote, rota e instante simultâneo", () => {
+    const entries = [
+      { packetId: "p", row: 2, spawnAtMs: 0 }, { packetId: "p", row: 2, spawnAtMs: 0 },
+      { packetId: "p", row: 2, spawnAtMs: 0 }, { packetId: "p", row: 2, spawnAtMs: 500 },
+    ];
+    expect(applyFormationOffsets(entries).map((entry) => entry.formationOffsetPx)).toEqual([-10, 0, 10, 0]);
+    expect(applyFormationOffsets([{ packetId: "p", row: 1, spawnAtMs: 0 }, { packetId: "p", row: 1, spawnAtMs: 0 }]).map((entry) => entry.formationOffsetPx)).toEqual([-5, 5]);
+    expect(applyFormationOffsets([{ packetId: "p", row: 1, spawnAtMs: 0 }])[0].formationOffsetPx).toBe(0);
+    expect(applyFormationOffsets(Array.from({ length: 4 }, () => ({ packetId: "p", row: 1, spawnAtMs: 0 }))).map((entry) => entry.formationOffsetPx)).toEqual([-15, -5, 5, 15]);
+  });
   it("escolhe rotas dinâmicas determinísticas por estratégia", () => {
     const phase = PHASES.find((entry) => entry.id === "fase_48");
     const first = buildSpawnQueue(phase, 0, 101);
@@ -121,10 +132,10 @@ describe("campanha e ondas", () => {
     expect(wavePressure(PHASES[23], 5)).toBeGreaterThanOrEqual(wavePressure(PHASES[22], 5) * 1.04);
   });
 
-  it("organiza quarenta fases em cinco capítulos de oito operações", () => {
-    expect(CHAPTERS).toHaveLength(5);
-    expect(PHASES).toHaveLength(40);
-    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8, 8]);
+  it("organiza quarenta e oito fases em seis capítulos de oito operações", () => {
+    expect(CHAPTERS).toHaveLength(6);
+    expect(PHASES).toHaveLength(48);
+    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8, 8, 8]);
     expect(getChapterForPhase("fase_08")?.id).toBe("chapter_01");
     expect(getChapterForPhase("fase_09")?.id).toBe("chapter_02");
     expect(getChapterForPhase("fase_17")?.id).toBe("chapter_03");

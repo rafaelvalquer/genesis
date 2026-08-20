@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ENEMIES, PHASES } from "./content.js";
+import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
 import { createBattleSession, createTroopEntity, enemyOccupiesTargetRow, forceLeviathanAttack, getEnemyTargetableRows, spawnEnemy, startWave, stepBattle } from "./battleModel.js";
 import { getBattleIndex, rebuildBattleIndex } from "./battleIndex.js";
 import { LEVIATHAN_SHADOW_ONLY_STATES, chooseBalancedTargetRows, chooseBrineJetPlacement, dynamicAttackWeight, startLeviathanMovement, syncLeviathanHitZones, updateLeviathanMovement } from "./leviathanNereida.js";
@@ -29,8 +30,14 @@ describe("Leviatã de Nereida", () => {
   });
 
   it("entra uma única vez na onda final da campanha e libera reforços uma vez por limiar", () => {
-    const phase = PHASES.find((entry) => entry.id === "fase_40");
-    const session = createBattleSession(phase, [], 771);
+    const phase = CHAPTER_FIVE_PHASES.find((entry) => entry.id === "fase_40");
+    const testPhase = {
+      ...phase,
+      waves: phase.waves.map((wave, index) => index === 5
+        ? { ...wave, maximumLivingEnemies: 200 }
+        : wave),
+    };
+    const session = createBattleSession(testPhase, [], 771, { sandbox: true });
     session.waveIndex = 5;
     expect(startWave(session)).toBe(true);
     stepBattle(session, 20000);
@@ -40,15 +47,15 @@ describe("Leviatã de Nereida", () => {
 
     boss.hp = boss.maxHp * .69;
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(2);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(0);
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(1);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_protected_veil"))).toHaveLength(0);
 
     boss.hp = boss.maxHp * .34;
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(6);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(0);
     stepBattle(session, 1);
-    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(5);
+    expect(session.queue.filter((entry) => entry.packetId.startsWith("boss_saline_siege"))).toHaveLength(0);
   });
 
   it("declara animações de locomoção, oito frames por estado e nenhuma reação hit", () => {

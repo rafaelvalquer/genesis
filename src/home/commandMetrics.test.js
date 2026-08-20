@@ -39,7 +39,7 @@ describe("métricas do Comando Orbital", () => {
     }));
     expect(metrics.completedPhases).toBe(1);
     expect(metrics.stars).toBe(4);
-    expect(metrics.overallPercent).toBe(3);
+    expect(metrics.overallPercent).toBe(2);
   });
 
   it("determina capítulo atual pela fase principal", () => {

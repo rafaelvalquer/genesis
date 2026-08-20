@@ -142,9 +142,9 @@ function particleColor(temperature) {
   return "221,52,10";
 }
 
-function drawSplash(ctx, splash, thermal) {
+function drawSplash(ctx, splash, thermalVisual) {
   const progress = 1 - Math.max(0, splash.life / splash.maxLife);
-  const alpha = Math.sin(progress * Math.PI) * thermal.splashFactor;
+  const alpha = Math.sin(progress * Math.PI) * thermalVisual.splashFactor;
   ctx.strokeStyle = `rgba(255,134,25,${alpha * 0.72})`;
   ctx.lineWidth = 1.1;
   ctx.beginPath();
@@ -170,9 +170,9 @@ export function drawMagmaParticles(ctx, runtime, now, options) {
   for (const splash of runtime.splashes || []) drawSplash(ctx, splash, ambientThermal);
   for (const particle of runtime.particles) {
     if (!particle.active) continue;
-    const thermal = getMagmaThermalVisual(particle.thermalState || options.thermalState);
+    const particleThermal = getMagmaThermalVisual(particle.thermalState || options.thermalState);
     const life = Math.max(0, particle.life / particle.maxLife);
-    const alpha = Math.min(1, life * 1.4) * thermal.emberFactor;
+    const alpha = Math.min(1, life * 1.4) * particleThermal.emberFactor;
     const color = particleColor(particle.temperature);
     if (particle.type === "crustFragment") {
       ctx.globalCompositeOperation = "source-over";

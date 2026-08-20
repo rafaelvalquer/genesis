@@ -72,6 +72,23 @@ export const ROUTE_STRATEGIES = Object.freeze({
   scripted: Object.freeze({ count: null }),
 });
 
+export function applyFormationOffsets(entries = []) {
+  const groups = new Map();
+  entries.forEach((entry, index) => {
+    const key = `${entry.packetId ?? ""}:${entry.row ?? ""}:${entry.spawnAtMs ?? ""}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push({ entry, index });
+  });
+  const result = entries.map((entry) => ({ ...entry }));
+  for (const group of groups.values()) {
+    const count = group.length;
+    group.forEach(({ index }, offsetIndex) => {
+      result[index].formationOffsetPx = (offsetIndex - (count - 1) / 2) * 10;
+    });
+  }
+  return result;
+}
+
 function weightedRoutePick(candidates, rng, pressure, hotLane = null) {
   const weighted = candidates.map((row) => ({
     row,
@@ -161,7 +178,6 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
         block: packet.block,
         spawnAtMs: packet.spawnAtMs + (unit.spawnDelayMs || 0) + index * (unit.spawnIntervalMs || 0),
         xOffsetTiles: unit.xOffsetTiles || 0,
-        formationOffsetPx: unit.spawnIntervalMs ? 0 : (index - (expanded.length - 1) / 2) * 10,
       }));
     }
     return packet.units.flatMap((unit) => {
@@ -185,10 +201,10 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
       })));
     });
   });
-  return queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs
+  return applyFormationOffsets(queue.sort((left, right) => left.spawnAtMs - right.spawnAtMs
     || left.packetId.localeCompare(right.packetId)
     || left.type.localeCompare(right.type)
-    || left.sourceIndex - right.sourceIndex);
+    || left.sourceIndex - right.sourceIndex));
 }
 
 export function buildSpawnQueue(phase, waveIndex, seed = 1, countMultiplier = 1) {
@@ -391,7 +407,7 @@ export function validateCampaignBalance(phases = PHASES) {
   phases.forEach((phase, phaseIndex) => {
     // Chapter 4 is authored around tactical packet intent, not monotonically
     // increasing raw counts, so it has its own packet/wave validation suite.
-    if (phase.chapterId === "chapter_04" || phase.chapterId === "chapter_05") return;
+    if (["chapter_04", "chapter_05", "chapter_06"].includes(phase.chapterId)) return;
     const budgets = phase.waves.map(waveBudget);
     const coordinated = phase.waves.every((waveEntry) => waveEntry.coordinated);
     budgets.forEach((budget, waveIndex) => {

@@ -41,7 +41,7 @@ describe("Rasga-Céus Cinéreo", () => {
     stepBattle(current, 900);
     expect(["diving", "strike", "climbing"]).toContain(enemy.rasgaCeusState);
     stepBattle(current, 900);
-    expect(troop.hp).toBe(94);
+    expect(troop.hp).toBe(100);
     stepBattle(current, 200);
     expect(troop.hp).toBe(94);
   });

@@ -279,8 +279,8 @@ export default function CampaignPlanet({
           color: biome.accent, roughness: .72, metalness: .18, transparent: true,
         });
         const detailMesh = new THREE.InstancedMesh(detailGeometry, detailMaterial, quality.detailCount);
-        // O GLB Ã© o visual definitivo. Estes detalhes procedurais sÃ³ existem
-        // como contingÃªncia quando o asset nÃ£o puder ser carregado.
+        // O GLB é o visual definitivo. Estes detalhes procedurais só existem
+        // como contingência quando o asset não puder ser carregado.
         detailMesh.visible = false;
         planetModelRoot.add(detailMesh);
 

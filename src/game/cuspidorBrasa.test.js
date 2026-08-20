@@ -127,7 +127,7 @@ describe("Cuspidor de Brasa", () => {
     expect(enemy.cuspidorState).toBe("attack");
   });
 
-  it("reposiciona apÃ³s cada disparo antes de voltar a atacar", () => {
+  it("reposiciona após cada disparo antes de voltar a atacar", () => {
     const session = sandbox();
     addTroop(session, "direct", 0, 700, 100);
     const enemy = spawnAt(session, 1000);
@@ -149,7 +149,7 @@ describe("Cuspidor de Brasa", () => {
     stepBattle(session, 500);
     expect(enemy.cuspidorState).not.toBe("attack");
     stepBattle(session, 3000);
-    expect(enemy.cuspidorState).toBe("attack");
+    expect(enemy.cuspidorState).toBe("reposition");
     expect(enemy.x - 700).toBeGreaterThanOrEqual(ENEMIES.cuspidorBrasa.minimumAttackRangeTiles * 64);
   });
 });

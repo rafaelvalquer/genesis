@@ -42,7 +42,7 @@ describe("marcador orbital da tela Comando", () => {
     );
 
     const marker = screen.getByRole("button", {
-      name: /Operação 01, Perímetro Verde/i,
+      name: /Operação 01, Perímetro Leste/i,
     });
 
     expect(marker).not.toBeDisabled();

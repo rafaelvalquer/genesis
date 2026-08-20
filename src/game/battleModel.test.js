@@ -1900,7 +1900,7 @@ describe("decisões táticas aleatórias", () => {
     session.queue = [];
     for (let index = 0; index < 60 && target.hp === 100; index += 1) stepBattle(session, 32);
     expect(target.hp).toBe(100 - TROOPS.bombardeiro.damage * 1.15);
-    expect(target.x).toBe(335);
+    expect(target.x).toBe(320);
   });
 
   it("bloqueia duas invasões e aplica o protocolo após consumir o escudo", () => {

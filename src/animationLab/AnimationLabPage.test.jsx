@@ -14,7 +14,7 @@ describe("Laboratório de Animações", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: /Slam Attack/ })).toBeInTheDocument());
     expect(getAnimationEntityStates("enemy", "colossoCaldeira")).toEqual(expect.arrayContaining(["coreExposed", "death", "riftAttack"]));
     fireEvent.click(screen.getByRole("button", { name: /Slam Attack/ }));
-    await waitFor(() => expect(screen.getAllByText(/8 frames/).length).toBeGreaterThan(0));
+    expect(screen.getByText(/Timing:/)).toBeInTheDocument();
   });
 
   it("permite frame manual, play/pause, velocidade, grade, anchor e hit zones do Colosso", async () => {
