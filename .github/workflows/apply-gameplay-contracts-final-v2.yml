@@ -1,9 +1,9 @@
-name: Apply gameplay contracts final v2
+name: Apply latest-version hardening v3
 
 on:
   push:
     branches:
-      - fix/gameplay-contracts-final-v2
+      - fix/latest-version-hardening-v3
 
 permissions:
   contents: write
@@ -24,8 +24,11 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Apply scoped fixes
+      - name: Apply gameplay contract fixes
         run: node scripts/apply-gameplay-final-v2.mjs
+
+      - name: Apply latest hardening fixes
+        run: node scripts/apply-latest-hardening.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -37,9 +40,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- package.json scripts/stress-phase48.mjs src/game/battle/engine.js src/game/windCurrent.js src/game/windCurrent.test.js src/loadout/TroopPortraitTile.jsx src/loadout/LoadoutPage.test.jsx src/campaign/CampaignPage.test.jsx
-          git rm -- scripts/apply-gameplay-final-v2.mjs .github/workflows/apply-gameplay-contracts-final-v2.yml
-          git commit -m "fix: restore gameplay contracts and sprint 1 validation"
-          git push origin HEAD:fix/gameplay-contracts-final-v2
-
-# trigger after workflow registration
+          git add -- package.json scripts/stress-phase48.mjs src/game/battle/engine.js src/game/domain.js src/game/windCurrent.js src/game/windCurrent.test.js src/game/latestHardening.test.js src/loadout/TroopPortraitTile.jsx src/loadout/LoadoutPage.test.jsx src/campaign/CampaignPage.test.jsx
+          git rm -- scripts/apply-gameplay-final-v2.mjs scripts/apply-latest-hardening.mjs .github/workflows/apply-gameplay-contracts-final-v2.yml
+          git commit -m "fix: harden latest gameplay contracts and validation"
+          git push origin HEAD:fix/latest-version-hardening-v3
