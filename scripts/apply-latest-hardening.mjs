@@ -77,3 +77,5 @@ describe("latest-version hardening", () => {
   });
 });
 `);
+
+// Trigger the branch-local validation gate after workflow registration.
