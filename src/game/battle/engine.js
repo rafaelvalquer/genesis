@@ -8242,6 +8242,7 @@ export function stepBattle(session, dt = 32) {
   if (session.outcome) return [];
   const events = [];
   const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
+  if (convoyMission && session.convoyFlow.state === "sectorCountdown") return events;
   if (convoyMission && session.convoyFlow.state === "destroying") {
     session.elapsed += dt;
     updateConvoyAnimation(session);
@@ -8494,6 +8495,9 @@ export function getSnapshot(session) {
       nextEnergyPulseIn: Math.max(0, session.convoy.nextEnergyPulseAt - session.elapsed),
       nextCheckpointProgress: session.phase.convoy.checkpointProgress[session.convoyFlow.reachedCheckpointCount] ?? 1,
       reinforcementLevel: session.convoyFlow.reinforcementLevel,
+      countdownRemainingMs: session.convoyFlow.state === "sectorCountdown"
+        ? Math.max(0, (session.convoyFlow.countdownDurationMs || 2400) - (session.convoyFlow.countdownElapsedMs || 0))
+        : 0,
     } : null,
     pendingOutcome: session.pendingOutcome,
     enemies: session.enemies.length, queued: session.queue.length,

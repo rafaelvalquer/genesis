@@ -144,7 +144,11 @@ import { getWaveOutroCueState, getWaveOutroMusicVolumeFactor } from "./waveOutro
 import { getCinematicWaveOutroCameraTransform } from "./waveOutro/waveOutroCamera.js";
 import { drawConvoy, drawEscortZone } from "./chapter07/convoyRenderer.js";
 import ConvoyHud from "./chapter07/components/ConvoyHud.jsx";
-import ConvoyCheckpointOverlay from "./chapter07/components/ConvoyCheckpointOverlay.jsx";
+import ConvoyPreparationPanel from "./chapter07/components/ConvoyPreparationPanel.jsx";
+import ConvoySectorCountdown from "./chapter07/components/ConvoySectorCountdown.jsx";
+import ConvoyToast from "./chapter07/components/ConvoyToast.jsx";
+import { advanceConvoySectorCountdown, startConvoySectorCountdown } from "./chapter07/convoyFlow.js";
+import { updateConvoyEscort } from "./chapter07/convoyEscort.js";
 import "./chapter07/chapter07.css";
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
   if (!fieldPoint) return null;
@@ -1919,6 +1923,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const lastCriticalBeepRef = useRef(0);
   const notificationIdRef = useRef(1);
   const waveOutroCueRef = useRef(null);
+  const convoyCountdownStepRef = useRef(null);
   if (!sessionRef.current) sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox });
 
   const [snapshot, setSnapshot] = useState(() => getSnapshot(sessionRef.current));
@@ -2004,6 +2009,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     finishSentRef.current = false;
     convoyDestructionRevealUntilRef.current = 0;
     waveOutroCueRef.current = null;
+    convoyCountdownStepRef.current = null;
     lastCriticalBeepRef.current = 0;
     setSelectedTroop(null); setHoveredTroop(null); setRemoveMode(false); setTargetingDecision(null);
     setSpeed(1); setPaused(false); setSnapshot(getSnapshot(sessionRef.current));
@@ -2025,6 +2031,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       canvasRef.current,
     );
   }, [loading.ready]);
+
+  useEffect(() => {
+    if (!loading.ready || sandbox || phase.id !== "fase_49") return;
+    setMessage("MANTENHA UMA TROPA EM R2 OU R4 PRÓXIMA AO TRANSPORTE.", { tone: "action", persistent: true });
+  }, [loading.ready, phase.id, sandbox, setMessage]);
 
   useEffect(() => {
     if (!notification?.text || notification.persistent) return undefined;
@@ -2092,6 +2103,21 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         }
       }
       const activeSession = sessionRef.current;
+      if (!pausedRef.current && !fortunePaused && activeSession?.convoyFlow?.state === "sectorCountdown") {
+        const remainingBeforeStep = Math.max(0, (activeSession.convoyFlow.countdownDurationMs || 2400) - (activeSession.convoyFlow.countdownElapsedMs || 0));
+        const countdownStep = Math.max(1, Math.min(3, Math.ceil(remainingBeforeStep / 800)));
+        if (convoyCountdownStepRef.current !== countdownStep) {
+          convoyCountdownStepRef.current = countdownStep;
+          play("alert", 0.2);
+        }
+        const countdownEvents = [];
+        advanceConvoySectorCountdown(activeSession, frameDelta * speedRef.current, countdownEvents);
+        if (countdownEvents.length) {
+          consumeGraphicsEvents(graphicsRef.current, countdownEvents, activeSession.elapsed, settings);
+          play("alert", 0.45);
+          convoyCountdownStepRef.current = null;
+        }
+      }
       const activeOutro = activeSession?.waveOutro?.status
         && !["idle", "completed"].includes(activeSession.waveOutro.status);
       const cueState = getWaveOutroCueState(activeSession?.waveOutro);
@@ -2132,12 +2158,25 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "escortRestored")) play("convoyEscort", .55);
         if (events.some((event) => event.type === "escortLost")) play("convoyEscortLost", .55);
         if (events.some((event) => event.type === "convoyUnderAttack")) play("convoyAttack", .34);
+        if (events.some((event) => event.type === "convoyUnderAttack")) setMessage("TRANSPORTE SOB ATAQUE", { tone: "danger" });
+        if (events.some((event) => event.type === "escortLost")) setMessage("SEM ESCOLTA · o transporte permanecerá parado", { tone: "warning", persistent: true });
+        if (events.some((event) => event.type === "escortRestored")) setMessage("ESCOLTA RESTAURADA", { tone: "info" });
+        if (events.some((event) => event.type === "convoyAttackCleared")) setMessage("ESCOLTA RESTAURADA", { tone: "info" });
         if (events.some((event) => event.type === "convoyHit")) play("convoyHit", .42);
         if (events.some((event) => event.type === "convoyCritical")) play("convoyCritical", .68);
         if (events.some((event) => event.type === "checkpointReached")) play("convoyCheckpoint", .72);
+        if (events.some((event) => event.type === "checkpointReached")) setMessage("CHECKPOINT ALCANÇADO", { tone: "info" });
+        if (events.some((event) => event.type === "checkpointPreparation")) {
+          setSelectedTroop(null);
+          setRepositionTroopId(null);
+          setRemoveMode(false);
+          setMessage("SETOR SEGURO · reposicione suas tropas antes de avançar", { tone: "action", persistent: true });
+        }
         if (events.some((event) => event.type === "energyGenerated" && event.sourceKind === "convoy")) play("convoyLogistics", .24);
         if (events.some((event) => event.type === "reserveEmpty")) play("convoyReserveEmpty", .58);
+        if (events.some((event) => event.type === "reserveEmpty")) setMessage("RESERVA ESGOTADA", { tone: "warning" });
         if (events.some((event) => event.type === "reinforcementWarning")) play("convoyReinforcement", .5);
+        if (events.some((event) => event.type === "reinforcementWarning")) setMessage("REFORÇOS INIMIGOS", { tone: "danger" });
         if (events.some((event) => event.type === "convoyDestroyed")) play("convoyDestruction", .85);
         if (events.some((event) => event.type === "convoyEvacuated")) play("convoyEvacuation", .85);
         if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
@@ -2383,6 +2422,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       return;
     }
     const fieldPoint = canvasPointFromPointer(event);
+    if (sessionRef.current.convoyFlow?.state === "sectorCountdown") {
+      setMessage("O setor está iniciando. Aguarde a contagem regressiva.");
+      return;
+    }
     if (sessionRef.current.convoyFlow?.state === "checkpointPreparation" && fieldPoint && !removeMode) {
       const cell = cellFromPoint(fieldPoint.x, fieldPoint.y);
       const troopAtCell = sessionRef.current.troops.find((troop) => !troop.dead && troop.row === cell?.row && troop.col === cell?.col);
@@ -2390,6 +2433,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         const result = repositionTroop(sessionRef.current, repositionTroopId, cell.row, cell.col);
         setMessage(result.ok ? "Patrulha reposicionada sem custo; estado operacional preservado." : result.reason);
         if (result.ok) {
+          updateConvoyEscort(sessionRef.current, []);
           consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
           setRepositionTroopId(null); setSelectedTroop(null); setSnapshot(getSnapshot(sessionRef.current));
         }
@@ -2460,6 +2504,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       const result = removeTroop(sessionRef.current, action.cell.row, action.cell.col);
       setMessage(result.ok ? `Unidade removida · +${result.refund} energia.` : result.reason);
       if (result.ok) {
+        updateConvoyEscort(sessionRef.current, []);
         consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
         pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
       }
@@ -2487,6 +2532,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           : `${TROOPS[action.troopType].label} implantado.`
       : result.reason);
     if (result.ok) {
+      updateConvoyEscort(sessionRef.current, []);
       play("deploy", 0.55);
       pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
       consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
@@ -2496,11 +2542,18 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleStartWave = () => {
     if (targetingDecision || adaptiveAidBlocksIntermission(sessionRef.current.adaptiveAid?.status)) return;
-    if (startWave(sessionRef.current)) {
+    const isConvoy = sessionRef.current.phase?.progressionMode === "convoy";
+    const started = isConvoy
+      ? startConvoySectorCountdown(sessionRef.current)
+      : startWave(sessionRef.current);
+    if (started) {
+      setSelectedTroop(null);
+      setRepositionTroopId(null);
+      setRemoveMode(false);
       consumeGraphicsEvents(graphicsRef.current, [{ type: "waveStart" }], sessionRef.current.elapsed, settings);
       const convoy = sessionRef.current.convoyFlow;
       setBanner(convoy ? `SETOR ${convoy.sectorIndex + 1}/4 · ROTA ATIVA` : `ONDA ${sessionRef.current.waveIndex + 1} · CONTATO`);
-      setMessage(convoy ? "Escolta iniciada. Proteja R2/R4 e mantenha o transporte em movimento." : "Onda em andamento. Novas implantações entram em cooldown.");
+      setMessage(convoy ? "Contagem regressiva iniciada. Prepare R2/R4." : "Onda em andamento. Novas implantações entram em cooldown.");
       play("alert", 0.75);
       play("theme", 0.75);
       setSnapshot(getSnapshot(sessionRef.current));
@@ -2978,7 +3031,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             const lacksEnergy = snapshot.energy < deployment.price;
             const lacksSupply = snapshot.supply < troop.supply;
             const freeMode = sandbox && sandboxSettingsState.rulesMode === "free";
-            const disabled = positionalTargeting || (!freeMode && (lacksEnergy || lacksSupply || coolingDown || deploymentLimitReached));
+            const convoyCountdown = snapshot.convoy?.state === "sectorCountdown";
+            const disabled = positionalTargeting || convoyCountdown || (!freeMode && (lacksEnergy || lacksSupply || coolingDown || deploymentLimitReached));
             const cooldownProgress = getDeployCooldownProgress(cooldown, deployment.deployCooldownMs);
             const cooldownSeconds = (cooldown / 1000).toFixed(1);
             const unavailableReason = freeMode ? "" : lacksEnergy ? "energia insuficiente" : lacksSupply ? "supply insuficiente" : "";
@@ -2997,7 +3051,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             </button>;
             })}
           </div>
-          <button type="button" disabled={positionalTargeting} aria-keyshortcuts="R" className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}% <kbd>R</kbd></button>
+          <button type="button" disabled={positionalTargeting || snapshot.convoy?.state === "sectorCountdown"} aria-keyshortcuts="R" className={`remove-button ${removeMode ? "active" : ""}`} onClick={() => { setRemoveMode((value) => !value); setSelectedTroop(null); }}>⌫ Remover · {Math.round(snapshot.refundRate * 100)}% <kbd>R</kbd></button>
           <div className="battle-hotkey-help" aria-label="Atalhos da batalha">
             <span><kbd>1–9</kbd> Tropas</span><span><kbd>Espaço</kbd> Pausa</span><span><kbd>F</kbd> Tela cheia</span><span><kbd>R</kbd> Remover</span><span><kbd>Esc</kbd> Cancelar</span><span><kbd>Enter</kbd> Onda</span>
           </div>
@@ -3008,21 +3062,21 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           </div>}
         </aside>
 
-        <div className="canvas-wrap">
+        <div className={`canvas-wrap ${snapshot.progressionMode === "convoy" ? "convoy-canvas-wrap" : ""} ${snapshot.convoy?.state === "checkpointPreparation" ? "convoy-preparation-active" : ""}`}>
+          {snapshot.convoy && <ConvoyHud convoy={snapshot.convoy} energy={snapshot.energy} energyMax={snapshot.energyMax} />}
           <div className="battle-canvas-stage">
             <div className={`containment-summary ${windBanner ? "wind-current-banner" : sandstormBanner ? "sandstorm-banner" : ""}`}>
               {canStartWave && snapshot.convoy?.state !== "checkpointPreparation"
                 ? <button type="button" className="start-wave containment-start-wave" aria-keyshortcuts="Enter" title={snapshot.progressionMode === "convoy" ? "Iniciar escolta · Enter" : "Iniciar onda · Enter"} onClick={handleStartWave}>{snapshot.progressionMode === "convoy" ? "INICIAR ESCOLTA" : `INICIAR ONDA ${snapshot.wave}`}<span>{snapshot.progressionMode === "convoy" ? "4 setores · 3 checkpoints" : `${waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas`}</span></button>
                 : <span>{containmentSummary}</span>}
             </div>
-            <ConvoyHud convoy={snapshot.convoy} energy={snapshot.energy} energyMax={snapshot.energyMax} />
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={(event) => {
               hoveredCellRef.current = null;
               if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.preview = null;
               setEnergyPickupPointer(sessionRef.current, null);
               event.currentTarget.style.cursor = "default";
             }} aria-label={snapshot.progressionMode === "convoy" ? "Campo de escolta com quatro rotas de combate e uma rota central de transporte" : "Campo de batalha em cinco rotas"} />
-            <ConvoyCheckpointOverlay convoy={snapshot.convoy} supply={`${snapshot.supply}/${snapshot.supplyMax}`} energy={`${snapshot.energy}/${snapshot.energyMax}`} onStart={handleStartWave} />
+            <ConvoySectorCountdown convoy={snapshot.convoy} />
             {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
             {!fortuneBlocksIntermission && snapshot.progressionMode !== "convoy" && <DematerializationPulseControls
               session={sessionRef.current}
@@ -3030,15 +3084,19 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             />}
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}
             {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
-            {notification?.text && <div className={`battle-notification tone-${notification.tone} ${notification.persistent ? "persistent" : ""}`} role={notification.tone === "action" ? "status" : "alert"}>
-              <span>{notification.tone === "action" ? "◆" : "✓"}</span>{notification.text}
-            </div>}
+            {snapshot.progressionMode === "convoy" && <div className="sr-only" aria-live="polite">{snapshot.convoy?.underAttack ? "Transporte sob ataque" : snapshot.convoy?.escorted ? "Escolta ativa" : "Sem escolta"}</div>}
+            {notification?.text && (snapshot.progressionMode === "convoy"
+              ? <ConvoyToast message={notification.text} tone={notification.tone} />
+              : <div className={`battle-notification tone-${notification.tone} ${notification.persistent ? "persistent" : ""}`} role={notification.tone === "action" ? "status" : "alert"}>
+                <span>{notification.tone === "action" ? "◆" : "✓"}</span>{notification.text}
+              </div>)}
             <WaveOutroCinematicOverlay
               outro={snapshot.waveOutro}
               phase={phase}
               reduceMotion={settings.reduceMotion}
             />
           </div>
+          {snapshot.convoy && <ConvoyPreparationPanel convoy={snapshot.convoy} supply={snapshot.supply} supplyMax={snapshot.supplyMax} onStart={handleStartWave} />}
           {graphicsMetrics && <div className="graphics-metrics">
             <b>{graphicsMetrics.fps.toFixed(0)} FPS · {graphicsMetrics.adaptiveLevel}</b>
             <span>F {graphicsMetrics.frameMs.toFixed(1)} ms</span>

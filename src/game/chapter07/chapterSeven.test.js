@@ -10,7 +10,7 @@ import { getEscortTroops, isEscortOperational, updateConvoyEscort } from "./conv
 import { calculateConvoyStars } from "./convoyScoring.js";
 import { createBattleAudioChannels } from "../hooks/useBattleAudio.js";
 import { enterCheckpointClearing, enterCheckpointPreparation } from "./convoyCheckpoints.js";
-import { advanceConvoyMovement } from "./convoyFlow.js";
+import { advanceConvoyMovement, advanceConvoySectorCountdown, startConvoySectorCountdown } from "./convoyFlow.js";
 import { getConvoyColumn } from "./convoyGeometry.js";
 import { StrategicAgent } from "../simulation/ai/StrategicAgent.js";
 
@@ -208,6 +208,22 @@ describe("Convoy systems", () => {
       stepBattle(session, 650);
       expect(session.mines.every((mine) => mine.row !== 2)).toBe(true);
     }
+  });
+
+  it("starts each convoy sector through a visual countdown without advancing simulation time", () => {
+    const session = createBattleSession(phase49, ["colono"], 81);
+    const elapsed = session.elapsed;
+    expect(startConvoySectorCountdown(session)).toBe(true);
+    expect(session.convoyFlow.state).toBe("sectorCountdown");
+    expect(session.elapsed).toBe(elapsed);
+    const events = [];
+    advanceConvoySectorCountdown(session, 800, events);
+    expect(session.convoyFlow.state).toBe("sectorCountdown");
+    expect(session.elapsed).toBe(elapsed);
+    advanceConvoySectorCountdown(session, 1600, events);
+    expect(session.convoyFlow.state).toBe("sectorActive");
+    expect(session.elapsed).toBe(elapsed);
+    expect(events.some((event) => event.type === "convoyCountdownGo")).toBe(true);
   });
 
   it("scenario C: checkpoint clearing cannot advance while a combat threat remains", () => {

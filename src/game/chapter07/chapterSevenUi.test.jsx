@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import ConvoyHud from "./components/ConvoyHud.jsx";
-import ConvoyCheckpointOverlay from "./components/ConvoyCheckpointOverlay.jsx";
+import ConvoyPreparationPanel from "./components/ConvoyPreparationPanel.jsx";
+import ConvoySectorCountdown from "./components/ConvoySectorCountdown.jsx";
 
 const convoy = {
   state: "sectorActive", hp: 780, hpMax: 1000, hpPercent: 78, progress: .42, sector: 2,
@@ -9,16 +10,17 @@ const convoy = {
 };
 
 describe("Chapter 7 convoy UI", () => {
+  afterEach(cleanup);
   it("renders every required HUD datum and a textual escort state", () => {
     render(<ConvoyHud convoy={convoy} energy={137} energyMax={200} />);
     const region = screen.getByRole("region", { name: "Status do transporte" });
-    expect(region).toHaveAttribute("aria-live", "polite");
-    expect(screen.getByText("780 / 1000")).toBeInTheDocument();
+    expect(region).not.toHaveAttribute("aria-live");
+    expect(screen.getByLabelText("Integridade do transporte")).toHaveTextContent("780");
     expect(screen.getByText("42%")).toBeInTheDocument();
-    expect(screen.getByText("2 / 4")).toBeInTheDocument();
-    expect(screen.getByText("ESCOLTADO")).toBeInTheDocument();
-    expect(screen.getByText("137 / 200")).toBeInTheDocument();
-    expect(screen.getByText("56 / 80")).toBeInTheDocument();
+    expect(screen.getByText("SETOR 2 / 4")).toBeInTheDocument();
+    expect(screen.getByText("ESCOLTA ATIVA")).toBeInTheDocument();
+    expect(screen.getByText(/137\s*\/\s*200/)).toBeInTheDocument();
+    expect(screen.getByText(/56\s*\/\s*80/)).toBeInTheDocument();
     expect(screen.getByLabelText("1 de 3 checkpoints alcançados")).toBeInTheDocument();
   });
 
@@ -29,16 +31,25 @@ describe("Chapter 7 convoy UI", () => {
     expect(screen.getByText("SOB ATAQUE")).toBeInTheDocument();
   });
 
-  it("shows checkpoint resources, focuses its keyboard action and starts explicitly", () => {
+  it("renders preparation as a compact non-modal panel without autofocus", () => {
     const onStart = vi.fn();
-    render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation" }} supply="18/32" energy="140/200" onStart={onStart} />);
-    expect(screen.getByRole("dialog", { name: "CHECKPOINT 1/3" })).toBeInTheDocument();
-    expect(screen.getByText("140/200")).toBeInTheDocument();
-    expect(screen.getByText("18/32")).toBeInTheDocument();
+    render(<ConvoyPreparationPanel convoy={{ ...convoy, state: "checkpointPreparation", escorted: true, escortCount: 2 }} supply={18} supplyMax={32} onStart={onStart} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     const button = screen.getByRole("button", { name: "INICIAR SETOR 3" });
-    expect(button).toHaveAttribute("aria-keyshortcuts", "Enter");
-    expect(button).toHaveFocus();
+    expect(button).not.toHaveFocus();
     fireEvent.click(button);
     expect(onStart).toHaveBeenCalledOnce();
+    expect(screen.getAllByText("ESCOLTA ATIVA").length).toBeGreaterThan(0);
+  });
+
+  it("confirms starting without escort and exposes countdown state", () => {
+    const onStart = vi.fn();
+    const { rerender } = render(<ConvoyPreparationPanel convoy={{ ...convoy, state: "checkpointPreparation", escorted: false, escortCount: 0 }} supply={18} supplyMax={32} onStart={onStart} />);
+    fireEvent.click(screen.getByRole("button", { name: "INICIAR SETOR 3" }));
+    expect(screen.getByText(/O comboio permanecerá parado/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "INICIAR MESMO ASSIM" }));
+    expect(onStart).toHaveBeenCalledOnce();
+    rerender(<ConvoySectorCountdown convoy={{ ...convoy, state: "sectorCountdown", countdownRemainingMs: 1600 }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("2");
   });
 });

@@ -24,6 +24,33 @@ export function startConvoySector(session) {
   return true;
 }
 
+export const CONVOY_SECTOR_COUNTDOWN_MS = 2400;
+
+export function startConvoySectorCountdown(session) {
+  const flow = session?.convoyFlow;
+  if (!flow || session.outcome || !["initialPreparation", "checkpointPreparation"].includes(flow.state)) return false;
+  flow.countdownResumeState = flow.state;
+  flow.state = "sectorCountdown";
+  flow.countdownStartedAt = session.elapsed;
+  flow.countdownElapsedMs = 0;
+  flow.countdownDurationMs = CONVOY_SECTOR_COUNTDOWN_MS;
+  session.preparing = false;
+  session.queue = [];
+  session.waveActive = false;
+  return true;
+}
+
+export function advanceConvoySectorCountdown(session, visualDt, events = []) {
+  const flow = session?.convoyFlow;
+  if (!flow || flow.state !== "sectorCountdown") return false;
+  flow.countdownElapsedMs = Math.min(flow.countdownDurationMs, (flow.countdownElapsedMs || 0) + Math.max(0, visualDt));
+  if (flow.countdownElapsedMs < flow.countdownDurationMs) return false;
+  flow.state = flow.countdownResumeState || "initialPreparation";
+  const started = startConvoySector(session);
+  if (started) events.push({ type: "convoyCountdownGo", sector: flow.sectorIndex + 1 });
+  return started;
+}
+
 export function advanceConvoyMovement(session, dt, events = []) {
   const convoy = session.convoy;
   if (!convoy || session.convoyFlow.state !== "sectorActive") return null;
