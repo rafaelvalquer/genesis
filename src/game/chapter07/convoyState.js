@@ -21,5 +21,6 @@ export function createConvoyState(phase) {
 export function createConvoyFlow() {
   return { state: "initialPreparation", sectorIndex: 0, reachedCheckpointCount: 0,
     sectorStartedAt: null, checkpointStartedAt: null, lastTransitionAt: 0,
+    destroyingStartedAt: null,
     reinforcementLevel: 0, spawnDirector: { generationId: 0, sectorId: null, nextReinforcementAt: Infinity, warningEmitted: false } };
 }

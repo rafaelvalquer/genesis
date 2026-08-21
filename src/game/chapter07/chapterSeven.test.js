@@ -197,6 +197,19 @@ describe("Convoy systems", () => {
     expect(session.convoy.x).toBeGreaterThan(beforeX);
   });
 
+  it("never reserves or arms Demolidora mines in the transport row across 10,000 seeds", () => {
+    for (let seed = 0; seed < 10000; seed += 1) {
+      const session = createBattleSession(phase49, ["demolidora"], seed, { sandbox: true });
+      expect(placeTroop(session, "demolidora", 1, 1).ok).toBe(true);
+      stepBattle(session, 1);
+      expect(session.projectiles
+        .filter((entry) => entry.kind === "mine")
+        .every((entry) => entry.targetRow !== 2)).toBe(true);
+      stepBattle(session, 650);
+      expect(session.mines.every((mine) => mine.row !== 2)).toBe(true);
+    }
+  });
+
   it("scenario C: checkpoint clearing cannot advance while a combat threat remains", () => {
     const session = createBattleSession(phase49, ["colono"], 72);
     session.enemies = [{ id: "threat", type: "legionaroFerrugem", hp: 1, dead: false }];
@@ -213,6 +226,10 @@ describe("Convoy systems", () => {
     startWave(convoyDefeat);
     convoyDefeat.convoy.hp = 0;
     stepBattle(convoyDefeat, 16);
+    expect(convoyDefeat.outcome).toBeNull();
+    expect(convoyDefeat.pendingOutcome).toBe("defeat");
+    expect(convoyDefeat.convoyFlow.state).toBe("destroying");
+    for (let guard = 0; guard < 110 && !convoyDefeat.outcome; guard += 1) stepBattle(convoyDefeat, 16);
     expect(convoyDefeat.outcome).toBe("defeat");
     const baseDefeat = createBattleSession(phase49, ["colono"], 74);
     startWave(baseDefeat);

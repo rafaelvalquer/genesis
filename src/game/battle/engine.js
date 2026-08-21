@@ -156,7 +156,7 @@ import {
   indexedTroopById,
   troopsForRow,
 } from "./queries.js";
-import { getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
+import { getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isCombatRow, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
 import { createConvoyFlow, createConvoyState } from "../chapter07/convoyState.js";
 import { updateConvoyEscort } from "../chapter07/convoyEscort.js";
 import { updateConvoyEnergy } from "../chapter07/convoyEnergy.js";
@@ -168,6 +168,7 @@ import { damageConvoy } from "../chapter07/convoyDamage.js";
 import { repositionTroop as repositionConvoyTroop } from "../chapter07/convoyReposition.js";
 import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
 import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
+import { CONVOY_DEFEAT_RESULT_DELAY_MS } from "../chapter07/convoyAnimationConfig.js";
 
 export {
   createWindCurrentState,
@@ -3638,6 +3639,7 @@ function fireMortar(session, troop, config, group) {
 }
 
 function mineCellIsFree(session, row, col) {
+  if (!isCombatRow(session.phase, row)) return false;
   if (getTidePlacementBlockReason(session, row, col)) return false;
   const troopOccupied = session.troops.some((troop) => !troop.dead && troop.row === row && troop.col === col);
   const enemyOccupied = session.enemies.some((enemy) => !enemy.dead
@@ -8240,6 +8242,15 @@ export function stepBattle(session, dt = 32) {
   if (session.outcome) return [];
   const events = [];
   const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
+  if (convoyMission && session.convoyFlow.state === "destroying") {
+    session.elapsed += dt;
+    updateConvoyAnimation(session);
+    if (session.pendingOutcome === "defeat"
+      && session.elapsed - session.convoyFlow.destroyingStartedAt >= CONVOY_DEFEAT_RESULT_DELAY_MS) {
+      finish(session, "defeat");
+    }
+    return events;
+  }
   if (convoyMission && ["initialPreparation", "checkpointPreparation"].includes(session.convoyFlow.state)) return events;
   session.elapsed += dt;
   if (convoyMission) {
@@ -8329,10 +8340,16 @@ export function stepBattle(session, dt = 32) {
       updateConvoyEscort(session, events);
       updateConvoyThreat(session, ENEMIES, events);
       if (session.convoy.hp <= 0) {
-        session.convoyFlow.state = "defeat";
-        updateConvoyAnimation(session);
-        events.push({ type: "convoyDestroyed", x: session.convoy.x, y: session.convoy.y });
-        finish(session, "defeat");
+        if (session.convoyFlow.state !== "destroying") {
+          session.convoyFlow.state = "destroying";
+          session.convoyFlow.destroyingStartedAt = session.elapsed;
+          session.pendingOutcome = "defeat";
+          session.queue = [];
+          session.waveActive = false;
+          session.convoy.invulnerable = true;
+          updateConvoyAnimation(session);
+          events.push({ type: "convoyDestroyed", x: session.convoy.x, y: session.convoy.y });
+        }
         return events;
       }
       if (session.convoyFlow.state === "checkpointClearing" && !hasCombatRelevantEnemies(session)) {
