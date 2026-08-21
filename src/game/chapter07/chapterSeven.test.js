@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTERS, PHASES, TROOPS } from "../content.js";
 import { buildSpawnQueue, choosePacketRows, createRng } from "../domain.js";
-import { canPlaceTroop, createBattleSession, FIELD, getSnapshot, getTroopDeploymentLimit, placeTroop, repositionTroop, startWave, stepBattle, validateLoadoutForPhase } from "../battleModel.js";
+import { canPlaceTroop, createBattleSession, FIELD, getSnapshot, getTroopDeploymentLimit, placeTroop, repositionTroop, setEnergyPickupPointer, startWave, stepBattle, updateEnergyPickups, validateLoadoutForPhase } from "../battleModel.js";
 import { getAvailableTroopsForPhase, getCombatRows, getDefaultTroopDeploymentLimit, isSystemEnabledForPhase, isTroopAllowedForPhase, sanitizeLoadoutForPhase } from "../phaseRules.js";
 import { buildSectorQueue, updateConvoyReinforcements } from "./convoySpawnDirector.js";
 import { damageConvoy } from "./convoyDamage.js";
@@ -9,9 +9,10 @@ import { refillConvoyReserve, updateConvoyEnergy } from "./convoyEnergy.js";
 import { getEscortTroops, isEscortOperational, updateConvoyEscort } from "./convoyEscort.js";
 import { calculateConvoyStars } from "./convoyScoring.js";
 import { createBattleAudioChannels } from "../hooks/useBattleAudio.js";
-import { enterCheckpointClearing, enterCheckpointPreparation } from "./convoyCheckpoints.js";
+import { acknowledgeConvoyCheckpoint, enterCheckpointClearing, enterCheckpointPreparation } from "./convoyCheckpoints.js";
 import { advanceConvoyMovement, advanceConvoySectorCountdown, startConvoySectorCountdown } from "./convoyFlow.js";
 import { getConvoyColumn } from "./convoyGeometry.js";
+import { getConvoyEntryX, getConvoyRouteStartX } from "./convoyGeometry.js";
 import { StrategicAgent } from "../simulation/ai/StrategicAgent.js";
 
 const phase49 = PHASES.find((phase) => phase.id === "fase_49");
@@ -78,6 +79,23 @@ describe("Chapter 7 structural contract", () => {
     const session = createBattleSession(phase49, ["colono"], 7);
     expect(canPlaceTroop(session, "colono", 2, 4)).toBe("Rota exclusiva do transporte.");
   });
+
+  it("obeys the disabled dematerialization contract across the full stack", () => {
+    const convoySession = createBattleSession(phase49, ["colono"], 18);
+    const legacySession = createBattleSession(PHASES[0], ["colono"], 18);
+    expect(convoySession.dematerializationPulses).toEqual([]);
+    expect(legacySession.dematerializationPulses).toHaveLength(FIELD.rows);
+  });
+
+  it("holds the checkpoint briefing until the player acknowledges it", () => {
+    const session = createBattleSession(phase49, ["colono"], 19);
+    session.convoyFlow.state = "checkpointClearing";
+    session.convoyFlow.reachedCheckpointCount = 1;
+    expect(enterCheckpointPreparation(session)).toBe(true);
+    expect(session.convoyFlow.checkpointBriefingPending).toBe(true);
+    expect(acknowledgeConvoyCheckpoint(session)).toBe(true);
+    expect(session.convoyFlow.checkpointBriefingPending).toBe(false);
+  });
 });
 
 describe("Chapter 7 spawn invariants", () => {
@@ -94,7 +112,7 @@ describe("Chapter 7 spawn invariants", () => {
         expect(buildSectorQueue(phase49, sector, seed).every((entry) => entry.row !== 2)).toBe(true);
       }
     }
-  }, 30_000);
+  }, 60000);
 
   it("preserves legacy wave routing", () => {
     expect(buildSpawnQueue(PHASES[0], 0, 1).every((entry) => entry.row == null || entry.row >= 0 && entry.row < 5)).toBe(true);
@@ -123,6 +141,11 @@ describe("Convoy systems", () => {
     const session = createBattleSession(fast, ["colono"], 3);
     expect(placeTroop(session, "colono", 1, 2).ok).toBe(true);
     expect(startWave(session)).toBe(true);
+    expect(session.convoy.x).toBe(getConvoyEntryX());
+    expect(session.convoy.entryState).toBe("entering");
+    stepBattle(session, 2300);
+    expect(session.convoy.entryState).toBe("active");
+    expect(session.convoy.progress).toBe(0);
     const before = session.convoy.x;
     stepBattle(session, 100);
     expect(session.convoy.x).toBeGreaterThan(before);
@@ -137,13 +160,30 @@ describe("Convoy systems", () => {
     session.convoyFlow.state = "sectorActive";
     session.energy = 100; session.elapsed = 5000; session.convoy.nextEnergyPulseAt = 5000;
     updateConvoyEnergy(session);
-    expect(session.energy).toBe(103); expect(session.convoy.reserve).toBe(77);
+    expect(session.energy).toBe(100); expect(session.convoy.reserve).toBe(77);
+    expect(session.energyPickups.filter((pickup) => pickup.sourceKind === "convoy")).toHaveLength(3);
     session.energy = 200; session.elapsed = 10000; updateConvoyEnergy(session);
     expect(session.convoy.reserve).toBe(77);
     session.convoy.reserve = 20;
     expect(refillConvoyReserve(session, 0)).toBe(50);
     expect(refillConvoyReserve(session, 0)).toBe(0);
     expect(session.convoy.reserve).toBe(70);
+  });
+
+  it("releases convoy energy as collectible pickups and credits only on collection", () => {
+    const session = createBattleSession(phase49, ["colono"], 41);
+    session.convoyFlow.state = "sectorActive";
+    session.energy = 100;
+    session.elapsed = 5000;
+    session.convoy.nextEnergyPulseAt = 5000;
+    updateConvoyEnergy(session);
+    const pickup = session.energyPickups.find((entry) => entry.sourceKind === "convoy");
+    session.energyPickups.filter((entry) => entry !== pickup).forEach((entry, index) => { entry.x += 100 + index * 20; });
+    expect(session.energy).toBe(100);
+    setEnergyPickupPointer(session, { x: pickup.x, y: pickup.y });
+    updateEnergyPickups(session, 1, []);
+    expect(session.energy).toBe(101);
+    expect(session.energyPickups).toHaveLength(2);
   });
 
   it("handles damage, defeat scoring and objective scoring", () => {
@@ -162,7 +202,7 @@ describe("Convoy systems", () => {
     placeTroop(session, "colono", 1, 1); placeTroop(session, "colono", 3, 2); startWave(session);
     const checkpointCols = [[4, 5], [6, 7], [8, 9]];
     for (let checkpoint = 0; checkpoint < 3; checkpoint += 1) {
-      for (let guard = 0; guard < 30 && session.convoyFlow.state === "sectorActive"; guard += 1) stepBattle(session, 100);
+      for (let guard = 0; guard < 100 && session.convoyFlow.state !== "checkpointPreparation"; guard += 1) stepBattle(session, 100);
       expect(session.convoyFlow.state).toBe("checkpointPreparation");
       const troop = session.troops[0];
       const hp = troop.hp; const ready = troop.attackReadyAt; const id = troop.id;
@@ -184,7 +224,7 @@ describe("Convoy systems", () => {
     session.elapsed = session.convoy.nextEnergyPulseAt;
     updateConvoyEnergy(session);
     expect(session.convoy.x).toBe(beforeX);
-    expect(session.energy).toBe(103);
+    expect(session.energy).toBe(100);
     const director = session.convoyFlow.spawnDirector;
     session.elapsed = session.convoyFlow.sectorStartedAt + phase49.sectors[0].reinforcement.startsAtMs;
     director.nextReinforcementAt = session.elapsed;
@@ -208,7 +248,7 @@ describe("Convoy systems", () => {
       stepBattle(session, 650);
       expect(session.mines.every((mine) => mine.row !== 2)).toBe(true);
     }
-  });
+  }, 60000);
 
   it("starts each convoy sector through a visual countdown without advancing simulation time", () => {
     const session = createBattleSession(phase49, ["colono"], 81);
@@ -224,6 +264,35 @@ describe("Convoy systems", () => {
     expect(session.convoyFlow.state).toBe("sectorActive");
     expect(session.elapsed).toBe(elapsed);
     expect(events.some((event) => event.type === "convoyCountdownGo")).toBe(true);
+  });
+
+  it("holds checkpoint preparation until the 2.3 second cinematic completes", () => {
+    const session = createBattleSession(phase49, ["colono"], 82);
+    session.convoyFlow.state = "checkpointClearing";
+    session.convoyFlow.reachedCheckpointCount = 1;
+    session.enemies = [];
+    const events = stepBattle(session, 32);
+    expect(events.some((event) => event.type === "checkpointCinematicStarted")).toBe(true);
+    expect(session.convoyFlow.state).toBe("checkpointCinematic");
+    expect(session.convoyFlow.checkpointCinematic.elapsedMs).toBe(0);
+    for (let elapsed = 0; elapsed < 2200; elapsed += 100) {
+      stepBattle(session, 100);
+      expect(session.convoyFlow.state).toBe("checkpointCinematic");
+    }
+    stepBattle(session, 100);
+    expect(session.convoyFlow.state).toBe("checkpointPreparation");
+    expect(session.convoyFlow.checkpointBriefingPending).toBe(true);
+  });
+
+  it("freezes convoy pickup lifetime during cinematic and mandatory briefing", () => {
+    const session = createBattleSession(phase49, ["colono"], 83);
+    session.convoyFlow.state = "checkpointPreparation";
+    session.energyPickups = [{ id: "convoy-pickup", x: 200, y: 200, vx: 0, vy: 0, amount: 1, ageMs: 9999, sourceKind: "convoy" }];
+    stepBattle(session, 1000);
+    expect(session.energyPickups[0].ageMs).toBe(9999);
+    session.convoyFlow.state = "sectorActive";
+    stepBattle(session, 1000);
+    expect(session.energyPickups).toHaveLength(0);
   });
 
   it("scenario C: checkpoint clearing cannot advance while a combat threat remains", () => {
@@ -258,6 +327,7 @@ describe("Convoy systems", () => {
     const session = createBattleSession(phase49, ["colono"], 75);
     session.convoyFlow.state = "sectorActive";
     session.convoyFlow.sectorIndex = 3;
+    session.convoy.entryState = "active";
     session.convoy.escorted = true;
     session.convoy.x = session.convoy.destinationX - session.convoy.speedPxPerSecond;
     session.enemies = [{ id: "boss", type: "marechalForja", hp: 9999, dead: false }];

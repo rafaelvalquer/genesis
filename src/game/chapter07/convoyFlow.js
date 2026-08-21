@@ -19,7 +19,9 @@ export function startConvoySector(session) {
   session.nextSpawnAt = session.elapsed + (session.queue[0]?.spawnAtMs || 0);
   session.waveActive = true;
   session.preparing = false;
-  session.convoy.invulnerable = false;
+  const enteringField = session.convoy.entryState === "offscreen";
+  session.convoy.entryState = enteringField ? "entering" : "active";
+  session.convoy.invulnerable = enteringField;
   session.convoy.nextEnergyPulseAt = session.elapsed + session.phase.convoy.energyPulseEveryMs;
   return true;
 }
@@ -54,7 +56,23 @@ export function advanceConvoySectorCountdown(session, visualDt, events = []) {
 export function advanceConvoyMovement(session, dt, events = []) {
   const convoy = session.convoy;
   if (!convoy || session.convoyFlow.state !== "sectorActive") return null;
+  if (convoy.entryState === "offscreen" && convoy.x >= convoy.routeStartX) {
+    convoy.entryState = "active";
+    convoy.invulnerable = false;
+  }
   convoy.previousX = convoy.x;
+  if (convoy.entryState === "entering") {
+    convoy.x = Math.min(convoy.routeStartX, convoy.x + convoy.entrySpeedPxPerSecond * dt / 1000);
+    convoy.progress = 0;
+    if (convoy.x >= convoy.routeStartX) {
+      convoy.x = convoy.routeStartX;
+      convoy.previousX = convoy.x;
+      convoy.entryState = "active";
+      convoy.invulnerable = false;
+      events.push({ type: "convoyEnteredField", x: convoy.x, y: convoy.y });
+    }
+    return null;
+  }
   if (convoy.escorted && !convoy.underAttack) convoy.x = Math.min(convoy.destinationX, convoy.x + convoy.speedPxPerSecond * dt / 1000);
   convoy.progress = Math.max(convoy.progress, getConvoyProgress(convoy.x));
   if (convoy.progress >= (session.phase.convoy.destinationProgress || 1)) {

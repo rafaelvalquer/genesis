@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ConvoyHud from "./components/ConvoyHud.jsx";
-import ConvoyPreparationPanel from "./components/ConvoyPreparationPanel.jsx";
+import ConvoyCheckpointOverlay from "./components/ConvoyCheckpointOverlay.jsx";
 import ConvoySectorCountdown from "./components/ConvoySectorCountdown.jsx";
+import { getConvoyAttackSummary } from "./convoySummary.js";
 
 const convoy = {
   state: "sectorActive", hp: 780, hpMax: 1000, hpPercent: 78, progress: .42, sector: 2,
@@ -28,28 +29,36 @@ describe("Chapter 7 convoy UI", () => {
     const { rerender } = render(<ConvoyHud convoy={{ ...convoy, escorted: false }} energy={100} energyMax={200} />);
     expect(screen.getByText("SEM ESCOLTA")).toBeInTheDocument();
     rerender(<ConvoyHud convoy={{ ...convoy, underAttack: true }} energy={100} energyMax={200} />);
-    expect(screen.getByText("SOB ATAQUE")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("ESCOLTA ATIVA")).toBeInTheDocument();
   });
 
-  it("renders preparation as a compact non-modal panel without autofocus", () => {
-    const onStart = vi.fn();
-    render(<ConvoyPreparationPanel convoy={{ ...convoy, state: "checkpointPreparation", escorted: true, escortCount: 2 }} supply={18} supplyMax={32} onStart={onStart} />);
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    const button = screen.getByRole("button", { name: "INICIAR SETOR 3" });
+  it("resolves convoy attack text in the existing field summary", () => {
+    expect(getConvoyAttackSummary({ ...convoy, underAttack: false }, 6)).toBeNull();
+    expect(getConvoyAttackSummary({ ...convoy, underAttack: true, damageState: "heavy" }, 6)).toBe("⚠ TRANSPORTE SOB ATAQUE · 6 HOSTIS RESTANTES");
+    expect(getConvoyAttackSummary({ ...convoy, underAttack: true, damageState: "critical" }, 6)).toBe("⚠ TRANSPORTE CRÍTICO SOB ATAQUE · 6 HOSTIS RESTANTES");
+  });
+
+  it("renders the centered checkpoint briefing without autofocus", () => {
+    const onContinue = vi.fn();
+    render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation", checkpointBriefingPending: true, nextSector: 3 }} onContinue={onContinue} />);
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+    const button = screen.getByRole("button", { name: "PREPARAR SETOR 3" });
     expect(button).not.toHaveFocus();
     fireEvent.click(button);
-    expect(onStart).toHaveBeenCalledOnce();
-    expect(screen.getAllByText("ESCOLTA ATIVA").length).toBeGreaterThan(0);
+    expect(onContinue).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "INICIAR SETOR 3" })).not.toBeInTheDocument();
   });
 
-  it("confirms starting without escort and exposes countdown state", () => {
-    const onStart = vi.fn();
-    const { rerender } = render(<ConvoyPreparationPanel convoy={{ ...convoy, state: "checkpointPreparation", escorted: false, escortCount: 0 }} supply={18} supplyMax={32} onStart={onStart} />);
-    fireEvent.click(screen.getByRole("button", { name: "INICIAR SETOR 3" }));
-    expect(screen.getByText(/O comboio permanecerá parado/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "INICIAR MESMO ASSIM" }));
-    expect(onStart).toHaveBeenCalledOnce();
-    rerender(<ConvoySectorCountdown convoy={{ ...convoy, state: "sectorCountdown", countdownRemainingMs: 1600 }} />);
+  it("does not render the briefing after acknowledgement", () => {
+    const { rerender } = render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation", checkpointBriefingPending: true, nextSector: 3 }} onContinue={vi.fn()} />);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    rerender(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation", checkpointBriefingPending: false, nextSector: 3 }} onContinue={vi.fn()} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("exposes countdown state after the standard start control is used", () => {
+    render(<ConvoySectorCountdown convoy={{ ...convoy, state: "sectorCountdown", countdownRemainingMs: 1600 }} />);
     expect(screen.getByRole("status")).toHaveTextContent("2");
   });
 });

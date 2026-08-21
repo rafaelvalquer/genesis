@@ -1,12 +1,15 @@
 import { CELL } from "../visualGeometry.js";
-import { getConvoyDestinationX, getConvoySpeed, getConvoyStartX } from "./convoyGeometry.js";
+import { getConvoyDestinationX, getConvoyEntryX, getConvoyRouteStartX, getConvoySpeed } from "./convoyGeometry.js";
+import { createCheckpointCinematicState } from "./convoyCheckpointCinematic.js";
 
 export function createConvoyState(phase) {
-  const startX = getConvoyStartX();
+  const entryX = getConvoyEntryX();
+  const routeStartX = getConvoyRouteStartX();
   return {
-    id: "convoy", row: phase.convoy.row ?? 2, x: startX, previousX: startX,
+    id: "convoy", row: phase.convoy.row ?? 2, x: entryX, previousX: entryX,
     y: (phase.convoy.row ?? 2) * CELL.height + CELL.height / 2,
-    startX, destinationX: getConvoyDestinationX(), progress: 0,
+    entryX, routeStartX, startX: routeStartX, destinationX: getConvoyDestinationX(), progress: 0,
+    entryState: "offscreen", entrySpeedPxPerSecond: phase.convoy.entrySpeedPxPerSecond || 120,
     hp: phase.convoy.maxHp, maxHp: phase.convoy.maxHp,
     speedPxPerSecond: getConvoySpeed(phase), escorted: false, escortTroopIds: [],
     underAttack: false, attackerIds: [], invulnerable: false,
@@ -21,6 +24,8 @@ export function createConvoyState(phase) {
 export function createConvoyFlow() {
   return { state: "initialPreparation", sectorIndex: 0, reachedCheckpointCount: 0,
     sectorStartedAt: null, checkpointStartedAt: null, lastTransitionAt: 0,
+    checkpointBriefingPending: false,
+    checkpointCinematic: createCheckpointCinematicState(),
     destroyingStartedAt: null,
     reinforcementLevel: 0, spawnDirector: { generationId: 0, sectorId: null, nextReinforcementAt: Infinity, warningEmitted: false } };
 }

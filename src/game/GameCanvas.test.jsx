@@ -5,12 +5,28 @@ import { DECISIONS, ENEMIES } from "./content.js";
 import {
   CapsuleInteractionButton, ColossusSpecialButtons, DecisionModal, FortuneChoiceModal, WaveOutroOverlay,
   getWaveOutroCameraTransform,
-  SandboxPanel, resolveCanvasClickAction, resolveInspectedTroopId,
+  SandboxPanel, getThermalBannerText, resolveCanvasClickAction, resolveInspectedTroopId,
   drawLeviathanBrineJet, isLeviathanShadowOnly,
 } from "./GameCanvas.jsx";
 import { getLeviathanBrineMouthPosition } from "./visualGeometry.js";
 
 afterEach(cleanup);
+
+describe("isolamento da HUD térmica", () => {
+  it("exibe o banner de magma no Capítulo 6", () => {
+    expect(getThermalBannerText(
+      { chapterId: "chapter_06" },
+      { elapsed: 0, thermal: { state: "stable", paused: true, remainingMs: 1200 } },
+    )).toBe("MAGMA EM PAUSA · 1s");
+  });
+
+  it("não exibe o banner de magma no Capítulo 7", () => {
+    expect(getThermalBannerText(
+      { chapterId: "chapter_07" },
+      { elapsed: 0, thermal: { state: "stable", paused: true, remainingMs: 1200 } },
+    )).toBeNull();
+  });
+});
 
 describe("tooltip do loadout", () => {
   it("inspeciona somente a tropa sob o mouse e ignora a selecao persistente", () => {

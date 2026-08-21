@@ -5,6 +5,7 @@ import { drawCachedRadialGlow } from "./effectTextureCache.js";
 import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRenderer.js";
 import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
 import { getThermalPlatformAt } from "./thermalTerrain.js";
+import { getConvoyXForProgress } from "./chapter07/convoyGeometry.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -78,13 +79,13 @@ export function getBattlefieldBlueprint(phase) {
     size: 0.55 + random() * 0.9,
     flip: random() > 0.5,
   }));
-  return { arenaId: phase.arenaId, theme: { ...theme }, lanes, features,
+  return { arenaId: phase.arenaId, baseVariant: phase.progressionMode === "convoy" ? "convoy" : "waves", routeType: phase.terrain?.routeType || "standard", theme: { ...theme }, lanes, features,
     convoy: phase.progressionMode === "convoy" ? { checkpointProgress: [...(phase.convoy?.checkpointProgress || [])] } : null };
 }
 
 export function getBattlefieldCacheKey(phase, settings = {}) {
   const profile = settings.quality && QUALITY_PROFILES[settings.quality] ? settings.quality : "high";
-  return `${phase.arenaId}:${phase.battlefieldTheme?.seed || 1}:${phase.terrain?.routeType || "standard"}:${phase.terrain?.seed || 0}:${profile}`;
+  return `${phase.arenaId}:${phase.progressionMode || "waves"}:${phase.battlefieldTheme?.seed || 1}:${phase.terrain?.routeType || "standard"}:${phase.terrain?.seed || 0}:${profile}`;
 }
 
 export function clearBattlefieldCache() {
@@ -288,34 +289,35 @@ function drawLanes(ctx, blueprint, profile) {
       const roadHeight = CELL.height * .72;
       const road = ctx.createLinearGradient(0, roadTop, 0, roadTop + roadHeight);
       road.addColorStop(0, "#171b1e"); road.addColorStop(.5, rail ? "#343a3e" : "#292724"); road.addColorStop(1, "#111517");
-      ctx.fillStyle = road; ctx.fillRect(FIELD.baseX, roadTop, FIELD.width - FIELD.baseX, roadHeight);
+      const roadStartX = blueprint.convoy ? 0 : FIELD.baseX;
+      ctx.fillStyle = road; ctx.fillRect(roadStartX, roadTop, FIELD.width - roadStartX, roadHeight);
       ctx.strokeStyle = rgba(blueprint.theme.edge, .62); ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(FIELD.baseX, roadTop); ctx.lineTo(FIELD.width, roadTop); ctx.moveTo(FIELD.baseX, roadTop + roadHeight); ctx.lineTo(FIELD.width, roadTop + roadHeight); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(roadStartX, roadTop); ctx.lineTo(FIELD.width, roadTop); ctx.moveTo(roadStartX, roadTop + roadHeight); ctx.lineTo(FIELD.width, roadTop + roadHeight); ctx.stroke();
       const seed = blueprint.theme.seed + 707;
       if (rail) {
         ctx.strokeStyle = "rgba(190,205,210,.62)"; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(FIELD.baseX, lane.center - 20); ctx.lineTo(FIELD.width, lane.center - 20); ctx.moveTo(FIELD.baseX, lane.center + 20); ctx.lineTo(FIELD.width, lane.center + 20); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(roadStartX, lane.center - 20); ctx.lineTo(FIELD.width, lane.center - 20); ctx.moveTo(roadStartX, lane.center + 20); ctx.lineTo(FIELD.width, lane.center + 20); ctx.stroke();
         ctx.fillStyle = "rgba(75,56,47,.9)";
-        for (let x = FIELD.baseX; x < FIELD.width; x += 28) ctx.fillRect(x, lane.center - 28, 7, 56);
+        for (let x = roadStartX; x < FIELD.width; x += 28) ctx.fillRect(x, lane.center - 28, 7, 56);
       } else {
         ctx.setLineDash([34, 24]); ctx.strokeStyle = rgba(blueprint.theme.detail, .6); ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(FIELD.baseX, lane.center); ctx.lineTo(FIELD.width, lane.center); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.moveTo(roadStartX, lane.center); ctx.lineTo(FIELD.width, lane.center); ctx.stroke(); ctx.setLineDash([]);
       }
       for (let index = 0; index < 14; index += 1) {
-        const x = FIELD.baseX + pseudo(index, seed) * (FIELD.width - FIELD.baseX);
+        const x = roadStartX + pseudo(index, seed) * (FIELD.width - roadStartX);
         ctx.fillStyle = rgba(index % 3 ? "#b65a32" : "#67e8f9", .18 + pseudo(index, seed + 1) * .16);
         ctx.fillRect(x, roadTop + 5, 8 + pseudo(index, seed + 2) * 24, 2);
       }
-      const routeStart = FIELD.combatOffsetX + CELL.width * .35;
-      const routeEnd = FIELD.spawnX - CELL.width * .7;
       for (const progress of blueprint.convoy?.checkpointProgress || []) {
-        const x = routeStart + (routeEnd - routeStart) * progress;
+        const x = getConvoyXForProgress(progress);
         ctx.strokeStyle = rgba("#facc15", .82); ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(x, roadTop - 7); ctx.lineTo(x, roadTop + roadHeight + 7); ctx.stroke();
         ctx.fillStyle = rgba("#67e8f9", .78); ctx.beginPath(); ctx.arc(x, roadTop + 5, 5, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.fillStyle = "#24292d"; ctx.fillRect(FIELD.baseX - 22, roadTop - 9, 42, roadHeight + 18);
-      ctx.strokeStyle = rgba("#67e8f9", .72); ctx.strokeRect(FIELD.baseX - 18, roadTop - 5, 34, roadHeight + 10);
+      if (!blueprint.convoy) {
+        ctx.fillStyle = "#24292d"; ctx.fillRect(FIELD.baseX - 22, roadTop - 9, 42, roadHeight + 18);
+        ctx.strokeStyle = rgba("#67e8f9", .72); ctx.strokeRect(FIELD.baseX - 18, roadTop - 5, 34, roadHeight + 10);
+      }
       ctx.fillStyle = "#5e6870"; ctx.fillRect(FIELD.width - 44, roadTop - 12, 44, roadHeight + 24);
       ctx.strokeStyle = rgba("#facc15", .78); ctx.strokeRect(FIELD.width - 40, roadTop - 8, 36, roadHeight + 16);
       ctx.restore();
@@ -364,7 +366,7 @@ function drawLanes(ctx, blueprint, profile) {
   }
 }
 
-function drawBase(ctx, blueprint) {
+function drawDefenderBase(ctx, blueprint) {
   const { theme } = blueprint;
   ctx.save();
   const baseGradient = ctx.createLinearGradient(0, 0, FIELD.baseX + 4, 0);
@@ -401,6 +403,38 @@ function drawBase(ctx, blueprint) {
     ctx.fillStyle = rgba(theme.detail, 0.42);
     ctx.fillRect(7, lane.row * CELL.height + CELL.height - 10, 22, 3);
     ctx.fillRect(CELL.width - 29, lane.row * CELL.height + CELL.height - 10, 22, 3);
+  }
+  ctx.restore();
+}
+
+function drawConvoyEntryDepot(ctx, blueprint, profile) {
+  const { theme } = blueprint;
+  const routeType = blueprint.routeType || "standard";
+  ctx.save();
+  const depot = ctx.createLinearGradient(0, 0, FIELD.baseX, 0);
+  depot.addColorStop(0, rgba(theme.laneAlt, .7));
+  depot.addColorStop(1, rgba(theme.edge, .12));
+  ctx.fillStyle = depot;
+  ctx.fillRect(0, 0, FIELD.baseX, FIELD.height);
+  ctx.strokeStyle = rgba(theme.edge, .34);
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(FIELD.baseX - 1, 0); ctx.lineTo(FIELD.baseX - 1, FIELD.height); ctx.stroke();
+  for (const lane of blueprint.lanes) {
+    if (lane.kind === "transport") continue;
+    const y = lane.row * CELL.height + 18;
+    const accent = routeType === "railway" ? "#cbd5e1" : routeType === "bridge" ? "#94a3b8" : theme.detail;
+    ctx.fillStyle = rgba(accent, .12);
+    ctx.fillRect(10, y + 8, FIELD.baseX - 22, 8);
+    ctx.strokeStyle = rgba(theme.edge, .22);
+    ctx.strokeRect(12, y + 25, FIELD.baseX - 32, 24);
+    if (routeType === "railway") {
+      ctx.strokeStyle = rgba("#cbd5e1", .35);
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(8, lane.center - 16); ctx.lineTo(FIELD.baseX - 8, lane.center - 16); ctx.moveTo(8, lane.center + 16); ctx.lineTo(FIELD.baseX - 8, lane.center + 16); ctx.stroke();
+    } else {
+      ctx.fillStyle = rgba(theme.detail, .2);
+      for (let index = 0; index < 3; index += 1) ctx.fillRect(16 + index * 25, y + 31, 15, 10);
+    }
   }
   ctx.restore();
 }
@@ -478,7 +512,8 @@ function renderStaticBattlefield(ctx, phase, settings = {}) {
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
   drawBackdrop(ctx, phase, blueprint);
   drawLanes(ctx, blueprint, profile);
-  drawBase(ctx, blueprint);
+  if (blueprint.baseVariant === "convoy") drawConvoyEntryDepot(ctx, blueprint, profile);
+  else drawDefenderBase(ctx, blueprint);
   drawEntrance(ctx, blueprint);
   drawLaneLabels(ctx, blueprint, profile);
 }

@@ -1,6 +1,7 @@
 import { getConvoyXForProgress } from "./convoyGeometry.js";
 import { refillConvoyReserve } from "./convoyEnergy.js";
 import { cancelConvoySectorSpawns } from "./convoySpawnDirector.js";
+import { startCheckpointCinematic } from "./convoyCheckpointCinematic.js";
 
 export const hasCombatRelevantEnemies = (session) => session.enemies.some((enemy) => !enemy.dead
   && enemy.countsAsCombatThreat !== false && !enemy.decorative && !enemy.removeRequested);
@@ -10,6 +11,7 @@ export function enterCheckpointClearing(session, checkpointIndex, events = []) {
   session.convoyFlow.state = "checkpointClearing";
   session.convoyFlow.reachedCheckpointCount = checkpointIndex + 1;
   session.convoyFlow.checkpointStartedAt = session.elapsed;
+  session.convoyFlow.checkpointCinematic = { status: "idle", elapsedMs: 0, checkpointIndex, lastKill: null };
   session.convoyFlow.lastTransitionAt = session.elapsed;
   session.convoy.x = getConvoyXForProgress(session.phase.convoy.checkpointProgress[checkpointIndex]);
   session.convoy.progress = session.phase.convoy.checkpointProgress[checkpointIndex];
@@ -29,14 +31,28 @@ export function clearCheckpointTransientState(session) {
 }
 
 export function enterCheckpointPreparation(session, events = []) {
-  if (session.convoyFlow.state !== "checkpointClearing" || hasCombatRelevantEnemies(session)) return false;
+  const cinematicComplete = session.convoyFlow.state === "checkpointCinematic"
+    && session.convoyFlow.checkpointCinematic?.status === "complete";
+  if ((!cinematicComplete && session.convoyFlow.state !== "checkpointClearing") || hasCombatRelevantEnemies(session)) return false;
   clearCheckpointTransientState(session);
   refillConvoyReserve(session, session.convoyFlow.reachedCheckpointCount - 1, events);
   session.convoyFlow.state = "checkpointPreparation";
+  session.convoyFlow.checkpointBriefingPending = true;
   session.convoyFlow.lastTransitionAt = session.elapsed;
   session.convoy.invulnerable = true;
   session.waveActive = false;
   session.preparing = true;
   events.push({ type: "checkpointPreparation", checkpointIndex: session.convoyFlow.reachedCheckpointCount - 1 });
+  return true;
+}
+
+export function enterCheckpointCinematic(session, events = []) {
+  if (session.convoyFlow.state !== "checkpointClearing" || hasCombatRelevantEnemies(session)) return false;
+  return startCheckpointCinematic(session, session.convoyFlow.reachedCheckpointCount - 1, events);
+}
+
+export function acknowledgeConvoyCheckpoint(session) {
+  if (!session?.convoyFlow || session.convoyFlow.state !== "checkpointPreparation") return false;
+  session.convoyFlow.checkpointBriefingPending = false;
   return true;
 }

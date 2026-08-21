@@ -161,7 +161,8 @@ import { createConvoyFlow, createConvoyState } from "../chapter07/convoyState.js
 import { updateConvoyEscort } from "../chapter07/convoyEscort.js";
 import { updateConvoyEnergy } from "../chapter07/convoyEnergy.js";
 import { advanceConvoyMovement, startConvoySector } from "../chapter07/convoyFlow.js";
-import { hasCombatRelevantEnemies, enterCheckpointPreparation } from "../chapter07/convoyCheckpoints.js";
+import { advanceCheckpointCinematic } from "../chapter07/convoyCheckpointCinematic.js";
+import { hasCombatRelevantEnemies, enterCheckpointCinematic, enterCheckpointPreparation } from "../chapter07/convoyCheckpoints.js";
 import { updateConvoyReinforcements } from "../chapter07/convoySpawnDirector.js";
 import { canEnemyReachConvoy, hasBlockingTroop, updateConvoyThreat } from "../chapter07/convoyTargeting.js";
 import { damageConvoy } from "../chapter07/convoyDamage.js";
@@ -169,6 +170,7 @@ import { repositionTroop as repositionConvoyTroop } from "../chapter07/convoyRep
 import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
 import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
 import { CONVOY_DEFEAT_RESULT_DELAY_MS } from "../chapter07/convoyAnimationConfig.js";
+import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setEnergyPickupPointer } from "../energyPickups.js";
 
 export {
   createWindCurrentState,
@@ -236,10 +238,8 @@ const id = (prefix) => `${prefix}_${entityId++}`;
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 export const CONCUSSIVE_IMPACT = Object.freeze({ baseDistance: 35, cooldownMs: 3000, heavyFactor: 0.5, alphaFactor: 0.25 });
 export { WAVE_OUTRO_TIMINGS };
-const ENERGY_PICKUP_LIFETIME_MS = 10000;
-const ENERGY_PICKUP_MAGNET_RADIUS = 140;
-const ENERGY_PICKUP_COLLECT_RADIUS = 24;
 export { DEMATERIALIZATION_PULSE };
+export { spawnEnergyPickup, setEnergyPickupPointer, updateEnergyPickups, trySpawnEnemyEnergyPickup as trySpawnEnergyPickup };
 
 const DEFAULT_SANDBOX_SETTINGS = {
   rulesMode: "free",
@@ -385,6 +385,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
   const sandbox = Boolean(options.sandbox);
   const sandboxSettings = sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null;
   const sessionPhase = sandbox ? applySandboxMechanic(phase, sandboxSettings) : phase;
+  const hasThermalCycle = sessionPhase.environmentHazard?.id === "thermal_cycle";
   const supplyLimit = sessionPhase.supplyLimit ?? 20;
   const validation = validateLoadoutForPhase(sessionPhase, loadout);
   if (!sandbox && sessionPhase.progressionMode === "convoy" && !validation.ok) throw new Error(validation.reason);
@@ -434,7 +435,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     enemyProjectiles: [],
     energyPickups: [],
     energyPickupPointer: null,
-    dematerializationPulses: Array.from({ length: FIELD.rows }, (_, row) => createDematerializationPulseState(row)),
+    dematerializationPulses: isSystemEnabledForPhase(sessionPhase, "dematerializationPulse")
+      ? Array.from({ length: FIELD.rows }, (_, row) => createDematerializationPulseState(row))
+      : [],
     effects: [],
     effectSequence: 0,
     prismaticMantle: { rows: Object.fromEntries(Array.from({ length: FIELD.rows }, (_, row) => [row, { nextPulseAt: Infinity, lastPulseAt: -Infinity }])) },
@@ -458,7 +461,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     },
     windCurrent: createWindCurrentState(),
     tideCycle: createTideCycleState(),
-    thermalCycle: { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox },
+    thermalCycle: hasThermalCycle
+      ? { ...createThermalCycleState(sessionPhase.environmentHazard, 0), paused: !sandbox }
+      : null,
     alphaPressure: createAlphaPressureState(sessionPhase.alphaPressure),
     temporaryMagmaHazards: [],
     permanentThermalHazards: [],
@@ -2250,52 +2255,6 @@ export function trySpawnGlassEcho(session, source, events = []) {
   return echo;
 }
 
-export function spawnEnergyPickup(session, options = {}, events = []) {
-  if (!isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")) return null;
-  const pickup = {
-    id: id("energy_pickup"),
-    x: Number(options.x) || 0,
-    y: Number(options.y) || 0,
-    vx: 0,
-    vy: 0,
-    amount: Math.max(1, Number(options.amount) || 1),
-    ageMs: 0,
-    phase: Number.isFinite(options.phase) ? options.phase : session.rng() * Math.PI * 2,
-    sourceTroopId: options.sourceTroopId || null,
-    sourceEnemyId: options.sourceEnemyId || null,
-  };
-  session.energyPickups.push(pickup);
-  events.push({
-    type: "energyDropSpawned", x: pickup.x, y: pickup.y,
-    amount: pickup.amount, color: "#fbbf24",
-    sourceTroopId: pickup.sourceTroopId, sourceEnemyId: pickup.sourceEnemyId,
-  });
-  return pickup;
-}
-
-export function trySpawnEnergyPickup(session, source, events = []) {
-  if (!isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")) return null;
-  const chance = ENEMIES[source?.type]?.energyDropChance;
-  if (!chance || source?.variant === "alpha") return null;
-  const roll = session.rng();
-  if (roll >= chance) return null;
-  return spawnEnergyPickup(session, {
-    x: source.x,
-    y: source.y - 28,
-    amount: 1,
-    phase: roll * Math.PI * 2,
-    sourceEnemyId: source.id,
-  }, events);
-}
-
-export function setEnergyPickupPointer(session, point) {
-  if (!session) return false;
-  session.energyPickupPointer = point && Number.isFinite(point.x) && Number.isFinite(point.y)
-    ? { x: point.x, y: point.y }
-    : null;
-  return true;
-}
-
 export function spawnEnemy(session, {
   type, row = 0, count = 1, variant, groupInTile = false,
 } = {}) {
@@ -2882,12 +2841,14 @@ export function getEnemyDamageTakenFactor(enemy, context = {}) {
 
 function rememberEnemyKill(session, enemy, sourceTroopId = null) {
   const config = ENEMIES[enemy?.type] || {};
-  session.lastEnemyKillCandidate = {
+  const kill = {
     enemy: getEnemyDeathEntity(enemy, session.elapsed),
     sourceTroopId,
     row: enemy.row,
     cinematic: Boolean(enemy.variant === "alpha" || config.boss || config.elite),
   };
+  session.lastEnemyKillCandidate = kill;
+  if (session.convoyFlow?.state === "checkpointClearing") session.convoyFlow.checkpointCinematic.lastKill = kill;
 }
 
 function clearRasgamarCoil(session, enemy, { applySlow = false } = {}) {
@@ -2962,7 +2923,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     rememberEnemyKill(session, enemy, context.sourceTroopId || null);
     events.push({ type: "glassEchoShatter", targetId: enemy.id, sourceTroopType: context.sourceTroopType, x: enemy.x, y: enemy.y, entity: { ...enemy }, color: "#7fffd4", seed: nextEffectSeed(session) });
-    trySpawnEnergyPickup(session, enemy, events);
+    trySpawnEnemyEnergyPickup(session, enemy, events);
     return;
   }
   const cell = { row: enemy.row, col: clamp(Math.floor(enemy.x / CELL.width), 0, FIELD.cols - 1) };
@@ -3097,7 +3058,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       sourceTroopId: context.sourceTroopId || null,
     });
     trySpawnGlassEcho(session, enemy, events);
-    trySpawnEnergyPickup(session, enemy, events);
+    trySpawnEnemyEnergyPickup(session, enemy, events);
   }
 }
 
@@ -3115,55 +3076,6 @@ function getEnemyDeathEntity(enemy, elapsed) {
     ? ENEMIES.derivante.jumpArcHeight * 4 * progress * (1 - progress)
     : 0);
   return entity;
-}
-
-function updateEnergyPickups(session, dt, events) {
-  if (session.pendingDecision || !session.energyPickups.length) return;
-  const pointer = session.energyPickupPointer;
-  const dtSeconds = dt / 1000;
-  const remaining = [];
-  for (const pickup of session.energyPickups) {
-    pickup.ageMs += dt;
-    if (pickup.ageMs >= ENERGY_PICKUP_LIFETIME_MS) continue;
-
-    if (pointer) {
-      const dx = pointer.x - pickup.x;
-      const dy = pointer.y - pickup.y;
-      const distance = Math.hypot(dx, dy);
-      if (distance <= ENERGY_PICKUP_MAGNET_RADIUS && distance > 0.001) {
-        const attraction = 520 + (1 - distance / ENERGY_PICKUP_MAGNET_RADIUS) * 780;
-        pickup.vx += dx / distance * attraction * dtSeconds;
-        pickup.vy += dy / distance * attraction * dtSeconds;
-        const speed = Math.hypot(pickup.vx, pickup.vy);
-        if (speed > 390) {
-          pickup.vx = pickup.vx / speed * 390;
-          pickup.vy = pickup.vy / speed * 390;
-        }
-      } else {
-        const damping = Math.exp(-4.5 * dtSeconds);
-        pickup.vx *= damping;
-        pickup.vy *= damping;
-      }
-    } else {
-      const damping = Math.exp(-4.5 * dtSeconds);
-      pickup.vx *= damping;
-      pickup.vy *= damping;
-    }
-
-    pickup.x += pickup.vx * dtSeconds;
-    pickup.y += pickup.vy * dtSeconds;
-
-    const collectionDistance = pointer ? Math.hypot(pointer.x - pickup.x, pointer.y - pickup.y) : Infinity;
-    if (collectionDistance <= ENERGY_PICKUP_COLLECT_RADIUS && session.energy < session.energyMax) {
-      const amount = Math.min(pickup.amount, session.energyMax - session.energy);
-      session.energy += amount;
-      session.lastEnergyGainAt = session.elapsed;
-      events.push({ type: "energyCollected", x: pickup.x, y: pickup.y, amount, color: "#fbbf24" });
-      continue;
-    }
-    remaining.push(pickup);
-  }
-  session.energyPickups = remaining;
 }
 
 export function stunEnemy(session, enemy, durationMs) {
@@ -3371,7 +3283,9 @@ export function damageTroop(session, troop, amount, events, context = {}) {
     recordBastiaoDamage(session, troop, actualHpDamage, events, {
       config,
       flooded,
-      spawnEnergyPickup,
+      spawnEnergyPickup: (...args) => isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")
+        ? spawnEnergyPickup(...args)
+        : null,
       enemies: session.enemies,
       isEnemyTargetable,
       isEnemySubmerged: isRasgamarSubmerged,
@@ -8243,6 +8157,12 @@ export function stepBattle(session, dt = 32) {
   const events = [];
   const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
   if (convoyMission && session.convoyFlow.state === "sectorCountdown") return events;
+  if (convoyMission && session.convoyFlow.state === "checkpointCinematic") {
+    session.elapsed += dt;
+    updateEnergyPickups(session, dt, events, { freezeLifetime: true });
+    if (advanceCheckpointCinematic(session, dt, events)) enterCheckpointPreparation(session, events);
+    return events;
+  }
   if (convoyMission && session.convoyFlow.state === "destroying") {
     session.elapsed += dt;
     updateConvoyAnimation(session);
@@ -8252,7 +8172,11 @@ export function stepBattle(session, dt = 32) {
     }
     return events;
   }
-  if (convoyMission && ["initialPreparation", "checkpointPreparation"].includes(session.convoyFlow.state)) return events;
+  if (convoyMission && session.convoyFlow.state === "checkpointPreparation") {
+    updateEnergyPickups(session, dt, events, { freezeLifetime: true });
+    return events;
+  }
+  if (convoyMission && session.convoyFlow.state === "initialPreparation") return events;
   session.elapsed += dt;
   if (convoyMission) {
     updateConvoyEnergy(session, events);
@@ -8272,7 +8196,7 @@ export function stepBattle(session, dt = 32) {
     finish(session, session.pendingOutcome);
     return events;
   }
-  if (isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")) updateEnergyPickups(session, dt, events);
+  if (isSystemEnabledForPhase(session.phase, "enemyEnergyPickups") || convoyMission) updateEnergyPickups(session, dt, events);
   updateTideCycle(session, events, { eliminateTroop });
   updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor });
   const alphaResult = evaluateAlphaPressure(session, session.phase?.alphaPressure, ENEMIES);
@@ -8352,9 +8276,6 @@ export function stepBattle(session, dt = 32) {
           events.push({ type: "convoyDestroyed", x: session.convoy.x, y: session.convoy.y });
         }
         return events;
-      }
-      if (session.convoyFlow.state === "checkpointClearing" && !hasCombatRelevantEnemies(session)) {
-        enterCheckpointPreparation(session, events);
       }
     }
     updateBossEncounter(session);
@@ -8465,6 +8386,9 @@ export function stepBattle(session, dt = 32) {
       events.push({ type: "waveComplete", wave: completedWaveNumber });
     } else evaluateAdaptiveAid(session, events);
   }
+  if (convoyMission && session.convoyFlow.state === "checkpointClearing" && !hasCombatRelevantEnemies(session)) {
+    enterCheckpointCinematic(session, events);
+  }
   return events;
 }
 
@@ -8487,6 +8411,21 @@ export function getSnapshot(session) {
       sector: session.convoyFlow.sectorIndex + 1,
       progress: session.convoy.progress,
       hp: Math.round(session.convoy.hp), hpMax: Math.round(session.convoy.maxHp),
+      entryState: session.convoy.entryState,
+      checkpointCinematic: session.convoyFlow.checkpointCinematic ? {
+        status: session.convoyFlow.checkpointCinematic.status,
+        elapsedMs: session.convoyFlow.checkpointCinematic.elapsedMs,
+        checkpointIndex: session.convoyFlow.checkpointCinematic.checkpointIndex,
+        lastKill: session.convoyFlow.checkpointCinematic.lastKill ? {
+          row: session.convoyFlow.checkpointCinematic.lastKill.row,
+          sourceTroopId: session.convoyFlow.checkpointCinematic.lastKill.sourceTroopId,
+          enemy: session.convoyFlow.checkpointCinematic.lastKill.enemy ? {
+            type: session.convoyFlow.checkpointCinematic.lastKill.enemy.type,
+            x: session.convoyFlow.checkpointCinematic.lastKill.enemy.x,
+            y: session.convoyFlow.checkpointCinematic.lastKill.enemy.y,
+          } : null,
+        } : null,
+      } : null,
       hpPercent: Math.round(session.convoy.hp / Math.max(1, session.convoy.maxHp) * 100),
       escorted: session.convoy.escorted, escortCount: session.convoy.escortTroopIds.length,
       escortTroopIds: [...session.convoy.escortTroopIds], underAttack: session.convoy.underAttack,
@@ -8495,6 +8434,8 @@ export function getSnapshot(session) {
       nextEnergyPulseIn: Math.max(0, session.convoy.nextEnergyPulseAt - session.elapsed),
       nextCheckpointProgress: session.phase.convoy.checkpointProgress[session.convoyFlow.reachedCheckpointCount] ?? 1,
       reinforcementLevel: session.convoyFlow.reinforcementLevel,
+      checkpointBriefingPending: Boolean(session.convoyFlow.checkpointBriefingPending),
+      nextSector: Math.min(session.phase.sectors.length, session.convoyFlow.sectorIndex + (session.convoyFlow.state === "checkpointPreparation" ? 2 : 1)),
       countdownRemainingMs: session.convoyFlow.state === "sectorCountdown"
         ? Math.max(0, (session.convoyFlow.countdownDurationMs || 2400) - (session.convoyFlow.countdownElapsedMs || 0))
         : 0,

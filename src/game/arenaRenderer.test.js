@@ -218,6 +218,14 @@ describe("arenas cinematograficas", () => {
     }
   });
 
+  it("usa a variante de entrada do comboio e separa seu cache da base defensiva", () => {
+    const convoy = PHASES[48];
+    const legacy = PHASES[0];
+    expect(getBattlefieldBlueprint(convoy).baseVariant).toBe("convoy");
+    expect(getBattlefieldBlueprint(legacy).baseVariant).toBe("waves");
+    expect(getBattlefieldCacheKey(convoy, { quality: "high" })).not.toBe(getBattlefieldCacheKey(legacy, { quality: "high" }));
+  });
+
   it("separa o cache estatico por fase e perfil de qualidade", () => {
     expect(getBattlefieldCacheKey(PHASES[0], { quality: "low" })).not.toBe(getBattlefieldCacheKey(PHASES[0], { quality: "high" }));
     expect(getBattlefieldCacheKey(PHASES[0], { quality: "high" })).not.toBe(getBattlefieldCacheKey(PHASES[1], { quality: "high" }));
@@ -229,6 +237,11 @@ describe("arenas cinematograficas", () => {
     expect(assets).toHaveProperty("troops");
     expect(assets).toHaveProperty("enemies");
     expect(assets).toHaveProperty("defenses");
+  });
+
+  it("mantém o pacote de defesas vazio quando o Pulso é desabilitado", async () => {
+    const assets = await loadBattleAssets({ ...PHASES[48], sectors: [], waves: [] }, [], undefined, { skipDefenses: true });
+    expect(assets.defenses).toEqual({});
   });
 
   it("escala a intensidade visual por onda sem ultrapassar os limites", () => {

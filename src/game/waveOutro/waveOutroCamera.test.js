@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getCinematicWaveOutroCameraTransform } from "./waveOutroCamera.js";
+import { getCinematicWaveOutroCameraTransform, getKillCinematicCameraTransform } from "./waveOutroCamera.js";
 
 describe("câmera cinematográfica do final de onda", () => {
   const session = {
@@ -28,5 +28,15 @@ describe("câmera cinematográfica do final de onda", () => {
       waveOutro: { ...session.waveOutro, status: "cleanup", elapsedMs: 999 },
     });
     expect(camera.zoom).toBeCloseTo(1, 2);
+  });
+
+  it("reutiliza o foco cinematográfico para o checkpoint sem uma morte", () => {
+    const camera = getKillCinematicCameraTransform({
+      status: "checkpointCinematic", elapsedMs: 400, focusX: 220, focusRow: 2,
+      profile: { zoom: 1.12, impactAtMs: 650 }, enterEndMs: 650, exitStartMs: 1650, endMs: 2300,
+    });
+    expect(camera.zoom).toBeGreaterThan(1);
+    expect(camera.focusX).toBe(275);
+    expect(camera.focusY).toBeGreaterThan(0);
   });
 });

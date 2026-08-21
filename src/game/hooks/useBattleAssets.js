@@ -4,6 +4,7 @@ import {
   loadBattleAssets,
   releaseBattleAssets,
 } from "../assets/battleAssetLoader.js";
+import { isSystemEnabledForPhase } from "../phaseRules.js";
 
 const INITIAL_LOADING_STATE = Object.freeze({
   ready: false,
@@ -114,10 +115,12 @@ export function useBattleAssets({
         ? {
           enemyIds: Object.keys(ENEMIES),
           signal: controller.signal,
+          skipDefenses: !isSystemEnabledForPhase(phase, "dematerializationPulse"),
         }
         : {
           signal: controller.signal,
           deferRareStates: true,
+          skipDefenses: !isSystemEnabledForPhase(phase, "dematerializationPulse"),
         },
     )
       .then((assets) => {

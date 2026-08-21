@@ -94,7 +94,7 @@ export function clearRenderLayer(context, canvas, scale) {
 export function createGraphicsRuntime() {
   return {
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
-    colossoCoreHits: [],
+    colossoCoreHits: [], convoyImpacts: [],
     pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [], magma: null,
     containmentArcs: [], containmentInterferenceUntil: 0,
     camera: { amplitude: 0, seed: 1, startedAt: 0 },
@@ -211,6 +211,11 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
     if (event.type === "colossoCoreHit") {
       runtime.colossoCoreHits.push({ ...event, born: now, life: event.coreExposed ? 260 : 150 });
     }
+    if (event.type === "convoyHit") {
+      runtime.convoyImpacts.push({ ...event, born: now, life: event.severity === "critical" ? 520 : event.severity === "heavy" ? 400 : 300,
+        seed: event.seed || Math.round(now + (event.x || 0) * 17) });
+      runtime.lights.push({ x: event.x, y: event.y, color: event.color || "#fb7185", born: now, radius: event.severity === "critical" ? 130 : 82, life: 300 });
+    }
     if ((event.type === "enemyDeath" || event.type === "bossDeath") && event.entity) {
       const life = ENEMY_DEATH_LIFE[event.entity.type]
         || (event.type === "bossDeath" ? 900 : DEATH_LIFE.enemy);
@@ -283,6 +288,7 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
   runtime.containmentArcs = runtime.containmentArcs.slice(-18);
   runtime.windEffects = runtime.windEffects.slice(-48);
   runtime.colossoCoreHits = runtime.colossoCoreHits.slice(-24);
+  runtime.convoyImpacts = runtime.convoyImpacts.slice(-24);
 }
 
 export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
@@ -295,6 +301,7 @@ export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
   runtime.deployments = runtime.deployments.filter((entry) => now - entry.born < entry.life);
   runtime.containmentArcs = runtime.containmentArcs.filter((entry) => now - entry.born < entry.life);
   runtime.colossoCoreHits = runtime.colossoCoreHits.filter((entry) => now - entry.born < entry.life);
+  runtime.convoyImpacts = runtime.convoyImpacts.filter((entry) => now - entry.born < entry.life);
   updateWindCurrentGraphics(runtime, now);
   runtime.camera.amplitude *= Math.pow(0.004, frameMs / 1000);
   if (runtime.camera.amplitude < 0.05) runtime.camera.amplitude = 0;

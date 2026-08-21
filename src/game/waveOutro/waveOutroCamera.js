@@ -11,43 +11,47 @@ export const smoothStep = (value) => {
   return t * t * (3 - 2 * t);
 };
 
+export function getKillCinematicCameraTransform({
+  status,
+  elapsedMs = 0,
+  lastKill = null,
+  profile = { zoom: 1.1, impactAtMs: 180 },
+  enterEndMs = 600,
+  exitStartMs = 600,
+  endMs = 1000,
+  focusX = null,
+  focusRow = 2,
+} = {}) {
+  if (!status || !["finalKill", "cleanup", "checkpointCinematic"].includes(status)) return null;
+  const elapsed = Math.max(0, Number(elapsedMs) || 0);
+  const enterEnd = Math.min(profile.impactAtMs || enterEndMs, enterEndMs);
+  let zoomProgress = elapsed < enterEnd ? easeOutCubic(elapsed / Math.max(1, enterEnd)) : 1;
+  if (elapsed > exitStartMs) zoomProgress = 1 - smoothStep((elapsed - exitStartMs) / Math.max(1, endMs - exitStartMs));
+  const enemy = lastKill?.enemy;
+  const enemyX = Number(enemy?.x);
+  const resolvedFocusX = Number.isFinite(enemyX) ? enemyX : Number(focusX);
+  const resolvedRow = Number.isInteger(lastKill?.row) ? lastKill.row : focusRow;
+  const clampedFocusX = Math.max(FIELD.width * 0.25, Math.min(FIELD.width * 0.82, Number.isFinite(resolvedFocusX) ? resolvedFocusX : FIELD.width * 0.65));
+  return {
+    zoom: 1 + ((profile.zoom || 1.1) - 1) * zoomProgress,
+    focusX: clampedFocusX,
+    focusY: VIEWPORT.fieldOffsetY + (resolvedRow + 0.5) * CELL.height,
+    impactX: 0, impactY: 0,
+  };
+}
+
 export function getCinematicWaveOutroCameraTransform(session, reduceMotion = false) {
   const outro = session?.waveOutro;
   if (reduceMotion || !outro || !["finalKill", "cleanup"].includes(outro.status)) return null;
 
   const profile = getWaveOutroPresentationProfile(outro);
-  const elapsed = Math.max(0, Number(outro.elapsedMs) || 0);
-  const enterEnd = Math.min(profile.impactAtMs, WAVE_OUTRO_PRESENTATION_TIMINGS.finalKillEndMs);
-
-  let zoomProgress = elapsed < enterEnd
-    ? easeOutCubic(elapsed / Math.max(1, enterEnd))
-    : 1;
-
-  if (elapsed > WAVE_OUTRO_PRESENTATION_TIMINGS.finalKillEndMs) {
-    zoomProgress = 1 - smoothStep(
-      (elapsed - WAVE_OUTRO_PRESENTATION_TIMINGS.finalKillEndMs)
-      / Math.max(
-        1,
-        WAVE_OUTRO_PRESENTATION_TIMINGS.cleanupEndMs
-          - WAVE_OUTRO_PRESENTATION_TIMINGS.finalKillEndMs,
-      ),
-    );
-  }
-
-  const enemy = outro.lastKill?.enemy;
-  const row = Number.isInteger(outro.lastKill?.row) ? outro.lastKill.row : 2;
-  const enemyX = Number(enemy?.x);
-  const focusX = Math.max(
-    FIELD.width * 0.25,
-    Math.min(FIELD.width * 0.82, Number.isFinite(enemyX) ? enemyX : FIELD.width * 0.65),
-  );
-  const focusY = VIEWPORT.fieldOffsetY + (row + 0.5) * CELL.height;
-
-  return {
-    zoom: 1 + (profile.zoom - 1) * zoomProgress,
-    focusX,
-    focusY,
-    impactX: 0,
-    impactY: 0,
-  };
+  return getKillCinematicCameraTransform({
+    status: outro.status,
+    elapsedMs: outro.elapsedMs,
+    lastKill: outro.lastKill,
+    profile,
+    enterEndMs: WAVE_OUTRO_PRESENTATION_TIMINGS.finalKillEndMs,
+    exitStartMs: WAVE_OUTRO_PRESENTATION_TIMINGS.finalKillEndMs,
+    endMs: WAVE_OUTRO_PRESENTATION_TIMINGS.cleanupEndMs,
+  });
 }
