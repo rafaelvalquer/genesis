@@ -7,6 +7,7 @@ import {
   getContainmentVisualState,
 } from "./containmentRenderer.js";
 import { createGraphicsRuntime } from "./graphicsRuntime.js";
+import { getConvoyContainmentStatus } from "./chapter07/convoyContainmentStatus.js";
 
 const phase = {
   arenaId: "test_arena",
@@ -16,6 +17,10 @@ const phase = {
 };
 
 describe("contencao superior", () => {
+  it("reserva a Rota 3 somente para comboios", () => {
+    expect(getConvoyContainmentStatus({ phase: { progressionMode: "standard" } })).toBeNull();
+    expect(getConvoyContainmentStatus({ phase: { progressionMode: "convoy", rules: { transportRow: 2 }, sectors: [{}], convoy: { checkpointProgress: [.25, .5, .75] } }, convoy: { hp: 100, maxHp: 100, progress: 0 }, convoyFlow: {} })).toMatchObject({ row: 2, status: "ready" });
+  });
   it("sinaliza ondas perigosas sem mudar o estado de batalha", () => {
     const session = { phase, waveIndex: 1, preparing: false, enemies: [] };
     const snapshot = structuredClone(session);

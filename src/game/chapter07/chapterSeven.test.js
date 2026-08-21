@@ -14,11 +14,24 @@ import { advanceConvoyMovement, advanceConvoySectorCountdown, startConvoySectorC
 import { getConvoyColumn } from "./convoyGeometry.js";
 import { getConvoyEntryX, getConvoyRouteStartX } from "./convoyGeometry.js";
 import { StrategicAgent } from "../simulation/ai/StrategicAgent.js";
+import { getConvoyContainmentStatus } from "./convoyContainmentStatus.js";
 
 const phase49 = PHASES.find((phase) => phase.id === "fase_49");
 const phase56 = PHASES.find((phase) => phase.id === "fase_56");
 
 describe("Chapter 7 structural contract", () => {
+  it("derives the transport containment module without mutating the session", () => {
+    const session = createBattleSession(phase49, ["colono"], 7);
+    session.convoyFlow.state = "sectorActive";
+    session.convoyFlow.reachedCheckpointCount = 1;
+    session.convoy.progress = .5;
+    session.convoy.hp = 150;
+    session.convoy.underAttack = true;
+    session.convoy.damageState = "critical";
+    const status = getConvoyContainmentStatus(session);
+    expect(status).toMatchObject({ row: 2, progressPercent: 50, checkpointsReached: 1, status: "underAttack", critical: true });
+    expect(status.checkpointProgress).toEqual([.25, .5, .75]);
+  });
   it("ships final roster, convoy and audio assets", () => {
     const enemyFrames = import.meta.glob("../assets/enemy/{legionaroFerrugem,saqueadorEscoria,couracadoHematita,cacadorComboio,sabotadorOxido,atiradorRavina,marechalForja}/{idle,walking,attack}/frame*.png");
     const concepts = import.meta.glob("../assets/enemy/concepts/{legionaroFerrugem,saqueadorEscoria,couracadoHematita,cacadorComboio,sabotadorOxido,atiradorRavina,marechalForja}.webp");
@@ -28,6 +41,12 @@ describe("Chapter 7 structural contract", () => {
     expect(Object.keys(concepts)).toHaveLength(7);
     expect(Object.keys(audio)).toHaveLength(13);
     expect(Object.keys(convoy)).toHaveLength(1);
+    const pioneiroFrames = import.meta.glob("../assets/convoy/tr7_pioneiro/*/*.webp");
+    expect(Object.keys(pioneiroFrames)).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/idle/*.webp"))).toHaveLength(6);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/run/*.webp"))).toHaveLength(8);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/destroyed_transition/*.webp"))).toHaveLength(10);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/destroyed_loop/*.webp"))).toHaveLength(6);
   });
   it("maps every convoy cue and keeps the engine and music as resumable loops", () => {
     const PreviousAudio = globalThis.Audio;

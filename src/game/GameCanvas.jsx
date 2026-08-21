@@ -146,7 +146,6 @@ import { getCinematicWaveOutroCameraTransform, getKillCinematicCameraTransform }
 import { drawConvoy, drawEscortZone } from "./chapter07/convoyRenderer.js";
 import { drawConvoyImpacts } from "./chapter07/convoyImpactRenderer.js";
 import { getConvoyAttackSummary } from "./chapter07/convoySummary.js";
-import ConvoyHud from "./chapter07/components/ConvoyHud.jsx";
 import ConvoyCheckpointOverlay from "./chapter07/components/ConvoyCheckpointOverlay.jsx";
 import ConvoySectorCountdown from "./chapter07/components/ConvoySectorCountdown.jsx";
 import ConvoyToast from "./chapter07/components/ConvoyToast.jsx";
@@ -3034,9 +3033,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${phase.chapterId === "chapter_06" ? "chapter-6-battle" : ""} ${phase.chapterId === "chapter_07" ? "chapter-7-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
         <div className="battle-operation"><span>OPERAÇÃO</span><h1>{sandbox ? "CAMPO DE PROVAS" : phase.name}</h1></div>
-        <div className="battle-stats">
+          <div className="battle-stats">
           <div className={snapshot.energyPulse ? "energy-pulse" : ""}><span>Energia</span><strong className="cyan">{sandboxSettingsState?.rulesMode === "free" ? "∞" : `${snapshot.energy}/${snapshot.energyMax}`}</strong></div>
-          <div><span>Supply</span><strong>{sandboxSettingsState?.rulesMode === "free" ? "∞" : `${snapshot.supply}/${snapshot.supplyMax}`}</strong></div>
+            {snapshot.progressionMode === "convoy" && <div className="convoy-reserve-stat"><span>Veículo</span><strong>🚚⚡ {snapshot.convoy?.reserve} / {snapshot.convoy?.reserveMax}</strong></div>}
+            <div><span>Supply</span><strong>{sandboxSettingsState?.rulesMode === "free" ? "∞" : `${snapshot.supply}/${snapshot.supplyMax}`}</strong></div>
           <div><span>Integridade</span><strong className={integrityPercent <= 40 ? "danger" : "success"}>{integrityPercent}%</strong></div>
         </div>
         
@@ -3107,8 +3107,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           </div>}
         </aside>
 
-        <div className={`canvas-wrap ${snapshot.progressionMode === "convoy" ? "convoy-canvas-wrap" : ""}`}>
-          {snapshot.convoy && <ConvoyHud convoy={snapshot.convoy} energy={snapshot.energy} energyMax={snapshot.energyMax} />}
+        <div className="canvas-wrap">
           <div className="battle-canvas-stage">
             <div className={`containment-summary ${convoyAttackSummary ? "convoy-danger" : windBanner ? "wind-current-banner" : sandstormBanner ? "sandstorm-banner" : ""}`}>
               {canStartWave
@@ -3130,7 +3129,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             />}
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}
             {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
-            {snapshot.progressionMode === "convoy" && <div className="sr-only" aria-live="polite">{snapshot.convoy?.underAttack ? "Transporte sob ataque" : snapshot.convoy?.escorted ? "Escolta ativa" : "Sem escolta"}</div>}
+            {snapshot.progressionMode === "convoy" && <div className="sr-only" aria-live="polite">
+              Transporte: {snapshot.convoy?.hp} de {snapshot.convoy?.maxHp} de integridade. Percurso: {Math.round((snapshot.convoy?.progress || 0) * 100)}%. Checkpoint {snapshot.convoyFlow?.reachedCheckpointCount || 0} de 3. {snapshot.convoy?.underAttack ? "Transporte sob ataque." : snapshot.convoy?.escorted ? "Escolta ativa." : "Sem escolta."}
+            </div>}
             {notification?.text && (snapshot.progressionMode === "convoy"
               ? <ConvoyToast message={notification.text} tone={notification.tone} />
               : <div className={`battle-notification tone-${notification.tone} ${notification.persistent ? "persistent" : ""}`} role={notification.tone === "action" ? "status" : "alert"}>
