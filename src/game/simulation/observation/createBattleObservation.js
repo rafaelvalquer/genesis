@@ -15,6 +15,7 @@ import {
 import {
   getTroopTags,
 } from "../planners/troopTaxonomy.js";
+import { getMissionEncounterCount } from "../../missionProgression.js";
 
 function finiteOrNull(value) {
   return Number.isFinite(value)
@@ -90,14 +91,10 @@ export function createBattleObservation(
       : 0
   );
 
-  const phaseProgress = (
-    session.phase.waves.length > 0
-      ? (
-        session.waveIndex
-        / session.phase.waves.length
-      )
-      : 1
-  );
+  const encounterCount = getMissionEncounterCount(session.phase);
+  const phaseProgress = session.phase.progressionMode === "convoy"
+    ? session.convoy?.progress || 0
+    : encounterCount > 0 ? session.waveIndex / encounterCount : 1;
 
   const targetDurationMs = Number(
     session.phase.targetDurationMs,
@@ -134,7 +131,7 @@ export function createBattleObservation(
       id: session.phase.id,
       waveIndex: session.waveIndex,
       waveNumber: session.waveIndex + 1,
-      totalWaves: session.phase.waves.length,
+      totalWaves: encounterCount,
       phaseProgress,
       targetDurationMs:
         finiteOrNull(targetDurationMs),

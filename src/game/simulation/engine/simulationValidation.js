@@ -1,3 +1,5 @@
+import { getMissionEncounterCount } from "../../missionProgression.js";
+
 export class SimulationValidationError
   extends Error {
   constructor(
@@ -169,17 +171,18 @@ export function validateSimulationState(
     );
   }
 
+  const encounterCount = getMissionEncounterCount(session.phase);
   if (
     session.waveIndex < 0
     || session.waveIndex
-      >= session.phase.waves.length
+      >= encounterCount
   ) {
     throw new SimulationValidationError(
       "Índice de onda fora da fase.",
       {
         waveIndex: session.waveIndex,
         totalWaves:
-          session.phase.waves.length,
+          encounterCount,
       },
     );
   }
@@ -295,6 +298,9 @@ export function createProgressFingerprint(
     session.adaptiveAid?.status || "disabled",
     session.pendingOutcome || "",
     session.outcome || "",
+    session.convoyFlow?.state || "",
+    Math.round((session.convoy?.progress || 0) * 1000),
+    Math.round(session.convoy?.hp || 0),
   ].join("|");
 }
 

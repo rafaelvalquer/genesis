@@ -9,6 +9,7 @@ import {
 import {
   getTroopTags,
 } from "./troopTaxonomy.js";
+import { getConvoyColumn } from "../../chapter07/convoyGeometry.js";
 
 function unique(
   values,
@@ -337,6 +338,7 @@ function troopStrategicScore(
 function candidateCells(
   troopId,
   observation,
+  session,
 ) {
   if (troopId === "thermalPlatform") {
     return (observation.environment?.magmaCells || []).map(([row, col]) => ({
@@ -367,11 +369,16 @@ function candidateCells(
     ),
   );
 
-  const columns = preferredColumns(tags);
+  const convoyColumns = session.phase.progressionMode === "convoy" && session.convoy
+    ? unique([getConvoyColumn(session.convoy), getConvoyColumn(session.convoy) + 1,
+      getConvoyColumn(session.convoy) - 1, getConvoyColumn(session.convoy) + 2])
+      .filter((value) => value >= FIELD.firstTroopCol && value <= FIELD.lastTroopCol)
+    : preferredColumns(tags);
+  const defensiveColumns = preferredColumns(tags);
 
   return lanes.flatMap(
     (lane) => (
-      columns.map((col) => ({
+      (session.phase.progressionMode === "convoy" && [0, 4].includes(lane.row) ? defensiveColumns : convoyColumns).map((col) => ({
         row: lane.row,
         col,
         lane,
@@ -483,6 +490,10 @@ export function planPlacementActions(
   const actions = [];
 
   for (const troopId of session.loadout) {
+    // Drone stacks are the emergency escort of the convoy policy. Letting the
+    // generic planner spam them consumes every logistics pulse and prevents
+    // durable lane replacements from ever becoming affordable.
+    if (session.phase.progressionMode === "convoy" && troopId === "droneSentinela") continue;
     const effective = (
       getEffectiveTroopStats(
         session,
@@ -512,6 +523,7 @@ export function planPlacementActions(
     const candidates = candidateCells(
       troopId,
       observation,
+      session,
     );
 
     for (const candidate of candidates) {

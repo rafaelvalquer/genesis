@@ -327,6 +327,22 @@ chapter_05: freezeTheme({
     world: { fogColor: "#090402", fogDensityCommand: .05, fogDensityCampaign: .06, atmosphereOpacityCommand: .13, atmosphereOpacityCampaign: .12, particleOpacity: .62, particleSize: .018 },
     planetEffects: { kit: "magma", signature: "Lava, vulcões e brasas junto à rota", motion: .9 },
   }),
+  chapter_07: freezeTheme({
+    key: "ferruginous", label: "Fronteira Ferruginosa", surface: ["#302725", "#654238", "#24292d"],
+    atmosphere: "#b65a32", accent: "#67e8f9", light: "#fff8ef", ambient: "#191515", fog: "#090d0f",
+    particle: "#d08a62", cameraDistance: 4.62, rotation: { x: -.36, y: 1.72, z: .05 },
+    detail: "Minas, ferrovias e corredores de carga abandonados",
+    ui: { primary: "#b65a32", secondary: "#d08a62", accent: "#67e8f9", warning: "#facc15",
+      panel: "rgba(9, 13, 15, .94)", panelAlt: "rgba(48, 39, 37, .9)", line: "#7c4a36", grid: "#5e3d32",
+      glow: "rgba(103, 232, 249, .27)", patternOpacity: .25, shape: "industrial" },
+    lighting: { keyColor: "#fff8ef", keyIntensity: 1.58, keyPosition: [3.6, 2.7, 4.4], fillColor: "#8fe9f5",
+      fillGroundColor: "#181416", fillIntensity: .38, rimColor: "#67e8f9", rimIntensity: .46,
+      rimPosition: [-3.2, 1, -3.3], ambientColor: "#f3f4f6", ambientIntensity: .045,
+      terminatorStrength: .8, nightFloor: .045, exposure: .98, transitionSpeed: 4.6 },
+    world: { fogColor: "#090d0f", fogDensityCommand: .048, fogDensityCampaign: .058,
+      atmosphereOpacityCommand: .12, atmosphereOpacityCampaign: .11, particleOpacity: .55, particleSize: .017 },
+    planetEffects: { kit: "ferruginous", signature: "Minas, ferrovias e corredores de carga abandonados", motion: .68 },
+  }),
 });
 
 export const getCampaignBiome = (chapterId) =>

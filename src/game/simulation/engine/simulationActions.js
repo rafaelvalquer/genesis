@@ -5,6 +5,7 @@ import {
   openAdaptiveAidCapsule,
   placeTroop,
   removeTroop,
+  repositionTroop,
   selectAdaptiveAidOption,
   selectDecision,
   setEnergyPickupPointer,
@@ -31,6 +32,9 @@ function actionKey(action) {
         action.row,
         action.col,
       ].join(":");
+
+    case "reposition":
+      return ["reposition", action.troopId, action.row, action.col].join(":");
 
     case "activateSpecial":
       return [
@@ -210,6 +214,15 @@ export function executeSimulationAction({
     case "remove":
       result = removeTroop(
         session,
+        action.row,
+        action.col,
+      );
+      break;
+
+    case "reposition":
+      result = repositionTroop(
+        session,
+        action.troopId,
         action.row,
         action.col,
       );

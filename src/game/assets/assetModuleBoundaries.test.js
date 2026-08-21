@@ -32,9 +32,9 @@ describe("limites dos módulos de assets", () => {
     );
 
     expect(battleLoader)
-      .toContain("./troop/**/*.png");
+      .toContain("./troop/**/frame*.png");
     expect(battleLoader)
-      .toContain("./enemy/**/*.png");
+      .toContain("./enemy/**/frame*.png");
     expect(battleLoader)
       .not.toContain("frame0.png");
     expect(battleLoader)

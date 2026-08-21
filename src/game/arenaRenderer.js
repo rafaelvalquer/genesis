@@ -67,6 +67,7 @@ export function getBattlefieldBlueprint(phase) {
     bottom: (row + 1) * CELL.height - 9,
     center: row * CELL.height + CELL.height / 2,
     footline: row * CELL.height + CELL.height * 0.85,
+    kind: phase.progressionMode === "convoy" && row === phase.rules?.transportRow ? "transport" : "combat",
   }));
   const random = seeded(theme.seed);
   const features = Array.from({ length: 48 }, (_, index) => ({
@@ -77,12 +78,13 @@ export function getBattlefieldBlueprint(phase) {
     size: 0.55 + random() * 0.9,
     flip: random() > 0.5,
   }));
-  return { arenaId: phase.arenaId, theme: { ...theme }, lanes, features };
+  return { arenaId: phase.arenaId, theme: { ...theme }, lanes, features,
+    convoy: phase.progressionMode === "convoy" ? { checkpointProgress: [...(phase.convoy?.checkpointProgress || [])] } : null };
 }
 
 export function getBattlefieldCacheKey(phase, settings = {}) {
   const profile = settings.quality && QUALITY_PROFILES[settings.quality] ? settings.quality : "high";
-  return `${phase.arenaId}:${phase.battlefieldTheme?.seed || 1}:${profile}`;
+  return `${phase.arenaId}:${phase.battlefieldTheme?.seed || 1}:${phase.terrain?.routeType || "standard"}:${phase.terrain?.seed || 0}:${profile}`;
 }
 
 export function clearBattlefieldCache() {
@@ -279,6 +281,46 @@ function drawVolcanicDetail(ctx, feature, lane, theme, profile) {
 function drawLanes(ctx, blueprint, profile) {
   const { theme } = blueprint;
   for (const lane of blueprint.lanes) {
+    if (lane.kind === "transport") {
+      const rail = blueprint.theme.id === "railway";
+      ctx.save();
+      const roadTop = lane.center - CELL.height * .36;
+      const roadHeight = CELL.height * .72;
+      const road = ctx.createLinearGradient(0, roadTop, 0, roadTop + roadHeight);
+      road.addColorStop(0, "#171b1e"); road.addColorStop(.5, rail ? "#343a3e" : "#292724"); road.addColorStop(1, "#111517");
+      ctx.fillStyle = road; ctx.fillRect(FIELD.baseX, roadTop, FIELD.width - FIELD.baseX, roadHeight);
+      ctx.strokeStyle = rgba(blueprint.theme.edge, .62); ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(FIELD.baseX, roadTop); ctx.lineTo(FIELD.width, roadTop); ctx.moveTo(FIELD.baseX, roadTop + roadHeight); ctx.lineTo(FIELD.width, roadTop + roadHeight); ctx.stroke();
+      const seed = blueprint.theme.seed + 707;
+      if (rail) {
+        ctx.strokeStyle = "rgba(190,205,210,.62)"; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(FIELD.baseX, lane.center - 20); ctx.lineTo(FIELD.width, lane.center - 20); ctx.moveTo(FIELD.baseX, lane.center + 20); ctx.lineTo(FIELD.width, lane.center + 20); ctx.stroke();
+        ctx.fillStyle = "rgba(75,56,47,.9)";
+        for (let x = FIELD.baseX; x < FIELD.width; x += 28) ctx.fillRect(x, lane.center - 28, 7, 56);
+      } else {
+        ctx.setLineDash([34, 24]); ctx.strokeStyle = rgba(blueprint.theme.detail, .6); ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(FIELD.baseX, lane.center); ctx.lineTo(FIELD.width, lane.center); ctx.stroke(); ctx.setLineDash([]);
+      }
+      for (let index = 0; index < 14; index += 1) {
+        const x = FIELD.baseX + pseudo(index, seed) * (FIELD.width - FIELD.baseX);
+        ctx.fillStyle = rgba(index % 3 ? "#b65a32" : "#67e8f9", .18 + pseudo(index, seed + 1) * .16);
+        ctx.fillRect(x, roadTop + 5, 8 + pseudo(index, seed + 2) * 24, 2);
+      }
+      const routeStart = FIELD.combatOffsetX + CELL.width * .35;
+      const routeEnd = FIELD.spawnX - CELL.width * .7;
+      for (const progress of blueprint.convoy?.checkpointProgress || []) {
+        const x = routeStart + (routeEnd - routeStart) * progress;
+        ctx.strokeStyle = rgba("#facc15", .82); ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(x, roadTop - 7); ctx.lineTo(x, roadTop + roadHeight + 7); ctx.stroke();
+        ctx.fillStyle = rgba("#67e8f9", .78); ctx.beginPath(); ctx.arc(x, roadTop + 5, 5, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = "#24292d"; ctx.fillRect(FIELD.baseX - 22, roadTop - 9, 42, roadHeight + 18);
+      ctx.strokeStyle = rgba("#67e8f9", .72); ctx.strokeRect(FIELD.baseX - 18, roadTop - 5, 34, roadHeight + 10);
+      ctx.fillStyle = "#5e6870"; ctx.fillRect(FIELD.width - 44, roadTop - 12, 44, roadHeight + 24);
+      ctx.strokeStyle = rgba("#facc15", .78); ctx.strokeRect(FIELD.width - 40, roadTop - 8, 36, roadHeight + 16);
+      ctx.restore();
+      continue;
+    }
     ctx.save();
     lanePath(ctx, lane);
     const floor = ctx.createLinearGradient(0, lane.top, 0, lane.bottom);
@@ -339,6 +381,7 @@ function drawBase(ctx, blueprint) {
   ctx.stroke();
 
   for (const lane of blueprint.lanes) {
+    if (lane.kind === "transport") continue;
     const y = lane.top + 17;
     roundedRect(ctx, 7, y, 51, 66, theme.material === "organic" || theme.material === "chitin" ? 24 : 7);
     ctx.fillStyle = "rgba(2,8,15,.84)";
@@ -372,6 +415,7 @@ function drawEntrance(ctx, blueprint) {
   ctx.fillRect(FIELD.width - 130, 0, 130, FIELD.height);
 
   for (const lane of blueprint.lanes) {
+    if (lane.kind === "transport") continue;
     const cy = lane.center + 10;
     if (["maw", "womb", "overgrowth"].includes(theme.entrance)) {
       ctx.fillStyle = "rgba(6,3,12,.78)";
@@ -421,7 +465,7 @@ function drawLaneLabels(ctx, blueprint, profile) {
   ctx.textAlign = "left";
   for (const lane of blueprint.lanes) {
     ctx.fillStyle = rgba(blueprint.theme.edge, 0.5);
-    ctx.fillText(`R${lane.row + 1}`, FIELD.baseX + 8, lane.top + 16);
+    ctx.fillText(lane.kind === "transport" ? "ROTA" : `R${lane.row + 1}`, FIELD.baseX + 8, lane.top + 16);
     ctx.fillStyle = rgba(blueprint.theme.detail, 0.35);
     ctx.fillRect(FIELD.baseX + 28, lane.top + 10, 35, 2);
   }
@@ -1003,6 +1047,7 @@ function drawPad(ctx, x, y, visual) {
 export function drawTacticalGrid(ctx, session, selectedTroop, removeMode, hoveredCell) {
   if (!shouldShowGrid({ selectedTroop, removeMode, hoveredCell })) return;
   for (let row = 0; row < FIELD.rows; row += 1) {
+    if (session.phase?.progressionMode === "convoy" && row === session.phase.rules?.transportRow) continue;
     for (let col = 0; col < FIELD.cols; col += 1) {
       const visual = getGridCellState(session, row, col, selectedTroop, removeMode, hoveredCell);
       const visible = removeMode

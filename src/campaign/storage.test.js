@@ -110,6 +110,30 @@ describe("save local", () => {
     expect(save.currentPhaseId).toBe("fase_34");
   });
 
+  it("migra a conclusão da fase 48 e persiste o comboio até o fim da campanha", () => {
+    const migrated = migrateSave({
+      version: 2,
+      unlockedPhaseIndex: 47,
+      currentPhaseId: "fase_48",
+      phaseStats: { fase_48: { victories: 1, bestStars: 3 } },
+    });
+    expect(migrated).toMatchObject({ unlockedPhaseIndex: 48, currentPhaseId: "fase_49" });
+
+    const finalSave = recordBattleResult({
+      ...migrated,
+      unlockedPhaseIndex: 55,
+      currentPhaseId: "fase_56",
+    }, {
+      phaseId: "fase_56",
+      outcome: "victory",
+      stars: 3,
+      durationMs: 420000,
+      integrity: 78,
+    });
+    expect(finalSave).toMatchObject({ unlockedPhaseIndex: 55, currentPhaseId: "fase_56" });
+    expect(finalSave.phaseStats.fase_56).toMatchObject({ victories: 1, bestStars: 3, bestIntegrity: 78 });
+  });
+
   it("não desbloqueia após derrota e permite reset", () => {
     const save = recordBattleResult(
       createDefaultSave(),

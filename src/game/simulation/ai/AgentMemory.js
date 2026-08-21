@@ -9,6 +9,7 @@ export class AgentMemory {
     this.actionFailures = new Map();
     this.placements = [];
     this.removals = [];
+    this.repositions = [];
     this.specials = [];
     this.decisions = [];
     this.waveStarts = [];
@@ -121,6 +122,9 @@ export class AgentMemory {
       case "remove":
         this.removals.push(entry);
         break;
+      case "reposition":
+        this.repositions.push(entry);
+        break;
       case "activateSpecial":
         this.specials.push(entry);
         break;
@@ -144,6 +148,7 @@ export class AgentMemory {
     return {
       placements: this.placements.length,
       removals: this.removals.length,
+      repositions: this.repositions.length,
       specials: this.specials.length,
       decisions: this.decisions.length,
       waveStarts: this.waveStarts.length,

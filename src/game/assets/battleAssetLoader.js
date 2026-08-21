@@ -19,7 +19,7 @@ import {
 import { copyBattleAudioUrls } from "./audioCatalog.js";
 
 const troopFrameModules = import.meta.glob([
-  "./troop/**/*.png",
+  "./troop/**/frame*.png",
   "!./troop/muralhaReforcada/idle/**/*.png",
 ], {
   query: "?url",
@@ -27,7 +27,7 @@ const troopFrameModules = import.meta.glob([
 });
 
 const enemyFrameModules = import.meta.glob(
-  "./enemy/**/*.png",
+  "./enemy/**/frame*.png",
   {
     query: "?url",
     import: "default",
@@ -35,7 +35,7 @@ const enemyFrameModules = import.meta.glob(
 );
 
 const defenseFrameModules = import.meta.glob(
-  "./defense/**/*.png",
+  "./defense/**/frame*.png",
   {
     query: "?url",
     import: "default",
@@ -43,7 +43,7 @@ const defenseFrameModules = import.meta.glob(
 );
 
 const effectFrameModules = import.meta.glob(
-  "./effects/**/*.png",
+  "./effects/**/frame*.png",
   {
     query: "?url",
     import: "default",

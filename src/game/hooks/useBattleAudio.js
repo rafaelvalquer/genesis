@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from "react";
 
-export function createBattleAudioChannels(assets) {
+export function createBattleAudioChannels(assets, chapterId = null) {
   const build = (name, loop = false) => {
     const url = assets.audio[name];
     if (!url) return null;
@@ -9,9 +9,9 @@ export function createBattleAudioChannels(assets) {
     audio.loop = loop;
     return audio;
   };
-  const buildFirst = (base) => build(`${base}.ogg`) || build(`${base}.wav`);
+  const buildFirst = (base, loop = false) => build(`${base}.ogg`, loop) || build(`${base}.wav`, loop);
   return {
-    theme: build("wave_theme.ogg", true),
+    theme: chapterId === "chapter_07" ? buildFirst("c7_frontier_music", true) : build("wave_theme.ogg", true),
     alert: build("wave_alert.ogg"),
     deploy: build("deploy.ogg"),
     shoot: [1, 2, 3, 4].map((index) => build(`shoot_ball_${index}.wav`)).filter(Boolean),
@@ -49,19 +49,44 @@ export function createBattleAudioChannels(assets) {
     windEjection: build("wind_ejection.ogg"),
     windRecovery: build("wind_recovery.ogg"),
     thunder: [build("thunder_distant_1.ogg"), build("thunder_distant_2.ogg")].filter(Boolean),
+    convoyEngineLoop: buildFirst("c7_engine_loop"),
+    convoyEscort: buildFirst("c7_escort_online"),
+    convoyEscortLost: buildFirst("c7_escort_lost"),
+    convoyAttack: buildFirst("c7_convoy_attack"),
+    convoyHit: buildFirst("c7_convoy_hit"),
+    convoyCritical: buildFirst("c7_convoy_critical"),
+    convoyCheckpoint: buildFirst("c7_checkpoint"),
+    convoyLogistics: buildFirst("c7_logistics"),
+    convoyReserveEmpty: buildFirst("c7_reserve_empty"),
+    convoyReinforcement: buildFirst("c7_reinforcement"),
+    convoyDestruction: buildFirst("c7_destruction"),
+    convoyEvacuation: buildFirst("c7_evacuation"),
   };
 }
 
-export function useBattleAudio({ audioRef, settings, paused, windActive }) {
+export function useBattleAudio({ audioRef, settings, paused, windActive, convoyActive = false, chapterId = null }) {
+  const fadeLoop = useCallback((audio, targetVolume, durationMs = 220, pauseAfter = false) => {
+    if (!audio) return;
+    const startVolume = Number.isFinite(audio.volume) ? audio.volume : 0;
+    const startedAt = performance.now();
+    const tick = (now) => {
+      const ratio = Math.min(1, (now - startedAt) / durationMs);
+      audio.volume = startVolume + (targetVolume - startVolume) * ratio;
+      if (ratio < 1) requestAnimationFrame(tick);
+      else if (pauseAfter) audio.pause();
+    };
+    requestAnimationFrame(tick);
+  }, []);
   const stopAudio = useCallback(() => {
     audioRef.current.theme?.pause();
     audioRef.current.windActiveLoop?.pause();
-  }, [audioRef]);
+    fadeLoop(audioRef.current.convoyEngineLoop, 0, 180, true);
+  }, [audioRef, fadeLoop]);
 
   const configureAudio = useCallback((assets) => {
     stopAudio();
-    audioRef.current = createBattleAudioChannels(assets);
-  }, [audioRef, stopAudio]);
+    audioRef.current = createBattleAudioChannels(assets, chapterId);
+  }, [audioRef, chapterId, stopAudio]);
 
   const play = useCallback((channel, intensity = 1) => {
     const source = Array.isArray(audioRef.current[channel])
@@ -85,6 +110,20 @@ export function useBattleAudio({ audioRef, settings, paused, windActive }) {
       settings.masterVolume * settings.effectsVolume * 0.42));
     loopAudio.play().catch(() => {});
   }, [audioRef, paused, settings.effectsVolume, settings.masterVolume, windActive]);
+
+  useEffect(() => {
+    const loopAudio = audioRef.current.convoyEngineLoop;
+    if (!loopAudio) return;
+    loopAudio.loop = true;
+    if (paused || !convoyActive) {
+      fadeLoop(loopAudio, 0, 180, true);
+      return;
+    }
+    const targetVolume = Math.max(0, Math.min(1, settings.masterVolume * settings.effectsVolume * .32));
+    if (loopAudio.paused) loopAudio.volume = 0;
+    loopAudio.play().catch(() => {});
+    fadeLoop(loopAudio, targetVolume, 260);
+  }, [audioRef, convoyActive, fadeLoop, paused, settings.effectsVolume, settings.masterVolume]);
 
   return { configureAudio, play, stopAudio };
 }

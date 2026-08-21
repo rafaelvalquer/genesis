@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
 import { ENEMIES } from "../game/content.js";
 import { getArenaUrl } from "../game/assets/arenaCatalog.js";
+import { getMissionEncounters, getProgressionLabel } from "../game/missionProgression.js";
 
 const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";
@@ -18,7 +19,10 @@ function mechanicFor(phase, chapter) {
 }
 
 export default function MissionPanel({ phase, chapter, stats, onPrepare, reduceMotion, transitioning = false }) {
-  const enemyTypes = [...new Set(phase.waves.flatMap((wave) => wave.enemies.map((enemy) => enemy.type)))];
+  const enemyTypes = [...new Set(getMissionEncounters(phase).flatMap((encounter) => phase.progressionMode === "convoy"
+    ? [...(encounter.openingPackets || []), ...(encounter.reinforcement?.packetPool || [])]
+      .flatMap((packet) => (packet.units || []).map((enemy) => enemy.type))
+    : (encounter.enemies || []).map((enemy) => enemy.type)))];
   const stars = Number(stats.bestStars || 0);
   return <AnimatePresence>
     <motion.article
@@ -41,8 +45,9 @@ export default function MissionPanel({ phase, chapter, stats, onPrepare, reduceM
           <p>{phase.subtitle}</p>
         </header>
         <dl className="mission-stats">
-          <div><dt>Ondas</dt><dd>{phase.waves.length}</dd></div>
+          <div><dt>{getProgressionLabel(phase)}</dt><dd>{getMissionEncounters(phase).length}</dd></div>
           <div><dt>Energia</dt><dd>{phase.energy}</dd></div>
+          {phase.progressionMode === "convoy" && <div><dt>Reserva</dt><dd>{phase.convoy.reserveInitial}</dd></div>}
           <div><dt>Melhor tempo</dt><dd>{formatTime(stats.bestTimeMs)}</dd></div>
           <div><dt>Integridade</dt><dd>{Number(stats.bestIntegrity || 0)}%</dd></div>
         </dl>

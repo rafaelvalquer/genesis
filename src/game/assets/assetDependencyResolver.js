@@ -31,6 +31,10 @@ const ASSET_COLLECTION_KEYS = Object.freeze([
   "troopTransformations",
   "dependencies",
   "entries",
+  "packets",
+  "units",
+  "openingPackets",
+  "packetPool",
 ]);
 
 function appendAssetReferences(
@@ -240,6 +244,27 @@ function phaseEnemyRecords(phase, enemyIds) {
       `waves[${waveIndex}].bossEncounter.type`,
     );
   }
+
+  for (const [sectorIndex, sector] of (
+    phase?.sectors || []
+  ).entries()) {
+    appendAssetReferences(
+      sector?.openingPackets,
+      records,
+      `sectors[${sectorIndex}].openingPackets`,
+    );
+    appendAssetReferences(
+      sector?.reinforcement?.packetPool,
+      records,
+      `sectors[${sectorIndex}].reinforcement.packetPool`,
+    );
+  }
+
+  appendAssetReferences(
+    phase?.bossEncounter?.bossType,
+    records,
+    "bossEncounter.bossType",
+  );
 
   appendAssetReferences(
     phase?.enemyAssetDependencies,

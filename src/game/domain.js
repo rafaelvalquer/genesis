@@ -21,11 +21,14 @@ export function isGroundTrapEligible(enemy) {
 }
 
 export function waveBudget(wave) {
-  return wave.enemies.reduce((total, entry) => total + enemyThreat(entry) * entry.count, 0);
+  return (wave?.enemies || []).reduce((total, entry) => total + enemyThreat(entry) * entry.count, 0);
 }
 
 export function phaseBudget(phase) {
-  return phase.waves.reduce((total, waveEntry) => total + waveBudget(waveEntry), 0);
+  if (phase?.progressionMode === "convoy") return (phase.sectors || []).reduce((total, sector) => total
+    + (sector.openingPackets || []).flatMap((packet) => packet.units || [])
+      .reduce((sum, entry) => sum + enemyThreat(entry) * entry.count, 0), 0);
+  return (phase.waves || []).reduce((total, waveEntry) => total + waveBudget(waveEntry), 0);
 }
 
 function scaledCoordinatedPackets(spawnBlocks, countMultiplier) {
@@ -103,8 +106,8 @@ function weightedRoutePick(candidates, rng, pressure, hotLane = null) {
   return weighted.at(-1)?.row ?? 0;
 }
 
-export function chooseDistinctRows({ count, rng = createRng(1), pressure = [], excluded = [], hotLane = null }) {
-  const available = Array.from({ length: 5 }, (_, row) => row).filter((row) => !excluded.includes(row));
+export function chooseDistinctRows({ count, rng = createRng(1), pressure = [], excluded = [], hotLane = null, allowedRows = [0, 1, 2, 3, 4] }) {
+  const available = [...new Set(allowedRows)].filter((row) => Number.isInteger(row) && row >= 0 && row < 5 && !excluded.includes(row));
   const selected = [];
   while (selected.length < Math.min(count, available.length)) {
     const candidates = available.filter((row) => !selected.includes(row));
@@ -113,14 +116,15 @@ export function chooseDistinctRows({ count, rng = createRng(1), pressure = [], e
   return selected;
 }
 
-export function choosePacketRows({ strategy = "split", rng = createRng(1), recentRows = [], routePressure = Array(5).fill(0), packetIndex = 0, waveHotLane = null, fixedRows = null }) {
-  if (strategy === "scripted" || Array.isArray(fixedRows)) return [...new Set((fixedRows || []).filter((row) => row >= 0 && row < 5))];
+export function choosePacketRows({ strategy = "split", rng = createRng(1), recentRows = [], routePressure = Array(5).fill(0), packetIndex = 0, waveHotLane = null, fixedRows = null, allowedRows = [0, 1, 2, 3, 4] }) {
+  const validRows = [...new Set(allowedRows)].filter((row) => Number.isInteger(row) && row >= 0 && row < 5);
+  if (strategy === "scripted" || Array.isArray(fixedRows)) return [...new Set((fixedRows || []).filter((row) => validRows.includes(row)))];
   const count = ROUTE_STRATEGIES[strategy]?.count || ROUTE_STRATEGIES.split.count;
   const recentKeys = recentRows.slice(-3).map((rows) => [...rows].sort((a, b) => a - b).join(","));
   const hotLane = rng() < .25 ? waveHotLane : null;
-  let selected = chooseDistinctRows({ count, rng, pressure: routePressure, hotLane });
+  let selected = chooseDistinctRows({ count, rng, pressure: routePressure, hotLane, allowedRows: validRows });
   for (let attempt = 0; attempt < 8 && recentKeys.includes([...selected].sort((a, b) => a - b).join(",")); attempt += 1) {
-    selected = chooseDistinctRows({ count, rng, pressure: routePressure, excluded: attempt % 2 ? selected.slice(0, 1) : [], hotLane });
+    selected = chooseDistinctRows({ count, rng, pressure: routePressure, excluded: attempt % 2 ? selected.slice(0, 1) : [], hotLane, allowedRows: validRows });
   }
   selected.forEach((row) => { routePressure[row] = (routePressure[row] || 0) + 1; });
   recentRows.push(selected);
@@ -134,8 +138,9 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
     .sort((left, right) => left.spawnAtMs - right.spawnAtMs);
   const routeHistory = [];
   const routePressure = Array(5).fill(0);
+  const allowedRows = phase?.rules?.combatRows || [0, 1, 2, 3, 4];
   const hasDynamicRoutes = packets.some((packet) => packet.dynamicRoutes === true && packet.routeStrategy);
-  const waveHotLane = hasDynamicRoutes ? Math.floor(rng() * 5) : null;
+  const waveHotLane = hasDynamicRoutes ? allowedRows[Math.floor(rng() * allowedRows.length)] : null;
   const legacyRecentRows = [];
   const queue = packets.flatMap((packet, packetIndex) => {
     const dynamic = packet.dynamicRoutes === true && packet.routeStrategy;
@@ -148,13 +153,14 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
         packetIndex,
         waveHotLane,
         fixedRows: packet.fixedRows,
+        allowedRows,
       })
       : null;
     const blockedRow = !dynamic && legacyRecentRows.length >= 2 && legacyRecentRows.at(-1) === legacyRecentRows.at(-2)
       ? legacyRecentRows.at(-1) : null;
-    const candidates = [0, 1, 2, 3, 4].filter((row) => row !== blockedRow);
+    const candidates = allowedRows.filter((row) => row !== blockedRow);
     const fallbackRow = dynamic
-      ? Math.floor(rng() * 5)
+      ? allowedRows[Math.floor(rng() * allowedRows.length)]
       : candidates[(Math.floor(rng() * candidates.length) + packetIndex) % candidates.length];
     if (!dynamic) {
       legacyRecentRows.push(fallbackRow);
@@ -182,7 +188,7 @@ function coordinatedSpawnQueue(phase, waveEntry, seed, countMultiplier) {
     }
     return packet.units.flatMap((unit) => {
       const totalCount = unit.rows?.length ? unit.rows.length * (unit.countPerRow || 1) : unit.count;
-      const rows = unit.rows?.length ? unit.rows : [fallbackRow];
+      const rows = unit.rows?.length ? unit.rows.filter((row) => allowedRows.includes(row)) : [fallbackRow];
       const countsByRow = dynamic
         ? rows.map((_, rowIndex) => Math.floor(totalCount / rows.length) + (rowIndex < totalCount % rows.length ? 1 : 0))
         : rows.map(() => unit.rows?.length ? unit.countPerRow || 1 : unit.count);
@@ -407,7 +413,7 @@ export function validateCampaignBalance(phases = PHASES) {
   phases.forEach((phase, phaseIndex) => {
     // Chapter 4 is authored around tactical packet intent, not monotonically
     // increasing raw counts, so it has its own packet/wave validation suite.
-    if (["chapter_04", "chapter_05", "chapter_06"].includes(phase.chapterId)) return;
+    if (["chapter_04", "chapter_05", "chapter_06", "chapter_07"].includes(phase.chapterId)) return;
     const budgets = phase.waves.map(waveBudget);
     const coordinated = phase.waves.every((waveEntry) => waveEntry.coordinated);
     budgets.forEach((budget, waveIndex) => {

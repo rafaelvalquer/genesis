@@ -30,6 +30,7 @@ import {
   StagnationDetector,
   validateSimulationState,
 } from "./simulationValidation.js";
+import { getMissionEncounterCount } from "../../missionProgression.js";
 
 function activeOutro(session) {
   return (
@@ -286,7 +287,7 @@ export async function runBattleSimulation({
           waveIndex:
             session.waveIndex,
           totalWaves:
-            phase.waves.length,
+            getMissionEncounterCount(phase),
           integrity:
             session.integrity,
           enemies:

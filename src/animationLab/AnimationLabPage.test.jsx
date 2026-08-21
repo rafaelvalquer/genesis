@@ -37,4 +37,13 @@ describe("Laboratório de Animações", () => {
     const idle = { src: "idle" };
     expect(getAnimationFrame({ states: { idle: [idle], slamAttack: [] } }, "slamAttack", 0)).toBeNull();
   });
+
+  it("inspeciona os quatro estados dos transportes do comboio", async () => {
+    render(<MemoryRouter><AnimationLabPage /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("tab", { name: "Transportes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Destroyed transition/ })).toBeInTheDocument());
+    expect(screen.getAllByText(/TR-7 Pioneiro/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Destroyed transition/ }));
+    expect(screen.getByText(/Timing:/)).toBeInTheDocument();
+  });
 });

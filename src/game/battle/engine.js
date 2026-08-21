@@ -156,6 +156,18 @@ import {
   indexedTroopById,
   troopsForRow,
 } from "./queries.js";
+import { getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
+import { createConvoyFlow, createConvoyState } from "../chapter07/convoyState.js";
+import { updateConvoyEscort } from "../chapter07/convoyEscort.js";
+import { updateConvoyEnergy } from "../chapter07/convoyEnergy.js";
+import { advanceConvoyMovement, startConvoySector } from "../chapter07/convoyFlow.js";
+import { hasCombatRelevantEnemies, enterCheckpointPreparation } from "../chapter07/convoyCheckpoints.js";
+import { updateConvoyReinforcements } from "../chapter07/convoySpawnDirector.js";
+import { canEnemyReachConvoy, hasBlockingTroop, updateConvoyThreat } from "../chapter07/convoyTargeting.js";
+import { damageConvoy } from "../chapter07/convoyDamage.js";
+import { repositionTroop as repositionConvoyTroop } from "../chapter07/convoyReposition.js";
+import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
+import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
 
 export {
   createWindCurrentState,
@@ -191,9 +203,10 @@ export function getTroopDeploymentLimit(troopId, phaseOrSession = null) {
       ?? phase?.troopDeploymentLimits?.[troopId],
   );
   if (Number.isFinite(missionLimit) && missionLimit >= 0) return Math.floor(missionLimit);
+  const defaultLimit = phase ? getDefaultTroopDeploymentLimit(phase) : DEFAULT_MAX_DEPLOYED_PER_TROOP;
   return Number.isFinite(TROOPS[troopId]?.maxDeployed)
-    ? TROOPS[troopId].maxDeployed
-    : DEFAULT_MAX_DEPLOYED_PER_TROOP;
+    ? Math.min(TROOPS[troopId].maxDeployed, defaultLimit)
+    : defaultLimit;
 }
 
 export function getActiveTroopCount(session, troopId) {
@@ -213,6 +226,7 @@ export function validateLoadoutForPhase(phase, loadout) {
   if (!uniqueLoadout.length) return { ok: false, reason: "Selecione pelo menos uma tropa." };
   if (uniqueLoadout.length > (phase.loadoutLimit ?? 6)) return { ok: false, reason: `Este capítulo permite no máximo ${phase.loadoutLimit} tropas.` };
   if (uniqueLoadout.some((troopId) => !TROOPS[troopId])) return { ok: false, reason: "Loadout contém uma tropa inválida." };
+  if (uniqueLoadout.some((troopId) => !isTroopAllowedForPhase(phase, troopId))) return { ok: false, reason: "Loadout contém uma tropa bloqueada nesta missão." };
   return { ok: true, loadout: uniqueLoadout };
 }
 
@@ -371,6 +385,8 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
   const sandboxSettings = sandbox ? { ...DEFAULT_SANDBOX_SETTINGS, ...options.sandboxSettings } : null;
   const sessionPhase = sandbox ? applySandboxMechanic(phase, sandboxSettings) : phase;
   const supplyLimit = sessionPhase.supplyLimit ?? 20;
+  const validation = validateLoadoutForPhase(sessionPhase, loadout);
+  if (!sandbox && sessionPhase.progressionMode === "convoy" && !validation.ok) throw new Error(validation.reason);
   const session = {
     phase: sessionPhase,
     loadout: [...loadout],
@@ -378,7 +394,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     rng: createRng(seed),
     elapsed: 0,
     energy: sessionPhase.energy,
-    energyMax: sessionPhase.energy,
+    energyMax: sessionPhase.energyCapacity ?? sessionPhase.energy,
     lastEnergyGainAt: -Infinity,
     integrity: sessionPhase.baseIntegrity,
     integrityMax: sessionPhase.baseIntegrity,
@@ -479,7 +495,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     nextWaveBaseDamageFactor: 1,
     currentWaveBaseDamageFactor: 1,
     nextWaveEnemyCountFactor: 1,
-    adaptiveAid: createAdaptiveAidState(!sandbox),
+    adaptiveAid: createAdaptiveAidState(!sandbox && sessionPhase.progressionMode !== "convoy"),
     recentTroopLosses: [],
     assistanceTriggered: false,
     assistanceUsed: false,
@@ -494,6 +510,11 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     sandbox,
     sandboxSettings,
   };
+  if (sessionPhase.progressionMode === "convoy") {
+    session.convoy = createConvoyState(sessionPhase);
+    session.convoyFlow = createConvoyFlow();
+    session.convoySectorQueue = session.queue;
+  }
   initializeSandboxHazard(session);
   deployStartingTroops(session);
   return session;
@@ -504,6 +525,8 @@ export function canPlaceTroop(session, troopId, row, col) {
   const effective = getEffectiveTroopStats(session, troopId);
   const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
   if (session.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status)) return "Aguarde a conclusão da onda.";
+  const phaseReason = getPlacementBlockReasonForPhase(session.phase, row, col, troopId);
+  if (phaseReason) return phaseReason;
   if (!troop || !session.loadout.includes(troopId)) return "Tropa fora do loadout.";
   if (col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) return "Posição reservada para a defesa da base.";
   if (row < 0 || row >= FIELD.rows || col < 0 || col >= FIELD.cols - 1) return "Posição fora da zona de combate.";
@@ -1089,6 +1112,7 @@ function applyDecision(session, decisionId, target = null) {
 }
 
 export function startWave(session) {
+  if (session.phase?.progressionMode === "convoy") return startConvoySector(session);
   if (session.outcome || session.waveActive || session.pendingDecision || session.pendingPositionalDecision
     || (session.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status))) return false;
   if (session.nextWaveEnergy > 0) {
@@ -2226,6 +2250,7 @@ export function trySpawnGlassEcho(session, source, events = []) {
 }
 
 export function spawnEnergyPickup(session, options = {}, events = []) {
+  if (!isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")) return null;
   const pickup = {
     id: id("energy_pickup"),
     x: Number(options.x) || 0,
@@ -2248,6 +2273,7 @@ export function spawnEnergyPickup(session, options = {}, events = []) {
 }
 
 export function trySpawnEnergyPickup(session, source, events = []) {
+  if (!isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")) return null;
   const chance = ENEMIES[source?.type]?.energyDropChance;
   if (!chance || source?.variant === "alpha") return null;
   const roll = session.rng();
@@ -5041,6 +5067,9 @@ function pulseForRow(session, row) {
 }
 
 export function activateDematerializationPulse(session, row, options = {}) {
+  if (!isSystemEnabledForPhase(session.phase, "dematerializationPulse")) {
+    return { ok: false, reason: "Sistema indisponível nesta missão.", row, events: [] };
+  }
   const source = options.source || "player";
   const targetRow = clamp(Math.floor(Number(row)), 0, FIELD.rows - 1);
   const externalEvents = Array.isArray(options.events) ? options.events : [];
@@ -8068,6 +8097,8 @@ function updateEnemies(session, dt, events) {
 
     const target = closestTroopForEnemy(session, enemy);
     if (target && enemy.x - target.x <= troopBlockDistance(target)) {
+      enemy.targetKind = "troop";
+      enemy.targetId = target.id;
       enemy.moving = false;
       if (session.elapsed >= enemy.attackReadyAt) {
         if (config.attackVisual?.impactMs) {
@@ -8083,7 +8114,26 @@ function updateEnemies(session, dt, events) {
           enemy.lastAttackAt = session.elapsed;
         }
       }
+    } else if (canEnemyReachConvoy(session, enemy, config) && !hasBlockingTroop(session, enemy)) {
+      enemy.targetKind = "convoy";
+      enemy.targetId = session.convoy.id;
+      enemy.moving = false;
+      if (session.elapsed >= enemy.attackReadyAt) {
+        const factor = Number(config.convoyDamageFactor) || 1;
+        damageConvoy(session, enemy.damage * factor, events, { attackerId: enemy.id, enemyType: enemy.type });
+        enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
+        enemy.lastAttackAt = session.elapsed;
+        if (config.escortDisruptionMs) {
+          const escort = session.troops.find((troop) => session.convoy.escortTroopIds.includes(troop.id) && !troop.dead);
+          if (escort) {
+            escort.controlStunnedUntil = Math.max(escort.controlStunnedUntil || 0, session.elapsed + config.escortDisruptionMs);
+            events.push({ type: "escortDisrupted", troopId: escort.id, sourceEnemyId: enemy.id });
+          }
+        }
+      }
     } else {
+      enemy.targetKind = "base";
+      enemy.targetId = null;
       moveEnemy(session, enemy, dt, events);
     }
   }
@@ -8117,7 +8167,10 @@ function updateMines(session, events) {
 
 function finish(session, outcome) {
   if (session.outcome) return;
-  const integrityPercent = session.integrityMax > 0 ? session.integrity / session.integrityMax * 100 : 0;
+  const convoyMission = session.phase?.progressionMode === "convoy" && session.convoy;
+  const integrityPercent = convoyMission
+    ? session.convoy.hp / Math.max(1, session.convoy.maxHp) * 100
+    : session.integrityMax > 0 ? session.integrity / session.integrityMax * 100 : 0;
   session.outcome = outcome;
   session.pendingOutcome = null;
   session.waveActive = false;
@@ -8126,11 +8179,17 @@ function finish(session, outcome) {
   session.result = {
     phaseId: session.phase.id,
     outcome,
-    stars: calculateStars({ outcome, integrity: session.integrity, integrityMax: session.integrityMax, durationMs: session.elapsed, targetDurationMs: session.phase.targetDurationMs }),
+    stars: convoyMission
+      ? calculateConvoyStars({ outcome, convoyHp: session.convoy.hp, convoyMaxHp: session.convoy.maxHp, durationMs: session.elapsed, targetDurationMs: session.phase.targetDurationMs })
+      : calculateStars({ outcome, integrity: session.integrity, integrityMax: session.integrityMax, durationMs: session.elapsed, targetDurationMs: session.phase.targetDurationMs }),
     durationMs: Math.round(session.elapsed),
     integrity: Math.round(integrityPercent),
-    integrityCurrent: Math.round(session.integrity),
-    integrityMax: Math.round(session.integrityMax),
+    integrityCurrent: Math.round(convoyMission ? session.convoy.hp : session.integrity),
+    integrityMax: Math.round(convoyMission ? session.convoy.maxHp : session.integrityMax),
+    baseIntegrity: Math.round(session.integrity / Math.max(1, session.integrityMax) * 100),
+    convoyIntegrity: convoyMission ? Math.round(integrityPercent) : null,
+    checkpointsReached: convoyMission ? session.convoyFlow.reachedCheckpointCount : null,
+    reserveRemaining: convoyMission ? Math.round(session.convoy.reserve) : null,
     energy: Math.round(session.energy),
     enemiesDefeated: session.killed,
     composition: { ...session.deployed },
@@ -8145,6 +8204,10 @@ function finish(session, outcome) {
       selectedOption: session.adaptiveAid.selectedOptionId,
     },
   };
+}
+
+export function repositionTroop(session, troopId, row, col) {
+  return repositionConvoyTroop(session, troopId, row, col, rebuildBattleIndex);
 }
 
 export function simulateAdaptiveAid(session, tier) {
@@ -8176,14 +8239,28 @@ export function selectAdaptiveAidOption(session, optionId, target = null) {
 export function stepBattle(session, dt = 32) {
   if (session.outcome) return [];
   const events = [];
+  const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
+  if (convoyMission && ["initialPreparation", "checkpointPreparation"].includes(session.convoyFlow.state)) return events;
   session.elapsed += dt;
+  if (convoyMission) {
+    updateConvoyEnergy(session, events);
+    updateConvoyEscort(session, events);
+    updateConvoyThreat(session, ENEMIES, events);
+    const movementOutcome = advanceConvoyMovement(session, dt, events);
+    updateConvoyAnimation(session);
+    if (movementOutcome === "victory") {
+      finish(session, "victory");
+      return events;
+    }
+    updateConvoyReinforcements(session, events);
+  }
   updateAdaptiveAidLifecycle(session, events);
   if (session.pendingOutcome && !isWaveOutroActive(session)
     && !adaptiveAidBlocksIntermission(session.adaptiveAid?.status)) {
     finish(session, session.pendingOutcome);
     return events;
   }
-  updateEnergyPickups(session, dt, events);
+  if (isSystemEnabledForPhase(session.phase, "enemyEnergyPickups")) updateEnergyPickups(session, dt, events);
   updateTideCycle(session, events, { eliminateTroop });
   updateThermalTerrain(session, dt, events, { eliminateTroop, refreshTroop: refreshTroopAttackSpeedFactor });
   const alphaResult = evaluateAlphaPressure(session, session.phase?.alphaPressure, ENEMIES);
@@ -8241,13 +8318,27 @@ export function stepBattle(session, dt = 32) {
       events.push({ type: "spawn", x: enemy.x, y: enemy.y, enemy });
     }
     updateAlphaPressureSpawns(session, events);
-    updateDematerializationPulses(session, events);
+    if (isSystemEnabledForPhase(session.phase, "dematerializationPulse")) updateDematerializationPulses(session, events);
     updatePrismaticMantle(session, events);
     updateTroops(session, events, dt);
     updateProjectiles(session, dt, events);
     updateEnemyProjectiles(session, dt, events);
     updateEmberBurns(session, events);
     updateEnemies(session, dt, events);
+    if (convoyMission) {
+      updateConvoyEscort(session, events);
+      updateConvoyThreat(session, ENEMIES, events);
+      if (session.convoy.hp <= 0) {
+        session.convoyFlow.state = "defeat";
+        updateConvoyAnimation(session);
+        events.push({ type: "convoyDestroyed", x: session.convoy.x, y: session.convoy.y });
+        finish(session, "defeat");
+        return events;
+      }
+      if (session.convoyFlow.state === "checkpointClearing" && !hasCombatRelevantEnemies(session)) {
+        enterCheckpointPreparation(session, events);
+      }
+    }
     updateBossEncounter(session);
     updateMines(session, events);
     if (!session.sandbox && session.integrity <= 0) {
@@ -8260,7 +8351,7 @@ export function stepBattle(session, dt = 32) {
     if (!session.sandbox && session.queue.length === 0 && session.enemies.length === 0 && session.alphaPressure.pendingSpawns.length) {
       session.alphaPressure.pendingSpawns = [];
     }
-    const waveCleared = !session.sandbox && !session.outcome && session.waveActive
+    const waveCleared = !convoyMission && !session.sandbox && !session.outcome && session.waveActive
       && session.queue.length === 0 && session.enemies.length === 0 && session.enemyProjectiles.length === 0
       && session.alphaPressure.pendingSpawns.length === 0;
     if (waveCleared) {
@@ -8362,7 +8453,7 @@ export function stepBattle(session, dt = 32) {
 export function getSnapshot(session) {
   const deploymentStats = Object.fromEntries(session.loadout.map((troopId) => {
     const activeCount = getActiveTroopCount(session, troopId);
-    const maxDeployed = getTroopDeploymentLimit(troopId);
+    const maxDeployed = getTroopDeploymentLimit(troopId, session);
     return [troopId, { ...getEffectiveTroopStats(session, troopId), activeCount, maxDeployed, limitReached: activeCount >= maxDeployed }];
   }));
   return {
@@ -8370,7 +8461,23 @@ export function getSnapshot(session) {
     energyPulse: session.elapsed - session.lastEnergyGainAt < 700,
     supply: Math.round(session.supply * 10) / 10, supplyMax: session.supplyMax,
     integrity: Math.round(session.integrity), integrityMax: Math.round(session.integrityMax),
-    wave: session.waveIndex + 1, totalWaves: session.phase.waves.length,
+    wave: session.convoyFlow ? session.convoyFlow.sectorIndex + 1 : session.waveIndex + 1,
+    totalWaves: session.phase.sectors?.length || session.phase.waves.length,
+    progressionMode: session.phase.progressionMode || "waves",
+    convoy: session.convoy ? {
+      state: session.convoyFlow.state,
+      sector: session.convoyFlow.sectorIndex + 1,
+      progress: session.convoy.progress,
+      hp: Math.round(session.convoy.hp), hpMax: Math.round(session.convoy.maxHp),
+      hpPercent: Math.round(session.convoy.hp / Math.max(1, session.convoy.maxHp) * 100),
+      escorted: session.convoy.escorted, escortCount: session.convoy.escortTroopIds.length,
+      escortTroopIds: [...session.convoy.escortTroopIds], underAttack: session.convoy.underAttack,
+      attackerCount: session.convoy.attackerIds.length, reserve: Math.round(session.convoy.reserve),
+      reserveMax: session.convoy.reserveMax, checkpointsReached: session.convoyFlow.reachedCheckpointCount,
+      nextEnergyPulseIn: Math.max(0, session.convoy.nextEnergyPulseAt - session.elapsed),
+      nextCheckpointProgress: session.phase.convoy.checkpointProgress[session.convoyFlow.reachedCheckpointCount] ?? 1,
+      reinforcementLevel: session.convoyFlow.reinforcementLevel,
+    } : null,
     pendingOutcome: session.pendingOutcome,
     enemies: session.enemies.length, queued: session.queue.length,
     mines: session.mines.length,

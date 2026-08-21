@@ -15,6 +15,7 @@ export const GENESIS_CHAPTER_SURFACE_PROFILES = Object.freeze({
   chapter_04: { roughness: .82, metalness: .03, baseEmissive: "#818cf8", baseEmissiveIntensity: .003, effectEmissiveIntensity: .9 },
   chapter_05: { roughness: .52, metalness: .08, baseEmissive: "#38bdf8", baseEmissiveIntensity: .004, effectEmissiveIntensity: .62 },
   chapter_06: { roughness: .72, metalness: .015, baseEmissive: "#f97316", baseEmissiveIntensity: .008, effectEmissiveIntensity: 1 },
+  chapter_07: { roughness: .86, metalness: .08, baseEmissive: "#b65a32", baseEmissiveIntensity: .006, effectEmissiveIntensity: .84 },
 });
 
 const CLOUD_MOTION = Object.freeze({
@@ -24,6 +25,7 @@ const CLOUD_MOTION = Object.freeze({
   chapter_04: { rotation: 1.65, driftX: .0105, driftY: -.005 },
   chapter_05: { rotation: .82, driftX: .005, driftY: .0025 },
   chapter_06: { rotation: 1.22, driftX: -.008, driftY: .0065 },
+  chapter_07: { rotation: .56, driftX: .0048, driftY: -.0018 },
 });
 
 const TEXTURE_KEYS = [

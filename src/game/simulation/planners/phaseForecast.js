@@ -7,10 +7,18 @@ import {
   phaseBudget,
   wavePressure,
 } from "../../domain.js";
+import { getMissionEncounters } from "../../missionProgression.js";
+import { buildSectorQueue } from "../../chapter07/convoySpawnDirector.js";
 
 function collectWaveEntries(
   phase,
 ) {
+  if (phase.progressionMode === "convoy") {
+    return (phase.sectors || []).flatMap((sector, waveIndex) => [
+      ...(sector.openingPackets || []),
+      ...(sector.reinforcement?.packetPool || []),
+    ].flatMap((packet) => (packet.units || []).map((entry) => ({ ...entry, waveIndex }))));
+  }
   return phase.waves.flatMap(
     (wave, waveIndex) => {
       const entries = Array.isArray(
@@ -50,24 +58,15 @@ export function createPhaseForecast(
     0,
   );
 
-  const maximumWavePressure = Math.max(
-    0,
-    ...phase.waves.map(
-      (_, waveIndex) => (
-        wavePressure(phase, waveIndex)
-      ),
-    ),
-  );
-
-  const waveQueues = phase.waves.map(
-    (_, waveIndex) => (
-      buildSpawnQueue(
-        phase,
-        waveIndex,
-        seed + waveIndex * 997,
-      )
-    ),
-  );
+  const encounters = getMissionEncounters(phase);
+  const waveQueues = encounters.map((_, waveIndex) => (
+    phase.progressionMode === "convoy"
+      ? buildSectorQueue(phase, waveIndex, seed + waveIndex * 997)
+      : buildSpawnQueue(phase, waveIndex, seed + waveIndex * 997)
+  ));
+  const maximumWavePressure = phase.progressionMode === "convoy"
+    ? Math.max(0, ...waveQueues.map((queue) => queue.reduce((total, entry) => total + enemyThreat(entry), 0)))
+    : Math.max(0, ...encounters.map((_, waveIndex) => wavePressure(phase, waveIndex)));
 
   const explicitRows = Array.from(
     { length: 5 },
@@ -155,7 +154,7 @@ export function createPhaseForecast(
     mechanicId,
     laneThreat: explicitRows,
     waveQueues,
-    totalWaves: phase.waves.length,
+    totalWaves: encounters.length,
     targetDurationMs: (
       Number(phase.targetDurationMs)
       || null

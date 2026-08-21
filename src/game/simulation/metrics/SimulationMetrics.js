@@ -370,6 +370,36 @@ export class SimulationMetrics {
         supplyMax:
           Number(session.supplyMax),
       },
+      convoy: session.convoy ? {
+        hp: Number(session.convoy.hp),
+        maxHp: Number(session.convoy.maxHp),
+        progress: Number(session.convoy.progress),
+        x: Number(session.convoy.x),
+        escorted: Boolean(session.convoy.escorted),
+        underAttack: Boolean(session.convoy.underAttack),
+        reserve: Number(session.convoy.reserve),
+        flowState: session.convoyFlow?.state || null,
+        sectorIndex: Number(session.convoyFlow?.sectorIndex ?? -1),
+      } : null,
+      remainingEnemies: session.enemies
+        .filter((enemy) => !enemy.dead && enemy.hp > 0)
+        .map((enemy) => ({
+          id: enemy.id,
+          type: enemy.type,
+          row: Number(enemy.row),
+          x: Number(enemy.x),
+          hp: Number(enemy.hp),
+          targetKind: enemy.targetKind || null,
+        })),
+      remainingTroops: session.troops
+        .filter((troop) => !troop.dead && troop.hp > 0)
+        .map((troop) => ({
+          id: troop.id,
+          type: troop.type,
+          row: Number(troop.row),
+          col: Number(troop.col),
+          hp: Number(troop.hp),
+        })),
       enemiesDefeated:
         Number(
           session.result

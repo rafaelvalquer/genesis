@@ -1,5 +1,5 @@
 export const frameNumber = (key) => (
-  Number(/frame(\d+)\.png$/i.exec(key)?.[1] || 0)
+  Number(/(?:frame|_)(\d+)\.(?:png|webp)$/i.exec(key)?.[1] || 0)
 );
 
 export function modulesFor(modules, folder, state) {
@@ -9,7 +9,7 @@ export function modulesFor(modules, folder, state) {
     // all eight poses at once.
     .filter(([key]) => (
       key.includes(`/${folder}/${state}/`)
-      && /\/frame\d+\.png$/i.test(key)
+      && /(?:\/frame\d+\.png|_\d+\.webp)$/i.test(key)
     ))
     .sort(([left], [right]) => frameNumber(left) - frameNumber(right));
 }

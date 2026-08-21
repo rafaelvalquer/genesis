@@ -23,12 +23,14 @@ import {
 describe("arenas cinematograficas", () => {
   it("atribui uma arena exclusiva e carregavel a cada fase", () => {
     const arenaIds = PHASES.map((phase) => phase.arenaId);
-    expect(new Set(arenaIds).size).toBe(48);
+    expect(new Set(arenaIds).size).toBe(56);
     expect(Object.keys(ARENAS)).toHaveLength(32);
     for (const phase of PHASES) {
       expect(getArenaUrl(phase.arenaId)).toMatch(/fase_\d{2}.*\.webp/i);
       expect(phase.ambientEffects.length).toBeGreaterThan(0);
-      expect(phase.waveIntensity).toHaveLength(phase.waves.length);
+      expect(phase.waveIntensity).toHaveLength(
+        phase.progressionMode === "convoy" ? phase.sectors.length : phase.waves.length,
+      );
       expect(phase.battlefieldTheme.seed).toBeTypeOf("number");
     }
   });
@@ -203,9 +205,9 @@ describe("arenas cinematograficas", () => {
     }
   });
 
-  it("gera vinte e quatro campos procedurais deterministas com cinco rotas", () => {
+  it("gera cinquenta e seis campos procedurais deterministas com cinco rotas", () => {
     const themeIds = PHASES.map((phase) => phase.battlefieldTheme.id);
-    expect(new Set(themeIds).size).toBe(48);
+    expect(new Set(themeIds).size).toBe(56);
     for (const phase of PHASES) {
       const first = getBattlefieldBlueprint(phase);
       const second = getBattlefieldBlueprint(phase);

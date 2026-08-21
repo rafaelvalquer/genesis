@@ -25,6 +25,10 @@ export const CAMPAIGN_CHAPTER_ROUTES = Object.freeze({
     [-46, 18], [-54, 34], [-47, 51], [-59, 65],
     [-45, 78], [-34, 67], [-37, 47], [-43, 30],
   ]),
+  chapter_07: Object.freeze([
+    [-28, 101], [-34, 113], [-42, 125], [-49, 139],
+    [-56, 154], [-49, 166], [-39, 158], [-31, 144],
+  ]),
 });
 
 function getRoutePoint(chapter, index) {

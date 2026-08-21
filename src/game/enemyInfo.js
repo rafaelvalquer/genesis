@@ -4,10 +4,21 @@ const formatNumber = (value) => new Intl.NumberFormat("pt-BR", { maximumFraction
 const formatDuration = (milliseconds) => `${formatNumber(milliseconds / 1000)} s`;
 
 export function getEnemyUnlockAt(enemyId, enemy = ENEMIES[enemyId]) {
-  const phaseIndex = PHASES.findIndex((phase) => phase.waves.some((wave) => (
-    (wave.enemies || []).some((entry) => entry.type === enemyId)
-      || wave.bossEncounter?.type === enemyId
-  )));
+  const phaseIndex = PHASES.findIndex((phase) => (
+    (phase.waves || []).some((wave) => (
+      (wave.enemies || []).some((entry) => entry.type === enemyId)
+        || wave.bossEncounter?.type === enemyId
+    ))
+    || (phase.sectors || []).some((sector) => (
+      [
+        ...(sector.openingPackets || []),
+        ...(sector.reinforcement?.packetPool || []),
+      ].some((packet) => (
+        (packet.units || []).some((unit) => unit.type === enemyId)
+      ))
+    ))
+    || phase.bossEncounter?.bossType === enemyId
+  ));
   if (phaseIndex >= 0) return phaseIndex;
   return Number.isInteger(enemy?.encyclopediaUnlockAt) ? enemy.encyclopediaUnlockAt : -1;
 }

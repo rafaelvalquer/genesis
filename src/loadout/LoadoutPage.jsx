@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { getArenaUrl } from "../game/assets/arenaCatalog.js";
 import { getChapterForPhase, getPhaseIndex, getUnlockedTroops } from "../game/content.js";
+import { getAvailableTroopsForPhase } from "../game/phaseRules.js";
 import { loadSettings } from "../campaign/storage.js";
 import { useRouteTransition } from "../routing/RouteTransitionProvider.jsx";
 import LoadoutHeader from "./LoadoutHeader.jsx";
@@ -22,7 +23,7 @@ export default function LoadoutPage({ phase, selected, initialFocusedTroopId, un
   const phaseIndex = getPhaseIndex(phase.id);
   const chapter = getChapterForPhase(phase);
   const loadoutLimit = phase.loadoutLimit ?? 5;
-  const available = useMemo(() => getUnlockedTroops(phaseIndex), [phaseIndex]);
+  const available = useMemo(() => getAvailableTroopsForPhase(phase, phaseIndex), [phase, phaseIndex]);
   const selectedTroops = useMemo(() => selected.map((id) => available.find((troop) => troop.id === id)).filter(Boolean), [available, selected]);
   const [focusedTroopId, setFocusedTroopId] = useState(() => (available.some((troop) => troop.id === initialFocusedTroopId) ? initialFocusedTroopId : null) || selected.at(-1) || available[0]?.id);
   const [hoverTroopId, setHoverTroopId] = useState(null);

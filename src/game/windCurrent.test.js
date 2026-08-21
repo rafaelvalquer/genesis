@@ -95,8 +95,8 @@ function applyGust(session) {
 describe("conteudo do Capitulo 4", () => {
   it("mantem oito blueprints fora da campanha jogavel", () => {
     expect(CHAPTER_FOUR_PHASE_BLUEPRINTS).toHaveLength(8);
-    expect(PHASES).toHaveLength(48);
-    expect(CHAPTERS).toHaveLength(6);
+    expect(PHASES).toHaveLength(56);
+    expect(CHAPTERS).toHaveLength(7);
     expect(PHASES.filter((phase) => phase.chapterId === "chapter_04")).toHaveLength(8);
   });
 
@@ -137,7 +137,7 @@ describe("conteudo do Capitulo 4", () => {
   });
 
   it("adiciona o limite de loadout do quarto capitulo", () => {
-    expect(CHAPTER_LOADOUT_LIMITS).toEqual({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9 });
+    expect(CHAPTER_LOADOUT_LIMITS).toEqual({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9, 7: 7 });
   });
 
   it("classifica todas as tropas e extensoes inimigas", () => {

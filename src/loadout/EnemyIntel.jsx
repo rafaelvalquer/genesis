@@ -2,6 +2,7 @@ import { ENEMIES } from "../game/content.js";
 import { enemyThreat } from "../game/domain.js";
 import { getEnemyUnlockAt } from "../game/enemyInfo.js";
 import { getEnemyPreviewUrl } from "../game/assets/enemyPreviewCatalog.js";
+import { getMissionEncounters } from "../game/missionProgression.js";
 
 const TIDE_MECHANIC_ENEMIES = new Set([
   "enguiaRasgamar",
@@ -42,9 +43,14 @@ export function deriveEnemyIntel(phase) {
     records.set(key, current);
   };
 
-  phase.waves.forEach((wave, waveIndex) => {
-    (wave.enemies || []).forEach((entry) => addRecord(entry, waveIndex, entry.count));
-    if (wave.bossEncounter?.type) addRecord(wave.bossEncounter, waveIndex, 1);
+  getMissionEncounters(phase).forEach((wave, waveIndex) => {
+    if (phase.progressionMode === "convoy") {
+      [...(wave.openingPackets || []), ...(wave.reinforcement?.packetPool || [])]
+        .forEach((packet) => (packet.units || []).forEach((entry) => addRecord(entry, waveIndex, entry.count)));
+    } else {
+      (wave.enemies || []).forEach((entry) => addRecord(entry, waveIndex, entry.count));
+      if (wave.bossEncounter?.type) addRecord(wave.bossEncounter, waveIndex, 1);
+    }
   });
 
   return [...records.values()]
@@ -84,7 +90,7 @@ export default function EnemyIntel({ phase, unlockedPhaseIndex }) {
         {!hiddenBoss && <strong className="enemy-intel-count" aria-label={`${entry.count} hostis projetados`}>{entry.count}</strong>}
         <span>
           <b>{hiddenBoss ? "ASSINATURA HOSTIL DESCONHECIDA" : entry.enemy?.label || entry.id}</b>
-          <small>{`ONDA ${entry.firstWave}${hiddenBoss ? "" : ` \u00b7 \u2248 ${entry.count} ALVOS`}`}</small>
+          <small>{`${phase.progressionMode === "convoy" ? "SETOR" : "ONDA"} ${entry.firstWave}${hiddenBoss ? "" : ` \u00b7 \u2248 ${entry.count} ALVOS`}`}</small>
         </span>
         {entry.priorityTag && <em>{entry.priorityTag}</em>}
       </li>;

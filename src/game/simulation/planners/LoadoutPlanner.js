@@ -8,6 +8,8 @@ import {
 import {
   createPhaseForecast,
 } from "./phaseForecast.js";
+import { getMissionEncounterCount } from "../../missionProgression.js";
+import { getAvailableTroopsForPhase } from "../../phaseRules.js";
 import {
   estimateTroopEfficiency,
   getTroopTags,
@@ -164,9 +166,9 @@ export function planLoadoutForPhase({
     seed,
   ),
 }) {
-  const available = getUnlockedTroops(
-    phaseIndex,
-  );
+  const available = phase.progressionMode === "convoy"
+    ? getAvailableTroopsForPhase(phase, phaseIndex)
+    : getUnlockedTroops(phaseIndex);
 
   const scored = available
     .map((config) => ({
@@ -197,6 +199,19 @@ export function planLoadoutForPhase({
 
   const selected = new Set();
 
+  // Escort missions need a sustainable travel screen instead of the
+  // economy-heavy opening used by wave missions.
+  if (phase.progressionMode === "convoy") {
+    for (const troopId of ["colono", "droneSentinela", "medicaNanites", "muralhaReforcada", "sniper", "artilheiraMorteiro", "cacadorLeviatas"]) {
+      addIfPresent(selected, scored.find((entry) => entry.id === troopId), limit);
+    }
+    for (const entry of scored) {
+      if (selected.size >= limit) break;
+      selected.add(entry.id);
+    }
+    return { loadout: [...selected], forecast, scored };
+  }
+
   // Magma is a deployment constraint, not merely a combat preference: reserve
   // one Chapter 6 slot for the support that makes conventional placement legal.
   if (phase.environmentHazard?.id === "thermal_cycle") {
@@ -204,7 +219,7 @@ export function planLoadoutForPhase({
   }
 
   const needsEconomy = (
-    phase.waves.length >= 3
+    getMissionEncounterCount(phase) >= 3
     && profile.economyTarget > 0
   );
 

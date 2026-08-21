@@ -96,6 +96,7 @@ describe("asset compartilhado do planeta Genesis", () => {
       chapter_04: { roughness: .82, metalness: .03, emissiveIntensity: .003 },
       chapter_05: { roughness: .52, metalness: .08, emissiveIntensity: .004 },
       chapter_06: { roughness: .72, metalness: .015, emissiveIntensity: .008 },
+      chapter_07: { roughness: .86, metalness: .08, emissiveIntensity: .006 },
     };
     CHAPTERS.forEach((chapter) => {
       applyGenesisPlanetChapterState({ THREE, parts, chapter, biome: getCampaignBiome(chapter.id) });

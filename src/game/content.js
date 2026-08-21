@@ -3,9 +3,11 @@ import { CHAPTER_FOUR_ENEMIES } from "./chapterFourEnemies.js";
 import { createChapterFourWaves } from "./chapterFourWaves.js";
 import { CHAPTER_FIVE_PHASES } from "./chapterFivePhases.js";
 import { CHAPTER_SIX_PHASES } from "./chapterSixPhases.js";
+import { CHAPTER_SEVEN_PHASES } from "./chapterSevenPhases.js";
+import { CHAPTER_SEVEN_ENEMIES, CHAPTER_SEVEN_ENEMY_IDS } from "./chapterSevenEnemies.js";
 export { createWindCurrentHazard } from "./windCurrent.js";
 
-export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9});
+export const CHAPTER_LOADOUT_LIMITS = Object.freeze({ 1: 4, 2: 5, 3: 6, 4: 7, 5: 8, 6: 9, 7: 7 });
 export const DEFAULT_MAX_DEPLOYED_PER_TROOP = 5;
 export const DAMAGE_TYPES = Object.freeze({ PHYSICAL: "physical", FIRE: "fire", THERMAL: "thermal" });
 
@@ -2851,6 +2853,7 @@ export const ENEMIES = {
     maximumSpeedFactor: 2.1,
     description: "Predador anfíbio pequeno que acelera ao entrar em novas células alagadas e desfere duas mordidas rápidas.",
   },
+  ...CHAPTER_SEVEN_ENEMIES,
   ...CHAPTER_FOUR_ENEMIES,
 };
 
@@ -2867,6 +2870,7 @@ const LATEST_ENEMY_IDS = Object.freeze([
   "carapacaNereida",
   "medusaVeuSalino",
   "mordelume",
+  ...CHAPTER_SEVEN_ENEMY_IDS,
 ]);
 
 export function getEnemyCatalogEntries() {
@@ -4898,6 +4902,7 @@ export const PHASES = [
   }),
   ...CHAPTER_FIVE_PHASES,
   ...CHAPTER_SIX_PHASES,
+  ...CHAPTER_SEVEN_PHASES,
 ];
 
 export const CHAPTERS = [
@@ -4986,6 +4991,14 @@ export const CHAPTERS = [
     phaseIds: PHASES.slice(40, 48).map((entry) => entry.id), coverArenaId: "chapter_06",
     palette: { primary: "#f97316", accent: "#fbbf24", shadow: "#090402" },
     mechanic: { id: "thermal_cycle", label: "Gestão Térmica", description: "Terrenos de magma exigem Plataformas Térmicas e submetem a defesa a ciclos progressivos de calor." },
+  },
+  {
+    id: "chapter_07", number: 7, name: "Fronteira Ferruginosa",
+    subtitle: "A rota precisa continuar",
+    phaseIds: PHASES.slice(48, 56).map((entry) => entry.id), coverArenaId: "chapter_07",
+    exclusiveEnemyIds: CHAPTER_SEVEN_ENEMY_IDS,
+    palette: { primary: "#b65a32", accent: "#67e8f9", shadow: "#090d0f" },
+    mechanic: { id: "convoy_escort", label: "Escolta Logística", description: "Proteja e acompanhe o comboio por quatro setores, reorganizando a patrulha nos checkpoints." },
   },
 ];
 

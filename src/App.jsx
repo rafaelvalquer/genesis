@@ -23,6 +23,7 @@ import {
   saveSettings,
 } from "./campaign/storage.js";
 import { getValidLastSelectedTroopId, loadLoadoutPreferences, resetLoadoutPreferences, resolveLoadoutForPhase, saveLoadoutPreferences } from "./loadout/loadoutPreferences.js";
+import { getAvailableTroopsForPhase } from "./game/phaseRules.js";
 
 export { LoadoutPicker, CommandPage as HomePage };
 
@@ -220,7 +221,7 @@ function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
   return <div className="modal-backdrop result-backdrop"><section className={`result-card ${victory ? "victory" : "defeat"}`}>
     <span className="result-emblem">{victory ? "✦" : "×"}</span><span className="eyebrow">{victory ? "OPERAÇÃO CONCLUÍDA" : "NÚCLEO COMPROMETIDO"}</span><h1>{victory ? "Perímetro assegurado" : "A defesa caiu"}</h1><p>{phase.name} · {result.enemiesDefeated} hostis eliminados</p>
     <Stars value={result.stars} />
-    <div className="result-stats"><div><span>Tempo</span><b>{formatTime(result.durationMs)}</b></div><div><span>Integridade</span><b>{result.integrity}%</b></div><div><span>Energia</span><b>{result.energy}</b></div><div><span>Eliminações</span><b>{result.enemiesDefeated}</b></div></div>
+    <div className="result-stats"><div><span>Tempo</span><b>{formatTime(result.durationMs)}</b></div><div><span>{phase.progressionMode === "convoy" ? "Comboio" : "Integridade"}</span><b>{result.integrity}%</b></div><div><span>Energia</span><b>{result.energy}</b></div><div><span>Eliminações</span><b>{result.enemiesDefeated}</b></div></div>
     <div className="result-actions"><button className="secondary-button" onClick={onRetry}>Repetir fase</button>{victory && <button className="primary-button" onClick={onNext}>{nextLabel} <span>→</span></button>}<button className="text-button" onClick={onPhases}>Selecionar fases</button></div>
   </section></div>;
 }
@@ -255,7 +256,7 @@ export function PlayPage({ campaign, setCampaign }) {
   const phase = getPhase(phaseId);
   const phaseIndex = getPhaseIndex(phaseId);
   const [loadoutPreference, setLoadoutPreference] = useState(loadLoadoutPreferences);
-  const available = phase ? getUnlockedTroops(phaseIndex) : [];
+  const available = phase ? getAvailableTroopsForPhase(phase, phaseIndex) : [];
   const [selected, setSelected] = useState(() => phase ? resolveLoadoutForPhase({ preference: loadoutPreference, availableTroops: available, loadoutLimit: phase.loadoutLimit ?? 5 }) : []);
   const [started, setStarted] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -271,7 +272,7 @@ export function PlayPage({ campaign, setCampaign }) {
     if (!phase) return;
     const preference = loadLoadoutPreferences();
     setLoadoutPreference(preference);
-    setSelected(resolveLoadoutForPhase({ preference, availableTroops: getUnlockedTroops(phaseIndex), loadoutLimit: phase.loadoutLimit ?? 5 }));
+    setSelected(resolveLoadoutForPhase({ preference, availableTroops: getAvailableTroopsForPhase(phase, phaseIndex), loadoutLimit: phase.loadoutLimit ?? 5 }));
     setStarted(false);
     setAttempt(0);
     setResult(null);

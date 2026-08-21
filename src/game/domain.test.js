@@ -132,14 +132,15 @@ describe("campanha e ondas", () => {
     expect(wavePressure(PHASES[23], 5)).toBeGreaterThanOrEqual(wavePressure(PHASES[22], 5) * 1.04);
   });
 
-  it("organiza quarenta e oito fases em seis capítulos de oito operações", () => {
-    expect(CHAPTERS).toHaveLength(6);
-    expect(PHASES).toHaveLength(48);
-    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8, 8, 8]);
+  it("organiza cinquenta e seis fases em sete capítulos de oito operações", () => {
+    expect(CHAPTERS).toHaveLength(7);
+    expect(PHASES).toHaveLength(56);
+    expect(CHAPTERS.map((chapter) => chapter.phaseIds.length)).toEqual([8, 8, 8, 8, 8, 8, 8]);
     expect(getChapterForPhase("fase_08")?.id).toBe("chapter_01");
     expect(getChapterForPhase("fase_09")?.id).toBe("chapter_02");
     expect(getChapterForPhase("fase_17")?.id).toBe("chapter_03");
     expect(getChapterForPhase("fase_25")?.id).toBe("chapter_04");
+    expect(getChapterForPhase("fase_49")?.id).toBe("chapter_07");
     expect(PHASES.slice(0, 8).every((phase) => phase.waves.length === 4)).toBe(true);
     expect(PHASES.slice(8, 20).every((phase) => phase.waves.length === 5)).toBe(true);
     expect(PHASES.slice(20, 24).every((phase) => phase.waves.length === 6)).toBe(true);
@@ -443,7 +444,9 @@ describe("campanha e ondas", () => {
       expect(wave.enemies.find((entry) => entry.type === "silex")).toBeTruthy();
       expect(buildSpawnQueue(PHASES[phaseIndex], waveIndex, 77).filter((entry) => entry.type === "magoAbissal")).toHaveLength(count);
     });
-    expect(PHASES.every((phase) => phase.waves[0].enemies.every((entry) => entry.type !== "magoAbissal"))).toBe(true);
+    expect(PHASES.filter((phase) => phase.waves?.length).every(
+      (phase) => phase.waves[0].enemies.every((entry) => entry.type !== "magoAbissal"),
+    )).toBe(true);
     expect(PHASES[5].waves[0].enemies).toEqual([
       { type: "crix", count: 12 }, { type: "vexar", count: 6 }, { type: "silex", count: 6 },
     ]);

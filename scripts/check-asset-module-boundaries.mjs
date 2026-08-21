@@ -125,10 +125,10 @@ for (const forbidden of [
 }
 
 for (const required of [
-  "./troop/**/*.png",
-  "./enemy/**/*.png",
-  "./defense/**/*.png",
-  "./effects/**/*.png",
+  "./troop/**/frame*.png",
+  "./enemy/**/frame*.png",
+  "./defense/**/frame*.png",
+  "./effects/**/frame*.png",
 ]) {
   if (!battleSource.includes(required)) {
     errors.push(

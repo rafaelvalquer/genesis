@@ -1,5 +1,6 @@
 import EnemyIntel from "./EnemyIntel.jsx";
 import SquadAnalysis from "./SquadAnalysis.jsx";
+import { getMissionEncounterCount, getProgressionLabel } from "../game/missionProgression.js";
 
 const formatTime = (milliseconds) => {
   if (!milliseconds) return "—";
@@ -8,6 +9,7 @@ const formatTime = (milliseconds) => {
 };
 
 const mechanic = (phase) => {
+  if (phase.progressionMode === "convoy") return ["ESCOLTA LOGÍSTICA", "R3 é exclusiva do transporte. Mantenha uma tropa operacional em R2 ou R4 e reorganize a patrulha nos três checkpoints."];
   if (phase.environmentHazard?.id === "tide_cycle") return ["MARÉ DE NEREIDA", "A água avança durante a batalha."];
   if (phase.environmentHazard?.id === "thermal_cycle") return ["TERRENO MAGMÁTICO", "Sem Plataforma Térmica, apenas o Drone Sentinela pode ser implantado no magma."];
   if (phase.chapterMechanic) return ["ECOS DE VIDRO", `${Math.round(phase.chapterMechanic.chance * 100)}% de chance de retorno hostil.`];
@@ -23,8 +25,9 @@ export default function TacticalBrief({ phase, chapter, arenaUrl, troops, unlock
     <span className="eyebrow amber">INTELIGÊNCIA DA MISSÃO</span>
     <h2>{phase.name}</h2><p className="mission-subtitle">CAP. {chapter.number} · {phase.subtitle}</p>
     <dl className="mission-metrics">
-      <div><dt>Ondas</dt><dd>{phase.waves.length}</dd></div>
+      <div><dt>{getProgressionLabel(phase)}</dt><dd>{getMissionEncounterCount(phase)}</dd></div>
       <div><dt>Energia</dt><dd>{phase.energy}</dd></div>
+      {phase.progressionMode === "convoy" && <><div><dt>Reserva</dt><dd>{phase.convoy.reserveInitial} / {phase.convoy.reserveMax}</dd></div><div><dt>Checkpoints</dt><dd>{phase.convoy.checkpointProgress.length}</dd></div><div><dt>Supply</dt><dd>{phase.supplyLimit}</dd></div></>}
       <div><dt>Integridade</dt><dd>{phase.baseIntegrity ?? 100}%</dd></div>
       <div><dt>Cadência</dt><dd>{(phase.cadenceMs / 1000).toFixed(2)}s</dd></div>
       <div><dt>Tempo-alvo</dt><dd>{formatTime(phase.targetDurationMs)}</dd></div>

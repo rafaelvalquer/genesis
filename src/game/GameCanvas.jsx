@@ -98,6 +98,7 @@ import {
   placeTroop,
   pointHitsCapsule,
   removeTroop,
+  repositionTroop,
   selectAdaptiveAidOption,
   selectDecision,
   setEnergyPickupPointer,
@@ -141,6 +142,10 @@ import { DematerializationPulseControls } from "./components/DematerializationPu
 import BattlePauseMenu from "./components/BattlePauseMenu.jsx";
 import { getWaveOutroCueState, getWaveOutroMusicVolumeFactor } from "./waveOutro/waveOutroAudio.js";
 import { getCinematicWaveOutroCameraTransform } from "./waveOutro/waveOutroCamera.js";
+import { drawConvoy, drawEscortZone } from "./chapter07/convoyRenderer.js";
+import ConvoyHud from "./chapter07/components/ConvoyHud.jsx";
+import ConvoyCheckpointOverlay from "./chapter07/components/ConvoyCheckpointOverlay.jsx";
+import "./chapter07/chapter07.css";
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
   if (!fieldPoint) return null;
   const cell = cellFromPoint(fieldPoint.x, fieldPoint.y);
@@ -1671,6 +1676,8 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
 
   const mineAssets = assets.troops.demolidora || {};
   drawMines(effectCtx, session.mines, mineAssets.mine?.[0], session.elapsed);
+  drawEscortZone(effectCtx, session, Boolean(session.convoy && (!session.convoy.escorted
+    || ["initialPreparation", "checkpointPreparation"].includes(session.convoyFlow?.state))));
   if (!runtime.projectileAssets
     || runtime.projectileAssets.mineSource !== mineAssets
     || runtime.projectileAssets.executorSource !== assets.effects?.executorArcSlash) {
@@ -1696,6 +1703,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   entityCtx.save();
   entityCtx.translate(0, VIEWPORT.fieldOffsetY);
   drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
+  drawConvoy(entityCtx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
   drawThermalPlatformHeatBars(entityCtx, session);
   drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(entityCtx, runtime, assets, now, session.phase);
@@ -1906,6 +1914,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const adaptiveSettingsRef = useRef({});
   const hoveredCellRef = useRef(null);
   const finishSentRef = useRef(false);
+  const convoyDestructionRevealUntilRef = useRef(0);
   const audioRef = useRef({});
   const lastCriticalBeepRef = useRef(0);
   const notificationIdRef = useRef(1);
@@ -1931,6 +1940,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const [spawnGrouped, setSpawnGrouped] = useState(false);
   const [fortuneTier, setFortuneTier] = useState("critical");
   const [selectedTroop, setSelectedTroop] = useState(null);
+  const [repositionTroopId, setRepositionTroopId] = useState(null);
   const [hoveredTroop, setHoveredTroop] = useState(null);
   const [removeMode, setRemoveMode] = useState(false);
   const [targetingDecision, setTargetingDecision] = useState(null);
@@ -1981,6 +1991,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     settings,
     paused,
     windActive: sessionRef.current.windCurrent?.state === "active",
+    convoyActive: phase.chapterId === "chapter_07" && snapshot.convoy?.moving,
+    chapterId: phase.chapterId,
   });
   const resetBattleRuntime = useCallback((nextSandboxSettings = sandboxSettingsState) => {
     stopAudio();
@@ -1990,6 +2002,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     battleRowsRef.current = createBattleRowBuffers();
     hoveredCellRef.current = null;
     finishSentRef.current = false;
+    convoyDestructionRevealUntilRef.current = 0;
     waveOutroCueRef.current = null;
     lastCriticalBeepRef.current = 0;
     setSelectedTroop(null); setHoveredTroop(null); setRemoveMode(false); setTargetingDecision(null);
@@ -2116,6 +2129,17 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
         consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
         if (events.some((event) => event.type === "spawn")) play("alert", 0.08);
+        if (events.some((event) => event.type === "escortRestored")) play("convoyEscort", .55);
+        if (events.some((event) => event.type === "escortLost")) play("convoyEscortLost", .55);
+        if (events.some((event) => event.type === "convoyUnderAttack")) play("convoyAttack", .34);
+        if (events.some((event) => event.type === "convoyHit")) play("convoyHit", .42);
+        if (events.some((event) => event.type === "convoyCritical")) play("convoyCritical", .68);
+        if (events.some((event) => event.type === "checkpointReached")) play("convoyCheckpoint", .72);
+        if (events.some((event) => event.type === "energyGenerated" && event.sourceKind === "convoy")) play("convoyLogistics", .24);
+        if (events.some((event) => event.type === "reserveEmpty")) play("convoyReserveEmpty", .58);
+        if (events.some((event) => event.type === "reinforcementWarning")) play("convoyReinforcement", .5);
+        if (events.some((event) => event.type === "convoyDestroyed")) play("convoyDestruction", .85);
+        if (events.some((event) => event.type === "convoyEvacuated")) play("convoyEvacuation", .85);
         if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
         if (events.some((event) => event.type === "shoot" && !["icaroBullet", "icaroInterceptionShot"].includes(event.weapon))) play("shoot", 0.18);
         if (events.some((event) => event.type === "shoot" && event.weapon === "icaroBullet")) play("icaroBurstShot", 0.34);
@@ -2231,6 +2255,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         graphicsRef.current.metrics.frameMs,
       );
       Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
+      sessionRef.current.renderPaused = pausedRef.current;
       const drawStarted = performance.now();
       lastLayerTimings = drawBattle(
         renderLayers, layerConfig, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
@@ -2260,6 +2285,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (showGraphicsMetrics) setGraphicsMetrics({ ...graphicsRef.current.metrics });
       }
       if (sessionRef.current.result && !finishSentRef.current) {
+        const convoyDestroyed = sessionRef.current.phase?.progressionMode === "convoy"
+          && sessionRef.current.result.outcome === "defeat" && sessionRef.current.convoy?.hp <= 0;
+        if (convoyDestroyed && !convoyDestructionRevealUntilRef.current) convoyDestructionRevealUntilRef.current = now + 1200;
+        if (convoyDestroyed && now < convoyDestructionRevealUntilRef.current) {
+          animationId = requestAnimationFrame(loop);
+          return;
+        }
         finishSentRef.current = true;
         audioRef.current.theme?.pause();
         audioRef.current.windActiveLoop?.pause();
@@ -2351,6 +2383,24 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       return;
     }
     const fieldPoint = canvasPointFromPointer(event);
+    if (sessionRef.current.convoyFlow?.state === "checkpointPreparation" && fieldPoint && !removeMode) {
+      const cell = cellFromPoint(fieldPoint.x, fieldPoint.y);
+      const troopAtCell = sessionRef.current.troops.find((troop) => !troop.dead && troop.row === cell?.row && troop.col === cell?.col);
+      if (repositionTroopId) {
+        const result = repositionTroop(sessionRef.current, repositionTroopId, cell.row, cell.col);
+        setMessage(result.ok ? "Patrulha reposicionada sem custo; estado operacional preservado." : result.reason);
+        if (result.ok) {
+          consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+          setRepositionTroopId(null); setSelectedTroop(null); setSnapshot(getSnapshot(sessionRef.current));
+        }
+        return;
+      }
+      if (!selectedTroop && troopAtCell) {
+        setRepositionTroopId(troopAtCell.id); setSelectedTroop(troopAtCell.type);
+        setMessage("Origem selecionada. Escolha uma célula válida em R1, R2, R4 ou R5.");
+        return;
+      }
+    }
     if (sessionRef.current.adaptiveAid?.status === "targeting") {
       const row = fieldPoint ? Math.floor(fieldPoint.y / CELL.height) : -1;
       const result = selectAdaptiveAidOption(sessionRef.current, sessionRef.current.adaptiveAid.pendingTarget, { row });
@@ -2448,8 +2498,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     if (targetingDecision || adaptiveAidBlocksIntermission(sessionRef.current.adaptiveAid?.status)) return;
     if (startWave(sessionRef.current)) {
       consumeGraphicsEvents(graphicsRef.current, [{ type: "waveStart" }], sessionRef.current.elapsed, settings);
-      setBanner(`ONDA ${sessionRef.current.waveIndex + 1} · CONTATO`);
-      setMessage("Onda em andamento. Novas implantações entram em cooldown.");
+      const convoy = sessionRef.current.convoyFlow;
+      setBanner(convoy ? `SETOR ${convoy.sectorIndex + 1}/4 · ROTA ATIVA` : `ONDA ${sessionRef.current.waveIndex + 1} · CONTATO`);
+      setMessage(convoy ? "Escolta iniciada. Proteja R2/R4 e mantenha o transporte em movimento." : "Onda em andamento. Novas implantações entram em cooldown.");
       play("alert", 0.75);
       play("theme", 0.75);
       setSnapshot(getSnapshot(sessionRef.current));
@@ -2863,7 +2914,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     : "";
   const defaultContainmentSummary = sandbox
     ? `CAMPO DE PROVAS · ${snapshot.enemies} HOSTIS EM CAMPO`
-    : `ONDA ${snapshot.wave}/${snapshot.totalWaves} · ${hostileCount} HOSTIS RESTANTES${threatSummary}`;
+    : `${snapshot.progressionMode === "convoy" ? "SETOR" : "ONDA"} ${snapshot.wave}/${snapshot.totalWaves} · ${hostileCount} HOSTIS RESTANTES${threatSummary}`;
   const containmentSummary = waveOutroActive
     ? "PERÍMETRO SEGURO · SISTEMAS EM REORGANIZAÇÃO"
     : snapshot.adaptiveAid.status === "targeting"
@@ -2881,7 +2932,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
 
   return (
-    <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${phase.chapterId === "chapter_06" ? "chapter-6-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
+    <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${phase.chapterId === "chapter_06" ? "chapter-6-battle" : ""} ${phase.chapterId === "chapter_07" ? "chapter-7-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
       <header className="battle-topbar">
         <div className="battle-operation"><span>OPERAÇÃO</span><h1>{sandbox ? "CAMPO DE PROVAS" : phase.name}</h1></div>
         <div className="battle-stats">
@@ -2935,7 +2986,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               ? `${troop.label}, recarregando, ${cooldownSeconds} segundos restantes`
               : unavailableReason ? `${troop.label}, ${unavailableReason}` : `${troop.label}, disponível para implantação`;
             const previewUrl = getTroopPreviewUrl(troopId);
-            return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} aria-keyshortcuts={String(index + 1)} aria-describedby={inspectedTroopId === troopId ? `troop-help-${troopId}` : undefined} onMouseEnter={() => setHoveredTroop(troopId)} onMouseLeave={() => setHoveredTroop(null)} onClick={() => { setRemoveMode(false); setSelectedTroop(troopId); }}>
+            return <button key={troopId} className={`troop-slot ${selectedTroop === troopId && !removeMode ? "selected" : ""} ${coolingDown ? "cooling-down" : ""} ${cooldownEnding ? "cooldown-ending" : ""} ${unavailableReason ? "resource-locked" : ""}`} style={{ "--troop-color": troop.color }} disabled={disabled} aria-label={slotLabel} aria-keyshortcuts={String(index + 1)} aria-describedby={inspectedTroopId === troopId ? `troop-help-${troopId}` : undefined} onMouseEnter={() => setHoveredTroop(troopId)} onMouseLeave={() => setHoveredTroop(null)} onClick={() => { setRepositionTroopId(null); setRemoveMode(false); setSelectedTroop(troopId); }}>
               <span className="troop-hotkey" aria-hidden="true">{index + 1}</span>
               <span className="troop-portrait" style={{ "--cooldown-progress": `${cooldownProgress * 360}deg` }}>
                 {previewUrl && <img src={previewUrl} alt="" aria-hidden="true" />}
@@ -2960,18 +3011,20 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         <div className="canvas-wrap">
           <div className="battle-canvas-stage">
             <div className={`containment-summary ${windBanner ? "wind-current-banner" : sandstormBanner ? "sandstorm-banner" : ""}`}>
-              {canStartWave
-                ? <button type="button" className="start-wave containment-start-wave" aria-keyshortcuts="Enter" title="Iniciar onda · Enter" onClick={handleStartWave}>INICIAR ONDA {snapshot.wave}<span>{waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas</span></button>
+              {canStartWave && snapshot.convoy?.state !== "checkpointPreparation"
+                ? <button type="button" className="start-wave containment-start-wave" aria-keyshortcuts="Enter" title={snapshot.progressionMode === "convoy" ? "Iniciar escolta · Enter" : "Iniciar onda · Enter"} onClick={handleStartWave}>{snapshot.progressionMode === "convoy" ? "INICIAR ESCOLTA" : `INICIAR ONDA ${snapshot.wave}`}<span>{snapshot.progressionMode === "convoy" ? "4 setores · 3 checkpoints" : `${waveSpawnCount(phase, snapshot.wave - 1, snapshot.nextWaveEnemyCountFactor)} assinaturas`}</span></button>
                 : <span>{containmentSummary}</span>}
             </div>
+            <ConvoyHud convoy={snapshot.convoy} energy={snapshot.energy} energyMax={snapshot.energyMax} />
             <canvas ref={canvasRef} width={VIEWPORT.width} height={VIEWPORT.height} onClick={handleCanvasClick} onContextMenu={handleCanvasContextMenu} onMouseMove={handleCanvasMove} onMouseLeave={(event) => {
               hoveredCellRef.current = null;
               if (sessionRef.current.pendingPositionalDecision) sessionRef.current.pendingPositionalDecision.preview = null;
               setEnergyPickupPointer(sessionRef.current, null);
               event.currentTarget.style.cursor = "default";
-            }} aria-label="Campo de batalha em cinco rotas" />
+            }} aria-label={snapshot.progressionMode === "convoy" ? "Campo de escolta com quatro rotas de combate e uma rota central de transporte" : "Campo de batalha em cinco rotas"} />
+            <ConvoyCheckpointOverlay convoy={snapshot.convoy} supply={`${snapshot.supply}/${snapshot.supplyMax}`} energy={`${snapshot.energy}/${snapshot.energyMax}`} onStart={handleStartWave} />
             {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
-            {!fortuneBlocksIntermission && <DematerializationPulseControls
+            {!fortuneBlocksIntermission && snapshot.progressionMode !== "convoy" && <DematerializationPulseControls
               session={sessionRef.current}
               onActivate={handleActivateDematerializationPulse}
             />}

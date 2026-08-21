@@ -22,15 +22,28 @@ function waveEnemyEntries(wave) {
   return entries;
 }
 
+function convoyEnemyEntries(phase) {
+  const entries = [];
+  for (const sector of phase.sectors || []) {
+    for (const packet of [
+      ...(sector.openingPackets || []),
+      ...(sector.reinforcement?.packetPool || []),
+    ]) {
+      for (const unit of packet.units || []) entries.push(unit);
+    }
+  }
+  return entries;
+}
+
 describe("contrato estrutural da campanha", () => {
-  it("mantém cinco capítulos e quarenta fases sequenciais", () => {
-    expect(CHAPTERS).toHaveLength(6);
-    expect(PHASES).toHaveLength(48);
+  it("mantém sete capítulos e cinquenta e seis fases sequenciais", () => {
+    expect(CHAPTERS).toHaveLength(7);
+    expect(PHASES).toHaveLength(56);
     expect(PHASES.map((phase) => phase.id)).toEqual(
-      Array.from({ length: 48 }, (_, index) => `fase_${String(index + 1).padStart(2, "0")}`),
+      Array.from({ length: 56 }, (_, index) => `fase_${String(index + 1).padStart(2, "0")}`),
     );
-    expect(new Set(PHASES.map((phase) => phase.id)).size).toBe(48);
-    expect(CHAPTERS.flatMap((chapter) => chapter.phaseIds || [])).toHaveLength(48);
+    expect(new Set(PHASES.map((phase) => phase.id)).size).toBe(56);
+    expect(CHAPTERS.flatMap((chapter) => chapter.phaseIds || [])).toHaveLength(56);
   });
 
   it.each(PHASES.map((phase) => [phase.id, phase]))(
@@ -38,12 +51,13 @@ describe("contrato estrutural da campanha", () => {
     (_phaseId, phase) => {
       expect(phase.arenaId).toBeTruthy();
       expect(getArenaUrl(phase.arenaId)).toBeTruthy();
-      expect(Array.isArray(phase.waves)).toBe(true);
-      expect(phase.waves.length).toBeGreaterThan(0);
+      const convoyMode = phase.progressionMode === "convoy";
+      expect(Array.isArray(convoyMode ? phase.sectors : phase.waves)).toBe(true);
+      expect((convoyMode ? phase.sectors : phase.waves).length).toBeGreaterThan(0);
       expect(() => resolvePhaseTroopAssetDependencies(phase, [], { strict: true })).not.toThrow();
       expect(() => resolvePhaseEnemyAssetDependencies(phase, [], { strict: true })).not.toThrow();
 
-      for (const wave of phase.waves) {
+      for (const wave of phase.waves || []) {
         const entries = waveEnemyEntries(wave);
         expect(entries.length || wave.bossEncounter).toBeTruthy();
         for (const enemy of entries) {
@@ -57,6 +71,16 @@ describe("contrato estrutural da campanha", () => {
         }
         if (Number.isFinite(wave.spawnWindowMs) && Number.isFinite(phase.targetDurationMs)) {
           expect(phase.targetDurationMs).toBeGreaterThan(wave.spawnWindowMs);
+        }
+      }
+
+      if (convoyMode) {
+        expect(phase.sectors).toHaveLength(4);
+        expect(phase.convoy.checkpointProgress).toEqual([.25, .5, .75]);
+        for (const enemy of convoyEnemyEntries(phase)) {
+          expect(ENEMIES[enemy.type], `Inimigo desconhecido ${enemy.type} em ${phase.id}`).toBeTruthy();
+          expect(Number(enemy.count)).toBeGreaterThan(0);
+          expect(Number.isInteger(Number(enemy.count))).toBe(true);
         }
       }
 
