@@ -47,6 +47,14 @@ describe("Chapter 7 structural contract", () => {
     expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/run/*.webp"))).toHaveLength(8);
     expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/destroyed_transition/*.webp"))).toHaveLength(10);
     expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/destroyed_loop/*.webp"))).toHaveLength(6);
+    const peregrinoFrames = import.meta.glob("../assets/convoy/tr7r_peregrino/*/*.webp");
+    expect(Object.keys(peregrinoFrames)).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr7a_bastilha/*/*.webp"))).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr7f_ferrum/*/*.webp"))).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr9_atlas/*/*.webp"))).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr9p_vertice/*/*.webp"))).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/tr9s_sobrevivente/*/*.webp"))).toHaveLength(30);
+    expect(Object.keys(import.meta.glob("../assets/convoy/trx_exodo/*/*.webp"))).toHaveLength(30);
   });
   it("maps every convoy cue and keeps the engine and music as resumable loops", () => {
     const PreviousAudio = globalThis.Audio;
