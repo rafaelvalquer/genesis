@@ -10,13 +10,13 @@ const SUBTITLES = [
   "Defenda simultaneamente a base e o transporte.", "Alcance o terminal mesmo sob o comando do Marechal da Forja.",
 ];
 const POOLS = [
-  ["legionaroFerrugem", "saqueadorEscoria"],
-  ["legionaroFerrugem", "saqueadorEscoria", "couracadoHematita"],
-  ["legionaroFerrugem", "saqueadorEscoria", "sabotadorOxido"],
-  ["legionaroFerrugem", "couracadoHematita", "cacadorComboio"],
-  ["legionaroFerrugem", "couracadoHematita", "sabotadorOxido", "cacadorComboio"],
-  ["cacadorComboio", "couracadoHematita", "atiradorRavina"],
-  ["legionaroFerrugem", "saqueadorEscoria", "couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina"],
+  ["rastejanteMata", "saqueadorEscoria"],
+  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita"],
+  ["rastejanteMata", "saqueadorEscoria", "sabotadorOxido"],
+  ["rastejanteMata", "couracadoHematita", "cacadorComboio"],
+  ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "cacadorComboio"],
+  ["cacadorComboio", "couracadoHematita", "saltadorAlado", "atiradorRavina"],
+  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "cacadorComboio", "sabotadorOxido", "atiradorRavina"],
   ["couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina"],
 ];
 
@@ -33,6 +33,7 @@ function createSector(phaseIndex, sectorIndex) {
     packet(`p${phaseIndex + 49}s${sectorIndex + 1}c`, 23000 - Math.min(5000, phaseIndex * 450), [[pool[Math.min(pool.length - 1, 2)], 1 + Math.floor(intensity / 5)]], phaseIndex >= 3 ? "scripted" : "split", phaseIndex >= 3 ? [1, 3] : undefined),
     packet(`p${phaseIndex + 49}s${sectorIndex + 1}d`, 37000 - Math.min(7000, phaseIndex * 550), [[pool[(sectorIndex + 1) % pool.length], 2 + Math.floor(intensity / 5)]], "spread"),
   ];
+  if (phaseIndex >= 5) packets.push(packet(`p${phaseIndex + 49}s${sectorIndex + 1}saltador`, 30000, [["saltadorAlado", 1]], "scripted", [1, 3]));
   if (phaseIndex === 7 && sectorIndex === 3) packets.unshift(packet("terminal-boss", 4000, [["marechalForja", 1]], "scripted", [0]));
   const warningAtMs = Math.max(38000, 62000 - phaseIndex * 3000);
   const startsAtMs = warningAtMs + 12000;
@@ -51,7 +52,7 @@ export const CHAPTER_SEVEN_PHASES = deepFreeze(Array.from({ length: 8 }, (_, ind
   id: `fase_${49 + index}`, name: NAMES[index], subtitle: SUBTITLES[index], chapterId: "chapter_07", chapterIndex: index,
   progressionMode: "convoy", arenaId: `fase_${49 + index}`, energy: 100, energyCapacity: 200,
   waves: [],
-  ambientEffects: ["ironDust", "convoyBeacons", "industrialHaze"],
+  ambientEffects: ["ferricSpores", "bioluminescentVeins", "livingHaze"],
   waveIntensity: [.42, .62, .82, 1],
   baseIntegrity: 500 + index * 50, supplyLimit: 32, loadoutLimit: 7, cadenceMs: 900,
   targetDurationMs: 390000 + index * 20000,
@@ -65,9 +66,9 @@ export const CHAPTER_SEVEN_PHASES = deepFreeze(Array.from({ length: 8 }, (_, ind
     checkpointRefill: 50, lateralAttackRangeTiles: 1, stopWithoutEscort: true, stopWhileAttacked: true },
   terrain: { mode: "convoy", routeType: ROUTES[index], seed: 7049 + index * 101 },
   sectors: Array.from({ length: 4 }, (_, sectorIndex) => createSector(index, sectorIndex)),
-  battlefieldTheme: { id: ROUTES[index], seed: 7049 + index * 101, material: "ferruginous", base: "depot",
-    entrance: "industrial", lane: "#302725", laneAlt: "#654238", edge: "#b65a32", detail: "#67e8f9" },
-  palette: { primary: "#b65a32", accent: "#67e8f9", shadow: "#090d0f", haze: "#654238" },
+  battlefieldTheme: { id: ROUTES[index], seed: 7049 + index * 101, material: "ferrivore", base: "overgrownFrontier",
+    entrance: "colonyEdge", lane: "#261B17", laneAlt: "#472A20", edge: "#C65A33", detail: "#63E6D6" },
+  palette: { primary: "#C65A33", accent: "#63E6D6", shadow: "#070A09", haze: "#6F3526" },
   boss: index === 7,
   ...(index === 7 ? { bossEncounter: { completionPolicy: "objective", objective: "convoyDestination", bossType: "marechalForja" } } : {}),
 })));

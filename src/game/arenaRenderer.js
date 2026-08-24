@@ -6,6 +6,7 @@ import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRen
 import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
 import { getThermalPlatformAt } from "./thermalTerrain.js";
 import { getConvoyXForProgress } from "./chapter07/convoyGeometry.js";
+import { drawFerrivoreTerrainBase, drawFerrivoreGroundVeins, drawFerrivoreGrowths, drawFerrivoreConvoyRoute, drawFerrivoreAmbient } from "./chapter07/ferrivoreBiomeRenderer.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -510,8 +511,13 @@ function renderStaticBattlefield(ctx, phase, settings = {}) {
   const blueprint = getBattlefieldBlueprint(phase);
   const profile = getQualityProfile(settings);
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
-  drawBackdrop(ctx, phase, blueprint);
+  if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
+    drawFerrivoreTerrainBase(ctx, phase);
+    drawFerrivoreGroundVeins(ctx, phase, 0, true);
+    drawFerrivoreGrowths(ctx, phase);
+  } else drawBackdrop(ctx, phase, blueprint);
   drawLanes(ctx, blueprint, profile);
+  if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") drawFerrivoreConvoyRoute(ctx, phase);
   if (blueprint.baseVariant === "convoy") drawConvoyEntryDepot(ctx, blueprint, profile);
   else drawDefenderBase(ctx, blueprint);
   drawEntrance(ctx, blueprint);
@@ -1260,6 +1266,10 @@ export function drawArenaForeground(ctx, phase, settings, session, time, adaptiv
   const atmosphereScale = adaptive.atmosphereScale ?? 1;
   const particleScale = adaptive.level === "stress" ? 0.55 : adaptive.level === "busy" ? 0.82 : 1;
   ctx.save();
+  if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
+    drawFerrivoreAmbient(ctx, phase, time, profile, settings.reduceMotion);
+    drawFerrivoreGroundVeins(ctx, phase, time, settings.reduceMotion);
+  }
   drawMagmaTerrainEffects(ctx, session, time, settings, adaptive, runtime);
   drawThermalPlatformIndicators(ctx, session);
   ctx.globalAlpha = profile.atmosphere * atmosphereScale;

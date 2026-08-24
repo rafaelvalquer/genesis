@@ -2196,6 +2196,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "reinforcementWarning")) setMessage("REFORÇOS INIMIGOS", { tone: "danger" });
         if (events.some((event) => event.type === "convoyDestroyed")) play("convoyDestruction", .85);
         if (events.some((event) => event.type === "convoyEvacuated")) play("convoyEvacuation", .85);
+        if (events.some((event) => event.type === "rastejanteBite")) play("rastejanteBite", .35);
+        if (events.some((event) => event.type === "rastejanteFrenzyChanged" && event.frenzyLevel === 2)) play("rastejanteFrenzy", .45);
+        if (events.some((event) => event.type === "saltadorJumpStart")) play("saltadorJump", .32);
+        if (events.some((event) => event.type === "saltadorJumpLand")) play("saltadorLand", .28);
+        if (events.some((event) => event.type === "saltadorRasanteImpact")) play("saltadorRasante", .42);
         if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
         if (events.some((event) => event.type === "shoot" && !["icaroBullet", "icaroInterceptionShot"].includes(event.weapon))) play("shoot", 0.18);
         if (events.some((event) => event.type === "shoot" && event.weapon === "icaroBullet")) play("icaroBurstShot", 0.34);

@@ -12,6 +12,10 @@ python scripts/convoy3d/validate_frames.py
 python scripts/convoy3d/create_preview.py
 ```
 
+For a single reproducible command, use `python scripts/convoy3d/run_pipeline.py`.
+It detects Blender and selects the Blender renderer or the independent Pillow
+fallback explicitly, then always validates frames and creates previews.
+
 The scene uses an orthographic camera, transparent film, a fixed 896×448
 render (4× the gameplay size), and three wheel objects whose origins are
 defined once in `vehicles/tr7r_peregrino.py`. The Pillow builder remains a

@@ -1,6 +1,7 @@
 import { CELL } from "../visualGeometry.js";
 
 export function canEnemyReachConvoy(session, enemy, config = {}) {
+  if (config.canAttackConvoy === false) return false;
   if (!session.convoy || enemy.dead || session.convoy.invulnerable) return false;
   const rows = config.canTargetConvoyFromOuterRow ? [0, 1, 3, 4] : (session.phase.convoy.escortRows || [1, 3]);
   const rangeTiles = config.convoyAttackRangeTiles ?? session.phase.convoy.lateralAttackRangeTiles ?? 1;

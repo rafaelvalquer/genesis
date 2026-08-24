@@ -166,6 +166,8 @@ import { hasCombatRelevantEnemies, enterCheckpointCinematic, enterCheckpointPrep
 import { updateConvoyReinforcements } from "../chapter07/convoySpawnDirector.js";
 import { canEnemyReachConvoy, hasBlockingTroop, updateConvoyThreat } from "../chapter07/convoyTargeting.js";
 import { damageConvoy } from "../chapter07/convoyDamage.js";
+import { getPersistentBiteMultiplier, commitPersistentBite, resetPersistentBite } from "../chapter07/persistentBite.js";
+import { updateSaltadorAlado } from "../chapter07/saltadorAlado.js";
 import { repositionTroop as repositionConvoyTroop } from "../chapter07/convoyReposition.js";
 import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
 import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
@@ -1465,6 +1467,15 @@ function createEnemyRuntime(session) {
       },
     }, events),
     setMordelumeState: (enemy, state, duration) => setMordelumeState(session, enemy, state, duration),
+    moveEnemy: (enemy, dt, events) => moveEnemy(session, enemy, dt, events),
+    closestTroop: (enemy, range) => closestTroopForEnemy(session, enemy, range),
+    troopBlockDistance,
+    damageTroop: (troop, amount, context = {}) => damageTroop(session, troop, amount, events, context),
+    hasBlockingTroop: (enemy) => hasBlockingTroop(session, enemy),
+    escortIds: () => session.convoy?.escortTroopIds || [],
+    convoyX: () => session.convoy?.x ?? Infinity,
+    rng: () => session.rng(),
+    troops: () => session.troops,
   };
 }
 
@@ -7909,6 +7920,10 @@ function updateEnemies(session, dt, events) {
       behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
+    if (enemy.type === "saltadorAlado") {
+      updateSaltadorAlado(runtime, enemy, config, dt, events);
+      continue;
+    }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
       enemy.moving = false;
       continue;
@@ -7976,7 +7991,22 @@ function updateEnemies(session, dt, events) {
       if (session.elapsed >= enemy.meleeImpactAt) {
         const target = session.troops.find((troop) => troop.id === enemy.meleeTargetId && !troop.dead);
         if (target && target.row === enemy.row && enemy.x - target.x <= troopBlockDistance(target)) {
-          damageTroop(session, target, enemy.damage, events);
+          const biteConfig = config.persistentBite;
+          const damage = biteConfig
+            ? enemy.damage * getPersistentBiteMultiplier(enemy, target.id, biteConfig)
+            : enemy.damage;
+          damageTroop(session, target, damage, events, { sourceEnemyId: enemy.id });
+          if (biteConfig) {
+            if (enemy.persistentBiteTargetId && enemy.persistentBiteTargetId !== target.id) {
+              resetPersistentBite(enemy);
+              events.push({ type: "rastejanteFrenzyChanged", sourceEnemyId: enemy.id, frenzyLevel: 0 });
+            }
+            const previousFrenzy = enemy.frenzyLevel;
+            commitPersistentBite(enemy, target.id, biteConfig);
+            events.push({ type: "rastejanteBite", sourceEnemyId: enemy.id, targetTroopId: target.id,
+              damage, multiplier: damage / enemy.damage, frenzyLevel: enemy.frenzyLevel });
+            if (previousFrenzy !== enemy.frenzyLevel) events.push({ type: "rastejanteFrenzyChanged", sourceEnemyId: enemy.id, frenzyLevel: enemy.frenzyLevel });
+          }
           events.push({ type: "melee", x: target.x, y: target.y, sourceEnemyId: enemy.id });
         }
         enemy.meleeAttackPending = false;
@@ -8025,7 +8055,19 @@ function updateEnemies(session, dt, events) {
           enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
           enemy.lastAttackAt = session.elapsed;
         } else {
-          damageTroop(session, target, enemy.damage, events);
+          const biteConfig = config.persistentBite;
+          const damage = biteConfig ? enemy.damage * getPersistentBiteMultiplier(enemy, target.id, biteConfig) : enemy.damage;
+          damageTroop(session, target, damage, events, { sourceEnemyId: enemy.id });
+          if (biteConfig) {
+            if (enemy.persistentBiteTargetId && enemy.persistentBiteTargetId !== target.id) {
+              resetPersistentBite(enemy);
+              events.push({ type: "rastejanteFrenzyChanged", sourceEnemyId: enemy.id, frenzyLevel: 0 });
+            }
+            const previousFrenzy = enemy.frenzyLevel;
+            commitPersistentBite(enemy, target.id, biteConfig);
+            events.push({ type: "rastejanteBite", sourceEnemyId: enemy.id, targetTroopId: target.id, damage, multiplier: damage / enemy.damage, frenzyLevel: enemy.frenzyLevel });
+            if (previousFrenzy !== enemy.frenzyLevel) events.push({ type: "rastejanteFrenzyChanged", sourceEnemyId: enemy.id, frenzyLevel: enemy.frenzyLevel });
+          }
           enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
           enemy.lastAttackAt = session.elapsed;
         }
@@ -8047,9 +8089,11 @@ function updateEnemies(session, dt, events) {
           }
         }
       }
+      if (config.persistentBite) resetPersistentBite(enemy);
     } else {
       enemy.targetKind = "base";
       enemy.targetId = null;
+      if (config.persistentBite) resetPersistentBite(enemy);
       moveEnemy(session, enemy, dt, events);
     }
   }

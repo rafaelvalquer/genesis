@@ -188,7 +188,7 @@ export function getEnemySpriteRect(enemy, enemyConfig = {}, state = "idle", fram
   const predatorFrenzy = enemy.type === "predadorCaldeira" && enemy.predatorFrenzy;
   const offsetX = ((enemyConfig.visualOffsetX || enemyConfig.spriteOffsetX || 0) + (predatorFrenzy ? -3 : 0)) * scale;
   const stateOffsetX = (enemyConfig.visualStateOffsetX?.[state] || 0) * scale;
-  const offsetY = (enemyConfig.visualOffsetY || enemyConfig.spriteOffsetY || 0) * scale;
+  const offsetY = ((enemyConfig.visualOffsetY || enemyConfig.spriteOffsetY || 0) + (enemy.visualOffsetY || 0)) * scale;
   const stateOffsetY = (enemyConfig.visualStateOffsetY?.[state] || 0) * scale;
   const anchorY = enemy.y - (enemy.type === "rasgaCeusCinereo" ? (enemy.flightAltitude || 0) : 0) + offsetY + stateOffsetY + (predatorFrenzy ? 2 * scale : 0)
     + (enemyConfig.airborne ? 0 : CELL.height * 0.43);
@@ -246,6 +246,24 @@ export function getLeviathanHitPointForRow(enemy, enemyConfig = {}, troopRow, st
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "saltadorAlado") {
+    const stateMap = { jumpPrep: "jumpPrep", jumpAir: "jumpAir", jumpLand: "jumpLand", rasante: "rasante" };
+    const state = enemy.dead ? "death" : stateMap[enemy.saltadorState] || (enemy.meleeAttackPending ? "attack" : enemy.moving ? "walking" : "idle");
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.saltadorStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const durations = { jumpPrep: enemyConfig.canopyJump?.prepMs, jumpAir: enemyConfig.canopyJump?.airMs, jumpLand: enemyConfig.canopyJump?.landMs, rasante: enemyConfig.rasante?.prepMs + enemyConfig.rasante?.airMs + enemyConfig.rasante?.landMs, attack: enemyConfig.attackVisual?.durationMs };
+    if (Number.isFinite(durations[state])) return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / durations[state]) * count)) };
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 110)) % count };
+  }
+  if (enemyConfig.id === "rastejanteMata") {
+    const state = enemy.dead ? "death" : enemy.meleeAttackPending ? "attack" : enemy.moving ? "walking" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const age = Math.max(0, elapsed - (enemy.meleeAttackPending ? enemy.meleeAttackStartedAt : enemy.spawnedAt));
+    const duration = state === "attack" ? enemyConfig.attackVisual?.durationMs : null;
+    if (Number.isFinite(duration)) return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    return { state, frame: Math.floor(age / 120) % count };
+  }
   if (enemyConfig.id === "cuspidorBrasa") {
     const logicalState = enemy.cuspidorState || (enemy.moving ? "walking" : "idle");
     const state = enemy.dead ? "death"

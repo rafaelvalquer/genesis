@@ -14,7 +14,7 @@ import {
   createOceanPlanetEffects,
 } from "./effects/createOceanPlanetEffects.js";
 import { createMagmaPlanetEffects } from "./effects/createMagmaPlanetEffects.js";
-import { createFerruginousPlanetEffects } from "./effects/createFerruginousPlanetEffects.js";
+import { createFerrivorePlanetEffects } from "./effects/createFerrivorePlanetEffects.js";
 import { createGenesisMicroEvents } from "./createGenesisMicroEvents.js";
 
 const QUALITY_PROFILES = Object.freeze({
@@ -146,7 +146,7 @@ const EFFECT_FACTORIES = Object.freeze({
   chapter_04: createStormPlanetEffects,
   chapter_05: createOceanPlanetEffects,
   chapter_06: createMagmaPlanetEffects,
-  chapter_07: createFerruginousPlanetEffects,
+  chapter_07: createFerrivorePlanetEffects,
 });
 
 export function createGenesisChapterEffects({

@@ -61,6 +61,13 @@ export function createBattleAudioChannels(assets, chapterId = null) {
     convoyReinforcement: buildFirst("c7_reinforcement"),
     convoyDestruction: buildFirst("c7_destruction"),
     convoyEvacuation: buildFirst("c7_evacuation"),
+    rastejanteIdle: buildFirst("c7_rastejante_idle"),
+    rastejanteBite: buildFirst("c7_rastejante_bite"),
+    rastejanteFrenzy: buildFirst("c7_rastejante_frenzy"),
+    saltadorAttack: buildFirst("c7_saltador_attack"),
+    saltadorJump: buildFirst("c7_saltador_jump"),
+    saltadorLand: buildFirst("c7_saltador_land"),
+    saltadorRasante: buildFirst("c7_saltador_rasante"),
   };
 }
 

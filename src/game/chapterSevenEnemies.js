@@ -3,11 +3,28 @@ const enemy = (id, label, role, stats = {}) => ({
   hp: 36, speed: 28, damage: 6, attackEveryMs: 1200, baseDamage: 10,
   threat: 16, convoyDamageFactor: .035, color: "#b65a32", scale: 1, previewState: "idle",
   assetStates: ["idle", "walking", "attack"],
-  description: "Ameaça Ferruginosa adaptada aos corredores industriais da fronteira.",
+  description: "Predador ferrívoro adaptado aos corredores vivos da fronteira.",
   ...stats,
 });
 
 export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
+  rastejanteMata: enemy("rastejanteMata", "Rastejante da Mata", "Pressão de linha", {
+    hp: 38, speed: 29, damage: 5, attackEveryMs: 1200, baseDamage: 10, threat: 14,
+    convoyDamageFactor: .035, convoyAttackRangeTiles: 1, canTargetConvoyFromOuterRow: false,
+    color: "#8fa83f", attackVisual: { durationMs: 640, impactMs: 320 },
+    persistentBite: { multipliers: [1, 1.1, 1.2], maxHitsForScaling: 2, resetOnTargetChange: true, affectsConvoy: false },
+    frenzyVisual: { enabled: true, level1Hits: 1, level2Hits: 2 },
+    description: "Predador rastejante da mata que intensifica suas mordidas sobre a mesma presa.",
+  }),
+  saltadorAlado: enemy("saltadorAlado", "Saltador Alado", "Infiltrador / assassino de escolta", {
+    hp: 26, speed: 28, damage: 6, attackEveryMs: 1100, baseDamage: 8, threat: 22, scale: .95,
+    canAttackConvoy: false, attackRangeTiles: .62, attackVisual: { durationMs: 560, impactMs: 280 },
+    canopyJump: { triggerRangeTiles: .72, cooldownMinMs: 5000, cooldownMaxMs: 7000, prepMs: 240, airMs: 420, landMs: 220, landingOffsetTiles: .72, heightTiles: .70 },
+    escortInstinct: { permanentAfterFirstJump: true, nearConvoyRadiusTiles: 2.25, huntForwardTiles: 5, targetLockMs: 1400 },
+    rasante: { triggerRangeTiles: 1.10, cooldownMs: 3000, prepMs: 140, airMs: 300, landMs: 180, impactMs: 360, heightTiles: .38, escortDamageMultiplier: 1.35 },
+    assetStates: ["idle", "walking", "attack", "jumpPrep", "jumpAir", "jumpLand", "rasante"],
+    description: "Predador alado que rompe a primeira linha e caça a escolta do comboio.",
+  }),
   legionaroFerrugem: enemy("legionaroFerrugem", "Legionário Ferrugem", "Soldado de linha", {
     hp: 38, speed: 29, damage: 5, baseDamage: 10, threat: 14, color: "#c26a3d",
     description: "Infante Ferruginoso disciplinado que avança pelas rotas de combate.",

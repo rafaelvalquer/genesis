@@ -4993,12 +4993,12 @@ export const CHAPTERS = [
     mechanic: { id: "thermal_cycle", label: "Gestão Térmica", description: "Terrenos de magma exigem Plataformas Térmicas e submetem a defesa a ciclos progressivos de calor." },
   },
   {
-    id: "chapter_07", number: 7, name: "Fronteira Ferruginosa",
+    id: "chapter_07", number: 7, name: "Fronteira Ferrívora",
     subtitle: "A rota precisa continuar",
     phaseIds: PHASES.slice(48, 56).map((entry) => entry.id), coverArenaId: "chapter_07",
     exclusiveEnemyIds: CHAPTER_SEVEN_ENEMY_IDS,
-    palette: { primary: "#b65a32", accent: "#67e8f9", shadow: "#090d0f" },
-    mechanic: { id: "convoy_escort", label: "Escolta Logística", description: "Proteja e acompanhe o comboio por quatro setores, reorganizando a patrulha nos checkpoints." },
+    palette: { primary: "#C65A33", accent: "#63E6D6", shadow: "#070A09" },
+    mechanic: { id: "convoy_escort", label: "Escolta Logística", description: "Proteja e acompanhe o comboio através da colônia ferrívora, reorganizando a patrulha nos checkpoints." },
   },
 ];
 
