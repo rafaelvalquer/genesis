@@ -9,6 +9,11 @@ import {
 } from "./projectileRenderer.js";
 
 describe("efeitos dos projeteis", () => {
+  it("não cria partículas ligadas à simulação para deploy", () => {
+    const particles = pushEventParticles([], [{ type: "deploy", x: 200, y: 180, seed: 10 }], 0, { quality: "high" });
+    expect(particles).toEqual([]);
+  });
+
   it("gera efeitos reproduziveis a partir da semente do evento", () => {
     const event = { type: "explosion", x: 300, y: 200, color: "#fb923c", seed: 77 };
     const first = pushEventParticles([], [event], 1000, { quality: "high" });

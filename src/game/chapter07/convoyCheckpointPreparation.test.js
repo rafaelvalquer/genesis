@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { acknowledgeConvoyCheckpoint, enterCheckpointPreparation } from "./convoyCheckpoints.js";
+import { applyConvoyCheckpointOption } from "./convoyCheckpointRewards.js";
 
 function createSession() {
   return {
@@ -9,13 +10,32 @@ function createSession() {
     mineReservations: [{ id: "reservation" }],
     effects: [{ transientSector: true }, { transientSector: false }],
     waveActive: false, preparing: false,
-    convoy: { invulnerable: false },
+    convoy: { invulnerable: false, hp: 800, maxHp: 1000, reserve: 20, reserveMax: 80 },
     convoyFlow: { state: "checkpointDecision", checkpointOptionChosen: true,
       checkpointBriefingPending: true, checkpointDecisionPending: true, reachedCheckpointCount: 1 },
   };
 }
 
 describe("convoy checkpoint preparation", () => {
+  it("mantém o briefing aberto depois de escolher uma recompensa", () => {
+    const session = createSession();
+    session.convoyFlow.checkpointOptionChosen = false;
+    const result = applyConvoyCheckpointOption(session, "repair");
+    expect(result.ok).toBe(true);
+    expect(session.convoyFlow.state).toBe("checkpointDecision");
+    expect(session.convoyFlow.checkpointOptionChosen).toBe(true);
+    expect(session.convoyFlow.checkpointBriefingPending).toBe(true);
+  });
+
+  it("mantém o briefing aberto depois de reabastecer", () => {
+    const session = createSession();
+    session.convoyFlow.checkpointOptionChosen = false;
+    const result = applyConvoyCheckpointOption(session, "refill");
+    expect(result.ok).toBe(true);
+    expect(session.convoyFlow.state).toBe("checkpointDecision");
+    expect(session.convoyFlow.checkpointBriefingPending).toBe(true);
+  });
+
   it("releases the start control after confirming preparation", () => {
     const session = createSession();
     expect(acknowledgeConvoyCheckpoint(session)).toBe(true);

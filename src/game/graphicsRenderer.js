@@ -128,8 +128,27 @@ export function drawDeploymentEffects(ctx, runtime, now, settings = {}) {
   for (const effect of runtime.deployments) {
     const progress = Math.min(1, (visualNow - effect.born) / effect.life);
     const alpha = 1 - progress;
+    const deployment = effect.kind === "deploy" || effect.kind === "droneStack";
     ctx.strokeStyle = effect.kind === "remove" ? `rgba(251,191,36,${alpha})` : effect.kind === "wave" ? `rgba(244,63,94,${alpha})` : `rgba(103,232,249,${alpha})`;
     ctx.lineWidth = 2;
+    if (deployment) {
+      ctx.globalAlpha = alpha * 0.72;
+      ctx.fillStyle = "#67e8f9";
+      ctx.beginPath();
+      ctx.arc(effect.x, effect.y, 5 + (1 - progress) * 7, 0, Math.PI * 2);
+      ctx.fill();
+      if (settings.quality !== "low") {
+        ctx.globalAlpha = alpha * 0.55;
+        for (let index = 0; index < 6; index += 1) {
+          const angle = index * Math.PI / 3;
+          const distance = 11 + progress * 25;
+          ctx.beginPath();
+          ctx.arc(effect.x + Math.cos(angle) * distance, effect.y + Math.sin(angle) * distance, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
     ctx.beginPath(); ctx.ellipse(effect.x, effect.y + 42, 34 + progress * 20, 9 + progress * 5, 0, 0, Math.PI * 2); ctx.stroke();
     if (settings.quality !== "low") {
       ctx.globalAlpha = alpha * .35;

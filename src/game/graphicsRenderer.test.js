@@ -11,7 +11,7 @@ import {
 describe("politica de filtros e halos", () => {
   it("usa o relógio visual para avançar o efeito de implantação", () => {
     const ctx = {
-      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), stroke: vi.fn(), fillRect: vi.fn(),
+      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), arc: vi.fn(), stroke: vi.fn(), fill: vi.fn(), fillRect: vi.fn(),
       strokeStyle: "", lineWidth: 0, globalAlpha: 1, fillStyle: "",
     };
     const runtime = { clockNow: 1260, deployments: [{ kind: "deploy", x: 100, y: 200, born: 1000, life: 520 }] };
@@ -22,7 +22,7 @@ describe("politica de filtros e halos", () => {
 
   it("altera a posição da barra entre frames sem depender do tempo da simulação", () => {
     const ctx = {
-      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), stroke: vi.fn(), fillRect: vi.fn(),
+      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), arc: vi.fn(), stroke: vi.fn(), fill: vi.fn(), fillRect: vi.fn(),
       strokeStyle: "", lineWidth: 0, globalAlpha: 1, fillStyle: "",
     };
     const runtime = { clockNow: 1000, deployments: [{ kind: "deploy", x: 100, y: 200, born: 1000, life: 520 }] };

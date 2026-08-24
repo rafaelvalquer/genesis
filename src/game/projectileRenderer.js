@@ -911,12 +911,16 @@ export function pushEventParticles(particles, events, now, settings = {}) {
       continue;
     }
 
+    // Deployment VFX is rendered by graphicsRuntime using the visual clock.
+    // It must not also enter this simulation-clock particle pipeline.
+    if (event.type === "deploy") continue;
+
     const baseBursts = event.type === "bossDeath" ? 36 : event.type === "explosion" ? 22 : event.type === "breach" ? 24 : event.type === "hit" ? 3 : 8;
     addSparks(particles, event, now, Math.max(2, Math.round(baseBursts * quality.density)), random, {
       color, speed: event.type === "bossDeath" ? 155 : event.type === "explosion" ? 130 : 80,
       life: event.type === "explosion" ? 430 : 340,
     });
-    if (["deploy", "spawn", "explosion", "breach", "bossPhase", "bossDeath"].includes(event.type)) {
+    if (["spawn", "explosion", "breach", "bossPhase", "bossDeath"].includes(event.type)) {
       particles.push({ kind: "ring", x: event.x || 0, y: event.y || 0, color, born: now, life: 450, maxRadius: event.type === "explosion" ? 70 : 65 });
     }
     if (event.type === "explosion") {

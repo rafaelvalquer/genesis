@@ -28,6 +28,12 @@ describe("Chapter 7 convoy UI", () => {
     expect(screen.queryByRole("button", { name: "INICIAR SETOR 3" })).not.toBeInTheDocument();
   });
 
+  it("mantém a confirmação de preparação depois da escolha da recompensa", () => {
+    const onContinue = vi.fn();
+    render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointDecision", checkpointBriefingPending: true, checkpointOptionChosen: true, nextSector: 2 }} onContinue={onContinue} />);
+    expect(screen.getByRole("button", { name: "PREPARAR SETOR 2" })).toBeInTheDocument();
+  });
+
   it("does not render the briefing after acknowledgement", () => {
     const { rerender } = render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointDecision", checkpointBriefingPending: true, nextSector: 3 }} onContinue={vi.fn()} />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();

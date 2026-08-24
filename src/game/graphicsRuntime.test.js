@@ -99,6 +99,18 @@ describe("runtime grafico", () => {
     expect(runtime.deployments[0]).toMatchObject({ born: 1180, life: 520 });
   });
 
+  it.each(["initialPreparation", "checkpointPreparation", "checkpointDecision", "sectorCountdown"])(
+    "finaliza o VFX de deploy em %s sem avançar a simulação",
+    (state) => {
+      const runtime = createGraphicsRuntime();
+      const session = { elapsed: 0, phase: { progressionMode: "convoy" }, convoyFlow: { state } };
+      consumeGraphicsEvents(runtime, [{ type: "deploy", x: 120, y: 180 }], session.elapsed, { clockNow: 1000 });
+      updateGraphicsRuntime(runtime, session.elapsed, 16, { clockNow: 1600 });
+      expect(session.elapsed).toBe(0);
+      expect(runtime.deployments).toHaveLength(0);
+    },
+  );
+
   it("retém feedback determinístico de impacto no núcleo", () => {
     const runtime = createGraphicsRuntime();
     consumeGraphicsEvents(runtime, [{
