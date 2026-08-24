@@ -264,6 +264,17 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     if (Number.isFinite(duration)) return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
     return { state, frame: Math.floor(age / 120) % count };
   }
+  if (enemyConfig.id === "macacoEsporos") {
+    const state = enemy.dead ? "death" : enemy.sporeState === "sporeCast" || enemy.sporeState === "released"
+      ? "sporeThrow" : enemy.meleeAttackPending ? "attack" : enemy.moving ? "walking" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.sporeState === "sporeCast" || enemy.sporeState === "released"
+      ? enemy.sporeStateStartedAt : enemy.meleeAttackPending ? enemy.meleeAttackStartedAt : enemy.spawnedAt;
+    const age = Math.max(0, elapsed - (startedAt || 0));
+    const duration = state === "sporeThrow" ? enemyConfig.sporeFruit?.castDurationMs : state === "attack" ? enemyConfig.attackVisual?.durationMs : null;
+    if (Number.isFinite(duration)) return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
   if (enemyConfig.id === "cuspidorBrasa") {
     const logicalState = enemy.cuspidorState || (enemy.moving ? "walking" : "idle");
     const state = enemy.dead ? "death"

@@ -168,6 +168,7 @@ import { canEnemyReachConvoy, hasBlockingTroop, updateConvoyThreat } from "../ch
 import { damageConvoy } from "../chapter07/convoyDamage.js";
 import { getPersistentBiteMultiplier, commitPersistentBite, resetPersistentBite } from "../chapter07/persistentBite.js";
 import { updateSaltadorAlado } from "../chapter07/saltadorAlado.js";
+import { updateSporeField } from "../chapter07/sporeField.js";
 import { repositionTroop as repositionConvoyTroop } from "../chapter07/convoyReposition.js";
 import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
 import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
@@ -435,6 +436,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     mines: [],
     projectiles: [],
     enemyProjectiles: [],
+    sporeFruits: [],
+    sporeClouds: [],
+    chapterSevenMetrics: { sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0 },
     energyPickups: [],
     energyPickupPointer: null,
     dematerializationPulses: isSystemEnabledForPhase(sessionPhase, "dematerializationPulse")
@@ -1423,6 +1427,8 @@ function createEnemyLegacy(session, queued) {
 
 function createEnemyRuntime(session, events) {
   return {
+    session,
+    createId: id,
     get elapsed() { return session.elapsed; },
     configFor: (enemy) => ENEMIES[enemy.type],
     updateScarabEmperor: (enemy, config, dt, events) => updateScarabEmperor(session, enemy, config, dt, events),
@@ -4214,7 +4220,7 @@ function updateLeviathanHunter(session, troop, config, events) {
 function updateTroops(session, events, dt) {
   for (const troop of session.troops) {
     if (troop.dead || troop.windRecovery) continue;
-    if (session.elapsed < (troop.controlStunnedUntil || 0)) {
+    if (session.elapsed < (troop.controlStunnedUntil || 0) || session.elapsed < (troop.sporeConfusedUntil || 0)) {
       troop.defenseActive = false;
       continue;
     }
@@ -8305,6 +8311,7 @@ export function stepBattle(session, dt = 32) {
     updateEnemyProjectiles(session, dt, events);
     updateEmberBurns(session, events);
     updateEnemies(session, dt, events);
+    updateSporeField(session, events);
     if (convoyMission) {
       updateConvoyEscort(session, events);
       updateConvoyThreat(session, ENEMIES, events);
@@ -8488,6 +8495,7 @@ export function getSnapshot(session) {
     enemies: session.enemies.length, queued: session.queue.length,
     mines: session.mines.length,
     energyPickups: session.energyPickups.length,
+    chapterSevenMetrics: session.chapterSevenMetrics ? { ...session.chapterSevenMetrics } : null,
     preparing: session.preparing, pendingDecision: session.pendingDecision, pendingDecisionLevel: session.pendingDecisionLevel,
     waveOutro: session.waveOutro ? {
       status: session.waveOutro.status,

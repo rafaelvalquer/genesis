@@ -33,14 +33,15 @@ describe("Chapter 7 structural contract", () => {
     expect(status.checkpointProgress).toEqual([.25, .5, .75]);
   });
   it("ships final roster, convoy and audio assets", () => {
-    const enemyFrames = import.meta.glob("../assets/enemy/{legionaroFerrugem,rastejanteMata,saqueadorEscoria,couracadoHematita,cacadorComboio,saltadorAlado,sabotadorOxido,atiradorRavina,marechalForja}/{idle,walking,attack}/frame*.png");
+    const enemyFrames = import.meta.glob("../assets/enemy/{legionaroFerrugem,rastejanteMata,saqueadorEscoria,couracadoHematita,cacadorComboio,saltadorAlado,macacoEsporos,sabotadorOxido,atiradorRavina,marechalForja}/{idle,walking,attack}/frame*.png");
     const concepts = import.meta.glob("../assets/enemy/concepts/{legionaroFerrugem,saqueadorEscoria,couracadoHematita,cacadorComboio,sabotadorOxido,atiradorRavina,marechalForja}.webp");
     const audio = import.meta.glob("../assets/sfx/c7_*.wav");
     const convoy = import.meta.glob("../assets/chapter07/convoy.png");
-    expect(Object.keys(enemyFrames)).toHaveLength(216);
+    expect(Object.keys(enemyFrames)).toHaveLength(240);
     expect(Object.keys(concepts)).toHaveLength(7);
     expect(Object.keys(import.meta.glob("../assets/enemy/rastejanteMata/{idle,walking,attack}/frame*.png"))).toHaveLength(24);
     expect(Object.keys(import.meta.glob("../assets/enemy/saltadorAlado/{idle,walking,attack,jumpPrep,jumpAir,jumpLand,rasante}/frame*.png"))).toHaveLength(46);
+    expect(Object.keys(import.meta.glob("../assets/enemy/macacoEsporos/{idle,walking,attack,sporeThrow}/frame*.png"))).toHaveLength(32);
     expect(Object.keys(audio)).toHaveLength(20);
     expect(Object.keys(convoy)).toHaveLength(1);
     const pioneiroFrames = import.meta.glob("../assets/convoy/tr7_pioneiro/*/*.webp");

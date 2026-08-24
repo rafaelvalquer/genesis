@@ -10,4 +10,10 @@ export const ENEMY_FRAME_ANCHORS = {
     "rasante": repeat({ x: 0.5041, y: 0.9238 }, 8),
     "walking": repeat({ x: 0.5015, y: 0.9297 }, 8),
   },
+  "macacoEsporos": {
+    "attack": repeat({ x: 0.4811, y: 0.9375 }, 8),
+    "idle": repeat({ x: 0.4811, y: 0.9375 }, 8),
+    "sporeThrow": repeat({ x: 0.4811, y: 0.9375 }, 8),
+    "walking": repeat({ x: 0.4811, y: 0.9375 }, 8),
+  },
 };

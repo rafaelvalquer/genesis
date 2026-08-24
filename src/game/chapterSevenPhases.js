@@ -15,9 +15,9 @@ const POOLS = [
   ["rastejanteMata", "saqueadorEscoria", "sabotadorOxido"],
   ["rastejanteMata", "couracadoHematita", "cacadorComboio"],
   ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "cacadorComboio"],
-  ["cacadorComboio", "couracadoHematita", "saltadorAlado", "atiradorRavina"],
-  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "cacadorComboio", "sabotadorOxido", "atiradorRavina"],
-  ["couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina"],
+  ["cacadorComboio", "couracadoHematita", "saltadorAlado", "atiradorRavina", "macacoEsporos"],
+  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos"],
+  ["couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos"],
 ];
 
 const packet = (id, atMs, units, routeStrategy = "split", fixedRows) => ({ id, atMs,
@@ -34,6 +34,7 @@ function createSector(phaseIndex, sectorIndex) {
     packet(`p${phaseIndex + 49}s${sectorIndex + 1}d`, 37000 - Math.min(7000, phaseIndex * 550), [[pool[(sectorIndex + 1) % pool.length], 2 + Math.floor(intensity / 5)]], "spread"),
   ];
   if (phaseIndex >= 5) packets.push(packet(`p${phaseIndex + 49}s${sectorIndex + 1}saltador`, 30000, [["saltadorAlado", 1]], "scripted", [1, 3]));
+  if (phaseIndex >= 2) packets.push(packet(`p${phaseIndex + 49}s${sectorIndex + 1}esporos`, 27000, [["macacoEsporos", 1]], "scripted", [1, 3]));
   if (phaseIndex === 7 && sectorIndex === 3) packets.unshift(packet("terminal-boss", 4000, [["marechalForja", 1]], "scripted", [0]));
   const warningAtMs = Math.max(38000, 62000 - phaseIndex * 3000);
   const startsAtMs = warningAtMs + 12000;

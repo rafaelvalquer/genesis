@@ -866,6 +866,19 @@ function drawPhysicalStunEffect(ctx, troop, elapsed, settings) {
   ctx.restore();
 }
 
+function drawSporeConfusionEffect(ctx, troop, elapsed, settings) {
+  if (elapsed >= (troop.sporeConfusedUntil || 0)) return;
+  ctx.save();
+  ctx.fillStyle = "#d9f99d"; ctx.strokeStyle = "#365314"; ctx.lineWidth = 1;
+  for (let index = 0; index < 3; index += 1) {
+    const angle = settings.reduceMotion ? index * 2.1 : elapsed / 220 + index * 2.1;
+    const x = troop.x + Math.cos(angle) * 16;
+    const y = troop.y - 62 + Math.sin(angle) * 7;
+    ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawAresThermalShield(ctx, troop, settings) {
   if (troop.type !== "aresT") return;
   const max = Math.max(1, TROOPS.aresT.thermalShield.maxHp);
@@ -1185,6 +1198,7 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
   drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings);
   drawPhysicalStunEffect(ctx, logicalEntity, session.elapsed, settings);
+  drawSporeConfusionEffect(ctx, logicalEntity, session.elapsed, settings);
   drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
   drawAresThermalShield(ctx, logicalEntity, settings);
   if (logicalEntity.type === "droneSentinela") {
@@ -1622,6 +1636,19 @@ function drawEmissiveBattle(
   );
   drawProjectileCollection(ctx, session.projectiles, interpolation, settings, projectileAssets);
   drawProjectileCollection(ctx, session.enemyProjectiles, interpolation, settings, projectileAssets);
+  for (const fruit of session.sporeFruits || []) {
+    const progress = Math.max(0, Math.min(1, (session.elapsed - fruit.startedAt) / Math.max(1, fruit.impactAt - fruit.startedAt)));
+    const x = fruit.startX + (fruit.targetX - fruit.startX) * progress;
+    const y = fruit.startY + (fruit.targetY - fruit.startY) * progress - Math.sin(progress * Math.PI) * 62;
+    ctx.save(); ctx.fillStyle = "#bef264"; ctx.strokeStyle = "#4d7c0f"; ctx.shadowColor = "#d9f99d"; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  for (const cloud of session.sporeClouds || []) {
+    const progress = Math.max(0, Math.min(1, (session.elapsed - cloud.startedAt) / Math.max(1, cloud.endsAt - cloud.startedAt)));
+    ctx.save(); ctx.globalAlpha = 0.48 * (1 - progress); ctx.fillStyle = "#84cc16";
+    for (let index = 0; index < 8; index += 1) { const angle = index * Math.PI / 4; ctx.beginPath(); ctx.arc(cloud.x + Math.cos(angle) * cloud.radius * .45, cloud.y + Math.sin(angle) * cloud.radius * .25, 11 + progress * 14, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
   drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
   drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
   if (dematerializationEnabled) drawPulseDisintegrations(ctx, runtime, assets, now, settings);
