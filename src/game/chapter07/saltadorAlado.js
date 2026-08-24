@@ -7,7 +7,7 @@ function targetPriority(runtime, enemy, troop, config) {
   const escort = runtime.escortIds().includes(troop.id);
   if (escort) return 0;
   if (Math.abs(troop.x - runtime.convoyX()) <= config.escortInstinct.nearConvoyRadiusTiles * CELL.width) return 1;
-  if ((runtime.phase?.convoy?.escortRows || [1, 3]).includes(troop.row)) return 2;
+  if ([1, 3].includes(troop.row)) return 2;
   return 3;
 }
 

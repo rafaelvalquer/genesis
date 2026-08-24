@@ -4,10 +4,36 @@ import {
   getCachedSpriteHalo,
   getSpriteFilter,
   getTroopSpriteFilter,
+  drawDeploymentEffects,
   presentScene,
 } from "./graphicsRenderer.js";
 
 describe("politica de filtros e halos", () => {
+  it("usa o relógio visual para avançar o efeito de implantação", () => {
+    const ctx = {
+      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), stroke: vi.fn(), fillRect: vi.fn(),
+      strokeStyle: "", lineWidth: 0, globalAlpha: 1, fillStyle: "",
+    };
+    const runtime = { clockNow: 1260, deployments: [{ kind: "deploy", x: 100, y: 200, born: 1000, life: 520 }] };
+    drawDeploymentEffects(ctx, runtime, 0, { quality: "high" });
+    expect(ctx.ellipse).toHaveBeenCalledWith(100, 242, 44, 11.5, 0, 0, Math.PI * 2);
+    expect(ctx.fillRect).toHaveBeenCalledWith(69, 200, 62, 2);
+  });
+
+  it("altera a posição da barra entre frames sem depender do tempo da simulação", () => {
+    const ctx = {
+      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), stroke: vi.fn(), fillRect: vi.fn(),
+      strokeStyle: "", lineWidth: 0, globalAlpha: 1, fillStyle: "",
+    };
+    const runtime = { clockNow: 1000, deployments: [{ kind: "deploy", x: 100, y: 200, born: 1000, life: 520 }] };
+    drawDeploymentEffects(ctx, runtime, 0, { quality: "high" });
+    const firstY = ctx.fillRect.mock.calls.at(-1)[1];
+    runtime.clockNow = 1260;
+    drawDeploymentEffects(ctx, runtime, 0, { quality: "high" });
+    const secondY = ctx.fillRect.mock.calls.at(-1)[1];
+    expect(secondY).toBeLessThan(firstY);
+  });
+
   it("nao aplica filtro a sprites normais e mantem estados combinados", () => {
     expect(getSpriteFilter()).toBe("none");
     expect(getTroopSpriteFilter(0)).toBe("none");

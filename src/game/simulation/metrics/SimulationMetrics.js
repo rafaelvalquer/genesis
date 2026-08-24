@@ -375,7 +375,6 @@ export class SimulationMetrics {
         maxHp: Number(session.convoy.maxHp),
         progress: Number(session.convoy.progress),
         x: Number(session.convoy.x),
-        escorted: Boolean(session.convoy.escorted),
         underAttack: Boolean(session.convoy.underAttack),
         reserve: Number(session.convoy.reserve),
         flowState: session.convoyFlow?.state || null,

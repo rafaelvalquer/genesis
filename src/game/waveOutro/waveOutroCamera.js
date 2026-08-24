@@ -22,7 +22,7 @@ export function getKillCinematicCameraTransform({
   focusX = null,
   focusRow = 2,
 } = {}) {
-  if (!status || !["finalKill", "cleanup", "checkpointCinematic"].includes(status)) return null;
+  if (!status || !["finalKill", "cleanup"].includes(status)) return null;
   const elapsed = Math.max(0, Number(elapsedMs) || 0);
   const enterEnd = Math.min(profile.impactAtMs || enterEndMs, enterEndMs);
   let zoomProgress = elapsed < enterEnd ? easeOutCubic(elapsed / Math.max(1, enterEnd)) : 1;

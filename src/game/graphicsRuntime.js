@@ -93,6 +93,7 @@ export function clearRenderLayer(context, canvas, scale) {
 
 export function createGraphicsRuntime() {
   return {
+    clockNow: null,
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
     colossoCoreHits: [], convoyImpacts: [],
     pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [], magma: null,
@@ -197,6 +198,10 @@ function decalFor(event, now) {
 }
 
 export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
+  const visualNow = Number.isFinite(settings.clockNow)
+    ? settings.clockNow
+    : (Number.isFinite(runtime.clockNow) ? runtime.clockNow : now);
+  runtime.clockNow = visualNow;
   consumeWindCurrentGraphicsEvents(runtime, events, now);
   for (const event of events) {
     const shake = event.shake ?? eventShake(event.type);
@@ -251,7 +256,7 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
     if (["deploy", "droneStackCreated", "droneStackAdded"].includes(event.type)) {
       runtime.deployments.push({
         kind: event.type === "droneStackAdded" ? "droneStack" : "deploy",
-        x: event.x, y: event.y, born: now, life: 520,
+        x: event.x, y: event.y, born: visualNow, life: 520,
       });
     }
     if (event.type === "remove") runtime.deployments.push({ kind: "remove", x: event.x, y: event.y, born: now, life: 380 });
@@ -292,13 +297,15 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
 }
 
 export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
+  runtime.clockNow = Number.isFinite(counts.clockNow) ? counts.clockNow : now;
+  const visualNow = runtime.clockNow;
   runtime.hits.forEach((value, key) => { if (now - value.born >= value.life) runtime.hits.delete(key); });
   runtime.deaths = runtime.deaths.filter((entry) => now - entry.born < entry.life);
   runtime.disintegrations = runtime.disintegrations.filter((entry) => now - entry.born < entry.life);
   runtime.pulseBeams = runtime.pulseBeams.filter((entry) => now - entry.born < entry.life);
   runtime.pulseScorches = runtime.pulseScorches.filter((entry) => now - entry.born < entry.life);
   runtime.lights = runtime.lights.filter((entry) => now - entry.born < entry.life);
-  runtime.deployments = runtime.deployments.filter((entry) => now - entry.born < entry.life);
+  runtime.deployments = runtime.deployments.filter((entry) => visualNow - entry.born < entry.life);
   runtime.containmentArcs = runtime.containmentArcs.filter((entry) => now - entry.born < entry.life);
   runtime.colossoCoreHits = runtime.colossoCoreHits.filter((entry) => now - entry.born < entry.life);
   runtime.convoyImpacts = runtime.convoyImpacts.filter((entry) => now - entry.born < entry.life);

@@ -138,20 +138,21 @@ import {
 import { useBattleFullscreen } from "./hooks/useBattleFullscreen.js";
 import { installNonPassiveContextMenuGuard } from "./hooks/battleCanvasEvents.js";
 import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
+import { advanceTroopAnimationClock } from "./troopAnimationClock.js";
 import { WaveOutroCinematicOverlay } from "./waveOutro/WaveOutroCinematicOverlay.jsx";
 import { DematerializationPulseControls } from "./components/DematerializationPulseControls.jsx";
 import BattlePauseMenu from "./components/BattlePauseMenu.jsx";
 import { getWaveOutroCueState, getWaveOutroMusicVolumeFactor } from "./waveOutro/waveOutroAudio.js";
-import { getCinematicWaveOutroCameraTransform, getKillCinematicCameraTransform } from "./waveOutro/waveOutroCamera.js";
-import { drawConvoy, drawEscortZone } from "./chapter07/convoyRenderer.js";
+import { getCinematicWaveOutroCameraTransform } from "./waveOutro/waveOutroCamera.js";
+import { drawConvoy } from "./chapter07/convoyRenderer.js";
 import { drawConvoyImpacts } from "./chapter07/convoyImpactRenderer.js";
 import { getConvoyAttackSummary } from "./chapter07/convoySummary.js";
 import ConvoyCheckpointOverlay from "./chapter07/components/ConvoyCheckpointOverlay.jsx";
 import ConvoySectorCountdown from "./chapter07/components/ConvoySectorCountdown.jsx";
 import ConvoyToast from "./chapter07/components/ConvoyToast.jsx";
 import { advanceConvoySectorCountdown, startConvoySectorCountdown } from "./chapter07/convoyFlow.js";
-import { updateConvoyEscort } from "./chapter07/convoyEscort.js";
 import { acknowledgeConvoyCheckpoint } from "./chapter07/convoyCheckpoints.js";
+import { applyConvoyCheckpointOption } from "./chapter07/convoyCheckpointRewards.js";
 import "./chapter07/chapter07.css";
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
   if (!fieldPoint) return null;
@@ -1112,7 +1113,7 @@ function drawElectricTroopStatus(ctx, troop, elapsed, settings) {
   ctx.restore();
 }
 
-export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, scratch, drawHalo = true) {
+export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, animationElapsed, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   const reaction = getHitReaction(runtime, logicalEntity.id, now);
   const config = TROOPS[logicalEntity.type];
@@ -1120,7 +1121,8 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   Object.assign(scratch, logicalEntity);
   scratch.x = entry.x + reaction.offsetX;
   scratch.y = entry.y + (config.spriteOffsetY || 0);
-  const animation = getTroopAnimation(logicalEntity, config, session.elapsed, getTroopFrameCounts(troopAssets));
+  const troopElapsed = logicalEntity.state === "idle" ? animationElapsed : session.elapsed;
+  const animation = getTroopAnimation(logicalEntity, config, troopElapsed, getTroopFrameCounts(troopAssets));
   const image = resolveTroopFrame(troopAssets, animation.state, animation.frame);
   const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
   const visual = getTroopAttackVisual(logicalEntity, config);
@@ -1562,7 +1564,7 @@ function drawThermalPlatforms(ctx, session, assets) {
   }
 }
 
-export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers) {
+export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers) {
   drawThermalPlatforms(ctx, session, assets);
   buildBattleRenderRows(session.troops, session.enemies, interpolation, session.elapsed, settings.reduceMotion, buffers);
   drawWetReflections(ctx, session.phase, buffers.rows, settings, adaptive);
@@ -1594,7 +1596,7 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
           (entry.kind === "enemy" ? entity.scale : 1) * emergenceScale, settings);
       }
       if (entry.kind === "troop") {
-        drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, buffers.troopScratch, drawHalo);
+        drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, animationElapsed, buffers.troopScratch, drawHalo);
       } else {
         drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, drawHalo);
       }
@@ -1640,12 +1642,12 @@ function drawEmissiveBattle(
     const progress = Math.max(0, Math.min(1, (session.elapsed - fruit.startedAt) / Math.max(1, fruit.impactAt - fruit.startedAt)));
     const x = fruit.startX + (fruit.targetX - fruit.startX) * progress;
     const y = fruit.startY + (fruit.targetY - fruit.startY) * progress - Math.sin(progress * Math.PI) * 62;
-    ctx.save(); ctx.fillStyle = "#bef264"; ctx.strokeStyle = "#4d7c0f"; ctx.shadowColor = "#d9f99d"; ctx.shadowBlur = 10;
+    ctx.save(); ctx.fillStyle = "#f1b447"; ctx.strokeStyle = "#d76e36"; ctx.shadowColor = "#46a6a1"; ctx.shadowBlur = 10;
     ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
   }
   for (const cloud of session.sporeClouds || []) {
     const progress = Math.max(0, Math.min(1, (session.elapsed - cloud.startedAt) / Math.max(1, cloud.endsAt - cloud.startedAt)));
-    ctx.save(); ctx.globalAlpha = 0.48 * (1 - progress); ctx.fillStyle = "#84cc16";
+    ctx.save(); ctx.globalAlpha = 0.42 * (1 - progress); ctx.fillStyle = "#e9913a";
     for (let index = 0; index < 8; index += 1) { const angle = index * Math.PI / 4; ctx.beginPath(); ctx.arc(cloud.x + Math.cos(angle) * cloud.radius * .45, cloud.y + Math.sin(angle) * cloud.radius * .25, 11 + progress * 14, 0, Math.PI * 2); ctx.fill(); }
     ctx.restore();
   }
@@ -1660,7 +1662,7 @@ function drawEmissiveBattle(
   ctx.restore();
 }
 
-function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, interpolation, rowBuffers) {
+function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime, selectedTroop, removeMode, hoveredCell, settings, adaptive, now, animationElapsed, interpolation, rowBuffers) {
   const { contexts, scales } = layerConfig;
   const arenaCtx = contexts.arenaLayer;
   const effectCtx = contexts.effectLayer;
@@ -1704,8 +1706,6 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
 
   const mineAssets = assets.troops.demolidora || {};
   drawMines(effectCtx, session.mines, mineAssets.mine?.[0], session.elapsed);
-  drawEscortZone(effectCtx, session, Boolean(session.convoy && (!session.convoy.escorted
-    || ["initialPreparation", "checkpointPreparation"].includes(session.convoyFlow?.state))));
   if (!runtime.projectileAssets
     || runtime.projectileAssets.mineSource !== mineAssets
     || runtime.projectileAssets.executorSource !== assets.effects?.executorArcSlash) {
@@ -1730,7 +1730,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   clearRenderLayer(entityCtx, layers.entityLayer, scales.entityLayer);
   entityCtx.save();
   entityCtx.translate(0, VIEWPORT.fieldOffsetY);
-  drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
+  drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, rowBuffers);
   drawConvoy(entityCtx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
   drawThermalPlatformHeatBars(entityCtx, session);
   drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
@@ -1968,12 +1968,22 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const notificationIdRef = useRef(1);
   const waveOutroCueRef = useRef(null);
   const convoyCountdownStepRef = useRef(null);
+  const troopAnimationClockRef = useRef({ session: null, elapsed: 0, lastNow: 0, planning: false });
   if (!sessionRef.current) sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox });
 
   const [snapshot, setSnapshot] = useState(() => getSnapshot(sessionRef.current));
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [runtimeRevision, setRuntimeRevision] = useState(0);
+  const consumeGraphicsEventsAtVisualTime = (events, simulationNow = sessionRef.current.elapsed) => {
+    const visualNow = performance.now();
+    consumeGraphicsEvents(
+      graphicsRef.current,
+      events,
+      simulationNow,
+      { ...settings, clockNow: visualNow },
+    );
+  };
   const { pausedRef, speedRef } = useBattleLoopControls(paused, speed);
   const {
     isFullscreen,
@@ -2132,7 +2142,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       const outroEvents = advanceWaveOutro(sessionRef.current, frameDelta);
       if (outroEvents.length) {
         pushEventParticles(particlesRef.current, outroEvents, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-        consumeGraphicsEvents(graphicsRef.current, outroEvents, sessionRef.current.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime(outroEvents, sessionRef.current.elapsed);
         if (outroEvents.some((event) => event.type === "waveCompleteBanner")) {
           audioRef.current.theme?.pause();
           setBanner(sessionRef.current.waveOutro.finalWave
@@ -2157,7 +2167,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         const countdownEvents = [];
         advanceConvoySectorCountdown(activeSession, frameDelta * speedRef.current, countdownEvents);
         if (countdownEvents.length) {
-          consumeGraphicsEvents(graphicsRef.current, countdownEvents, activeSession.elapsed, settings);
+          consumeGraphicsEventsAtVisualTime(countdownEvents, activeSession.elapsed);
           play("alert", 0.45);
           convoyCountdownStepRef.current = null;
         }
@@ -2178,7 +2188,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           color: phase.palette.accent,
           seed: Math.round((lastEnemy?.x || 17) * 31 + (lastEnemy?.y || 23) * 17),
         };
-        consumeGraphicsEvents(graphicsRef.current, [impactEvent], activeSession.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime([impactEvent], activeSession.elapsed);
         play("melee", cueState.finalWave ? 0.88 : cueState.cinematic ? 0.68 : 0.48);
         play("alert", cueState.finalWave ? 0.30 : 0.14);
       }
@@ -2197,10 +2207,8 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       while (accumulator >= 32) {
         const events = stepBattle(sessionRef.current, 32);
         pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-        consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime(events, sessionRef.current.elapsed);
         if (events.some((event) => event.type === "spawn")) play("alert", 0.08);
-        if (events.some((event) => event.type === "escortRestored")) play("convoyEscort", .55);
-        if (events.some((event) => event.type === "escortLost")) play("convoyEscortLost", .55);
         if (events.some((event) => event.type === "convoyUnderAttack")) play("convoyAttack", .34);
         if (events.some((event) => event.type === "convoyUnderAttack")) setMessage("TRANSPORTE SOB ATAQUE", { tone: "danger" });
         if (events.some((event) => event.type === "escortLost")) setMessage("SEM ESCOLTA · o transporte permanecerá parado", { tone: "warning", persistent: true });
@@ -2344,30 +2352,21 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       );
       Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
       sessionRef.current.renderPaused = pausedRef.current;
+      const troopAnimationElapsed = advanceTroopAnimationClock(
+        troopAnimationClockRef.current,
+        sessionRef.current,
+        now,
+      );
       const drawStarted = performance.now();
       lastLayerTimings = drawBattle(
         renderLayers, layerConfig, sessionRef.current, assetsRef.current, particlesRef, graphicsRef.current,
         selectedTroop, removeMode, hoveredCellRef.current, adaptiveSettingsRef.current, adaptive,
-        sessionRef.current.elapsed, interpolation, battleRowsRef.current,
+        sessionRef.current.elapsed, troopAnimationElapsed, interpolation, battleRowsRef.current,
       );
       lastDrawMs = performance.now() - drawStarted;
       const presentStarted = performance.now();
       const camera = getCameraOffset(graphicsRef.current, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-      const checkpointCinematic = sessionRef.current.convoyFlow?.checkpointCinematic;
-      const checkpointCamera = !settings.reduceMotion && sessionRef.current.convoyFlow?.state === "checkpointCinematic"
-        ? getKillCinematicCameraTransform({
-          status: "checkpointCinematic",
-          elapsedMs: checkpointCinematic?.elapsedMs,
-          lastKill: checkpointCinematic?.lastKill,
-          profile: { zoom: 1.12, impactAtMs: 650 },
-          enterEndMs: 650,
-          exitStartMs: 1650,
-          endMs: 2300,
-          focusX: sessionRef.current.convoy?.x,
-          focusRow: sessionRef.current.convoy?.row ?? 2,
-        })
-        : null;
-      const outroCamera = checkpointCamera || getCinematicWaveOutroCameraTransform(sessionRef.current, settings.reduceMotion);
+      const outroCamera = getCinematicWaveOutroCameraTransform(sessionRef.current, settings.reduceMotion);
       const presentationCamera = outroCamera ? {
         ...camera,
         ...outroCamera,
@@ -2445,7 +2444,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       return;
     }
     pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
     play("alert", 0.55);
     setMessage(`Pulso da rota ${row + 1} carregando · ${DEMATERIALIZATION_PULSE.damage} de dano por inimigo.`);
     setSnapshot(getSnapshot(sessionRef.current));
@@ -2473,7 +2472,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       : result.reason);
     if (result.ok) {
       pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
-      consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime([result.event], sessionRef.current.elapsed);
     }
     setSnapshot(getSnapshot(sessionRef.current));
   };
@@ -2498,8 +2497,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         const result = repositionTroop(sessionRef.current, repositionTroopId, cell.row, cell.col);
         setMessage(result.ok ? "Patrulha reposicionada sem custo; estado operacional preservado." : result.reason);
         if (result.ok) {
-          updateConvoyEscort(sessionRef.current, []);
-          consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+          consumeGraphicsEventsAtVisualTime([result.event], sessionRef.current.elapsed);
           setRepositionTroopId(null); setSelectedTroop(null); setSnapshot(getSnapshot(sessionRef.current));
         }
         return;
@@ -2516,7 +2514,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       if (result.ok) {
         const confirmation = result.events.find((entry) => entry.type === "fortuneOrbitalStrike");
         if (confirmation) sessionRef.current.positionalConfirmationEffect = { ...confirmation, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1400 };
-        consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
         pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
         setMessage(positionalTargetMessage({ id: "emergency_orbital" }, { row }));
       } else setMessage(result.reason);
@@ -2527,7 +2525,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       && pointHitsCapsule(sessionRef.current.adaptiveAid.capsule, fieldPoint)) {
       const result = openAdaptiveAidCapsule(sessionRef.current);
       if (result.ok) {
-        consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
         pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
         setSelectedTroop(null);
         setRemoveMode(false);
@@ -2550,7 +2548,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       if (eventData && selectDecision(sessionRef.current, targetingDecision, target)) {
         sessionRef.current.pendingPositionalDecision = null;
         sessionRef.current.positionalConfirmationEffect = { ...eventData, startedAt: sessionRef.current.elapsed, until: sessionRef.current.elapsed + 1400 };
-        consumeGraphicsEvents(graphicsRef.current, [eventData], sessionRef.current.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime([eventData], sessionRef.current.elapsed);
         pushEventParticles(particlesRef.current, [eventData], sessionRef.current.elapsed, adaptiveSettingsRef.current);
         setTargetingDecision(null);
         setMessage(positionalTargetMessage(targetingDecision, target));
@@ -2569,8 +2567,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       const result = removeTroop(sessionRef.current, action.cell.row, action.cell.col);
       setMessage(result.ok ? `Unidade removida · +${result.refund} energia.` : result.reason);
       if (result.ok) {
-        updateConvoyEscort(sessionRef.current, []);
-        consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+        consumeGraphicsEventsAtVisualTime([result.event], sessionRef.current.elapsed);
         pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
       }
       setSnapshot(getSnapshot(sessionRef.current));
@@ -2597,10 +2594,9 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           : `${TROOPS[action.troopType].label} implantado.`
       : result.reason);
     if (result.ok) {
-      updateConvoyEscort(sessionRef.current, []);
       play("deploy", 0.55);
       pushEventParticles(particlesRef.current, [result.event], sessionRef.current.elapsed, adaptiveSettingsRef.current);
-      consumeGraphicsEvents(graphicsRef.current, [result.event], sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime([result.event], sessionRef.current.elapsed);
     }
     setSnapshot(getSnapshot(sessionRef.current));
   };
@@ -2617,7 +2613,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setSelectedTroop(null);
       setRepositionTroopId(null);
       setRemoveMode(false);
-      consumeGraphicsEvents(graphicsRef.current, [{ type: "waveStart" }], sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime([{ type: "waveStart" }], sessionRef.current.elapsed);
       const convoy = sessionRef.current.convoyFlow;
       setBanner(convoy ? `SETOR ${convoy.sectorIndex + 1}/4 · ROTA ATIVA` : `ONDA ${sessionRef.current.waveIndex + 1} · CONTATO`);
       setMessage(convoy ? "Contagem regressiva iniciada. Prepare R2/R4." : "Onda em andamento. Novas implantações entram em cooldown.");
@@ -2633,6 +2629,13 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     setRepositionTroopId(null);
     setRemoveMode(false);
     setMessage("REPOSICIONE SUAS TROPAS", { tone: "action" });
+    setSnapshot(getSnapshot(sessionRef.current));
+  };
+
+  const handleCheckpointReward = (optionId) => {
+    const result = applyConvoyCheckpointOption(sessionRef.current, optionId, []);
+    if (!result.ok) return;
+    setMessage(optionId === "repair" ? "BLINDAGEM REPARADA" : "RESERVA REABASTECIDA");
     setSnapshot(getSnapshot(sessionRef.current));
   };
 
@@ -2699,7 +2702,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setMessage(result.reason);
       return;
     }
-    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
     pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     setSnapshot(getSnapshot(sessionRef.current));
     setBanner(`${ENEMIES[selectedEnemy].label.toUpperCase()}${spawnAlpha ? " ALFA" : ""} · ROTA ${spawnRow + 1}`);
@@ -2717,7 +2720,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleForceLeviathan = (attack) => {
     const result = forceLeviathanAttack(sessionRef.current, attack);
     if (result.events?.length) {
-      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
       pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     }
     setMessage(result.ok ? `Leviatã preparado: ${attack}.` : result.reason);
@@ -2733,7 +2736,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleForceColosso = (attack) => {
     const result = forceColossoAttack(sessionRef.current, attack);
     if (result.events?.length) {
-      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
       pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     }
     setMessage(result.ok ? `Colosso preparado: ${attack}.` : result.reason);
@@ -2743,7 +2746,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
   const handleDebugColosso = (action) => {
     const result = debugColosso(sessionRef.current, action);
     if (result.events?.length) {
-      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
       pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     }
     setMessage(result.ok ? `Colosso: ${action}.` : result.reason);
@@ -2760,7 +2763,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
 
   const handleInjureTroops = () => {
     const events = injureSandboxTroops(sessionRef.current, 10);
-    consumeGraphicsEvents(graphicsRef.current, events, sessionRef.current.elapsed, settings);
+    consumeGraphicsEventsAtVisualTime(events, sessionRef.current.elapsed);
     pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     setSnapshot(getSnapshot(sessionRef.current));
     setMessage(events.length ? "Tropas vivas perderam 10 HP para teste de cura." : "Posicione tropas antes de aplicar dano.");
@@ -2772,7 +2775,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setMessage(result.reason);
       return;
     }
-    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
     pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     setSelectedTroop(null);
     setRemoveMode(false);
@@ -2786,7 +2789,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setMessage(result.reason);
       return;
     }
-    consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+    consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
     pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
     setSelectedTroop(null);
     setRemoveMode(false);
@@ -2806,7 +2809,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
       setRemoveMode(false);
       setActionMessage("Selecione uma rota para o ataque orbital.");
     } else {
-      consumeGraphicsEvents(graphicsRef.current, result.events, sessionRef.current.elapsed, settings);
+      consumeGraphicsEventsAtVisualTime(result.events, sessionRef.current.elapsed);
       pushEventParticles(particlesRef.current, result.events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
       setMessage(`${result.option.label}: recurso aplicado.`);
     }
@@ -3153,7 +3156,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
               event.currentTarget.style.cursor = "default";
             }} aria-label={snapshot.progressionMode === "convoy" ? "Campo de escolta com quatro rotas de combate e uma rota central de transporte" : "Campo de batalha em cinco rotas"} />
             <ConvoySectorCountdown convoy={snapshot.convoy} />
-            <ConvoyCheckpointOverlay convoy={snapshot.convoy} onContinue={handleCheckpointContinue} />
+            <ConvoyCheckpointOverlay convoy={snapshot.convoy} onReward={handleCheckpointReward} onContinue={handleCheckpointContinue} />
             {snapshot.integrity > 0 && (snapshot.integrity / snapshot.integrityMax) <= 0.25 && !snapshot.outcome && <div className="critical-base-vignette" aria-hidden="true" />}
             {!fortuneBlocksIntermission && snapshot.progressionMode !== "convoy" && <DematerializationPulseControls
               session={sessionRef.current}
@@ -3162,7 +3165,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
             {!fortuneBlocksIntermission && <ColossusSpecialButtons session={sessionRef.current} onActivate={activateColossusSpecial} />}
             {snapshot.adaptiveAid.status === "landed" && <CapsuleInteractionButton capsule={snapshot.adaptiveAid.capsule} onOpen={handleOpenCapsule} />}
             {snapshot.progressionMode === "convoy" && <div className="sr-only" aria-live="polite">
-              Transporte: {snapshot.convoy?.hp} de {snapshot.convoy?.maxHp} de integridade. Percurso: {Math.round((snapshot.convoy?.progress || 0) * 100)}%. Checkpoint {snapshot.convoyFlow?.reachedCheckpointCount || 0} de 3. {snapshot.convoy?.underAttack ? "Transporte sob ataque." : snapshot.convoy?.escorted ? "Escolta ativa." : "Sem escolta."}
+              Transporte: {snapshot.convoy?.hp} de {snapshot.convoy?.hpMax} de integridade. Percurso: {Math.round((snapshot.convoy?.progress || 0) * 100)}%. Checkpoint {snapshot.convoy?.checkpointsReached || 0} de 3. {snapshot.convoy?.underAttack ? "Transporte sob ataque." : "Setor estacionado."}
             </div>}
             {notification?.text && (snapshot.progressionMode === "convoy"
               ? <ConvoyToast message={notification.text} tone={notification.tone} />

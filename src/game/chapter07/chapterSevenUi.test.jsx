@@ -19,7 +19,7 @@ describe("Chapter 7 convoy UI", () => {
 
   it("renders the centered checkpoint briefing without autofocus", () => {
     const onContinue = vi.fn();
-    render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation", checkpointBriefingPending: true, nextSector: 3 }} onContinue={onContinue} />);
+    render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointDecision", checkpointBriefingPending: true, checkpointOptionChosen: true, nextSector: 3 }} onContinue={onContinue} />);
     expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
     const button = screen.getByRole("button", { name: "PREPARAR SETOR 3" });
     expect(button).not.toHaveFocus();
@@ -29,7 +29,7 @@ describe("Chapter 7 convoy UI", () => {
   });
 
   it("does not render the briefing after acknowledgement", () => {
-    const { rerender } = render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation", checkpointBriefingPending: true, nextSector: 3 }} onContinue={vi.fn()} />);
+    const { rerender } = render(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointDecision", checkpointBriefingPending: true, nextSector: 3 }} onContinue={vi.fn()} />);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     rerender(<ConvoyCheckpointOverlay convoy={{ ...convoy, state: "checkpointPreparation", checkpointBriefingPending: false, nextSector: 3 }} onContinue={vi.fn()} />);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

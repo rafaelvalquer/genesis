@@ -47,8 +47,6 @@ export function updateSporeField(session, events) {
     }
     session.chapterSevenMetrics.sporeFruitsHit += 1;
     session.chapterSevenMetrics.sporeTroopsConfused += newlyConfused;
-    const escorts = affected.filter((troop) => session.convoy?.escortTroopIds?.includes(troop.id));
-    session.chapterSevenMetrics.sporeEscortConfusions += escorts.length;
     if (affected.length >= 2) session.chapterSevenMetrics.sporeMultiHits += 1;
     session.sporeClouds.push({ id: `sporeCloud-${fruit.id}`, x: fruit.targetX, y: fruit.targetY, startedAt: session.elapsed, endsAt: session.elapsed + fruit.cloudVisualMs, radius });
     events.push({ type: "sporeFruitImpact", sourceEnemyId: fruit.sourceEnemyId, x: fruit.targetX, y: fruit.targetY, affectedTroopIds: affected.map((troop) => troop.id) });

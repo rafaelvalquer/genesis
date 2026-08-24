@@ -1,89 +1,11 @@
-import { getConvoyProgress } from "./convoyGeometry.js";
-import { enterCheckpointClearing } from "./convoyCheckpoints.js";
+import { getConvoyProgress, getConvoyXForProgress } from "./convoyGeometry.js";
 import { buildSectorQueue } from "./convoySpawnDirector.js";
-
-export function startConvoySector(session) {
-  const flow = session.convoyFlow;
-  if (!flow || session.outcome || !["initialPreparation", "checkpointPreparation"].includes(flow.state)) return false;
-  if (flow.state === "checkpointPreparation") flow.sectorIndex += 1;
-  if (flow.sectorIndex >= session.phase.sectors.length) return false;
-  flow.state = "sectorActive";
-  flow.sectorStartedAt = session.elapsed;
-  flow.lastTransitionAt = session.elapsed;
-  flow.spawnDirector = { generationId: flow.spawnDirector.generationId + 1,
-    sectorId: session.phase.sectors[flow.sectorIndex].id,
-    nextReinforcementAt: session.elapsed + session.phase.sectors[flow.sectorIndex].reinforcement.startsAtMs,
-    warningEmitted: false };
-  session.queue = buildSectorQueue(session.phase, flow.sectorIndex, session.seed);
-  session.waveStartedAt = session.elapsed;
-  session.nextSpawnAt = session.elapsed + (session.queue[0]?.spawnAtMs || 0);
-  session.waveActive = true;
-  session.preparing = false;
-  const enteringField = session.convoy.entryState === "offscreen";
-  session.convoy.entryState = enteringField ? "entering" : "active";
-  session.convoy.invulnerable = enteringField;
-  session.convoy.nextEnergyPulseAt = session.elapsed + session.phase.convoy.energyPulseEveryMs;
-  return true;
-}
-
+const easeInOutCubic = (v) => v < .5 ? 4 * v ** 3 : 1 - ((-2 * v + 2) ** 3) / 2;
 export const CONVOY_SECTOR_COUNTDOWN_MS = 2400;
-
-export function startConvoySectorCountdown(session) {
-  const flow = session?.convoyFlow;
-  if (!flow || session.outcome || !["initialPreparation", "checkpointPreparation"].includes(flow.state)) return false;
-  flow.countdownResumeState = flow.state;
-  flow.state = "sectorCountdown";
-  flow.countdownStartedAt = session.elapsed;
-  flow.countdownElapsedMs = 0;
-  flow.countdownDurationMs = CONVOY_SECTOR_COUNTDOWN_MS;
-  session.preparing = false;
-  session.queue = [];
-  session.waveActive = false;
-  return true;
-}
-
-export function advanceConvoySectorCountdown(session, visualDt, events = []) {
-  const flow = session?.convoyFlow;
-  if (!flow || flow.state !== "sectorCountdown") return false;
-  flow.countdownElapsedMs = Math.min(flow.countdownDurationMs, (flow.countdownElapsedMs || 0) + Math.max(0, visualDt));
-  if (flow.countdownElapsedMs < flow.countdownDurationMs) return false;
-  flow.state = flow.countdownResumeState || "initialPreparation";
-  const started = startConvoySector(session);
-  if (started) events.push({ type: "convoyCountdownGo", sector: flow.sectorIndex + 1 });
-  return started;
-}
-
-export function advanceConvoyMovement(session, dt, events = []) {
-  const convoy = session.convoy;
-  if (!convoy || session.convoyFlow.state !== "sectorActive") return null;
-  if (convoy.entryState === "offscreen" && convoy.x >= convoy.routeStartX) {
-    convoy.entryState = "active";
-    convoy.invulnerable = false;
-  }
-  convoy.previousX = convoy.x;
-  if (convoy.entryState === "entering") {
-    convoy.x = Math.min(convoy.routeStartX, convoy.x + convoy.entrySpeedPxPerSecond * dt / 1000);
-    convoy.progress = 0;
-    if (convoy.x >= convoy.routeStartX) {
-      convoy.x = convoy.routeStartX;
-      convoy.previousX = convoy.x;
-      convoy.entryState = "active";
-      convoy.invulnerable = false;
-      events.push({ type: "convoyEnteredField", x: convoy.x, y: convoy.y });
-    }
-    return null;
-  }
-  if (convoy.escorted && !convoy.underAttack) convoy.x = Math.min(convoy.destinationX, convoy.x + convoy.speedPxPerSecond * dt / 1000);
-  convoy.progress = Math.max(convoy.progress, getConvoyProgress(convoy.x));
-  if (convoy.progress >= (session.phase.convoy.destinationProgress || 1)) {
-    session.convoyFlow.state = "victory";
-    convoy.invulnerable = true;
-    session.queue = [];
-    events.push({ type: "convoyEvacuated", x: convoy.x, progress: convoy.progress });
-    return "victory";
-  }
-  const checkpointIndex = session.convoyFlow.reachedCheckpointCount;
-  const checkpoint = session.phase.convoy.checkpointProgress[checkpointIndex];
-  if (Number.isFinite(checkpoint) && convoy.progress >= checkpoint) enterCheckpointClearing(session, checkpointIndex, events);
-  return null;
-}
+export function startConvoySector(session) { const f=session.convoyFlow; if (!f||session.outcome||!["initialPreparation","checkpointPreparation"].includes(f.state)) return false; if(f.state==="checkpointPreparation")f.sectorIndex+=1; if(f.sectorIndex>=session.phase.sectors.length)return false; f.state="sectorActive"; f.sectorStartedAt=session.elapsed; f.lastTransitionAt=session.elapsed; const s=session.phase.sectors[f.sectorIndex]; f.spawnDirector={generationId:f.spawnDirector.generationId+1,sectorId:s.id,nextReinforcementAt:session.elapsed+s.reinforcement.startsAtMs,warningEmitted:false}; session.queue=buildSectorQueue(session.phase,f.sectorIndex,session.seed); session.waveStartedAt=session.elapsed; session.nextSpawnAt=session.elapsed+(session.queue[0]?.spawnAtMs||0); session.waveActive=true; session.preparing=false; const stops=session.phase.convoy.sectorStops||[.06,.28,.51,.74,.96]; if(f.sectorIndex===0)session.convoy.x=getConvoyXForProgress(stops[0]); session.convoy.entryState="active"; session.convoy.invulnerable=false; session.convoy.nextEnergyPulseAt=session.elapsed+session.phase.convoy.energyPulseEveryMs; return true; }
+export function startConvoySectorCountdown(session) { const f=session?.convoyFlow; if(!f||session.outcome||!["initialPreparation","checkpointPreparation"].includes(f.state))return false; f.countdownResumeState=f.state; f.state="sectorCountdown"; f.countdownStartedAt=session.elapsed; f.countdownElapsedMs=0; f.countdownDurationMs=CONVOY_SECTOR_COUNTDOWN_MS; session.preparing=false; session.queue=[]; session.waveActive=false; return true; }
+export function advanceConvoySectorCountdown(session,dt,events=[]) { const f=session?.convoyFlow; if(!f||f.state!=="sectorCountdown")return false; f.countdownElapsedMs=Math.min(f.countdownDurationMs,(f.countdownElapsedMs||0)+Math.max(0,dt)); if(f.countdownElapsedMs<f.countdownDurationMs)return false; f.state=f.countdownResumeState||"initialPreparation"; const started=startConvoySector(session); if(started)events.push({type:"convoyCountdownGo",sector:f.sectorIndex+1}); return started; }
+export function completeConvoySector(session,events=[]) { const f=session?.convoyFlow; if(!f||f.state!=="sectorActive")return false; f.state="sectorClearing"; f.lastTransitionAt=session.elapsed; session.waveActive=false; session.queue=[]; return startConvoyTransit(session,events); }
+export function startConvoyTransit(session,events=[]) { const {convoy,convoyFlow:f}=session; if(!convoy||!f||f.state!=="sectorClearing")return false; const stops=session.phase.convoy.sectorStops||[.06,.28,.51,.74,.96]; const p=stops[Math.min(stops.length-1,f.sectorIndex+1)]; convoy.transit={fromX:convoy.x,toX:getConvoyXForProgress(p),progress:0,startedAt:session.elapsed,durationMs:session.phase.convoy.transitDurationMs||2400}; convoy.invulnerable=true; convoy.underAttack=false; convoy.attackerIds=[]; f.state="convoyTransit"; f.transitStartedAt=session.elapsed; f.lastTransitionAt=session.elapsed; events.push({type:"convoyTransitStarted",sector:f.sectorIndex+1,fromX:convoy.transit.fromX,toX:convoy.transit.toX}); return true; }
+export function completeConvoyTransit(session,events=[]) { const {convoy,convoyFlow:f}=session; if(!convoy||!f||f.state!=="convoyTransit")return false; convoy.x=convoy.transit.toX; convoy.previousX=convoy.x; convoy.progress=getConvoyProgress(convoy.x); convoy.transit.progress=1; if(f.sectorIndex>=session.phase.sectors.length-1){f.state="victory";convoy.invulnerable=true;events.push({type:"convoyEvacuated",x:convoy.x,progress:convoy.progress});return"victory";} f.reachedCheckpointCount=f.sectorIndex+1; f.state="checkpointDecision"; f.checkpointDecisionPending=true; f.checkpointBriefingPending=true; f.checkpointOptionChosen=false; convoy.invulnerable=true; events.push({type:"checkpointReached",checkpointIndex:f.reachedCheckpointCount-1,x:convoy.x}); return"checkpointDecision"; }
+export function advanceConvoyTransit(session,dt,events=[]) { const {convoy,convoyFlow:f}=session; if(!convoy||!f||f.state!=="convoyTransit")return null; convoy.previousX=convoy.x; convoy.transit.progress=Math.min(1,convoy.transit.progress+Math.max(0,dt)/convoy.transit.durationMs); const e=easeInOutCubic(convoy.transit.progress); convoy.x=convoy.transit.fromX+(convoy.transit.toX-convoy.transit.fromX)*e; convoy.progress=getConvoyProgress(convoy.x); return convoy.transit.progress>=1?completeConvoyTransit(session,events):null; }

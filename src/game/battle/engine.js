@@ -158,11 +158,10 @@ import {
 } from "./queries.js";
 import { getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isCombatRow, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
 import { createConvoyFlow, createConvoyState } from "../chapter07/convoyState.js";
-import { updateConvoyEscort } from "../chapter07/convoyEscort.js";
 import { updateConvoyEnergy } from "../chapter07/convoyEnergy.js";
-import { advanceConvoyMovement, startConvoySector } from "../chapter07/convoyFlow.js";
-import { advanceCheckpointCinematic } from "../chapter07/convoyCheckpointCinematic.js";
-import { hasCombatRelevantEnemies, enterCheckpointCinematic, enterCheckpointPreparation } from "../chapter07/convoyCheckpoints.js";
+import { advanceConvoyTransit, completeConvoySector, startConvoySector } from "../chapter07/convoyFlow.js";
+import { hasCombatRelevantEnemies, enterCheckpointPreparation } from "../chapter07/convoyCheckpoints.js";
+import { applyConvoyCheckpointOption } from "../chapter07/convoyCheckpointRewards.js";
 import { updateConvoyReinforcements } from "../chapter07/convoySpawnDirector.js";
 import { canEnemyReachConvoy, hasBlockingTroop, updateConvoyThreat } from "../chapter07/convoyTargeting.js";
 import { damageConvoy } from "../chapter07/convoyDamage.js";
@@ -1478,7 +1477,7 @@ function createEnemyRuntime(session, events) {
     troopBlockDistance,
     damageTroop: (troop, amount, context = {}) => damageTroop(session, troop, amount, events, context),
     hasBlockingTroop: (enemy) => hasBlockingTroop(session, enemy),
-    escortIds: () => session.convoy?.escortTroopIds || [],
+    escortIds: () => [],
     convoyX: () => session.convoy?.x ?? Infinity,
     rng: () => session.rng(),
     troops: () => session.troops,
@@ -2865,7 +2864,6 @@ function rememberEnemyKill(session, enemy, sourceTroopId = null) {
     cinematic: Boolean(enemy.variant === "alpha" || config.boss || config.elite),
   };
   session.lastEnemyKillCandidate = kill;
-  if (session.convoyFlow?.state === "checkpointClearing") session.convoyFlow.checkpointCinematic.lastKill = kill;
 }
 
 function clearRasgamarCoil(session, enemy, { applySlow = false } = {}) {
@@ -7930,6 +7928,10 @@ function updateEnemies(session, dt, events) {
       updateSaltadorAlado(runtime, enemy, config, dt, events);
       continue;
     }
+    if (enemy.type === "macacoEsporos") {
+      behavior.update(runtime, enemy, config, dt, events);
+      continue;
+    }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
       enemy.moving = false;
       continue;
@@ -8087,13 +8089,6 @@ function updateEnemies(session, dt, events) {
         damageConvoy(session, enemy.damage * factor, events, { attackerId: enemy.id, enemyType: enemy.type });
         enemy.attackReadyAt = session.elapsed + config.attackEveryMs;
         enemy.lastAttackAt = session.elapsed;
-        if (config.escortDisruptionMs) {
-          const escort = session.troops.find((troop) => session.convoy.escortTroopIds.includes(troop.id) && !troop.dead);
-          if (escort) {
-            escort.controlStunnedUntil = Math.max(escort.controlStunnedUntil || 0, session.elapsed + config.escortDisruptionMs);
-            events.push({ type: "escortDisrupted", troopId: escort.id, sourceEnemyId: enemy.id });
-          }
-        }
       }
       if (config.persistentBite) resetPersistentBite(enemy);
     } else {
@@ -8207,10 +8202,11 @@ export function stepBattle(session, dt = 32) {
   const events = [];
   const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
   if (convoyMission && session.convoyFlow.state === "sectorCountdown") return events;
-  if (convoyMission && session.convoyFlow.state === "checkpointCinematic") {
+  if (convoyMission && session.convoyFlow.state === "convoyTransit") {
     session.elapsed += dt;
-    updateEnergyPickups(session, dt, events, { freezeLifetime: true });
-    if (advanceCheckpointCinematic(session, dt, events)) enterCheckpointPreparation(session, events);
+    const transitOutcome = advanceConvoyTransit(session, dt, events);
+    updateConvoyAnimation(session);
+    if (transitOutcome === "victory") finish(session, "victory");
     return events;
   }
   if (convoyMission && session.convoyFlow.state === "destroying") {
@@ -8230,14 +8226,8 @@ export function stepBattle(session, dt = 32) {
   session.elapsed += dt;
   if (convoyMission) {
     updateConvoyEnergy(session, events);
-    updateConvoyEscort(session, events);
     updateConvoyThreat(session, ENEMIES, events);
-    const movementOutcome = advanceConvoyMovement(session, dt, events);
     updateConvoyAnimation(session);
-    if (movementOutcome === "victory") {
-      finish(session, "victory");
-      return events;
-    }
     updateConvoyReinforcements(session, events);
   }
   updateAdaptiveAidLifecycle(session, events);
@@ -8313,7 +8303,6 @@ export function stepBattle(session, dt = 32) {
     updateEnemies(session, dt, events);
     updateSporeField(session, events);
     if (convoyMission) {
-      updateConvoyEscort(session, events);
       updateConvoyThreat(session, ENEMIES, events);
       if (session.convoy.hp <= 0) {
         if (session.convoyFlow.state !== "destroying") {
@@ -8437,9 +8426,8 @@ export function stepBattle(session, dt = 32) {
       events.push({ type: "waveComplete", wave: completedWaveNumber });
     } else evaluateAdaptiveAid(session, events);
   }
-  if (convoyMission && session.convoyFlow.state === "checkpointClearing" && !hasCombatRelevantEnemies(session)) {
-    enterCheckpointCinematic(session, events);
-  }
+  if (convoyMission && session.convoyFlow.state === "sectorActive"
+    && session.queue.length === 0 && !hasCombatRelevantEnemies(session)) completeConvoySector(session, events);
   return events;
 }
 
@@ -8463,30 +8451,20 @@ export function getSnapshot(session) {
       progress: session.convoy.progress,
       hp: Math.round(session.convoy.hp), hpMax: Math.round(session.convoy.maxHp),
       entryState: session.convoy.entryState,
-      checkpointCinematic: session.convoyFlow.checkpointCinematic ? {
-        status: session.convoyFlow.checkpointCinematic.status,
-        elapsedMs: session.convoyFlow.checkpointCinematic.elapsedMs,
-        checkpointIndex: session.convoyFlow.checkpointCinematic.checkpointIndex,
-        lastKill: session.convoyFlow.checkpointCinematic.lastKill ? {
-          row: session.convoyFlow.checkpointCinematic.lastKill.row,
-          sourceTroopId: session.convoyFlow.checkpointCinematic.lastKill.sourceTroopId,
-          enemy: session.convoyFlow.checkpointCinematic.lastKill.enemy ? {
-            type: session.convoyFlow.checkpointCinematic.lastKill.enemy.type,
-            x: session.convoyFlow.checkpointCinematic.lastKill.enemy.x,
-            y: session.convoyFlow.checkpointCinematic.lastKill.enemy.y,
-          } : null,
-        } : null,
-      } : null,
       hpPercent: Math.round(session.convoy.hp / Math.max(1, session.convoy.maxHp) * 100),
-      escorted: session.convoy.escorted, escortCount: session.convoy.escortTroopIds.length,
-      escortTroopIds: [...session.convoy.escortTroopIds], underAttack: session.convoy.underAttack,
+      underAttack: session.convoy.underAttack,
       attackerCount: session.convoy.attackerIds.length, reserve: Math.round(session.convoy.reserve),
       reserveMax: session.convoy.reserveMax, checkpointsReached: session.convoyFlow.reachedCheckpointCount,
       nextEnergyPulseIn: Math.max(0, session.convoy.nextEnergyPulseAt - session.elapsed),
-      nextCheckpointProgress: session.phase.convoy.checkpointProgress[session.convoyFlow.reachedCheckpointCount] ?? 1,
       reinforcementLevel: session.convoyFlow.reinforcementLevel,
       checkpointBriefingPending: Boolean(session.convoyFlow.checkpointBriefingPending),
-      nextSector: Math.min(session.phase.sectors.length, session.convoyFlow.sectorIndex + (session.convoyFlow.state === "checkpointPreparation" ? 2 : 1)),
+      checkpointDecisionPending: Boolean(session.convoyFlow.checkpointDecisionPending),
+      checkpointOptionChosen: Boolean(session.convoyFlow.checkpointOptionChosen),
+      repairAmount: session.phase.convoy.checkpointRewards?.repairHp || 200,
+      reserveAmount: session.phase.convoy.checkpointRewards?.reserveAmount || 40,
+      transitProgress: session.convoy.transit?.progress || 0,
+      nextSector: Math.min(session.phase.sectors.length, session.convoyFlow.sectorIndex
+        + (["checkpointDecision", "checkpointPreparation"].includes(session.convoyFlow.state) ? 2 : 1)),
       countdownRemainingMs: session.convoyFlow.state === "sectorCountdown"
         ? Math.max(0, (session.convoyFlow.countdownDurationMs || 2400) - (session.convoyFlow.countdownElapsedMs || 0))
         : 0,

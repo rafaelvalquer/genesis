@@ -91,6 +91,7 @@ export default function CampaignPlanet({
   onSelectPhase, onRuntimeReady, onWebGLFailure,
 }) {
   const mountRef = useRef(null);
+  const stageRef = useRef(null);
   const runtimeRef = useRef(null);
   const [loading, setLoading] = useState(true);
 
@@ -520,6 +521,12 @@ export default function CampaignPlanet({
     runtime.killAuto?.();
     runtime.camera.position.z = runtime.THREE.MathUtils.clamp(runtime.camera.position.z + event.deltaY * .002, 3.25, 6.1);
   };
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    stage.addEventListener("wheel", onWheel, { passive: false });
+    return () => stage.removeEventListener("wheel", onWheel, { passive: false });
+  });
   const onKeyDown = (event) => {
     const runtime = runtimeRef.current;
     if (!runtime) return;
@@ -535,6 +542,7 @@ export default function CampaignPlanet({
   };
 
   return <div
+    ref={stageRef}
     className="campaign-planet-stage"
     role="application"
     aria-label="Planeta da campanha. Arraste ou use as setas para girar; use a roda, mais e menos para aproximar."
@@ -543,7 +551,6 @@ export default function CampaignPlanet({
     onPointerMove={onPointerMove}
     onPointerUp={stopDrag}
     onPointerCancel={stopDrag}
-    onWheel={onWheel}
     onKeyDown={onKeyDown}
   >
     <div ref={mountRef} className="campaign-canvas-mount" aria-hidden="true" />

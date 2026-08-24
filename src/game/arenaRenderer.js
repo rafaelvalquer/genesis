@@ -81,7 +81,7 @@ export function getBattlefieldBlueprint(phase) {
     flip: random() > 0.5,
   }));
   return { arenaId: phase.arenaId, baseVariant: phase.progressionMode === "convoy" ? "convoy" : "waves", routeType: phase.terrain?.routeType || "standard", theme: { ...theme }, lanes, features,
-    convoy: phase.progressionMode === "convoy" ? { checkpointProgress: [...(phase.convoy?.checkpointProgress || [])] } : null };
+    convoy: phase.progressionMode === "convoy" ? { sectorStops: [...(phase.convoy?.sectorStops || [])] } : null };
 }
 
 export function getBattlefieldCacheKey(phase, settings = {}) {
@@ -309,7 +309,7 @@ function drawLanes(ctx, blueprint, profile) {
         ctx.fillStyle = rgba(index % 3 ? "#b65a32" : "#67e8f9", .18 + pseudo(index, seed + 1) * .16);
         ctx.fillRect(x, roadTop + 5, 8 + pseudo(index, seed + 2) * 24, 2);
       }
-      for (const progress of blueprint.convoy?.checkpointProgress || []) {
+      for (const progress of blueprint.convoy?.sectorStops?.slice(1, -1) || []) {
         const x = getConvoyXForProgress(progress);
         ctx.strokeStyle = rgba("#facc15", .82); ctx.lineWidth = 3;
         ctx.beginPath(); ctx.moveTo(x, roadTop - 7); ctx.lineTo(x, roadTop + roadHeight + 7); ctx.stroke();

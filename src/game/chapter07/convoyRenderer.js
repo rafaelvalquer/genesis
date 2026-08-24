@@ -1,8 +1,7 @@
 import { getConvoyFrames, loadConvoyAssets } from "../assets/convoyAssetCatalog.js";
-import { CELL } from "../visualGeometry.js";
 import { resolveConvoyAnimationFrame } from "./convoyAnimation.js";
 import { getConvoyVehicleId } from "./convoyVehicleConfig.js";
-import { CONVOY_RENDER_WIDTH, getConvoyColumn } from "./convoyGeometry.js";
+import { CONVOY_RENDER_WIDTH } from "./convoyGeometry.js";
 import fallbackUrl from "../assets/chapter07/convoy.png?url";
 
 const images = new Map(); const requestedVehicles = new Set(); const visualStates = new WeakMap();
@@ -48,19 +47,5 @@ export function drawConvoy(ctx, session, time = 0, settings = {}) {
   ctx.filter = "none";
   drawEffects(ctx, convoy, session, x, y, time, settings, state);
   if (threat.recent && !settings.reduceMotion) { const flash = Math.max(0, 1 - hitAge / 180); ctx.globalAlpha = flash * .7; ctx.globalCompositeOperation = "screen"; ctx.fillStyle = "white"; ctx.fillRect(x - 58, y - 48, 116, 82); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; }
-  ctx.restore();
-}
-
-export function drawEscortZone(ctx, session, visible = false) {
-  if (!visible || !session?.convoy) return;
-  const col = getConvoyColumn(session.convoy);
-  ctx.save();
-  ctx.fillStyle = "rgba(103,232,249,.13)"; ctx.strokeStyle = "rgba(103,232,249,.68)"; ctx.lineWidth = 2;
-  for (const row of session.phase.convoy.escortRows) for (let offset = -1; offset <= 1; offset += 1) {
-    const targetCol = col + offset;
-    if (targetCol < 1 || targetCol > 9) continue;
-    ctx.fillRect(targetCol * CELL.width + 4, row * CELL.height + 9, CELL.width - 8, CELL.height - 18);
-    ctx.strokeRect(targetCol * CELL.width + 4, row * CELL.height + 9, CELL.width - 8, CELL.height - 18);
-  }
   ctx.restore();
 }

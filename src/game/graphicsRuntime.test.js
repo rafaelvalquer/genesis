@@ -79,6 +79,26 @@ describe("runtime grafico", () => {
     expect(runtime.deaths).toHaveLength(0);
   });
 
+  it("anima e expira implantação usando o relógio visual", () => {
+    const runtime = createGraphicsRuntime();
+    runtime.clockNow = 1000;
+    consumeGraphicsEvents(runtime, [{ type: "deploy", x: 120, y: 180 }], 0);
+    expect(runtime.deployments).toMatchObject([{ kind: "deploy", born: 1000, life: 520 }]);
+
+    updateGraphicsRuntime(runtime, 0, 16, { clockNow: 1250 });
+    expect(runtime.deployments).toHaveLength(1);
+    updateGraphicsRuntime(runtime, 0, 16, { clockNow: 1520 });
+    expect(runtime.deployments).toHaveLength(0);
+  });
+
+  it("prioriza o relógio visual atual ao receber uma implantação entre frames", () => {
+    const runtime = createGraphicsRuntime();
+    runtime.clockNow = 1000;
+    consumeGraphicsEvents(runtime, [{ type: "deploy", x: 120, y: 180 }], 0, { clockNow: 1180 });
+    expect(runtime.clockNow).toBe(1180);
+    expect(runtime.deployments[0]).toMatchObject({ born: 1180, life: 520 });
+  });
+
   it("retém feedback determinístico de impacto no núcleo", () => {
     const runtime = createGraphicsRuntime();
     consumeGraphicsEvents(runtime, [{

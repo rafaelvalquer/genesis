@@ -41,6 +41,7 @@ export default function CommandGlobe({
   scheduleReturn,
 }) {
   const mountRef = useRef(null);
+  const stageRef = useRef(null);
   const runtimeRef = useRef(null);
   const markerElementsRef = useRef(new Map());
   const pointerRef = useRef({ id: null, x: 0, y: 0 });
@@ -254,6 +255,13 @@ export default function CommandGlobe({
     applyZoom(delta * .0028);
   };
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    stage.addEventListener("wheel", wheel, { passive: false });
+    return () => stage.removeEventListener("wheel", wheel, { passive: false });
+  });
+
   const keyDown = (event) => {
     if (event.key === "+" || event.key === "=") {
       event.preventDefault();
@@ -316,7 +324,7 @@ export default function CommandGlobe({
     onPointerMove={pointerMove}
     onPointerUp={pointerUp}
     onPointerCancel={pointerUp}
-    onWheel={wheel}
+    ref={stageRef}
   >
     <div
       ref={mountRef}

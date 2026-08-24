@@ -28,7 +28,6 @@ import {
 } from "./AgentMemory.js";
 import { getConvoyColumn } from "../../chapter07/convoyGeometry.js";
 import { canPlaceTroop, FIELD, getEffectiveTroopStats } from "../../battleModel.js";
-import { getEscortTroops } from "../../chapter07/convoyEscort.js";
 import { isSystemEnabledForPhase } from "../../phaseRules.js";
 
 function waveOutroActive(
@@ -294,15 +293,11 @@ export class StrategicAgent {
       const destination = targetColumns.find((col) => !occupied.has(`${troop.row}:${col}`));
       if (destination != null) schedule(troop, troop.row, destination);
     }
-    if (!actions.length && getEscortTroops(session).length) {
-      return [{ type: "startWave", priority: 190, reason: "convoyCheckpointReady" }];
-    }
     return actions;
   }
 
   planConvoyEscort(session) {
-    if (!["sectorActive", "checkpointPreparation"].includes(session.convoyFlow?.state)
-      || getEscortTroops(session).length) return [];
+    if (!["sectorActive", "checkpointPreparation"].includes(session.convoyFlow?.state)) return [];
     if (session.enemies.some((enemy) => !enemy.dead && enemy.hp > 0)) return [];
     const convoyColumn = getConvoyColumn(session.convoy);
     const columns = [convoyColumn, convoyColumn + 1, convoyColumn - 1]
@@ -313,7 +308,7 @@ export class StrategicAgent {
       if (!stats || session.energy < stats.price || session.supply < stats.supply) continue;
       for (const row of [1, 3]) for (const col of columns) {
         if (canPlaceTroop(session, troopId, row, col)) continue;
-        return [{ type: "place", troopId, row, col, priority: 205, reason: "convoyEscort", price: stats.price, supply: stats.supply }];
+        return [{ type: "place", troopId, row, col, priority: 205, reason: "convoyDefense", price: stats.price, supply: stats.supply }];
       }
     }
     return [];

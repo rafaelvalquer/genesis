@@ -27,7 +27,7 @@ export default function TacticalBrief({ phase, chapter, arenaUrl, troops, unlock
     <dl className="mission-metrics">
       <div><dt>{getProgressionLabel(phase)}</dt><dd>{getMissionEncounterCount(phase)}</dd></div>
       <div><dt>Energia</dt><dd>{phase.energy}</dd></div>
-      {phase.progressionMode === "convoy" && <><div><dt>Reserva</dt><dd>{phase.convoy.reserveInitial} / {phase.convoy.reserveMax}</dd></div><div><dt>Checkpoints</dt><dd>{phase.convoy.checkpointProgress.length}</dd></div><div><dt>Supply</dt><dd>{phase.supplyLimit}</dd></div></>}
+      {phase.progressionMode === "convoy" && <><div><dt>Reserva</dt><dd>{phase.convoy.reserveInitial} / {phase.convoy.reserveMax}</dd></div><div><dt>Setores</dt><dd>{phase.sectors.length}</dd></div><div><dt>Supply</dt><dd>{phase.supplyLimit}</dd></div></>}
       <div><dt>Integridade</dt><dd>{phase.baseIntegrity ?? 100}%</dd></div>
       <div><dt>Cadência</dt><dd>{(phase.cadenceMs / 1000).toFixed(2)}s</dd></div>
       <div><dt>Tempo-alvo</dt><dd>{formatTime(phase.targetDurationMs)}</dd></div>

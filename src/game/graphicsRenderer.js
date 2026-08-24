@@ -123,9 +123,10 @@ export function drawDynamicLights(ctx, runtime, now, settings = {}, adaptive = {
 }
 
 export function drawDeploymentEffects(ctx, runtime, now, settings = {}) {
+  const visualNow = Number.isFinite(runtime?.clockNow) ? runtime.clockNow : now;
   ctx.save();
   for (const effect of runtime.deployments) {
-    const progress = Math.min(1, (now - effect.born) / effect.life);
+    const progress = Math.min(1, (visualNow - effect.born) / effect.life);
     const alpha = 1 - progress;
     ctx.strokeStyle = effect.kind === "remove" ? `rgba(251,191,36,${alpha})` : effect.kind === "wave" ? `rgba(244,63,94,${alpha})` : `rgba(103,232,249,${alpha})`;
     ctx.lineWidth = 2;

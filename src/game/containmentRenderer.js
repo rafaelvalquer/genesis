@@ -364,19 +364,19 @@ function drawRouteModule(ctx, x, row, theme, state, now, settings) {
 function drawConvoyRouteModule(ctx, x, theme, status, now, settings) {
   const width = 204; const height = 48; const y = 27;
   const color = status.status === "destroyed" || status.status === "underAttack" ? (status.critical ? "#ef4444" : "#fb7185") : status.status === "preparation" || status.status === "unescorted" ? "#fbbf24" : "#67e8f9";
-  const checkpointProgress = status.checkpointProgress;
+  const sectorMarkers = status.sectorMarkers || [.28, .51, .74];
   ctx.save(); ctx.shadowBlur = status.underAttack ? 12 : 3; ctx.shadowColor = color;
   chamferedRect(ctx, x - width / 2, y, width, height, 4); ctx.fillStyle = "rgba(1,6,12,.98)"; ctx.fill();
   ctx.strokeStyle = rgba(color, status.underAttack || status.critical ? .9 : .55); ctx.stroke(); ctx.shadowBlur = 0;
   ctx.textBaseline = "middle"; ctx.font = "700 9px 'Chakra Petch', system-ui"; ctx.textAlign = "left"; ctx.fillStyle = rgba(theme.primary, .96); ctx.fillText("ROTA 3 · TRANSPORTE", x - width / 2 + 8, y + 9);
-  const labels = { ready: "PRONTO", entering: "ENTRANDO", starting: "INICIANDO", moving: "EM MOVIMENTO", unescorted: "SEM ESCOLTA", underAttack: "SOB ATAQUE", checkpoint: "CHECKPOINT", preparation: "PREPARAÇÃO", destroyed: "DESTRUÍDO" };
+  const labels = { ready: "PRONTO", entering: "ENTRANDO", starting: "INICIANDO", moving: "EM MOVIMENTO", underAttack: "SOB ATAQUE", checkpoint: "CHECKPOINT", preparation: "PREPARAÇÃO", destroyed: "DESTRUÍDO" };
   ctx.textAlign = "right"; ctx.fillStyle = color; ctx.fillText(labels[status.status] || "TRANSPORTE", x + width / 2 - 8, y + 9);
   ctx.textAlign = "left"; ctx.font = "600 8px 'Chakra Petch', system-ui"; ctx.fillStyle = status.critical ? "#fda4af" : "rgba(241,245,249,.92)";
   ctx.fillText(`🚚 ${status.hp}/${status.hpMax} · S${status.sector}/${status.sectorTotal} · CP${status.checkpointsReached}/${status.checkpointsTotal}`, x - width / 2 + 8, y + 22, width - 16);
   const trackX = x - width / 2 + 8; const trackY = y + 34; const trackWidth = width - 16;
   ctx.fillStyle = "rgba(2,6,12,.9)"; ctx.fillRect(trackX, trackY, trackWidth, 6); ctx.fillStyle = "#67e8f9"; ctx.fillRect(trackX, trackY, trackWidth * status.progress, 6);
   ctx.strokeStyle = "rgba(226,232,240,.72)"; ctx.lineWidth = 1;
-  for (const checkpoint of checkpointProgress) { const markerX = trackX + trackWidth * checkpoint; const reached = status.progress >= checkpoint; ctx.fillStyle = reached ? "#67e8f9" : "#64748b"; ctx.beginPath(); ctx.moveTo(markerX, trackY - 2); ctx.lineTo(markerX + 3, trackY + 1); ctx.lineTo(markerX, trackY + 4); ctx.lineTo(markerX - 3, trackY + 1); ctx.closePath(); ctx.fill(); }
+  for (const checkpoint of sectorMarkers) { const markerX = trackX + trackWidth * checkpoint; const reached = status.progress >= checkpoint; ctx.fillStyle = reached ? "#67e8f9" : "#64748b"; ctx.beginPath(); ctx.moveTo(markerX, trackY - 2); ctx.lineTo(markerX + 3, trackY + 1); ctx.lineTo(markerX, trackY + 4); ctx.lineTo(markerX - 3, trackY + 1); ctx.closePath(); ctx.fill(); }
   const goalX = trackX + trackWidth; ctx.fillStyle = status.progress >= 1 ? "#a7f3d0" : "#cbd5e1"; ctx.fillRect(goalX - 1, trackY - 2, 2, 10);
   ctx.textAlign = "right"; ctx.fillStyle = "#f8fafc"; ctx.font = "700 8px 'Chakra Petch', system-ui"; ctx.fillText(`${status.progressPercent}%`, x + width / 2 - 8, trackY + 3); ctx.restore();
 }

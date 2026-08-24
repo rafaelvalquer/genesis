@@ -33,16 +33,3 @@ export function updateConvoyEnergy(session, events = []) {
     convoy.nextEnergyPulseAt += interval;
   }
 }
-
-export function refillConvoyReserve(session, checkpointIndex, events = []) {
-  const convoy = session.convoy;
-  if (!convoy || convoy.refillAppliedForCheckpoint?.includes(checkpointIndex)) return 0;
-  convoy.refillAppliedForCheckpoint ||= [];
-  convoy.refillAppliedForCheckpoint.push(checkpointIndex);
-  const before = convoy.reserve;
-  convoy.reserve = Math.min(convoy.reserveMax, convoy.reserve + (session.phase.convoy.checkpointRefill || 50));
-  convoy.reserveEmptyEmitted = convoy.reserve <= 0;
-  const amountAdded = convoy.reserve - before;
-  events.push({ type: "checkpointRefill", checkpointIndex, amountAdded, discardedAmount: (session.phase.convoy.checkpointRefill || 50) - amountAdded, newReserve: convoy.reserve });
-  return amountAdded;
-}

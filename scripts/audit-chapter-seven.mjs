@@ -42,8 +42,8 @@ for (const phase of phases) {
   check(!isSystemEnabledForPhase(phase, "enemyEnergyPickups"), `${phase.id}: pickups de energia ativos`);
   check(!isSystemEnabledForPhase(phase, "waveCompletionEnergy"), `${phase.id}: energia de onda ativa`);
   check(phase.sectors?.length === 4, `${phase.id}: precisa de 4 setores`);
-  check(JSON.stringify(phase.convoy?.checkpointProgress) === JSON.stringify([.25, .5, .75]),
-    `${phase.id}: checkpoints devem ser 25/50/75%`);
+  check(JSON.stringify(phase.convoy?.sectorStops) === JSON.stringify([.06, .28, .51, .74, .96]),
+    `${phase.id}: posições dos setores inválidas`);
   check(phase.convoy?.reserveInitial === 80 && phase.convoy?.reserveMax === 80, `${phase.id}: reserva deve ser 80/80`);
   check(phase.convoy?.energyPerPulse === 3 && phase.convoy?.energyPulseEveryMs === 5000,
     `${phase.id}: pulso logístico deve ser 3/5s`);

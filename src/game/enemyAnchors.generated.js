@@ -11,9 +11,9 @@ export const ENEMY_FRAME_ANCHORS = {
     "walking": repeat({ x: 0.5015, y: 0.9297 }, 8),
   },
   "macacoEsporos": {
-    "attack": repeat({ x: 0.4811, y: 0.9375 }, 8),
-    "idle": repeat({ x: 0.4811, y: 0.9375 }, 8),
-    "sporeThrow": repeat({ x: 0.4811, y: 0.9375 }, 8),
-    "walking": repeat({ x: 0.4811, y: 0.9375 }, 8),
+    "attack": repeat({ x: 0.5188, y: 0.8984 }, 8),
+    "idle": repeat({ x: 0.4931, y: 0.9023 }, 8),
+    "sporeThrow": repeat({ x: 0.5101, y: 0.9004 }, 8),
+    "walking": repeat({ x: 0.4893, y: 0.9082 }, 8),
   },
 };

@@ -30,7 +30,7 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
     hp: 30, speed: 25, damage: 3, attackEveryMs: 1450, baseDamage: 7, threat: 28, scale: .98,
     canAttackConvoy: false, attackRangeTiles: .62, animationFrameMs: { idle: 120, walking: 100 },
     attackVisual: { durationMs: 560, impactMs: 280 },
-    sporeFruit: { firstCastDelayMs: 2800, cooldownMs: 6500, rangeTiles: 4.25, castDurationMs: 760, releaseMs: 380, projectileSpeed: 520, radiusTiles: .9, confusionMinMs: 1800, confusionMaxMs: 2200, cloudVisualMs: 950, directDamage: 0 },
+    sporeFruit: { firstCastDelayMs: 2800, cooldownMs: 6500, interruptCooldownMs: 2200, rangeTiles: 4.25, castDurationMs: 760, releaseMs: 380, projectileSpeed: 520, radiusTiles: 1.15, confusionMinMs: 1800, confusionMaxMs: 2200, cloudVisualMs: 950, directDamage: 0 },
     assetStates: ["idle", "walking", "attack", "sporeThrow"],
     color: "#23c7bd", description: "Primata alienígena que lança frutos de esporo e confunde a escolta.",
   }),
