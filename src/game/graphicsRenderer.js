@@ -5,6 +5,7 @@ import {
   getLinearEffectTexture,
   getSceneTintTexture,
 } from "./effectTextureCache.js";
+import { drawDeploymentVisual } from "./deploymentEffect.js";
 
 const spriteHaloCache = new Map();
 
@@ -126,37 +127,7 @@ export function drawDeploymentEffects(ctx, runtime, now, settings = {}) {
   const visualNow = Number.isFinite(runtime?.clockNow) ? runtime.clockNow : now;
   ctx.save();
   for (const effect of runtime.deployments) {
-    const progress = Math.min(1, (visualNow - effect.born) / effect.life);
-    const alpha = 1 - progress;
-    const deployment = effect.kind === "deploy" || effect.kind === "droneStack";
-    ctx.strokeStyle = effect.kind === "remove" ? `rgba(251,191,36,${alpha})` : effect.kind === "wave" ? `rgba(244,63,94,${alpha})` : `rgba(103,232,249,${alpha})`;
-    ctx.lineWidth = 2;
-    if (deployment) {
-      ctx.globalAlpha = alpha * 0.72;
-      ctx.fillStyle = "#67e8f9";
-      ctx.beginPath();
-      ctx.arc(effect.x, effect.y, 5 + (1 - progress) * 7, 0, Math.PI * 2);
-      ctx.fill();
-      if (settings.quality !== "low") {
-        ctx.globalAlpha = alpha * 0.55;
-        for (let index = 0; index < 6; index += 1) {
-          const angle = index * Math.PI / 3;
-          const distance = 11 + progress * 25;
-          ctx.beginPath();
-          ctx.arc(effect.x + Math.cos(angle) * distance, effect.y + Math.sin(angle) * distance, 1.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-      ctx.globalAlpha = 1;
-    }
-    ctx.beginPath(); ctx.ellipse(effect.x, effect.y + 42, 34 + progress * 20, 9 + progress * 5, 0, 0, Math.PI * 2); ctx.stroke();
-    if (settings.quality !== "low") {
-      ctx.globalAlpha = alpha * .35;
-      ctx.fillStyle = effect.kind === "remove" ? "#fbbf24" : effect.kind === "wave" ? "#f43f5e" : "#67e8f9";
-      const y = effect.kind === "remove" ? effect.y - 55 + progress * 120 : effect.y + 60 - progress * 120;
-      ctx.fillRect(effect.x - 31, y, 62, 2);
-      ctx.globalAlpha = 1;
-    }
+    drawDeploymentVisual(ctx, effect, visualNow, settings);
   }
   ctx.restore();
 }

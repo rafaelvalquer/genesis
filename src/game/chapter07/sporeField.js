@@ -21,10 +21,14 @@ export function launchSporeFruit(session, enemy, target, config, createId, event
   const dx = target.x - enemy.x;
   const dy = target.y - enemy.y;
   const travelMs = Math.max(180, Math.hypot(dx, dy) / spell.projectileSpeed * 1000);
+  const id = createId("sporeFruit");
+  const releaseVisual = spell.releaseVisual || { offsetX: -18, offsetY: -42, frame: 4 };
   session.sporeFruits.push({
-    id: createId("sporeFruit"), active: true, sourceEnemyId: enemy.id,
-    startX: enemy.x - 18, startY: enemy.y - 42, targetX: target.x, targetY: target.y,
+    id, seed: String(id).split("").reduce((hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0, 2166136261) >>> 0,
+    active: true, sourceEnemyId: enemy.id,
+    startX: enemy.x + (releaseVisual.offsetX ?? -18), startY: enemy.y + (releaseVisual.offsetY ?? -42), targetX: target.x, targetY: target.y,
     targetRow: target.row, startedAt: session.elapsed, impactAt: session.elapsed + travelMs,
+    releaseVisual: { frame: releaseVisual.frame ?? 4 },
     radiusTiles: spell.radiusTiles, confusionMinMs: spell.confusionMinMs,
     confusionMaxMs: spell.confusionMaxMs, cloudVisualMs: spell.cloudVisualMs,
   });

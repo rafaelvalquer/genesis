@@ -20,6 +20,18 @@ describe("politica de filtros e halos", () => {
     expect(ctx.fillRect).toHaveBeenCalledWith(69, 200, 62, 2);
   });
 
+  it("recupera o anel e os sparks radiais antigos sem criar pontos simétricos", () => {
+    const ctx = {
+      save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), arc: vi.fn(), stroke: vi.fn(), fill: vi.fn(), fillRect: vi.fn(),
+      strokeStyle: "", lineWidth: 0, globalAlpha: 1, fillStyle: "",
+    };
+    const runtime = { clockNow: 1000, deployments: [{ kind: "deploy", sourceType: "deploy", x: 100, y: 200, born: 1000, life: 520, seed: 10, color: "#67e8f9" }] };
+    drawDeploymentEffects(ctx, runtime, 0, { quality: "high" });
+    expect(ctx.arc).toHaveBeenCalledTimes(9);
+    expect(ctx.arc.mock.calls[0]).toEqual([100, 200, 5, 0, Math.PI * 2]);
+    expect(ctx.fill).toHaveBeenCalledTimes(8);
+  });
+
   it("altera a posição da barra entre frames sem depender do tempo da simulação", () => {
     const ctx = {
       save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(), ellipse: vi.fn(), arc: vi.fn(), stroke: vi.fn(), fill: vi.fn(), fillRect: vi.fn(),

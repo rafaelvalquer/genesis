@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { resolveConvoyAnimationFrame, updateConvoyAnimation } from "./convoyAnimation.js";
 
 describe("convoy animation state", () => {
-  it("uses run only while the escorted convoy can move", () => {
-    const session = { elapsed: 40, convoyFlow: { state: "sectorActive" }, convoy: { hp: 100, escorted: true, underAttack: false, animation: { state: "idle", startedAt: 0, previousState: null } } };
+  it("uses run durante a entrada e o trânsito, e idle durante o setor", () => {
+    const session = { elapsed: 40, convoyFlow: { state: "convoyEntry" }, convoy: { hp: 100, animation: { state: "idle", startedAt: 0, previousState: null } } };
     updateConvoyAnimation(session);
     expect(session.convoy.animation.state).toBe("run");
-    session.elapsed = 80; session.convoy.underAttack = true; updateConvoyAnimation(session);
+    session.elapsed = 80; session.convoyFlow.state = "sectorActive"; updateConvoyAnimation(session);
     expect(session.convoy.animation.state).toBe("idle");
   });
 

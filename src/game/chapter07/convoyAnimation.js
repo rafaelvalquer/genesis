@@ -4,7 +4,7 @@ export function getDesiredConvoyAnimationState(session) {
   const convoy = session?.convoy;
   if (!convoy) return "idle";
   if (convoy.hp <= 0) return "destroyed_transition";
-  return session?.convoyFlow?.state === "convoyTransit" ? "run" : "idle";
+  return ["convoyTransit", "convoyEntry"].includes(session?.convoyFlow?.state) ? "run" : "idle";
 }
 
 export function updateConvoyAnimation(session) {

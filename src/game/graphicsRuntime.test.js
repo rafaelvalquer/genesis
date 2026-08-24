@@ -83,7 +83,7 @@ describe("runtime grafico", () => {
     const runtime = createGraphicsRuntime();
     runtime.clockNow = 1000;
     consumeGraphicsEvents(runtime, [{ type: "deploy", x: 120, y: 180 }], 0);
-    expect(runtime.deployments).toMatchObject([{ kind: "deploy", born: 1000, life: 520 }]);
+    expect(runtime.deployments).toMatchObject([{ kind: "deploy", sourceType: "deploy", born: 1000, life: 520, seed: 1, color: "#67e8f9" }]);
 
     updateGraphicsRuntime(runtime, 0, 16, { clockNow: 1250 });
     expect(runtime.deployments).toHaveLength(1);

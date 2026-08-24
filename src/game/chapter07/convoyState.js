@@ -8,7 +8,7 @@ export function createConvoyState(phase) {
     id: "convoy", row: phase.convoy.row ?? 2, x: entryX, previousX: entryX,
     y: (phase.convoy.row ?? 2) * CELL.height + CELL.height / 2,
     entryX, routeStartX, startX: routeStartX, destinationX: getConvoyDestinationX(), progress: 0,
-    entryState: "offscreen", entrySpeedPxPerSecond: phase.convoy.entrySpeedPxPerSecond || 120,
+    entryState: "offscreen", entryDurationMs: phase.convoy.entryDurationMs || 2200, entry: null,
     hp: phase.convoy.maxHp, maxHp: phase.convoy.maxHp,
     underAttack: false, attackerIds: [], invulnerable: false,
     reserve: phase.convoy.reserveInitial, reserveMax: phase.convoy.reserveMax,

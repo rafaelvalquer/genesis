@@ -256,7 +256,10 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
     if (["deploy", "droneStackCreated", "droneStackAdded"].includes(event.type)) {
       runtime.deployments.push({
         kind: event.type === "droneStackAdded" ? "droneStack" : "deploy",
+        sourceType: event.type,
         x: event.x, y: event.y, born: visualNow, life: 520,
+        seed: event.seed || 1,
+        color: event.color || "#67e8f9",
       });
     }
     if (event.type === "remove") runtime.deployments.push({ kind: "remove", x: event.x, y: event.y, born: now, life: 380 });

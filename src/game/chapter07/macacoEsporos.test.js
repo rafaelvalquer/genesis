@@ -59,7 +59,9 @@ describe("Macaco de Esporos", () => {
     r.elapsed = r.session.elapsed = 2800; macacoEsporosBehavior.update(r, enemy, config, 16, []);
     const lockedX = enemy.sporeTargetX; r.session.troops[0].dead = true;
     r.elapsed = r.session.elapsed = 3180; macacoEsporosBehavior.update(r, enemy, config, 16, []);
-    expect(r.session.sporeFruits[0]).toMatchObject({ targetX: lockedX, targetRow: 1 });
+    expect(r.session.sporeFruits[0]).toMatchObject({ targetX: lockedX, targetRow: 1, releaseVisual: { frame: 4 } });
+    expect(r.session.sporeFruits[0].startX).toBe(enemy.x - 25);
+    expect(r.session.sporeFruits[0].startY).toBe(enemy.y - 46);
     const interrupted = { ...enemy, sporeState: "sporeCast", sporeReleased: false, stunnedUntil: 4000, sporeTargetId: "escort", sporeTargetX: 260, sporeTargetY: 144, sporeTargetRow: 1 };
     r.elapsed = r.session.elapsed = 3500; macacoEsporosBehavior.update(r, interrupted, config, 16, []);
     expect(interrupted.sporeState).toBe("walking"); expect(interrupted.sporeReadyAt).toBe(5700);

@@ -67,6 +67,11 @@ import {
 import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
 import { getColossoAnimation } from "./colossoCaldeira.js";
 import { drawColossoBossHealth, drawColossoCaldeira } from "./colossoCaldeiraRenderer.js";
+import {
+  drawSporeClouds,
+  drawSporeFruitEmissive,
+  drawSporeFruits,
+} from "./chapter07/sporeFruitRenderer.js";
 import { isRasgamarSubmerged } from "./enemyTargeting.js";
 import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "./thermalBurningTroopRenderer.js";
 import {
@@ -150,7 +155,7 @@ import { getConvoyAttackSummary } from "./chapter07/convoySummary.js";
 import ConvoyCheckpointOverlay from "./chapter07/components/ConvoyCheckpointOverlay.jsx";
 import ConvoySectorCountdown from "./chapter07/components/ConvoySectorCountdown.jsx";
 import ConvoyToast from "./chapter07/components/ConvoyToast.jsx";
-import { advanceConvoySectorCountdown, startConvoySectorCountdown } from "./chapter07/convoyFlow.js";
+import { advanceConvoyEntry, advanceConvoySectorCountdown, startConvoySectorCountdown } from "./chapter07/convoyFlow.js";
 import { acknowledgeConvoyCheckpoint } from "./chapter07/convoyCheckpoints.js";
 import { applyConvoyCheckpointOption } from "./chapter07/convoyCheckpointRewards.js";
 import "./chapter07/chapter07.css";
@@ -1638,19 +1643,8 @@ function drawEmissiveBattle(
   );
   drawProjectileCollection(ctx, session.projectiles, interpolation, settings, projectileAssets);
   drawProjectileCollection(ctx, session.enemyProjectiles, interpolation, settings, projectileAssets);
-  for (const fruit of session.sporeFruits || []) {
-    const progress = Math.max(0, Math.min(1, (session.elapsed - fruit.startedAt) / Math.max(1, fruit.impactAt - fruit.startedAt)));
-    const x = fruit.startX + (fruit.targetX - fruit.startX) * progress;
-    const y = fruit.startY + (fruit.targetY - fruit.startY) * progress - Math.sin(progress * Math.PI) * 62;
-    ctx.save(); ctx.fillStyle = "#f1b447"; ctx.strokeStyle = "#d76e36"; ctx.shadowColor = "#46a6a1"; ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); ctx.restore();
-  }
-  for (const cloud of session.sporeClouds || []) {
-    const progress = Math.max(0, Math.min(1, (session.elapsed - cloud.startedAt) / Math.max(1, cloud.endsAt - cloud.startedAt)));
-    ctx.save(); ctx.globalAlpha = 0.42 * (1 - progress); ctx.fillStyle = "#e9913a";
-    for (let index = 0; index < 8; index += 1) { const angle = index * Math.PI / 4; ctx.beginPath(); ctx.arc(cloud.x + Math.cos(angle) * cloud.radius * .45, cloud.y + Math.sin(angle) * cloud.radius * .25, 11 + progress * 14, 0, Math.PI * 2); ctx.fill(); }
-    ctx.restore();
-  }
+  drawSporeFruitEmissive(ctx, session.sporeFruits, session.elapsed, settings);
+  drawSporeClouds(ctx, session.sporeClouds, session.elapsed, settings);
   drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
   drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
   if (dematerializationEnabled) drawPulseDisintegrations(ctx, runtime, assets, now, settings);
@@ -1722,6 +1716,8 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   drawProjectileCollection(
     effectCtx, session.enemyProjectiles, interpolation, settings, runtime.projectileAssets,
   );
+  drawSporeFruits(effectCtx, session.sporeFruits, session.elapsed, assets.effects?.sporeFruit, settings);
+  drawSporeClouds(effectCtx, session.sporeClouds, session.elapsed, settings);
   drawNaniteHealingBeams(effectCtx, session, settings);
   effectCtx.restore();
   const backEffectMs = performance.now() - started;
@@ -2172,6 +2168,11 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
           convoyCountdownStepRef.current = null;
         }
       }
+      if (!pausedRef.current && !fortunePaused && activeSession?.convoyFlow?.state === "convoyEntry") {
+        const entryEvents = [];
+        advanceConvoyEntry(activeSession, frameDelta, entryEvents);
+        if (entryEvents.length) consumeGraphicsEventsAtVisualTime(entryEvents, activeSession.elapsed);
+      }
       const activeOutro = activeSession?.waveOutro?.status
         && !["idle", "completed"].includes(activeSession.waveOutro.status);
       const cueState = getWaveOutroCueState(activeSession?.waveOutro);
@@ -2486,7 +2487,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     const fieldPoint = canvasPointFromPointer(event);
     if (sessionRef.current.convoyFlow?.state === "checkpointPreparation"
       && sessionRef.current.convoyFlow.checkpointBriefingPending) return;
-    if (sessionRef.current.convoyFlow?.state === "sectorCountdown") {
+    if (["sectorCountdown", "convoyEntry"].includes(sessionRef.current.convoyFlow?.state)) {
       setMessage("O setor está iniciando. Aguarde a contagem regressiva.");
       return;
     }

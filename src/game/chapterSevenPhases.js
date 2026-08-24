@@ -62,7 +62,7 @@ export const CHAPTER_SEVEN_PHASES = deepFreeze(Array.from({ length: 8 }, (_, ind
     disabledSystems: ["dematerializationPulse", "legacyWaveOutro", "legacyWaveDecisions", "waveCompletionEnergy", "enemyEnergyPickups", "reactor", "thermalPlatform"] },
   convoy: { vehicleId: ["tr7_pioneiro", "tr7r_peregrino", "tr7a_bastilha", "tr7f_ferrum", "tr9_atlas", "tr9p_vertice", "tr9s_sobrevivente", "trx_exodo"][index], row: 2,
     maxHp: 1000,
-    sectorStops: [0.06, 0.28, 0.51, 0.74, 0.96], transitDurationMs: 2400, targetUninterruptedTravelMs: 180000 + index * 6000,
+    sectorStops: [0.06, 0.28, 0.51, 0.74, 0.96], entryDurationMs: 2200, transitDurationMs: 2400, targetUninterruptedTravelMs: 180000 + index * 6000,
     reserveInitial: 80, reserveMax: 80, energyPerPulse: 3, energyPulseEveryMs: 5000,
     checkpointRewards: { repairHp: 200, reserveAmount: 40 }, lateralAttackRangeTiles: 1 },
   terrain: { mode: "convoy", routeType: ROUTES[index], seed: 7049 + index * 101 },

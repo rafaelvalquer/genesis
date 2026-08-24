@@ -3,6 +3,7 @@ export const TROOP_ANIMATION_PLANNING_STATES = Object.freeze([
   "checkpointPreparation",
   "checkpointDecision",
   "sectorCountdown",
+  "convoyEntry",
 ]);
 
 export function isTroopAnimationPlanningState(session) {
