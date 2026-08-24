@@ -13,6 +13,8 @@
     "assets:leviathan-effects": "node scripts/generate-leviathan-effects.mjs",
     "assets:enemy-anchors": "node scripts/generate-enemy-anchors.mjs --write",
     "assets:chapter2-cartoon-enemies": "node scripts/process-chapter2-cartoon-enemies.mjs",
+    "assets:rastejante-mata": "node scripts/process-rastejante-mata-sprites.mjs",
+    "assets:saltador-alado": "node scripts/process-saltador-alado-sprites.mjs",
     "assets:ram-beetle": "node scripts/process-ram-beetle-sheets.mjs",
     "assets:scarab-emperor": "node scripts/process-scarab-emperor-atlases.mjs",
     "assets:worker-queen": "node scripts/process-worker-queen-sheets.mjs",

@@ -2,12 +2,12 @@
 const repeat = (anchor, count) => Array.from({ length: count }, () => anchor);
 export const ENEMY_FRAME_ANCHORS = {
   "saltadorAlado": {
-    "attack": repeat({ x: 0.4579, y: 0.651 }, 8),
-    "idle": repeat({ x: 0.4582, y: 0.6667 }, 8),
-    "jumpAir": repeat({ x: 0.4516, y: 0.5885 }, 6),
-    "jumpLand": repeat({ x: 0.453, y: 0.6458 }, 4),
-    "jumpPrep": repeat({ x: 0.4329, y: 0.6563 }, 4),
-    "rasante": repeat({ x: 0.4507, y: 0.6406 }, 8),
-    "walking": repeat({ x: 0.4489, y: 0.651 }, 8),
+    "attack": repeat({ x: 0.5135, y: 0.9238 }, 8),
+    "idle": repeat({ x: 0.4938, y: 0.9297 }, 8),
+    "jumpAir": repeat({ x: 0.4967, y: 0.7832 }, 6),
+    "jumpLand": repeat({ x: 0.4989, y: 0.9277 }, 4),
+    "jumpPrep": repeat({ x: 0.4949, y: 0.9336 }, 4),
+    "rasante": repeat({ x: 0.5041, y: 0.9238 }, 8),
+    "walking": repeat({ x: 0.5015, y: 0.9297 }, 8),
   },
 };

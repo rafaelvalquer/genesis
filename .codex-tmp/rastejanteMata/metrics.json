@@ -1,0 +1,139 @@
+{
+  "sourceSheets": {
+    "idle": "C:\\Projetos\\Genesis\\art\\spritesheets\\rastejanteMata\\rastejanteMata-idle-chroma.png",
+    "walking": "C:\\Projetos\\Genesis\\art\\spritesheets\\rastejanteMata\\rastejanteMata-walking-chroma.png",
+    "attack": "C:\\Projetos\\Genesis\\art\\spritesheets\\rastejanteMata\\rastejanteMata-attack-chroma.png"
+  },
+  "sourceCell": 1024,
+  "globalScale": 0.5267857142857143,
+  "maxSourceWidth": 717,
+  "maxSourceHeight": 479,
+  "frames": {
+    "idle": [
+      {
+        "width": 354,
+        "height": 241,
+        "bottom": 499
+      },
+      {
+        "width": 354,
+        "height": 242,
+        "bottom": 499
+      },
+      {
+        "width": 353,
+        "height": 241,
+        "bottom": 499
+      },
+      {
+        "width": 354,
+        "height": 241,
+        "bottom": 499
+      },
+      {
+        "width": 351,
+        "height": 239,
+        "bottom": 499
+      },
+      {
+        "width": 360,
+        "height": 240,
+        "bottom": 499
+      },
+      {
+        "width": 348,
+        "height": 239,
+        "bottom": 499
+      },
+      {
+        "width": 359,
+        "height": 239,
+        "bottom": 499
+      }
+    ],
+    "walking": [
+      {
+        "width": 358,
+        "height": 252,
+        "bottom": 499
+      },
+      {
+        "width": 352,
+        "height": 249,
+        "bottom": 499
+      },
+      {
+        "width": 353,
+        "height": 233,
+        "bottom": 499
+      },
+      {
+        "width": 353,
+        "height": 245,
+        "bottom": 499
+      },
+      {
+        "width": 364,
+        "height": 233,
+        "bottom": 499
+      },
+      {
+        "width": 361,
+        "height": 237,
+        "bottom": 499
+      },
+      {
+        "width": 355,
+        "height": 219,
+        "bottom": 499
+      },
+      {
+        "width": 352,
+        "height": 240,
+        "bottom": 499
+      }
+    ],
+    "attack": [
+      {
+        "width": 363,
+        "height": 243,
+        "bottom": 499
+      },
+      {
+        "width": 376,
+        "height": 241,
+        "bottom": 499
+      },
+      {
+        "width": 350,
+        "height": 235,
+        "bottom": 499
+      },
+      {
+        "width": 362,
+        "height": 229,
+        "bottom": 499
+      },
+      {
+        "width": 374,
+        "height": 204,
+        "bottom": 499
+      },
+      {
+        "width": 370,
+        "height": 207,
+        "bottom": 499
+      },
+      {
+        "width": 367,
+        "height": 214,
+        "bottom": 499
+      },
+      {
+        "width": 378,
+        "height": 206,
+        "bottom": 499
+      }
+    ]
+  }
+}
