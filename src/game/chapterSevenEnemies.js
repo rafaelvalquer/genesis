@@ -18,6 +18,7 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
   }),
   saltadorAlado: enemy("saltadorAlado", "Saltador Alado", "Infiltrador / assassino de escolta", {
     hp: 26, speed: 28, damage: 6, attackEveryMs: 1100, baseDamage: 8, threat: 22, scale: .95,
+    animationFrameMs: { idle: 120, walking: 90 },
     canAttackConvoy: false, attackRangeTiles: .62, attackVisual: { durationMs: 560, impactMs: 280 },
     canopyJump: { triggerRangeTiles: .72, cooldownMinMs: 5000, cooldownMaxMs: 7000, prepMs: 240, airMs: 420, landMs: 220, landingOffsetTiles: .72, heightTiles: .70 },
     escortInstinct: { permanentAfterFirstJump: true, nearConvoyRadiusTiles: 2.25, huntForwardTiles: 5, targetLockMs: 1400 },

@@ -6,7 +6,7 @@ import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRen
 import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
 import { getThermalPlatformAt } from "./thermalTerrain.js";
 import { getConvoyXForProgress } from "./chapter07/convoyGeometry.js";
-import { drawFerrivoreTerrainBase, drawFerrivoreGroundVeins, drawFerrivoreGrowths, drawFerrivoreConvoyRoute, drawFerrivoreAmbient } from "./chapter07/ferrivoreBiomeRenderer.js";
+import { drawFerrivoreTerrainBase, drawFerrivoreGroundVeins, drawFerrivoreGrowths, drawFerrivoreConvoyRoute, drawFerrivoreAmbient, drawFerrivoreCombatLanes, drawFerrivoreStaticDetails, drawFerrivoreForeground as drawFerrivoreBiomeForeground } from "./chapter07/ferrivoreBiomeRenderer.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -513,11 +513,13 @@ function renderStaticBattlefield(ctx, phase, settings = {}) {
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
   if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
     drawFerrivoreTerrainBase(ctx, phase);
-    drawFerrivoreGroundVeins(ctx, phase, 0, true);
-    drawFerrivoreGrowths(ctx, phase);
-  } else drawBackdrop(ctx, phase, blueprint);
-  drawLanes(ctx, blueprint, profile);
-  if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") drawFerrivoreConvoyRoute(ctx, phase);
+    drawFerrivoreCombatLanes(ctx, blueprint, phase, profile);
+    drawFerrivoreStaticDetails(ctx, phase);
+    drawFerrivoreBiomeForeground(ctx, phase);
+  } else {
+    drawBackdrop(ctx, phase, blueprint);
+    drawLanes(ctx, blueprint, profile);
+  }
   if (blueprint.baseVariant === "convoy") drawConvoyEntryDepot(ctx, blueprint, profile);
   else drawDefenderBase(ctx, blueprint);
   drawEntrance(ctx, blueprint);
