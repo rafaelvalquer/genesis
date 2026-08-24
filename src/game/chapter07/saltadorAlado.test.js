@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ENEMIES } from "../content.js";
+import { ENEMIES, PHASES } from "../content.js";
+import { createBattleSession, createTroopEntity, spawnEnemy, stepBattle } from "../battle/engine.js";
 import { CELL } from "../visualGeometry.js";
 import { updateSaltadorAlado } from "./saltadorAlado.js";
 
@@ -29,5 +30,27 @@ describe("Saltador Alado", () => {
   });
   it("não ataca diretamente o comboio", () => {
     expect(ENEMIES.saltadorAlado.canAttackConvoy).toBe(false);
+  });
+
+  it("encaminha os eventos ao causar dano pelo motor de batalha", () => {
+    const phase = PHASES.find((entry) => entry.id === "fase_49");
+    const session = createBattleSession(phase, ["colono"], 17, { sandbox: true });
+    session.convoyFlow.state = "sectorActive";
+    const troop = createTroopEntity(session, "colono", 1, 4);
+    const enemy = spawnEnemy(session, { type: "saltadorAlado", row: 1 }).enemies[0];
+    session.troops.push(troop);
+    enemy.x = troop.x + CELL.width * .4;
+    enemy.meleeAttackPending = true;
+    enemy.meleeTargetId = troop.id;
+    enemy.meleeImpactAt = 0;
+    const hpBefore = troop.hp;
+
+    const events = stepBattle(session, 16);
+
+    expect(troop.hp).toBeLessThan(hpBefore);
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "troopHit", targetId: troop.id }),
+      expect.objectContaining({ type: "melee", sourceEnemyId: enemy.id }),
+    ]));
   });
 });

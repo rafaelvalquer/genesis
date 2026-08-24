@@ -1421,7 +1421,7 @@ function createEnemyLegacy(session, queued) {
   return enemy;
 }
 
-function createEnemyRuntime(session) {
+function createEnemyRuntime(session, events) {
   return {
     get elapsed() { return session.elapsed; },
     configFor: (enemy) => ENEMIES[enemy.type],
@@ -2878,7 +2878,7 @@ function clearRasgamarCoil(session, enemy, { applySlow = false } = {}) {
 }
 
 function notifyEnemyDeath(session, enemy, events, context = {}) {
-  getEnemyBehavior(enemy.type).onDeath(createEnemyRuntime(session), enemy, events, context);
+  getEnemyBehavior(enemy.type).onDeath(createEnemyRuntime(session, events), enemy, events, context);
 }
 
 function damageEnemy(session, enemy, amount, events, context = {}) {
@@ -2894,7 +2894,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       if (metric) session.metrics[metric] = (session.metrics[metric] || 0) + 1;
     }
   }
-  getEnemyBehavior(enemy.type).receiveDamage(createEnemyRuntime(session), enemy, amount, events, context);
+  getEnemyBehavior(enemy.type).receiveDamage(createEnemyRuntime(session, events), enemy, amount, events, context);
   if (isRasgamarSubmerged(enemy)) {
     return;
   }
@@ -7903,7 +7903,7 @@ function updateRasgamar(session, enemy, config, dt, events) {
 
 function updateEnemies(session, dt, events) {
   const enemyCountAtStart = session.enemies.length;
-  const runtime = createEnemyRuntime(session);
+  const runtime = createEnemyRuntime(session, events);
   for (let enemyIndex = 0; enemyIndex < enemyCountAtStart; enemyIndex += 1) {
     const enemy = session.enemies[enemyIndex];
     if (enemy.dead) continue;

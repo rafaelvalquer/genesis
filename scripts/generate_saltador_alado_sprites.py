@@ -1,66 +1,52 @@
 #!/usr/bin/env python3
-"""Export the 46 Saltador Alado frames from one transparent master reference."""
+"""Normalize articulated Saltador Alado pose bases into the runtime PNG contract."""
 from pathlib import Path
-from PIL import Image, ImageEnhance, ImageOps
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "scripts" / "saltador_alado_source" / "master.png"
+BASES = ROOT / "scripts" / "saltador_alado_pose_bases"
 OUT = ROOT / "src" / "game" / "assets" / "enemy" / "saltadorAlado"
+PREVIEW = ROOT / ".codex-tmp" / "convoy7" / "saltador_alado_animation_sheet.png"
 SIZE = (192, 192)
 COUNTS = {"idle": 8, "walking": 8, "attack": 8, "jumpPrep": 4, "jumpAir": 6, "jumpLand": 4, "rasante": 8}
 
 
-def master_image():
-    image = Image.open(SOURCE).convert("RGBA")
+def normalize(source: Path, airborne: bool) -> Image.Image:
+    image = Image.open(source).convert("RGBA")
     bbox = image.getchannel("A").getbbox()
     if not bbox:
-        raise ValueError("Saltador master has no alpha silhouette")
+        raise ValueError(f"Missing alpha silhouette: {source}")
     image = image.crop(bbox)
-    scale = min(166 / image.width, 166 / image.height)
-    return image.resize((round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS)
+    scale = min(172 / image.width, 158 / image.height)
+    image = image.resize((round(image.width * scale), round(image.height * scale)), Image.Resampling.LANCZOS)
+    result = Image.new("RGBA", SIZE, (0, 0, 0, 0))
+    # jumpAir stays centered; the engine owns the horizontal arc and vertical parabola.
+    y = (SIZE[1] - image.height) // 2 if airborne else 170 - image.height
+    result.alpha_composite(image, ((SIZE[0] - image.width) // 2, y))
+    return result
 
 
-def make_frame(master, state, index):
-    angles = {
-        "idle": [0, -1, -1, -2, -1, 0, 1, 0],
-        "walking": [-2, -3, -1, 2, 3, 1, -1, -2],
-        "attack": [0, -2, -4, -7, -10, -7, -3, 0],
-        "jumpPrep": [0, 2, 4, 6],
-        "jumpAir": [4, 2, 0, -2, -4, -2],
-        "jumpLand": [-4, -2, 0, 1],
-        "rasante": [0, -3, -8, -15, -19, -12, -5, 0],
-    }[state]
-    scales = {
-        "idle": [1, 1.005, 1.01, 1.012, 1.01, 1.005, 1, 1],
-        "walking": [1, 1.01, 1.015, 1.01, 1, 1.01, 1.015, 1],
-        "attack": [1, 1.01, 1.015, 1.025, 1.03, 1.025, 1.01, 1],
-        "jumpPrep": [1, .99, .985, .98], "jumpAir": [1, 1.005, 1.01, 1.01, 1.005, 1],
-        "jumpLand": [1.01, 1.02, 1.01, 1], "rasante": [1, 1.01, 1.02, 1.035, 1.04, 1.025, 1.01, 1],
-    }[state]
-    image = master.resize((round(master.width * scales[index]), round(master.height * scales[index])), Image.Resampling.BICUBIC)
-    image = image.rotate(angles[index], resample=Image.Resampling.BICUBIC, expand=True)
-    image = ImageOps.contain(image, (174, 174), Image.Resampling.LANCZOS)
-    image = ImageEnhance.Contrast(image).enhance(1 + (index + list(COUNTS).index(state) * 2) * .0015)
-    canvas = Image.new("RGBA", SIZE, (0, 0, 0, 0))
-    if state == "jumpAir":
-        # Keep the airborne body fixed in the PNG; the engine owns the parabola.
-        x = (SIZE[0] - image.width) // 2
-        y = 26 + (index % 2)
-    else:
-        x = (SIZE[0] - image.width) // 2 - (2 if state == "rasante" and index in (3, 4, 5) else 0)
-        y = SIZE[1] - image.height - 18 + ([0, -1, -2, -1, 0, 1, 1, 0][index] if index < 8 else 0)
-    canvas.alpha_composite(image, (x, y))
-    return canvas
+def preview(rows):
+    longest = max(len(row) for row in rows)
+    sheet = Image.new("RGBA", (192 * longest, 192 * len(rows)), (20, 28, 22, 255))
+    for row, frames in enumerate(rows):
+        for index, image in enumerate(frames): sheet.alpha_composite(image, (index * 192, row * 192))
+    return sheet
 
 
-def main():
-    master = master_image()
+def main() -> None:
+    rows = []
     for state, count in COUNTS.items():
-        folder = OUT / state
-        folder.mkdir(parents=True, exist_ok=True)
+        folder = OUT / state; folder.mkdir(parents=True, exist_ok=True)
+        frames = []
         for index in range(count):
-            make_frame(master, state, index).save(folder / f"frame{index}.png", "PNG", optimize=True)
-    print("Exported 46 Saltador Alado RGBA frames")
+            image = normalize(BASES / f"{state}_frame{index}.png", state == "jumpAir")
+            image.save(folder / f"frame{index}.png", "PNG", optimize=True)
+            frames.append(image)
+        rows.append(frames)
+    PREVIEW.parent.mkdir(parents=True, exist_ok=True)
+    preview(rows).save(PREVIEW, "PNG", optimize=True)
+    print("Exported 46 articulated Saltador Alado RGBA frames")
 
 
 if __name__ == "__main__":
