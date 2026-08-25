@@ -51,6 +51,13 @@ describe("Tartaragarra", () => {
     expect(Object.keys(frames)).toHaveLength(52);
   });
 
+  it("mantém o model frame e a folha de referência do idle fora do loader de frames", () => {
+    const model = import.meta.glob("../assets/enemy/tartaragarra/tartaragarra_model_reference.png");
+    const sheet = import.meta.glob("../assets/enemy/tartaragarra/tartaragarra_idle_sheet.png");
+    expect(Object.keys(model)).toHaveLength(1);
+    expect(Object.keys(sheet)).toHaveLength(1);
+  });
+
   it("telegraphia, atinge uma tropa sem movê-la e entra em recuperação", () => {
     const target = { id: "troop", row: 1, x: 450, y: 100, hp: 100, dead: false };
     const e = enemy();
