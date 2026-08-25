@@ -13,11 +13,11 @@ const POOLS = [
   ["rastejanteMata", "saqueadorEscoria"],
   ["rastejanteMata", "saqueadorEscoria", "couracadoHematita"],
   ["rastejanteMata", "saqueadorEscoria", "sabotadorOxido"],
-  ["rastejanteMata", "couracadoHematita", "cacadorComboio"],
-  ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "cacadorComboio", "tartaragarra"],
-  ["cacadorComboio", "couracadoHematita", "saltadorAlado", "atiradorRavina", "macacoEsporos", "tartaragarra"],
-  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos", "tartaragarra"],
-  ["couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos", "tartaragarra"],
+  ["rastejanteMata", "couracadoHematita", "garravinha"],
+  ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "garravinha", "tartaragarra"],
+  ["garravinha", "couracadoHematita", "saltadorAlado", "dardifago", "macacoEsporos", "tartaragarra"],
+  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "garravinha", "sabotadorOxido", "dardifago", "macacoEsporos", "tartaragarra"],
+  ["couracadoHematita", "garravinha", "sabotadorOxido", "dardifago", "macacoEsporos", "tartaragarra"],
 ];
 
 const packet = (id, atMs, units, routeStrategy = "split", fixedRows) => ({ id, atMs,
@@ -53,7 +53,7 @@ function createSector(phaseIndex, sectorIndex) {
     reinforcement: { warningAtMs, startsAtMs,
       intervalMs: phaseIndex >= 5 ? 300000 : Math.max(14000, 22000 - phaseIndex * 700),
       maxAliveEnemies: phaseIndex >= 5 ? 14 : 18 + phaseIndex * 2,
-      packetPool: pool.map((type, index) => packet(`reinforcement-${index}`, 0, [[type, ["couracadoHematita", "tartaragarra"].includes(type) ? 1 : 2]], "focused")) },
+      packetPool: pool.map((type, index) => packet(`reinforcement-${index}`, 0, [[type, ["couracadoHematita", "tartaragarra", "garravinha"].includes(type) ? 1 : 2]], "focused")) },
   };
 }
 
@@ -69,7 +69,7 @@ export const CHAPTER_SEVEN_PHASES = deepFreeze(Array.from({ length: 8 }, (_, ind
     blockedTroopIds: ["reator", "thermalPlatform"],
     disabledSystems: ["dematerializationPulse", "legacyWaveOutro", "legacyWaveDecisions", "waveCompletionEnergy", "enemyEnergyPickups", "reactor", "thermalPlatform"] },
   convoy: { vehicleId: ["tr7_pioneiro", "tr7r_peregrino", "tr7a_bastilha", "tr7f_ferrum", "tr9_atlas", "tr9p_vertice", "tr9s_sobrevivente", "trx_exodo"][index], row: 2,
-    maxHp: 1000,
+    maxHp: 1000, checkpointProgress: [.25, .5, .75], escortRows: [1, 3],
     sectorStops: [0.06, 0.28, 0.51, 0.74, 0.96], entryDurationMs: 2200, transitDurationMs: 2400, targetUninterruptedTravelMs: 180000 + index * 6000,
     reserveInitial: 80, reserveMax: 80, energyPerPulse: 3, energyPulseEveryMs: 5000,
     checkpointRewards: { repairHp: 200, reserveAmount: 40 }, lateralAttackRangeTiles: 1 },

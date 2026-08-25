@@ -30,9 +30,10 @@ describe("câmera cinematográfica do final de onda", () => {
     expect(camera.zoom).toBeCloseTo(1, 2);
   });
 
-  it("reutiliza o foco cinematográfico para o checkpoint sem uma morte", () => {
+  it("reutiliza o foco cinematográfico do último inimigo durante o cleanup", () => {
     const camera = getKillCinematicCameraTransform({
-      status: "checkpointCinematic", elapsedMs: 400, focusX: 220, focusRow: 2,
+      status: "cleanup", elapsedMs: 400, focusX: 220, focusRow: 2,
+      lastKill: { row: 2, enemy: { x: 275, y: 300 } },
       profile: { zoom: 1.12, impactAtMs: 650 }, enterEndMs: 650, exitStartMs: 1650, endMs: 2300,
     });
     expect(camera.zoom).toBeGreaterThan(1);

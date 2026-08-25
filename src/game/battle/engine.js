@@ -173,6 +173,7 @@ import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
 import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
 import { CONVOY_DEFEAT_RESULT_DELAY_MS } from "../chapter07/convoyAnimationConfig.js";
 import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setEnergyPickupPointer } from "../energyPickups.js";
+import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.js";
 
 export {
   createWindCurrentState,
@@ -439,7 +440,11 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     sporeClouds: [],
     chapterSevenMetrics: { sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0,
       tartaragarraCharges: 0, tartaragarraChargeHits: 0, tartaragarraChargeMisses: 0, tartaragarraTroopsStunned: 0,
-      tartaragarraShellHits: 0, tartaragarraShellDamagePrevented: 0, tartaragarraConvoyHeadbutts: 0, tartaragarraConvoyDamage: 0 },
+      tartaragarraShellHits: 0, tartaragarraShellDamagePrevented: 0, tartaragarraConvoyHeadbutts: 0, tartaragarraConvoyDamage: 0,
+      garravinhaLatchAttempts: 0, garravinhaLatches: 0, garravinhaLatchTicks: 0, garravinhaLatchDamage: 0,
+      garravinhaLatchInterruptions: 0, garravinhaReleased: 0, garravinhaSideAttacks: 0,
+      dardifagoShots: 0, dardifagoNormalShots: 0, dardifagoToxicShots: 0, dardifagoTroopHits: 0, dardifagoConvoyHits: 0,
+      dardifagoToxinApplications: 0, dardifagoToxinRefreshes: 0, dardifagoTroopDamage: 0, dardifagoConvoyDamage: 0, dardifagoInterruptedShots: 0 },
     energyPickups: [],
     energyPickupPointer: null,
     dematerializationPulses: isSystemEnabledForPhase(sessionPhase, "dematerializationPulse")
@@ -1482,6 +1487,7 @@ function createEnemyRuntime(session, events) {
     damageConvoy: (amount, context = {}) => damageConvoy(session, amount, events, context),
     canEnemyReachConvoy: (enemy, config) => canEnemyReachConvoy(session, enemy, config),
     hasBlockingTroop: (enemy) => hasBlockingTroop(session, enemy),
+    refreshTroopAttackSpeedFactor: (troop) => refreshTroopAttackSpeedFactor(session, troop),
     escortIds: () => [],
     convoyX: () => session.convoy?.x ?? Infinity,
     rng: () => session.rng(),
@@ -2539,6 +2545,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const leviathanFactor = session.elapsed < (troop.leviathanBrineUntil || 0)
     ? troop.leviathanBrineAttackSpeedFactor || 1
     : 1;
+  const vertebralFactor = getVertebralToxinAttackSpeedFactor(session, troop);
   if (session.elapsed >= (troop.webSlowUntil || 0)) {
     troop.webSlowUntil = 0;
     troop.webSlowFactor = 1;
@@ -2562,7 +2569,7 @@ function refreshTroopAttackSpeedFactor(session, troop) {
   const tideFactor = getTideTroopAttackSpeedFactor(session, troop);
   setTroopAttackSpeedFactor(
     troop,
-    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, leviathanFactor, sandFactor, tideFactor, troop.thermalAttackSpeedFactor || 1),
+    Math.min(parasiteFactor, webFactor, rasgamarFactor, veuSalinoFactor, leviathanFactor, vertebralFactor, sandFactor, tideFactor, troop.thermalAttackSpeedFactor || 1),
     session.elapsed,
   );
 }
@@ -6145,6 +6152,42 @@ function updateEnemyProjectiles(session, dt, events) {
     projectile.previousRenderX = projectile.x;
     projectile.previousRenderY = projectile.y;
 
+    if (projectile.kind === "dardifagoDart") {
+      projectile.x += projectile.vx * dt / 1000;
+      projectile.y += projectile.vy * dt / 1000;
+      projectile.rotation = Math.atan2(projectile.vy, projectile.vx);
+      pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
+      const target = projectile.targetType === "troop"
+        ? indexedTroopById(session, projectile.targetId)
+        : session.convoy;
+      const targetPoint = target && !target.dead
+        ? { x: target.x, y: projectile.targetType === "troop" ? target.y - 18 : target.y }
+        : { x: projectile.lastKnownTargetX, y: projectile.lastKnownTargetY };
+      const impact = Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y) <= Math.max(28, projectile.speed * dt / 1000);
+      if (impact) {
+        if (projectile.targetType === "troop" && target && !target.dead && Math.hypot(target.x - projectile.x, target.y - projectile.y) < 64) {
+          const dealt = damageTroop(session, target, projectile.damage, events, { sourceEnemyId: projectile.sourceEnemyId });
+          const metrics = session.chapterSevenMetrics;
+          metrics.dardifagoTroopHits += 1; metrics.dardifagoTroopDamage += dealt;
+          if (projectile.toxic && !target.dead) {
+            const active = (target.vertebralToxinUntil || 0) > session.elapsed;
+            target.vertebralToxinUntil = Math.max(target.vertebralToxinUntil || 0, session.elapsed + 3000);
+            target.vertebralToxinFactor = .70;
+            refreshTroopAttackSpeedFactor(session, target);
+            metrics[active ? "dardifagoToxinRefreshes" : "dardifagoToxinApplications"] += 1;
+            events.push({ type: "dardifagoToxinApplied", sourceEnemyId: projectile.sourceEnemyId, targetTroopId: target.id, durationMs: 3000, attackSpeedFactor: .70, refreshed: active, x: target.x, y: target.y - 18 });
+          }
+        } else if (projectile.targetType === "convoy" && session.convoy && session.convoy.hp > 0) {
+          const dealt = damageConvoy(session, projectile.damage, events, { attackerId: projectile.sourceEnemyId, enemyType: "dardifago", underAttackHoldMs: 2200 });
+          session.chapterSevenMetrics.dardifagoConvoyHits += 1; session.chapterSevenMetrics.dardifagoConvoyDamage += dealt;
+          events.push({ type: "dardifagoConvoyHit", sourceEnemyId: projectile.sourceEnemyId, damage: dealt, x: session.convoy.x, y: session.convoy.y });
+        }
+        events.push({ type: "dardifagoDartImpact", sourceEnemyId: projectile.sourceEnemyId, projectileId: projectile.id, targetId: projectile.targetId, toxic: projectile.toxic, x: projectile.x, y: projectile.y });
+        projectile.active = false;
+      } else if (projectile.ageMs > 3000 || projectile.x < -100 || projectile.x > FIELD.width + 100) projectile.active = false;
+      continue;
+    }
+
     if (projectile.kind === "emberGlob") {
       const progress = Math.min(1, projectile.ageMs / projectile.flightMs);
       projectile.x = projectile.startX + (projectile.targetX - projectile.startX) * progress;
@@ -7943,6 +7986,10 @@ function updateEnemies(session, dt, events) {
       behavior.update(runtime, enemy, config, dt, events);
       continue;
     }
+    if (enemy.type === "garravinha" || enemy.type === "dardifago") {
+      behavior.update(runtime, enemy, config, dt, events);
+      continue;
+    }
     if (session.elapsed < (enemy.stunnedUntil || 0)) {
       enemy.moving = false;
       continue;
@@ -8468,6 +8515,10 @@ export function getSnapshot(session) {
       entryState: session.convoy.entryState,
       hpPercent: Math.round(session.convoy.hp / Math.max(1, session.convoy.maxHp) * 100),
       underAttack: session.convoy.underAttack,
+      grappled: Boolean(session.convoy.grappledByEnemyId),
+      grappledByEnemyId: session.convoy.grappledByEnemyId || null,
+      grappleReservationEnemyId: session.convoy.grappleReservationEnemyId || null,
+      grappledSince: session.convoy.grappledSince,
       attackerCount: session.convoy.attackerIds.length, reserve: Math.round(session.convoy.reserve),
       reserveMax: session.convoy.reserveMax, checkpointsReached: session.convoyFlow.reachedCheckpointCount,
       nextEnergyPulseIn: Math.max(0, session.convoy.nextEnergyPulseAt - session.elapsed),

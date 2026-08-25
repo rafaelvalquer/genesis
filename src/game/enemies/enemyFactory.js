@@ -19,7 +19,11 @@ export function createBaseEnemy(session, queued, config, createId) {
   const echoSpeedFactor = echo ? mechanic?.speedFactor ?? 1.2 : 1;
   const echoDamageFactor = echo ? mechanic?.damageFactor ?? 0.6 : 1;
   const maxHp = config.hp * alphaHpFactor * echoHpFactor * (session.sandboxSettings?.enemyHpMultiplier ?? 1);
-  const row = Number.isInteger(queued.row) ? clamp(queued.row, 0, FIELD.rows - 1) : Math.floor(session.rng() * FIELD.rows);
+  const allowedRows = config.allowedRows?.length ? config.allowedRows : null;
+  const requestedRow = Number.isInteger(queued.row) ? clamp(queued.row, 0, FIELD.rows - 1) : null;
+  const row = allowedRows
+    ? (allowedRows.includes(requestedRow) ? requestedRow : allowedRows[Math.floor(session.rng() * allowedRows.length)])
+    : requestedRow ?? Math.floor(session.rng() * FIELD.rows);
   const x = Number.isFinite(queued.x)
     ? queued.x
     : FIELD.spawnX + (queued.xOffsetTiles || 0) * CELL.width + (queued.formationOffsetPx || 0);

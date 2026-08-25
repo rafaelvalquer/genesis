@@ -1579,6 +1579,7 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
     let lastHaloX = -Infinity;
     for (const entry of buffers.rows[row]) {
       const entity = entry.entity;
+      if (entry.kind === "enemy" && entity.attachedToConvoy) continue;
       if (entry.kind === "enemy" && (entity.type === "leviathanNereida" || entity.type === "colossoCaldeira")) {
         bossEntries.push(entry);
         continue;
@@ -1621,6 +1622,23 @@ export function drawBattleRows(ctx, session, assets, runtime, settings, adaptive
       drawContactShadow(ctx, buffers.position, entity.scale, settings);
     }
     drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, true);
+  }
+}
+
+function drawAttachedConvoyEnemies(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers) {
+  for (const enemy of session.enemies) {
+    if (enemy.dead || !enemy.attachedToConvoy) continue;
+    drawEnemyEntity(ctx, { kind: "enemy", entity: enemy, x: enemy.x, y: enemy.y }, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, false);
+    if (!settings.reduceMotion) {
+      ctx.save();
+      ctx.fillStyle = "#fb7185";
+      ctx.shadowColor = "#fb7185";
+      ctx.shadowBlur = 8;
+      ctx.font = "900 17px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("!", enemy.x, enemy.y - 66 * (enemy.scale || 1));
+      ctx.restore();
+    }
   }
 }
 
@@ -1703,12 +1721,15 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   drawMines(effectCtx, session.mines, mineAssets.mine?.[0], session.elapsed);
   if (!runtime.projectileAssets
     || runtime.projectileAssets.mineSource !== mineAssets
-    || runtime.projectileAssets.executorSource !== assets.effects?.executorArcSlash) {
+    || runtime.projectileAssets.executorSource !== assets.effects?.executorArcSlash
+    || runtime.projectileAssets.dardifagoSource !== assets.effects?.dardifagoDart) {
     runtime.projectileAssets = {
       ...mineAssets,
       executorArcSlash: assets.effects?.executorArcSlash,
       mineSource: mineAssets,
       executorSource: assets.effects?.executorArcSlash,
+      dardifagoDart: assets.effects?.dardifagoDart,
+      dardifagoSource: assets.effects?.dardifagoDart,
     };
   }
   drawProjectileCollection(
@@ -1729,6 +1750,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   entityCtx.translate(0, VIEWPORT.fieldOffsetY);
   drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, rowBuffers);
   drawConvoy(entityCtx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
+  drawAttachedConvoyEnemies(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
   drawThermalPlatformHeatBars(entityCtx, session);
   drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(entityCtx, runtime, assets, now, session.phase);

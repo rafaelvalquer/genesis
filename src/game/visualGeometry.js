@@ -288,6 +288,31 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     }
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 150)) % count };
   }
+  if (enemyConfig.id === "garravinha") {
+    const logicalState = enemy.garravinhaState || (enemy.moving ? "walking" : "idle");
+    const state = enemy.dead ? "death" : logicalState;
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.garravinhaStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const duration = Number.isFinite(enemy.garravinhaStateEndsAt)
+      ? Math.max(1, enemy.garravinhaStateEndsAt - startedAt) : null;
+    if (duration && ["attack", "sideAttack", "latchPrep", "latchLeap", "death"].includes(state)) {
+      return { state: state === "sideAttack" ? "attack" : state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
+  }
+  if (enemyConfig.id === "dardifago") {
+    const logicalState = enemy.dardifagoState || (enemy.moving ? "walking" : "idle");
+    const state = enemy.dead ? "death" : logicalState;
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = enemy.dardifagoStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const duration = Number.isFinite(enemy.dardifagoStateEndsAt) ? Math.max(1, enemy.dardifagoStateEndsAt - startedAt) : null;
+    if (duration && ["dartAttack", "toxicAttack", "death"].includes(state)) {
+      return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 135)) % count };
+  }
   if (enemyConfig.id === "cuspidorBrasa") {
     const logicalState = enemy.cuspidorState || (enemy.moving ? "walking" : "idle");
     const state = enemy.dead ? "death"

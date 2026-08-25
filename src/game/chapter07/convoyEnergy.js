@@ -1,5 +1,14 @@
 import { spawnEnergyPickup } from "../energyPickups.js";
 
+export function refillConvoyReserve(session, amount = 50) {
+  const convoy = session?.convoy;
+  if (!convoy || !Number.isFinite(amount) || amount <= 0) return 0;
+  const restored = Math.min(amount, Math.max(0, convoy.reserveMax - convoy.reserve));
+  convoy.reserve += restored;
+  convoy.reserveEmptyEmitted = convoy.reserve === 0;
+  return restored;
+}
+
 export function updateConvoyEnergy(session, events = []) {
   const convoy = session.convoy;
   if (!convoy || session.convoyFlow?.state !== "sectorActive" || session.paused) return;

@@ -9,6 +9,7 @@ export function getConvoyContainmentStatus(session) {
   const sector = Math.min(sectors, (flow.sectorIndex ?? 0) + 1);
   let status = "ready";
   if (convoy.hp <= 0) status = "destroyed";
+  else if (convoy.grappledByEnemyId) status = "grappled";
   else if (convoy.underAttack) status = "underAttack";
   else if (["checkpointDecision", "checkpointClearing"].includes(flow.state)) status = "checkpoint";
   else if (flow.state === "checkpointPreparation") status = "preparation";
@@ -22,7 +23,8 @@ export function getConvoyContainmentStatus(session) {
     progressPercent: Math.round((convoy.progress || 0) * 100),
     hp: convoy.hp, hpMax: convoy.maxHp ?? convoy.hpMax, hpPercent: Math.round(convoy.hp / Math.max(1, convoy.maxHp ?? convoy.hpMax) * 100),
     sector, sectorTotal: sectors, checkpointsReached: flow.reachedCheckpointCount ?? convoy.checkpointsReached ?? 0,
-    checkpointsTotal: 3, status, underAttack: Boolean(convoy.underAttack), critical: convoy.hp / Math.max(1, convoy.maxHp ?? convoy.hpMax) <= .2,
+    checkpointsTotal: 3, status, underAttack: Boolean(convoy.underAttack), grappled: Boolean(convoy.grappledByEnemyId), grappledByEnemyId: convoy.grappledByEnemyId || null, critical: convoy.hp / Math.max(1, convoy.maxHp ?? convoy.hpMax) <= .2,
+    checkpointProgress: phase.convoy?.checkpointProgress || [.25, .5, .75],
     sectorMarkers: (phase.convoy?.sectorStops || [.06, .28, .51, .74, .96]).slice(1, -1),
   };
 }

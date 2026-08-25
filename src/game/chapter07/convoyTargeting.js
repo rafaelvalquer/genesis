@@ -1,4 +1,5 @@
 import { CELL } from "../visualGeometry.js";
+import { isConvoyGrappled } from "./convoyGrapple.js";
 
 export function canEnemyReachConvoy(session, enemy, config = {}) {
   if (config.canAttackConvoy === false) return false;
@@ -16,10 +17,12 @@ export function hasBlockingTroop(session, enemy) {
 export function updateConvoyThreat(session, enemyConfigs, events = []) {
   if (!session.convoy) return [];
   const previous = session.convoy.underAttack;
-  const attackers = session.enemies.filter((enemy) => canEnemyReachConvoy(session, enemy, enemyConfigs[enemy.type])
+  const attackers = session.enemies.filter((enemy) => enemyConfigs[enemy.type]?.countsAsConvoyThreatOnPresence !== false
+    && canEnemyReachConvoy(session, enemy, enemyConfigs[enemy.type])
     && !hasBlockingTroop(session, enemy));
   session.convoy.attackerIds = attackers.map((enemy) => enemy.id);
   session.convoy.underAttack = attackers.length > 0
+    || isConvoyGrappled(session)
     || session.elapsed < (session.convoy.underAttackHoldUntil || -Infinity);
   if (!previous && session.convoy.underAttack) events.push({ type: "convoyUnderAttack", attackerIds: [...session.convoy.attackerIds] });
   if (previous && !session.convoy.underAttack) events.push({ type: "convoyAttackCleared" });

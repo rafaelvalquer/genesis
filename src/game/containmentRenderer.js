@@ -363,13 +363,13 @@ function drawRouteModule(ctx, x, row, theme, state, now, settings) {
 
 function drawConvoyRouteModule(ctx, x, theme, status, now, settings) {
   const width = 204; const height = 48; const y = 27;
-  const color = status.status === "destroyed" || status.status === "underAttack" ? (status.critical ? "#ef4444" : "#fb7185") : status.status === "preparation" || status.status === "unescorted" ? "#fbbf24" : "#67e8f9";
+  const color = status.status === "destroyed" || status.status === "underAttack" || status.status === "grappled" ? (status.critical ? "#ef4444" : "#fb7185") : status.status === "preparation" || status.status === "unescorted" ? "#fbbf24" : "#67e8f9";
   const sectorMarkers = status.sectorMarkers || [.28, .51, .74];
   ctx.save(); ctx.shadowBlur = status.underAttack ? 12 : 3; ctx.shadowColor = color;
   chamferedRect(ctx, x - width / 2, y, width, height, 4); ctx.fillStyle = "rgba(1,6,12,.98)"; ctx.fill();
   ctx.strokeStyle = rgba(color, status.underAttack || status.critical ? .9 : .55); ctx.stroke(); ctx.shadowBlur = 0;
   ctx.textBaseline = "middle"; ctx.font = "700 9px 'Chakra Petch', system-ui"; ctx.textAlign = "left"; ctx.fillStyle = rgba(theme.primary, .96); ctx.fillText("ROTA 3 · TRANSPORTE", x - width / 2 + 8, y + 9);
-  const labels = { ready: "PRONTO", entering: "ENTRANDO", starting: "INICIANDO", moving: "EM MOVIMENTO", underAttack: "SOB ATAQUE", checkpoint: "CHECKPOINT", preparation: "PREPARAÇÃO", destroyed: "DESTRUÍDO" };
+  const labels = { ready: "PRONTO", entering: "ENTRANDO", starting: "INICIANDO", moving: "EM MOVIMENTO", underAttack: "SOB ATAQUE", grappled: "GARRAVINHA PRESA", checkpoint: "CHECKPOINT", preparation: "PREPARAÇÃO", destroyed: "DESTRUÍDO" };
   ctx.textAlign = "right"; ctx.fillStyle = color; ctx.fillText(labels[status.status] || "TRANSPORTE", x + width / 2 - 8, y + 9);
   ctx.textAlign = "left"; ctx.font = "600 8px 'Chakra Petch', system-ui"; ctx.fillStyle = status.critical ? "#fda4af" : "rgba(241,245,249,.92)";
   ctx.fillText(`🚚 ${status.hp}/${status.hpMax} · S${status.sector}/${status.sectorTotal} · CP${status.checkpointsReached}/${status.checkpointsTotal}`, x - width / 2 + 8, y + 22, width - 16);

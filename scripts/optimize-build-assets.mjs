@@ -17,10 +17,22 @@ async function collect(directory, output = [], temporary = []) {
 }
 
 async function optimize(file) {
-  const before = (await stat(file)).size;
+  let before;
+  try {
+    before = (await stat(file)).size;
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
   const temporary = `${file}.optimized`;
+  let metadata;
+  try {
+    metadata = await sharp(file, { failOn: "error" }).metadata();
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
   const image = sharp(file, { failOn: "error" });
-  const metadata = await image.metadata();
   const pipeline = Math.max(metadata.width || 0, metadata.height || 0) > 256
     ? image.resize(256, 256, { fit: "inside", withoutEnlargement: true })
     : image;
@@ -47,6 +59,7 @@ await Promise.all(Array.from({ length: concurrency }, async () => {
     const index = cursor;
     cursor += 1;
     const result = await optimize(files[index]);
+    if (!result) continue;
     before += result.before;
     after += result.after;
   }

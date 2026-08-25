@@ -1661,6 +1661,15 @@ const projectileScratch = new Proxy(projectileScratchState, {
   },
 });
 
+function drawDardifagoDart(ctx, projectile, assets) {
+  const image = assets?.dardifagoDart?.[projectile.toxic ? "toxic" : "normal"]?.[0];
+  ctx.translate(projectile.x, projectile.y); ctx.rotate(projectile.rotation || 0);
+  if (image && image.width) { ctx.drawImage(image, -24, -24, 48, 48); return; }
+  ctx.fillStyle = projectile.toxic ? "#d7f44a" : "#d6a36a";
+  ctx.strokeStyle = "#5b3324"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-24, 0); ctx.lineTo(20, -7); ctx.lineTo(25, 0); ctx.lineTo(20, 7); ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
 export function drawProjectileCollection(
   ctx,
   projectiles,
@@ -1702,6 +1711,7 @@ export function drawProjectileCollection(
     else if (projectile.visualKind === "veuSalinoMucus") drawVeuSalinoMucus(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "microMissile") drawMissileSalvo(ctx, projectileScratch, quality);
     else if (projectile.visualKind === "mortarShell") drawMortarShell(ctx, projectileScratch, quality);
+    else if (projectile.visualKind === "vertebralDart" || projectile.visualKind === "toxicVertebralDart") drawDardifagoDart(ctx, projectileScratch, assets);
     else drawTracer(ctx, projectileScratch, 14, 2.5, "#ffffff");
     ctx.restore();
   }

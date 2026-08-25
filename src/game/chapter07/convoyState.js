@@ -11,6 +11,7 @@ export function createConvoyState(phase) {
     entryState: "offscreen", entryDurationMs: phase.convoy.entryDurationMs || 2200, entry: null,
     hp: phase.convoy.maxHp, maxHp: phase.convoy.maxHp,
     underAttack: false, underAttackHoldUntil: -Infinity, attackerIds: [], invulnerable: false,
+    grappledByEnemyId: null, grappleReservationEnemyId: null, grappledSince: null,
     reserve: phase.convoy.reserveInitial, reserveMax: phase.convoy.reserveMax,
     nextEnergyPulseAt: phase.convoy.energyPulseEveryMs || 5000,
     reserveEmptyEmitted: false, damageState: "normal",

@@ -50,6 +50,8 @@ export function createBattleAudioChannels(assets, chapterId = null) {
     windRecovery: build("wind_recovery.ogg"),
     thunder: [build("thunder_distant_1.ogg"), build("thunder_distant_2.ogg")].filter(Boolean),
     convoyEngineLoop: buildFirst("c7_engine_loop"),
+    convoyEscort: buildFirst("c7_escort_online"),
+    convoyEscortLost: buildFirst("c7_escort_lost"),
     convoyAttack: buildFirst("c7_convoy_attack"),
     convoyHit: buildFirst("c7_convoy_hit"),
     convoyCritical: buildFirst("c7_convoy_critical"),

@@ -9,8 +9,8 @@ import { refillConvoyReserve, updateConvoyEnergy } from "./convoyEnergy.js";
 import { getEscortTroops, isEscortOperational, updateConvoyEscort } from "./convoyEscort.js";
 import { calculateConvoyStars } from "./convoyScoring.js";
 import { createBattleAudioChannels } from "../hooks/useBattleAudio.js";
-import { acknowledgeConvoyCheckpoint, enterCheckpointClearing, enterCheckpointPreparation } from "./convoyCheckpoints.js";
-import { advanceConvoyMovement, advanceConvoySectorCountdown, startConvoySectorCountdown } from "./convoyFlow.js";
+import { acknowledgeConvoyCheckpoint, enterCheckpointPreparation } from "./convoyCheckpoints.js";
+import { advanceConvoySectorCountdown, startConvoySectorCountdown } from "./convoyFlow.js";
 import { getConvoyColumn } from "./convoyGeometry.js";
 import { getConvoyEntryX, getConvoyRouteStartX } from "./convoyGeometry.js";
 import { StrategicAgent } from "../simulation/ai/StrategicAgent.js";
@@ -42,6 +42,7 @@ describe("Chapter 7 structural contract", () => {
     expect(Object.keys(import.meta.glob("../assets/enemy/rastejanteMata/{idle,walking,attack}/frame*.png"))).toHaveLength(24);
     expect(Object.keys(import.meta.glob("../assets/enemy/saltadorAlado/{idle,walking,attack,jumpPrep,jumpAir,jumpLand,rasante}/frame*.png"))).toHaveLength(46);
     expect(Object.keys(import.meta.glob("../assets/enemy/macacoEsporos/{idle,walking,attack,sporeThrow}/frame*.png"))).toHaveLength(32);
+    expect(Object.keys(import.meta.glob("../assets/enemy/garravinha/{idle,walking,attack,latchPrep,latchLeap,latched,death}/frame*.png"))).toHaveLength(52);
     expect(Object.keys(audio)).toHaveLength(20);
     expect(Object.keys(convoy)).toHaveLength(1);
     const pioneiroFrames = import.meta.glob("../assets/convoy/tr7_pioneiro/*/*.webp");
@@ -119,11 +120,12 @@ describe("Chapter 7 structural contract", () => {
 
   it("holds the checkpoint briefing until the player acknowledges it", () => {
     const session = createBattleSession(phase49, ["colono"], 19);
-    session.convoyFlow.state = "checkpointClearing";
+    session.convoyFlow.state = "checkpointDecision";
     session.convoyFlow.reachedCheckpointCount = 1;
-    expect(enterCheckpointPreparation(session)).toBe(true);
-    expect(session.convoyFlow.checkpointBriefingPending).toBe(true);
+    session.convoyFlow.checkpointOptionChosen = true;
+    session.convoyFlow.checkpointBriefingPending = true;
     expect(acknowledgeConvoyCheckpoint(session)).toBe(true);
+    expect(session.convoyFlow.state).toBe("checkpointPreparation");
     expect(session.convoyFlow.checkpointBriefingPending).toBe(false);
   });
 });
@@ -166,23 +168,23 @@ describe("Convoy systems", () => {
     expect(session.convoy.escortTroopIds).toHaveLength(2);
   });
 
-  it("moves at one fixed speed and stops without escort or while attacked", () => {
+  it("starts the parked convoy sector without reintroducing continuous movement", () => {
     const fast = { ...phase49, convoy: { ...phase49.convoy, targetUninterruptedTravelMs: 4000 }, sectors: phase49.sectors.map((sector) => ({ ...sector, openingPackets: [], reinforcement: { ...sector.reinforcement, warningAtMs: 999999, startsAtMs: 999999 } })) };
     const session = createBattleSession(fast, ["colono"], 3);
     expect(placeTroop(session, "colono", 1, 2).ok).toBe(true);
     expect(startWave(session)).toBe(true);
     expect(session.convoy.x).toBe(getConvoyEntryX());
-    expect(session.convoy.entryState).toBe("entering");
+    expect(session.convoy.entryState).toBe("active");
+    const before = session.convoy.x;
     stepBattle(session, 2300);
     expect(session.convoy.entryState).toBe("active");
     expect(session.convoy.progress).toBe(0);
-    const before = session.convoy.x;
-    stepBattle(session, 100);
-    expect(session.convoy.x).toBeGreaterThan(before);
+    expect(session.convoy.x).toBe(before);
     session.troops[0].dead = true;
     const stopped = session.convoy.x;
     stepBattle(session, 100);
-    expect(session.convoy.x).toBe(stopped);
+    expect(session.convoyFlow.state).toBe("convoyTransit");
+    expect(session.convoy.x).toBeGreaterThan(stopped);
   });
 
   it("applies logistics precisely and refill once", () => {
@@ -195,9 +197,9 @@ describe("Convoy systems", () => {
     session.energy = 200; session.elapsed = 10000; updateConvoyEnergy(session);
     expect(session.convoy.reserve).toBe(77);
     session.convoy.reserve = 20;
-    expect(refillConvoyReserve(session, 0)).toBe(50);
-    expect(refillConvoyReserve(session, 0)).toBe(0);
-    expect(session.convoy.reserve).toBe(70);
+    expect(refillConvoyReserve(session, 50)).toBe(50);
+    expect(refillConvoyReserve(session, 50)).toBe(10);
+    expect(session.convoy.reserve).toBe(80);
   });
 
   it("releases convoy energy as collectible pickups and credits only on collection", () => {
@@ -232,7 +234,10 @@ describe("Convoy systems", () => {
     placeTroop(session, "colono", 1, 1); placeTroop(session, "colono", 3, 2); startWave(session);
     const checkpointCols = [[4, 5], [6, 7], [8, 9]];
     for (let checkpoint = 0; checkpoint < 3; checkpoint += 1) {
-      for (let guard = 0; guard < 100 && session.convoyFlow.state !== "checkpointPreparation"; guard += 1) stepBattle(session, 100);
+      for (let guard = 0; guard < 100 && session.convoyFlow.state !== "checkpointDecision"; guard += 1) stepBattle(session, 100);
+      expect(session.convoyFlow.state).toBe("checkpointDecision");
+      session.convoyFlow.checkpointOptionChosen = true;
+      expect(acknowledgeConvoyCheckpoint(session)).toBe(true);
       expect(session.convoyFlow.state).toBe("checkpointPreparation");
       const troop = session.troops[0];
       const hp = troop.hp; const ready = troop.attackReadyAt; const id = troop.id;
@@ -263,8 +268,7 @@ describe("Convoy systems", () => {
     expect(events.some((event) => event.type === "reinforcementQueued")).toBe(true);
     placeTroop(session, "colono", 1, 1);
     updateConvoyEscort(session);
-    advanceConvoyMovement(session, 100);
-    expect(session.convoy.x).toBeGreaterThan(beforeX);
+    expect(session.convoy.x).toBe(beforeX);
   });
 
   it("never reserves or arms Demolidora mines in the transport row across 10,000 seeds", () => {
@@ -291,27 +295,26 @@ describe("Convoy systems", () => {
     expect(session.convoyFlow.state).toBe("sectorCountdown");
     expect(session.elapsed).toBe(elapsed);
     advanceConvoySectorCountdown(session, 1600, events);
-    expect(session.convoyFlow.state).toBe("sectorActive");
+    expect(session.convoyFlow.state).toBe("convoyEntry");
     expect(session.elapsed).toBe(elapsed);
-    expect(events.some((event) => event.type === "convoyCountdownGo")).toBe(true);
+    expect(events.some((event) => event.type === "convoyEntryStarted")).toBe(true);
   });
 
-  it("holds checkpoint preparation until the 2.3 second cinematic completes", () => {
+  it("holds the checkpoint decision until a reward is confirmed", () => {
     const session = createBattleSession(phase49, ["colono"], 82);
-    session.convoyFlow.state = "checkpointClearing";
+    session.convoyFlow.state = "checkpointDecision";
     session.convoyFlow.reachedCheckpointCount = 1;
+    session.convoyFlow.checkpointBriefingPending = true;
+    session.convoyFlow.checkpointOptionChosen = false;
     session.enemies = [];
     const events = stepBattle(session, 32);
-    expect(events.some((event) => event.type === "checkpointCinematicStarted")).toBe(true);
-    expect(session.convoyFlow.state).toBe("checkpointCinematic");
-    expect(session.convoyFlow.checkpointCinematic.elapsedMs).toBe(0);
-    for (let elapsed = 0; elapsed < 2200; elapsed += 100) {
-      stepBattle(session, 100);
-      expect(session.convoyFlow.state).toBe("checkpointCinematic");
-    }
-    stepBattle(session, 100);
-    expect(session.convoyFlow.state).toBe("checkpointPreparation");
+    expect(events.some((event) => event.type === "checkpointCinematicStarted")).toBe(false);
+    expect(session.convoyFlow.state).toBe("checkpointDecision");
     expect(session.convoyFlow.checkpointBriefingPending).toBe(true);
+    expect(acknowledgeConvoyCheckpoint(session)).toBe(false);
+    session.convoyFlow.checkpointOptionChosen = true;
+    expect(acknowledgeConvoyCheckpoint(session)).toBe(true);
+    expect(session.convoyFlow.state).toBe("checkpointPreparation");
   });
 
   it("freezes convoy pickup lifetime during cinematic and mandatory briefing", () => {
@@ -328,10 +331,12 @@ describe("Convoy systems", () => {
   it("scenario C: checkpoint clearing cannot advance while a combat threat remains", () => {
     const session = createBattleSession(phase49, ["colono"], 72);
     session.enemies = [{ id: "threat", type: "legionaroFerrugem", hp: 1, dead: false }];
-    enterCheckpointClearing(session, 0);
+    session.convoyFlow.state = "checkpointDecision";
+    session.convoyFlow.checkpointOptionChosen = false;
     expect(enterCheckpointPreparation(session)).toBe(false);
-    expect(session.convoyFlow.state).toBe("checkpointClearing");
+    expect(session.convoyFlow.state).toBe("checkpointDecision");
     session.enemies[0].dead = true;
+    session.convoyFlow.checkpointOptionChosen = true;
     expect(enterCheckpointPreparation(session)).toBe(true);
     expect(session.convoyFlow.state).toBe("checkpointPreparation");
   });
@@ -361,7 +366,7 @@ describe("Convoy systems", () => {
     session.convoy.escorted = true;
     session.convoy.x = session.convoy.destinationX - session.convoy.speedPxPerSecond;
     session.enemies = [{ id: "boss", type: "marechalForja", hp: 9999, dead: false }];
-    expect(advanceConvoyMovement(session, 1000)).toBe("victory");
+    expect(session.convoyFlow.state).toBe("sectorActive");
     expect(session.enemies[0].dead).toBe(false);
   });
 
@@ -375,7 +380,8 @@ describe("Convoy systems", () => {
     session.mines = [{ id: "mine" }];
     session.projectiles = [{ id: "mine-shot", kind: "mine" }, { id: "bullet", kind: "bullet" }];
     session.mineReservations = [{ row: 1, col: 1 }];
-    enterCheckpointClearing(session, 0);
+    session.convoyFlow.state = "checkpointDecision";
+    session.convoyFlow.checkpointOptionChosen = true;
     expect(enterCheckpointPreparation(session)).toBe(true);
     expect(session.mines).toEqual([]);
     expect(session.projectiles).toEqual([{ id: "bullet", kind: "bullet" }]);
@@ -395,8 +401,6 @@ describe("Convoy systems", () => {
       { id: "escort-b", type: "droneSentinela", row: 3, col: Math.min(FIELD.lastTroopCol, col + 1), hp: 100, dead: false },
     ];
     const agent = new StrategicAgent({ phase: phase56, phaseForecast: {}, profile: {}, config: {} });
-    expect(agent.planConvoyReposition(session)).toEqual([
-      expect.objectContaining({ type: "startWave", reason: "convoyCheckpointReady" }),
-    ]);
+    expect(agent.planConvoyReposition(session)).toEqual([]);
   });
 });

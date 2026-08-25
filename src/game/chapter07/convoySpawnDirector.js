@@ -2,7 +2,7 @@ import { choosePacketRows, createRng } from "../domain.js";
 
 const expandPacket = (packet, rows, generationId, sectorId) => (packet.units || []).flatMap((unit) =>
   Array.from({ length: unit.count || 1 }, (_, index) => ({
-    type: unit.type, variant: unit.variant || null, row: rows[index % rows.length],
+    type: unit.type, variant: unit.variant || null, row: unit.allowedRows?.[index % unit.allowedRows.length] ?? rows[index % rows.length],
     sourceIndex: index, spawnAtMs: (packet.atMs || 0) + (unit.delayMs || 0) + index * (unit.intervalMs || 180),
     xOffsetTiles: unit.xOffsetTiles || 0,
     packetId: packet.id, sectorId, generationId, spawnSource: "convoySector",
@@ -18,7 +18,10 @@ export function buildSectorQueue(phase, sectorIndex, seed) {
   return (sector.openingPackets || []).flatMap((packet, index) => {
     const rows = choosePacketRows({ strategy: packet.routeStrategy || "split", rng, recentRows,
       routePressure: pressure, packetIndex: index, fixedRows: packet.fixedRows, allowedRows });
-    return expandPacket(packet, rows.length ? rows : [allowedRows[0]], sectorIndex + 1, sector.id);
+    return expandPacket(packet, rows.length ? rows : [allowedRows[0]], sectorIndex + 1, sector.id).map((entry) => {
+      const allowed = phase.enemyConfigs?.[entry.type];
+      return allowed?.allowedRows?.length ? { ...entry, row: allowed.allowedRows[entry.sourceIndex % allowed.allowedRows.length] } : entry;
+    });
   }).sort((a, b) => a.spawnAtMs - b.spawnAtMs || a.packetId.localeCompare(b.packetId));
 }
 
