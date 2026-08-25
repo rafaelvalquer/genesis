@@ -72,6 +72,7 @@ import {
   drawSporeFruitEmissive,
   drawSporeFruits,
 } from "./chapter07/sporeFruitRenderer.js";
+import { drawTartaragarraEffects } from "./chapter07/tartaragarraRenderer.js";
 import { isRasgamarSubmerged } from "./enemyTargeting.js";
 import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "./thermalBurningTroopRenderer.js";
 import {
@@ -1743,6 +1744,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   drawAdaptiveAid(overlayCtx, session, assets, session.elapsed, settings);
   if (dematerializationEnabled) drawPulseDisintegrations(overlayCtx, runtime, assets, now, settings);
   drawDeploymentEffects(overlayCtx, runtime, now, settings);
+  drawTartaragarraEffects(overlayCtx, session, session.elapsed, settings);
   drawDynamicLights(overlayCtx, runtime, now, settings, adaptive);
   drawArenaForeground(overlayCtx, session.phase, settings, session, now, adaptive, runtime);
   if (dematerializationEnabled) drawPulseBeams(overlayCtx, runtime, now, settings);

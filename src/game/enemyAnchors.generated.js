@@ -18,7 +18,7 @@ export const ENEMY_FRAME_ANCHORS = {
   },
   "tartaragarra": {
     "attack": repeat({ x: 0.5209, y: 0.8438 }, 8),
-    "charge": repeat({ x: 0.5209, y: 0.8438 }, 8),
+    "charge": repeat({ x: 0.5209, y: 0.8438 }, 4),
     "chargePrep": repeat({ x: 0.5209, y: 0.8438 }, 8),
     "chargeRecover": repeat({ x: 0.5209, y: 0.8438 }, 8),
     "death": repeat({ x: 0.5209, y: 0.8438 }, 8),

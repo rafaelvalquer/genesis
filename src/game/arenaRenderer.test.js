@@ -195,12 +195,13 @@ describe("arenas cinematograficas", () => {
     expect(getEnemyPreviewUrl("ramBeetle")).toMatch(/frame0.*\.png/i);
   });
 
-  it("carrega os 56 quadros da Tartaragarra", () => {
-    const states = ["idle", "walking", "chargePrep", "charge", "chargeRecover", "attack", "death"];
+  it("carrega os 52 quadros da Tartaragarra", () => {
+    const states = ["idle", "walking", "chargePrep", "chargeRecover", "attack", "death"];
     const frames = import.meta.glob("./assets/enemy/tartaragarra/*/frame*.png");
     for (const state of states) {
       expect(Object.keys(frames).filter((key) => key.includes(`/tartaragarra/${state}/`))).toHaveLength(8);
     }
+    expect(Object.keys(frames).filter((key) => key.includes("/tartaragarra/charge/"))).toHaveLength(4);
     expect(getEnemyPreviewUrl("tartaragarra")).toMatch(/frame0.*\.png/i);
   });
 

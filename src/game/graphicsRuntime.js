@@ -15,6 +15,7 @@ const ENEMY_DEATH_LIFE = {
   gorjal: 800,
   derivante: 800,
   raizFulgor: 800,
+  tartaragarra: 960,
 };
 const PULSE_BEAM_LIFE = 360;
 const DISINTEGRATION_LIFE = 420;

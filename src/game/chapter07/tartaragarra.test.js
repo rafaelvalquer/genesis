@@ -32,9 +32,23 @@ const enemy = (elapsed = 0) => ({
 
 describe("Tartaragarra", () => {
   it("registra o tanque com casco, charge e cabeçada", () => {
-    expect(CHAPTER_SEVEN_ENEMIES.tartaragarra).toMatchObject({ hp: 260, speed: 10, threat: 48, armorDamageFactor: .62 });
+    expect(CHAPTER_SEVEN_ENEMIES.tartaragarra).toMatchObject({ hp: 260, speed: 10, threat: 48, armorDamageFactor: 1 });
     expect(CHAPTER_SEVEN_ENEMIES.tartaragarra.charge).toMatchObject({ prepMs: 1000, damage: 28, stunMs: 900, cooldownMs: 8500 });
     expect(CHAPTER_SEVEN_ENEMIES.tartaragarra.convoyHeadbutt).toMatchObject({ damage: 22, attackEveryMs: 3400 });
+    expect(CHAPTER_SEVEN_ENEMIES.tartaragarra.attackVisual).toEqual({ durationMs: 1200, impactMs: 700 });
+  });
+
+  it("mantém 52 frames finais e quatro frames na investida", () => {
+    const frames = import.meta.glob("../assets/enemy/tartaragarra/*/frame*.png");
+    const count = (state) => Object.keys(frames).filter((key) => key.includes(`/tartaragarra/${state}/`)).length;
+    expect(count("idle")).toBe(8);
+    expect(count("walking")).toBe(8);
+    expect(count("chargePrep")).toBe(8);
+    expect(count("charge")).toBe(4);
+    expect(count("chargeRecover")).toBe(8);
+    expect(count("attack")).toBe(8);
+    expect(count("death")).toBe(8);
+    expect(Object.keys(frames)).toHaveLength(52);
   });
 
   it("telegraphia, atinge uma tropa sem movê-la e entra em recuperação", () => {

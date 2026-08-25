@@ -37,8 +37,9 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
   }),
   tartaragarra: enemy("tartaragarra", "Tartaragarra", "Tanque / Rompedor de linha", {
     hp: 260, speed: 10, damage: 12, attackEveryMs: 2800, baseDamage: 20, threat: 48, scale: 1.32,
-    armorClass: "heavy", armorDamageFactor: .62, convoyAttackRangeTiles: 1.05,
+    armorClass: "heavy", armorDamageFactor: 1, convoyAttackRangeTiles: 1.05,
     animationFrameMs: { idle: 170, walking: 155, charge: 70 },
+    attackVisual: { durationMs: 1200, impactMs: 700 },
     charge: { triggerRangeTiles: 1.2, prepMs: 1000, speed: 300, distanceTiles: .85, damage: 28,
       stunMs: 900, cooldownMs: 8500, recoveryMs: 1200, interruptedCooldownMs: 3000 },
     convoyHeadbutt: { damage: 22, attackEveryMs: 3400, durationMs: 1200, impactMs: 700, underAttackHoldMs: 1800 },

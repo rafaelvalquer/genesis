@@ -34,7 +34,7 @@ function chargeTarget(runtime, enemy, config) {
 }
 
 function beginNormalAttack(runtime, enemy, target, config) {
-  setState(enemy, "attack", runtime.elapsed, config.convoyHeadbutt?.durationMs || 1200);
+  setState(enemy, "attack", runtime.elapsed, config.attackVisual?.durationMs || 1200);
   enemy.tartaragarraAttackTargetId = target.id;
   enemy.tartaragarraAttackImpactAt = runtime.elapsed + (config.attackVisual?.impactMs || 700);
   enemy.attackReadyAt = runtime.elapsed + config.attackEveryMs;
@@ -171,8 +171,8 @@ export const tartaragarraBehavior = enemyBehavior({
     if (runtime.canEnemyReachConvoy(enemy, config) && !runtime.hasBlockingTroop(enemy)) {
       enemy.moving = false;
       if (runtime.elapsed >= enemy.attackReadyAt) {
-        setState(enemy, "convoyAttack", runtime.elapsed, headbutt.durationMs);
-        enemy.tartaragarraAttackImpactAt = runtime.elapsed + headbutt.impactMs;
+        setState(enemy, "convoyAttack", runtime.elapsed, config.attackVisual?.durationMs || headbutt.durationMs);
+        enemy.tartaragarraAttackImpactAt = runtime.elapsed + (config.attackVisual?.impactMs || headbutt.impactMs);
         enemy.attackReadyAt = runtime.elapsed + headbutt.attackEveryMs;
         enemy.lastAttackAt = runtime.elapsed;
         events.push({ type: "tartaragarraHeadbutt", sourceEnemyId: enemy.id, x: runtime.convoyX(), y: enemy.y });

@@ -53,7 +53,7 @@ function createSector(phaseIndex, sectorIndex) {
     reinforcement: { warningAtMs, startsAtMs,
       intervalMs: phaseIndex >= 5 ? 300000 : Math.max(14000, 22000 - phaseIndex * 700),
       maxAliveEnemies: phaseIndex >= 5 ? 14 : 18 + phaseIndex * 2,
-      packetPool: pool.map((type, index) => packet(`reinforcement-${index}`, 0, [[type, type === "couracadoHematita" ? 1 : 2]], "focused")) },
+      packetPool: pool.map((type, index) => packet(`reinforcement-${index}`, 0, [[type, ["couracadoHematita", "tartaragarra"].includes(type) ? 1 : 2]], "focused")) },
   };
 }
 
