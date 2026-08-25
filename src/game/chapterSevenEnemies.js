@@ -28,9 +28,9 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
   }),
   macacoEsporos: enemy("macacoEsporos", "Macaco de Esporos", "Suporte / controle", {
     hp: 30, speed: 25, damage: 3, attackEveryMs: 1450, baseDamage: 7, threat: 28, scale: .98,
-    canAttackConvoy: false, attackRangeTiles: .62, animationFrameMs: { idle: 120, walking: 100 },
-    attackVisual: { durationMs: 560, impactMs: 280 },
-    sporeFruit: { firstCastDelayMs: 2800, cooldownMs: 6500, interruptCooldownMs: 2200, rangeTiles: 4.25, castDurationMs: 760, releaseMs: 380, projectileSpeed: 520, radiusTiles: 1.15, confusionMinMs: 1800, confusionMaxMs: 2200, cloudVisualMs: 950, directDamage: 0, releaseVisual: { frame: 4, offsetX: -25, offsetY: -46 } },
+    canAttackConvoy: false, attackRangeTiles: .62, animationFrameMs: { idle: 160, walking: 140 },
+    attackVisual: { durationMs: 760, impactMs: 430 },
+    sporeFruit: { firstCastDelayMs: 3800, cooldownMs: 9000, interruptCooldownMs: 3000, rangeTiles: 4.25, castDurationMs: 1280, releaseMs: 640, projectileSpeed: 360, radiusTiles: 1.15, confusionMinMs: 1600, confusionMaxMs: 1900, postConfusionImmunityMs: 2800, cloudVisualMs: 950, directDamage: 0, releaseVisual: { frame: 4, offsetX: -25, offsetY: -46 } },
     effectDependencies: ["sporeFruit"],
     assetStates: ["idle", "walking", "attack", "sporeThrow"],
     color: "#23c7bd", description: "Primata alienígena que lança frutos de esporo e confunde a escolta.",

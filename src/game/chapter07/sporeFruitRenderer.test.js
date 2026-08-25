@@ -4,7 +4,9 @@ import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 import {
   drawSporeFruit,
+  drawSporeClouds,
   getSporeFruitPosition,
+  SPORE_FRUIT_FRAME_MS,
 } from "./sporeFruitRenderer.js";
 
 const fruit = { id: "sporeFruit-1", seed: 7, startX: 100, startY: 120, targetX: 300, targetY: 180, startedAt: 1000, impactAt: 2000 };
@@ -27,14 +29,28 @@ describe("spore fruit renderer", () => {
 
   it("selects animated frames approximately every 65ms and remains visible at low quality", () => {
     const ctx = context(); const frames = Array.from({ length: 8 }, (_, index) => ({ index }));
-    drawSporeFruit(ctx, fruit, 1065, frames, { quality: "low" });
+    drawSporeFruit(ctx, fruit, 1110, frames, { quality: "low" });
     expect(ctx.drawImage).toHaveBeenCalledWith(frames[1], -21, -21, 42, 42);
+  });
+
+  it("loops the fruit animation throughout a long flight", () => {
+    const ctx = context(); const frames = Array.from({ length: 8 }, (_, index) => ({ index }));
+    drawSporeFruit(ctx, fruit, fruit.startedAt + SPORE_FRUIT_FRAME_MS * 8, frames, { quality: "low" });
+    expect(ctx.drawImage).toHaveBeenCalledWith(frames[0], -21, -21, 42, 42);
+    drawSporeFruit(ctx, fruit, fruit.startedAt + SPORE_FRUIT_FRAME_MS * 9, frames, { quality: "low" });
+    expect(ctx.drawImage).toHaveBeenLastCalledWith(frames[1], -21, -21, 42, 42);
   });
 
   it("keeps the sprite in the effect layer contract even when bloom is disabled", () => {
     const ctx = context();
     drawSporeFruit(ctx, fruit, 1300, [{ id: "fruit-frame" }], { quality: "medium", bloom: false });
     expect(ctx.drawImage).toHaveBeenCalledTimes(1);
+  });
+
+  it("draws the orange impact cloud without depending on loop state outside the cloud", () => {
+    const ctx = context();
+    expect(() => drawSporeClouds(ctx, [{ x: 200, y: 140, radius: 100, startedAt: 0, endsAt: 950 }], 250)).not.toThrow();
+    expect(ctx.arc).toHaveBeenCalledTimes(8);
   });
 
   it("ships eight transparent 128px flying frames", async () => {

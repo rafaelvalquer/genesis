@@ -1,6 +1,6 @@
 import { CELL } from "../visualGeometry.js";
 
-const FRAME_MS = 65;
+export const SPORE_FRUIT_FRAME_MS = 110;
 const TRAJECTORY_ARC_PX = CELL.width * 0.58;
 const FRUIT_SIZE = 42;
 
@@ -35,10 +35,11 @@ function getQualityParticleCount(settings = {}) {
 
 export function drawSporeFruit(ctx, fruit, elapsed, frames = [], settings = {}) {
   const { progress, x, y } = getSporeFruitPosition(fruit, elapsed);
-  const frame = frames[Math.min(frames.length - 1, Math.floor(Math.max(0, elapsed - fruit.startedAt) / FRAME_MS))]
+  const frame = frames.length
+    ? frames[Math.floor(Math.max(0, elapsed - fruit.startedAt) / SPORE_FRUIT_FRAME_MS) % frames.length]
     || frames[0]
-    || null;
-  const rotation = settings.reduceMotion ? 0 : progress * Math.PI * 3.5;
+    : null;
+  const rotation = settings.reduceMotion ? 0 : progress * Math.PI * 2.5;
   const seed = fruit.seed ?? hashSeed(fruit.id);
 
   ctx.save();
@@ -48,8 +49,8 @@ export function drawSporeFruit(ctx, fruit, elapsed, frames = [], settings = {}) 
   if (frame) {
     ctx.drawImage(frame, -FRUIT_SIZE / 2, -FRUIT_SIZE / 2, FRUIT_SIZE, FRUIT_SIZE);
   } else {
-    ctx.fillStyle = "#d9cf63";
-    ctx.strokeStyle = "#237d69";
+    ctx.fillStyle = "#E9913A";
+    ctx.strokeStyle = "#9F431F";
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.ellipse(0, 0, 11, 16, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
   }
@@ -59,7 +60,7 @@ export function drawSporeFruit(ctx, fruit, elapsed, frames = [], settings = {}) 
   if (particles) {
     ctx.save();
     ctx.globalAlpha = 0.28 * (1 - progress);
-    ctx.fillStyle = "#81d8a5";
+    ctx.fillStyle = "#F6A83C";
     for (let index = 0; index < particles; index += 1) {
       const angle = ((seed % 360) * Math.PI / 180) + index * 2.1;
       const distance = 16 + index * 7 + progress * 8;
@@ -81,9 +82,9 @@ export function drawSporeClouds(ctx, clouds = [], elapsed, settings = {}) {
     const progress = clamp01((elapsed - cloud.startedAt) / Math.max(1, cloud.endsAt - cloud.startedAt));
     ctx.save();
     ctx.globalAlpha = 0.42 * (1 - progress);
-    ctx.fillStyle = "#e9913a";
     for (let index = 0; index < 8; index += 1) {
       const angle = index * Math.PI / 4;
+      ctx.fillStyle = index % 2 ? "#F6A83C" : "#E9913A";
       ctx.beginPath();
       ctx.arc(cloud.x + Math.cos(angle) * cloud.radius * .45, cloud.y + Math.sin(angle) * cloud.radius * .25,
         11 + progress * 14, 0, Math.PI * 2);
@@ -98,8 +99,8 @@ export function drawSporeFruitEmissive(ctx, fruits = [], elapsed, settings = {})
     const { progress, x, y } = getSporeFruitPosition(fruit, elapsed);
     ctx.save();
     ctx.globalAlpha = 0.34 * (1 - progress);
-    ctx.fillStyle = "#58d6ba";
-    ctx.shadowColor = "#58d6ba";
+    ctx.fillStyle = "#F59E42";
+    ctx.shadowColor = "#E86F2A";
     ctx.shadowBlur = settings.reduceMotion ? 4 : 10;
     ctx.beginPath(); ctx.arc(x, y, settings.reduceMotion ? 7 : 9, 0, Math.PI * 2); ctx.fill();
     ctx.restore();

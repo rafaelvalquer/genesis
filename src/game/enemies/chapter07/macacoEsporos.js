@@ -10,13 +10,17 @@ export function selectMacacoEsporosTarget(runtime, enemy, config) {
     && Math.abs(troop.row - enemy.row) <= 2
     && Math.hypot(troop.x - enemy.x, troop.y - enemy.y) <= spell.rangeTiles * CELL.width);
   const clusterCount = (troop) => candidates.filter((other) => Math.hypot(other.x - troop.x, other.y - troop.y) <= spell.radiusTiles * CELL.width).length;
-  const useful = candidates.filter((troop) => (troop.sporeConfusedUntil || 0) <= runtime.elapsed);
+  const useful = candidates.filter((troop) => (
+    (troop.sporeConfusedUntil || 0) <= runtime.elapsed
+      && (troop.sporeImmunityUntil || 0) <= runtime.elapsed
+  ));
   return (useful.length ? useful : candidates).sort((a, b) => {
     const clusterA = clusterCount(a); const clusterB = clusterCount(b);
     const pa = runtime.escortIds().includes(a.id) ? 0 : clusterA >= 2 ? 1 : 2;
     const pb = runtime.escortIds().includes(b.id) ? 0 : clusterB >= 2 ? 1 : 2;
     return pa - pb || clusterB - clusterA
       || Number((a.sporeConfusedUntil || 0) > runtime.elapsed) - Number((b.sporeConfusedUntil || 0) > runtime.elapsed)
+      || Number((a.sporeImmunityUntil || 0) > runtime.elapsed) - Number((b.sporeImmunityUntil || 0) > runtime.elapsed)
       || Math.hypot(a.x - enemy.x, a.y - enemy.y) - Math.hypot(b.x - enemy.x, b.y - enemy.y)
       || String(a.id).localeCompare(String(b.id));
   })[0] || null;
@@ -51,7 +55,7 @@ export const macacoEsporosBehavior = enemyBehavior({
       }
       return true;
     }
-    if (enemy.sporeState === "sporeCast") {
+    if (enemy.sporeState === "sporeCast" || enemy.sporeState === "released") {
       enemy.moving = false;
       if (!enemy.sporeReleased && runtime.elapsed >= enemy.sporeStateStartedAt + config.sporeFruit.releaseMs) {
         launchSporeFruit(runtime.session, enemy, { id: enemy.sporeTargetId, x: enemy.sporeTargetX, y: enemy.sporeTargetY, row: enemy.sporeTargetRow }, config, runtime.createId, events);

@@ -2,14 +2,15 @@ import { CELL } from "../visualGeometry.js";
 
 export const isSporeConfused = (troop, elapsed) => Boolean(troop && elapsed < (troop.sporeConfusedUntil || 0));
 
-export function applySporeConfusion(session, troop, durationMs) {
+export function applySporeConfusion(session, troop, durationMs, postConfusionImmunityMs = 2800) {
   if (!troop || troop.dead || troop.structure || durationMs <= 0) return false;
   const now = session.elapsed;
   const previous = troop.sporeConfusedUntil || 0;
-  // Effects never stack additively: a second fruit only refreshes the longer end time.
-  const next = Math.max(previous, now + durationMs);
-  const extension = Math.max(0, next - Math.max(previous, now));
+  if (now < previous || now < (troop.sporeImmunityUntil || 0)) return false;
+  const next = now + durationMs;
+  const extension = Math.max(0, next - now);
   troop.sporeConfusedUntil = next;
+  troop.sporeImmunityUntil = next + Math.max(0, postConfusionImmunityMs);
   for (const key of ["attackReadyAt", "attackBusyUntil", "attackReleaseAt", "stateEndsAt", "mineReadyAt", "gunReadyAt"]) {
     if (Number.isFinite(troop[key]) && troop[key] > now) troop[key] += extension;
   }
@@ -30,7 +31,8 @@ export function launchSporeFruit(session, enemy, target, config, createId, event
     targetRow: target.row, startedAt: session.elapsed, impactAt: session.elapsed + travelMs,
     releaseVisual: { frame: releaseVisual.frame ?? 4 },
     radiusTiles: spell.radiusTiles, confusionMinMs: spell.confusionMinMs,
-    confusionMaxMs: spell.confusionMaxMs, cloudVisualMs: spell.cloudVisualMs,
+    confusionMaxMs: spell.confusionMaxMs, postConfusionImmunityMs: spell.postConfusionImmunityMs,
+    cloudVisualMs: spell.cloudVisualMs,
   });
   session.chapterSevenMetrics.sporeFruitsThrown += 1;
   events.push({ type: "sporeFruitThrown", sourceEnemyId: enemy.id, targetTroopId: target.id, x: target.x, y: target.y });
@@ -47,7 +49,7 @@ export function updateSporeField(session, events) {
     let newlyConfused = 0;
     for (const troop of affected) {
       const duration = fruit.confusionMinMs + session.rng() * (fruit.confusionMaxMs - fruit.confusionMinMs);
-      if (applySporeConfusion(session, troop, duration)) newlyConfused += 1;
+      if (applySporeConfusion(session, troop, duration, fruit.postConfusionImmunityMs)) newlyConfused += 1;
     }
     session.chapterSevenMetrics.sporeFruitsHit += 1;
     session.chapterSevenMetrics.sporeTroopsConfused += newlyConfused;
