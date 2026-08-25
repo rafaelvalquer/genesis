@@ -17,6 +17,7 @@ import {
   resolvePhaseTroopAssetDependencies,
 } from "./assetDependencyResolver.js";
 import { copyBattleAudioUrls } from "./audioCatalog.js";
+import { resolveForestObstacleAssetDependencies } from "./forestObstacleAssetCatalog.js";
 
 const troopFrameModules = import.meta.glob([
   "./troop/**/frame*.png",
@@ -264,6 +265,18 @@ export async function loadBattleAssets(
   };
 
   result.effectDependencies = effectDependencies;
+  result.forestObstacles = {};
+  for (const dependency of resolveForestObstacleAssetDependencies(phase)) {
+    result.forestObstacles[dependency.type] ||= {};
+    if (!dependency.url) continue;
+    tasks.push(async () => {
+      result.forestObstacles[dependency.type][dependency.stage] = await loadDecodedImage(
+        dependency.url,
+        options.signal,
+        retainedKeys,
+      );
+    });
+  }
 
   for (const effectId of effectDependencies) {
     const states = statesForFolder(

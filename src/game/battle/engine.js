@@ -174,6 +174,9 @@ import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
 import { CONVOY_DEFEAT_RESULT_DELAY_MS } from "../chapter07/convoyAnimationConfig.js";
 import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setEnergyPickupPointer } from "../energyPickups.js";
 import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.js";
+import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.js";
+import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
+import { getBlockingForestObstacle, getForestObstacleAt } from "../chapter07/forestObstacleTargeting.js";
 
 export {
   createWindCurrentState,
@@ -394,6 +397,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
   if (!sandbox && sessionPhase.progressionMode === "convoy" && !validation.ok) throw new Error(validation.reason);
   const session = {
     phase: sessionPhase,
+    enemyConfigs: ENEMIES,
     loadout: [...loadout],
     seed,
     rng: createRng(seed),
@@ -433,12 +437,14 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     bossEncounter: null,
     troops: [],
     enemies: [],
+    forestObstacles: [],
     mines: [],
     projectiles: [],
     enemyProjectiles: [],
     sporeFruits: [],
     sporeClouds: [],
-    chapterSevenMetrics: { sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0,
+    chapterSevenMetrics: { forestTreesSpawned: 0, forestTreesDestroyed: 0, forestDamageReceived: 0, forestSporeTreesDestroyed: 0, forestSporeBursts: 0, forestEnemiesStunned: 0, forestCoverBlocks: 0,
+      sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0,
       tartaragarraCharges: 0, tartaragarraChargeHits: 0, tartaragarraChargeMisses: 0, tartaragarraTroopsStunned: 0,
       tartaragarraShellHits: 0, tartaragarraShellDamagePrevented: 0, tartaragarraConvoyHeadbutts: 0, tartaragarraConvoyDamage: 0,
       garravinhaLatchAttempts: 0, garravinhaLatches: 0, garravinhaLatchTicks: 0, garravinhaLatchDamage: 0,
@@ -533,6 +539,10 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     session.convoyFlow = createConvoyFlow();
     session.convoySectorQueue = session.queue;
   }
+  if (sessionPhase.chapterId === "chapter_07" && sessionPhase.forestObstacles?.enabled) {
+    session.forestObstacles = generateForestObstacles(sessionPhase, seed);
+    session.chapterSevenMetrics.forestTreesSpawned = session.forestObstacles.length;
+  }
   initializeSandboxHazard(session);
   deployStartingTroops(session);
   return session;
@@ -548,6 +558,8 @@ export function canPlaceTroop(session, troopId, row, col) {
   if (!troop || !session.loadout.includes(troopId)) return "Tropa fora do loadout.";
   if (col < FIELD.firstTroopCol || col > FIELD.lastTroopCol) return "Posição reservada para a defesa da base.";
   if (row < 0 || row >= FIELD.rows || col < 0 || col >= FIELD.cols - 1) return "Posição fora da zona de combate.";
+  const forestObstacle = getForestObstacleAt(session, row, col);
+  if (forestObstacle?.alive && forestObstacle.blocksPlacement) return `${forestObstacle.type === "ferrivore" ? "Árvore Ferrívora" : "Cobertura"} bloqueia esta posição.`;
   const tideCell = getTideCellState(session, row, col);
   const canBypassTidePlacement = tideCell.status !== "drying" && (
     (tideCell.type === "deepWater" && troop.canDeployInDeepWater)
@@ -595,6 +607,20 @@ export function canPlaceTroop(session, troopId, row, col) {
   if (!freePlacement && session.supply < effective.supply) return `Supply insuficiente: requer ${effective.supply}.`;
   if (!freePlacement && (session.waveActive || session.sandbox || troop.cooldownDuringPreparation) && Number(session.deployCooldowns[troopId] || 0) > session.elapsed) return "Implantação recarregando.";
   return null;
+}
+
+export function damageForestObstacleInBattle(session, treeIdOrTree, amount, events = []) {
+  const tree = typeof treeIdOrTree === "string"
+    ? session.forestObstacles?.find((entry) => entry.id === treeIdOrTree)
+    : treeIdOrTree;
+  return damageForestObstacle(session, tree, amount, events, stunEnemy);
+}
+
+export function destroyForestObstacleInBattle(session, treeIdOrTree, events = []) {
+  const tree = typeof treeIdOrTree === "string"
+    ? session.forestObstacles?.find((entry) => entry.id === treeIdOrTree)
+    : treeIdOrTree;
+  return destroyForestObstacle(session, tree, events, stunEnemy);
 }
 
 export function getDroneStackAt(session, row, col) {
@@ -2412,6 +2438,16 @@ function enemyHitPointForRow(enemy, row, elapsed) {
 
 function closestEnemy(session, troop, config) {
   if (troop.type === "cryo7") {
+    const blockedEnemy = session.enemies
+      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
+        && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
+      .sort((left, right) => left.x - right.x)
+      .map((enemy) => getBlockingForestObstacle(session, troop, enemy))
+      .find(Boolean);
+    if (blockedEnemy) {
+      session.chapterSevenMetrics.forestCoverBlocks += 1;
+      return blockedEnemy;
+    }
     return selectCryoTarget(session.enemies, troop, config, {
       occupiesTargetRow: enemyOccupiesTargetRow,
       canTarget: (enemy) => canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type]),
@@ -2427,6 +2463,11 @@ function closestEnemy(session, troop, config) {
       || enemy.x - originX > config.range * CELL.width
       || !canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type])) continue;
     if (!closest || enemy.x < closest.x) closest = enemy;
+    const blocker = getBlockingForestObstacle(session, troop, enemy);
+    if (blocker) {
+      session.chapterSevenMetrics.forestCoverBlocks += 1;
+      return blocker;
+    }
   }
   return closest;
 }
@@ -2899,6 +2940,16 @@ function notifyEnemyDeath(session, enemy, events, context = {}) {
 
 function damageEnemy(session, enemy, amount, events, context = {}) {
   if (!enemy || enemy.dead) return;
+  if (Number.isFinite(context.sourceX) && context.sourceX < enemy.x && context.sourceTroopId) {
+    const sourceTroop = session.troops.find((troop) => troop.id === context.sourceTroopId && !troop.dead);
+    const blocker = sourceTroop ? getBlockingForestObstacle(session, sourceTroop, enemy) : null;
+    if (blocker) {
+      session.chapterSevenMetrics.forestCoverBlocks += 1;
+      damageForestObstacle(session, blocker, amount, events, stunEnemy);
+      events.push({ type: "forestObstacleIntercept", sourceTroopId: context.sourceTroopId, targetId: blocker.id, blockedEnemyId: enemy.id, x: blocker.x, y: blocker.y });
+      return;
+    }
+  }
   if (enemy.type === "rasgaCeusCinereo") {
     session.metrics ??= {};
     if (enemy.flightAltitude <= ENEMIES.rasgaCeusCinereo.groundTargetAltitude && context.ranged) {
@@ -3354,8 +3405,11 @@ function updateFlameChannel(session, troop, config, events, dt) {
     .sort((left, right) => left.x - right.x)
     .slice(0, config.flameMaxTargets ?? 4);
   const targets = getTargets();
+  const firstEnemy = targets[0];
+  const blocker = firstEnemy ? getBlockingForestObstacle(session, troop, firstEnemy) : null;
+  const attackTargets = blocker ? [blocker] : targets;
 
-  if (!targets.length) {
+  if (!attackTargets.length) {
     if (troop.channelingAttack) {
       troop.channelingAttack = false;
       troop.channelTickAccumulator = 0;
@@ -3375,14 +3429,17 @@ function updateFlameChannel(session, troop, config, events, dt) {
 
   while (troop.channelTickAccumulator >= config.attackEveryMs) {
     troop.channelTickAccumulator -= config.attackEveryMs;
-    const activeTargets = getTargets();
+    const activeEnemyTargets = getTargets();
+    const activeBlocker = activeEnemyTargets[0] ? getBlockingForestObstacle(session, troop, activeEnemyTargets[0]) : null;
+    const activeTargets = activeBlocker ? [activeBlocker] : activeEnemyTargets;
     if (!activeTargets.length) break;
     const frameCount = config.attackVisual?.frameMuzzles?.length || 1;
     const animation = getTroopAnimation(troop, config, session.elapsed, { attack: frameCount });
     const origin = getMuzzleWorldPosition(troop, config, 0, animation.frame);
     activeTargets.forEach((enemy) => {
-      const damage = config.damage * attackDamageMultiplier(session, troop, { target: enemy });
-      damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
+      const damage = config.damage * attackDamageMultiplier(session, troop, { target: enemy?.kind === "forestObstacle" ? null : enemy });
+      if (enemy?.kind === "forestObstacle") damageForestObstacle(session, enemy, damage, events, stunEnemy);
+      else damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
     });
     events.push({
       type: "flame", weapon: config.attackVisual?.effect || "flame", troopType: troop.type,
@@ -3395,6 +3452,12 @@ function updateFlameChannel(session, troop, config, events, dt) {
 }
 
 function fireTroop(session, troop, config, target, events) {
+  if (target?.kind === "forestObstacle") {
+    const damage = config.damage * attackDamageMultiplier(session, troop, { target: null });
+    damageForestObstacle(session, target, damage, events, stunEnemy);
+    events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: target.id, x: target.x, y: target.y, color: config.color });
+    return;
+  }
   const damage = config.damage * attackDamageMultiplier(session, troop, {
     explosive: config.attack === "missile" || config.attack === "mortar",
     target,
@@ -3417,6 +3480,15 @@ function fireTroop(session, troop, config, target, events) {
       color: config.color, seed: effectSeed,
     });
   } else if (config.attack === "shotgun") {
+    const firstEnemy = enemiesForRow(session, troop.row)
+      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
+      .sort((left, right) => left.x - right.x)[0];
+    const blocker = firstEnemy ? getBlockingForestObstacle(session, troop, firstEnemy) : null;
+    if (blocker) {
+      damageForestObstacle(session, blocker, damage, events, stunEnemy);
+      events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: blocker.id, x: blocker.x, y: blocker.y, color: config.color });
+      return;
+    }
     const maxTargets = config.shotgunMaxTargets ?? 3;
     const damageFactors = config.shotgunDamageFactors ?? [0.48, 0.40, 0.32];
     const targets = session.enemies
@@ -4272,7 +4344,12 @@ function updateTroops(session, events, dt) {
     if (troop.type === "aresT") {
       if (troop.pendingAresImpact && session.elapsed >= troop.pendingAresImpact.at) {
         const lockedTarget = session.enemies.find((enemy) => enemy.id === troop.pendingAresImpact.targetId);
-        if (lockedTarget && !lockedTarget.dead && enemyOccupiesTargetRow(lockedTarget, troop.row)) {
+        const lockedObstacle = session.forestObstacles.find((tree) => tree.id === troop.pendingAresImpact.targetId);
+        if (lockedObstacle?.alive) {
+          const damage = config.damage * attackDamageMultiplier(session, troop, { target: null });
+          damageForestObstacle(session, lockedObstacle, damage, events, stunEnemy);
+          events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: lockedObstacle.id, x: lockedObstacle.x, y: lockedObstacle.y, color: config.color });
+        } else if (lockedTarget && !lockedTarget.dead && enemyOccupiesTargetRow(lockedTarget, troop.row)) {
           const damage = config.damage * attackDamageMultiplier(session, troop, { target: lockedTarget });
           damageEnemy(session, lockedTarget, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
           events.push({ type: "aresHydraulicPunch", sourceTroopId: troop.id, targetId: lockedTarget.id, x: lockedTarget.x, y: lockedTarget.y, color: config.color, seed: nextEffectSeed(session) });

@@ -67,6 +67,7 @@ import {
 import { LEVIATHAN_SHADOW_ONLY_STATES, LEVIATHAN_UNDERWATER_STATES } from "./leviathanNereida.js";
 import { getColossoAnimation } from "./colossoCaldeira.js";
 import { drawColossoBossHealth, drawColossoCaldeira } from "./colossoCaldeiraRenderer.js";
+import { drawForestObstacles } from "./chapter07/forestObstacleRenderer.js";
 import {
   drawSporeClouds,
   drawSporeFruitEmissive,
@@ -1748,6 +1749,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   clearRenderLayer(entityCtx, layers.entityLayer, scales.entityLayer);
   entityCtx.save();
   entityCtx.translate(0, VIEWPORT.fieldOffsetY);
+  drawForestObstacles(entityCtx, session, session.elapsed, settings, assets);
   drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, rowBuffers);
   drawConvoy(entityCtx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
   drawAttachedConvoyEnemies(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
@@ -2110,6 +2112,15 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     if (!loading.ready || sandbox || phase.id !== "fase_49") return;
     setMessage("MANTENHA UMA TROPA EM R2 OU R4 PRÓXIMA AO TRANSPORTE.", { tone: "action", persistent: true });
   }, [loading.ready, phase.id, sandbox, setMessage]);
+
+  useEffect(() => {
+    if (!loading.ready || sandbox || phase.id !== "fase_50") return;
+    const key = "genesis.chapter07.forestObstacleTutorial";
+    if (window.sessionStorage.getItem(key)) return;
+    window.sessionStorage.setItem(key, "shown");
+    setBanner("COBERTURA FERRÍVORA");
+    setMessage("Árvores bloqueiam seus disparos, mas não impedem o avanço inimigo. Destrua a cobertura ou espere os inimigos ultrapassá-la.", { tone: "info" });
+  }, [loading.ready, phase.id, sandbox, setBanner, setMessage]);
 
   useEffect(() => {
     if (!notification?.text || notification.persistent) return undefined;

@@ -37,6 +37,12 @@ export {
 } from "./assets/assetDependencyResolver.js";
 
 export {
+  FOREST_OBSTACLE_STAGES,
+  getForestObstacleAssetUrl,
+  resolveForestObstacleAssetDependencies,
+} from "./assets/forestObstacleAssetCatalog.js";
+
+export {
   clearDecodedImageCache,
   getAssetCacheMetrics,
   loadBattleAssets,
