@@ -3,7 +3,8 @@ import { choosePacketRows, createRng } from "../domain.js";
 const expandPacket = (packet, rows, generationId, sectorId) => (packet.units || []).flatMap((unit) =>
   Array.from({ length: unit.count || 1 }, (_, index) => ({
     type: unit.type, variant: unit.variant || null, row: rows[index % rows.length],
-    sourceIndex: index, spawnAtMs: (packet.atMs || 0) + index * (unit.intervalMs || 180),
+    sourceIndex: index, spawnAtMs: (packet.atMs || 0) + (unit.delayMs || 0) + index * (unit.intervalMs || 180),
+    xOffsetTiles: unit.xOffsetTiles || 0,
     packetId: packet.id, sectorId, generationId, spawnSource: "convoySector",
   })));
 

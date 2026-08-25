@@ -72,7 +72,7 @@ async function buildAnchors() {
         stateAnchors[state.name].push(await calculateAnchor(path.join(directory, frame), AIRBORNE.has(enemy.name)));
       }
     }
-    if (["voltriz", "nimbarca", "gorjal", "derivante", "raizFulgor", "macacoEsporos"].includes(enemy.name)) {
+    if (["voltriz", "nimbarca", "gorjal", "derivante", "raizFulgor", "macacoEsporos", "tartaragarra"].includes(enemy.name)) {
       const anchors = Object.values(stateAnchors).flat();
       const sharedAnchor = {
         x: rounded(quantile(anchors.map((anchor) => anchor.x), 0.5)),

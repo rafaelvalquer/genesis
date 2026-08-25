@@ -437,7 +437,9 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     enemyProjectiles: [],
     sporeFruits: [],
     sporeClouds: [],
-    chapterSevenMetrics: { sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0 },
+    chapterSevenMetrics: { sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0,
+      tartaragarraCharges: 0, tartaragarraChargeHits: 0, tartaragarraChargeMisses: 0, tartaragarraTroopsStunned: 0,
+      tartaragarraShellHits: 0, tartaragarraShellDamagePrevented: 0, tartaragarraConvoyHeadbutts: 0, tartaragarraConvoyDamage: 0 },
     energyPickups: [],
     energyPickupPointer: null,
     dematerializationPulses: isSystemEnabledForPhase(sessionPhase, "dematerializationPulse")
@@ -1476,6 +1478,9 @@ function createEnemyRuntime(session, events) {
     closestTroop: (enemy, range) => closestTroopForEnemy(session, enemy, range),
     troopBlockDistance,
     damageTroop: (troop, amount, context = {}) => damageTroop(session, troop, amount, events, context),
+    stunTroop: (troop, durationMs) => stunTroop(session, troop, durationMs, events),
+    damageConvoy: (amount, context = {}) => damageConvoy(session, amount, events, context),
+    canEnemyReachConvoy: (enemy, config) => canEnemyReachConvoy(session, enemy, config),
     hasBlockingTroop: (enemy) => hasBlockingTroop(session, enemy),
     escortIds: () => [],
     convoyX: () => session.convoy?.x ?? Infinity,
@@ -2979,7 +2984,9 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       ? shieldFactor
       : 1 - (1 - shieldFactor) * (1 - context.nimbarcaShieldIgnoreFactor);
   }
-  const armorFactor = Number.isFinite(enemy.armorDamageFactor)
+  const armorFactor = Number.isFinite(context.armorFactorOverride)
+    ? context.armorFactorOverride
+    : Number.isFinite(enemy.armorDamageFactor)
     ? enemy.armorDamageFactor
     : ENEMIES[enemy.type]?.armorDamageFactor ?? 1;
   const armorPierce = clamp(context.armorPierceFactor || 0, 0, 1);
@@ -7929,6 +7936,10 @@ function updateEnemies(session, dt, events) {
       continue;
     }
     if (enemy.type === "macacoEsporos") {
+      behavior.update(runtime, enemy, config, dt, events);
+      continue;
+    }
+    if (enemy.type === "tartaragarra") {
       behavior.update(runtime, enemy, config, dt, events);
       continue;
     }

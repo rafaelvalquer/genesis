@@ -14,10 +14,10 @@ const POOLS = [
   ["rastejanteMata", "saqueadorEscoria", "couracadoHematita"],
   ["rastejanteMata", "saqueadorEscoria", "sabotadorOxido"],
   ["rastejanteMata", "couracadoHematita", "cacadorComboio"],
-  ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "cacadorComboio"],
-  ["cacadorComboio", "couracadoHematita", "saltadorAlado", "atiradorRavina", "macacoEsporos"],
-  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos"],
-  ["couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos"],
+  ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "cacadorComboio", "tartaragarra"],
+  ["cacadorComboio", "couracadoHematita", "saltadorAlado", "atiradorRavina", "macacoEsporos", "tartaragarra"],
+  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos", "tartaragarra"],
+  ["couracadoHematita", "cacadorComboio", "sabotadorOxido", "atiradorRavina", "macacoEsporos", "tartaragarra"],
 ];
 
 const packet = (id, atMs, units, routeStrategy = "split", fixedRows) => ({ id, atMs,
@@ -35,6 +35,14 @@ function createSector(phaseIndex, sectorIndex) {
   ];
   if (phaseIndex >= 5) packets.push(packet(`p${phaseIndex + 49}s${sectorIndex + 1}saltador`, 30000, [["saltadorAlado", 1]], "scripted", [1, 3]));
   if (phaseIndex >= 2) packets.push(packet(`p${phaseIndex + 49}s${sectorIndex + 1}esporos`, 27000, [["macacoEsporos", 1]], "scripted", [1, 3]));
+  if (phaseIndex >= 4) packets.push({
+    id: `p${phaseIndex + 49}s${sectorIndex + 1}tartaragarra`, atMs: 15000,
+    units: [
+      { type: "tartaragarra", count: 1, intervalMs: 220, delayMs: 0, xOffsetTiles: -.6 },
+      { type: "rastejanteMata", count: 3, intervalMs: 220, delayMs: 500 },
+      { type: "saltadorAlado", count: 1, intervalMs: 220, delayMs: 900, xOffsetTiles: .25 },
+    ], routeStrategy: "scripted", fixedRows: [1, 3],
+  });
   if (phaseIndex === 7 && sectorIndex === 3) packets.unshift(packet("terminal-boss", 4000, [["marechalForja", 1]], "scripted", [0]));
   const warningAtMs = Math.max(38000, 62000 - phaseIndex * 3000);
   const startsAtMs = warningAtMs + 12000;

@@ -195,6 +195,15 @@ describe("arenas cinematograficas", () => {
     expect(getEnemyPreviewUrl("ramBeetle")).toMatch(/frame0.*\.png/i);
   });
 
+  it("carrega os 56 quadros da Tartaragarra", () => {
+    const states = ["idle", "walking", "chargePrep", "charge", "chargeRecover", "attack", "death"];
+    const frames = import.meta.glob("./assets/enemy/tartaragarra/*/frame*.png");
+    for (const state of states) {
+      expect(Object.keys(frames).filter((key) => key.includes(`/tartaragarra/${state}/`))).toHaveLength(8);
+    }
+    expect(getEnemyPreviewUrl("tartaragarra")).toMatch(/frame0.*\.png/i);
+  });
+
   it("mantem somente os oito quadros cartoon atuais por estado", () => {
     const enemyFrames = import.meta.glob("./assets/enemy/{medu,neurax,oculis,crix,vexar,silex}/{idle,walking,attack}/frame*.png");
     const keys = Object.keys(enemyFrames);

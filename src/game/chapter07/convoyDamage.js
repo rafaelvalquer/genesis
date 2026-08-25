@@ -5,6 +5,9 @@ export function damageConvoy(session, amount, events = [], context = {}) {
   convoy.hp = Math.max(0, convoy.hp - amount);
   const dealt = before - convoy.hp;
   convoy.lastHitAt = session.elapsed;
+  if (context.underAttackHoldMs > 0) {
+    convoy.underAttackHoldUntil = Math.max(convoy.underAttackHoldUntil || -Infinity, session.elapsed + context.underAttackHoldMs);
+  }
   if (context.attackerId && !convoy.attackerIds.includes(context.attackerId)) convoy.attackerIds.push(context.attackerId);
   convoy.underAttack = true;
   const ratio = convoy.hp / convoy.maxHp;

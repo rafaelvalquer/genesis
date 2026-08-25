@@ -10,7 +10,7 @@ export function createConvoyState(phase) {
     entryX, routeStartX, startX: routeStartX, destinationX: getConvoyDestinationX(), progress: 0,
     entryState: "offscreen", entryDurationMs: phase.convoy.entryDurationMs || 2200, entry: null,
     hp: phase.convoy.maxHp, maxHp: phase.convoy.maxHp,
-    underAttack: false, attackerIds: [], invulnerable: false,
+    underAttack: false, underAttackHoldUntil: -Infinity, attackerIds: [], invulnerable: false,
     reserve: phase.convoy.reserveInitial, reserveMax: phase.convoy.reserveMax,
     nextEnergyPulseAt: phase.convoy.energyPulseEveryMs || 5000,
     reserveEmptyEmitted: false, damageState: "normal",

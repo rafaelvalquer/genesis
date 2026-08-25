@@ -275,6 +275,19 @@ export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {})
     if (Number.isFinite(duration)) return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
     return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 120)) % count };
   }
+  if (enemyConfig.id === "tartaragarra") {
+    const state = enemy.dead ? "death" : enemy.tartaragarraState || (enemy.moving ? "walking" : "idle");
+    const visualState = state === "convoyAttack" ? "attack" : state;
+    const count = Math.max(1, frameCounts[visualState] || frameCounts.idle || 1);
+    const startedAt = enemy.tartaragarraStateStartedAt ?? enemy.spawnedAt ?? 0;
+    const age = Math.max(0, elapsed - startedAt);
+    const duration = Number.isFinite(enemy.tartaragarraStateEndsAt)
+      ? Math.max(1, enemy.tartaragarraStateEndsAt - startedAt) : null;
+    if (duration && ["chargePrep", "charge", "chargeRecover", "attack", "convoyAttack", "death"].includes(state)) {
+      return { state: visualState, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    }
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 150)) % count };
+  }
   if (enemyConfig.id === "cuspidorBrasa") {
     const logicalState = enemy.cuspidorState || (enemy.moving ? "walking" : "idle");
     const state = enemy.dead ? "death"

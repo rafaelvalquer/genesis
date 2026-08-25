@@ -19,7 +19,8 @@ export function updateConvoyThreat(session, enemyConfigs, events = []) {
   const attackers = session.enemies.filter((enemy) => canEnemyReachConvoy(session, enemy, enemyConfigs[enemy.type])
     && !hasBlockingTroop(session, enemy));
   session.convoy.attackerIds = attackers.map((enemy) => enemy.id);
-  session.convoy.underAttack = attackers.length > 0;
+  session.convoy.underAttack = attackers.length > 0
+    || session.elapsed < (session.convoy.underAttackHoldUntil || -Infinity);
   if (!previous && session.convoy.underAttack) events.push({ type: "convoyUnderAttack", attackerIds: [...session.convoy.attackerIds] });
   if (previous && !session.convoy.underAttack) events.push({ type: "convoyAttackCleared" });
   return attackers;
