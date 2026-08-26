@@ -176,7 +176,7 @@ import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setE
 import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.js";
 import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.js";
 import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
-import { getBlockingForestObstacle, getForestObstacleAt, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
+import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
 
 export {
   createWindCurrentState,
@@ -3436,24 +3436,27 @@ function updateFlameChannel(session, troop, config, events, dt) {
 }
 
 function fireTroop(session, troop, config, target, events) {
-  if (target?.kind === "forestObstacle") {
-    const tree = target.entity;
+  if (!target) return;
+  const targetKind = target.kind || "enemy";
+  const entity = target.entity || target;
+  const targetPoint = targetKind === "forestObstacle"
+    ? getForestObstacleHitPoint(entity)
+    : enemyHitPointForRow(entity, troop.row, session.elapsed);
+  if (targetKind === "forestObstacle" && ["laser", "shotgun", "melee"].includes(config.attack)) {
     const damage = config.damage * attackDamageMultiplier(session, troop, { target: null });
-    damageForestObstacle(session, tree, damage, events, stunEnemy);
-    events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: tree.id, x: tree.x, y: tree.y, color: config.color });
+    damageForestObstacle(session, entity, damage, events, stunEnemy);
+    events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: entity.id, x: targetPoint.x, y: targetPoint.y, color: config.color });
     return;
   }
   const enemy = target?.entity || target;
-  if (!enemy) return;
   const damage = config.damage * attackDamageMultiplier(session, troop, {
     explosive: config.attack === "missile" || config.attack === "mortar",
-    target: enemy,
+    target: targetKind === "enemy" ? enemy : null,
   });
   const muzzleFrame = troop.type === "operadorJano"
     ? config.attackVisual?.shots?.[0]?.frame ?? null
     : null;
   const origin = getMuzzleWorldPosition(troop, config, 0, muzzleFrame);
-  const targetPoint = enemyHitPointForRow(enemy, troop.row, session.elapsed);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
     damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
@@ -3505,7 +3508,7 @@ function fireTroop(session, troop, config, target, events) {
         origin: { ...shotOrigin }, ageMs: 0, trail: createProjectileTrail(16, shotOrigin.x, shotOrigin.y),
         vx: straightLane ? speed : dx / distance * speed,
         vy: straightLane ? 0 : dy / distance * speed,
-        damage, targetId: enemy.id, radius: (config.radius || 0) * session.modifiers.explosiveRadius,
+        damage, targetKind, targetId: entity.id, targetX: targetPoint.x, targetY: targetPoint.y, radius: (config.radius || 0) * session.modifiers.explosiveRadius,
         slowFactor: config.slowFactor, slowMs: config.slowMs,
         color: config.color, visualKind: config.attackVisual?.effect || config.attack,
         visualCount: config.attackVisual?.visualCount || 1,
@@ -3518,7 +3521,7 @@ function fireTroop(session, troop, config, target, events) {
         launchAt: session.elapsed + (config.attackVisual?.shots?.[shot]?.atMs ?? shot * (config.burstIntervalMs || 0)),
       });
       const createdProjectile = session.projectiles[session.projectiles.length - 1];
-      if (troop.type === "cryo7") {
+      if (troop.type === "cryo7" && targetKind === "enemy") {
         createdProjectile.cryoThermalTarget = isCryoThermalTarget(ENEMIES[enemy.type]);
         createdProjectile.cryoFireTarget = ENEMIES[enemy.type]?.enemyTags?.includes("fire") || false;
         createdProjectile.cryoShockDurationMs = getCryoShockDuration(ENEMIES[enemy.type], config);
@@ -3553,7 +3556,7 @@ function fireOperadorJano(session, troop, config, target, events) {
     * attackDamageMultiplier(session, troop, { target: droneTarget });
   session.projectiles.push({
     id: id("projectile"), kind: "bullet", troopType: troop.type,
-    sourceTroopId: troop.id, shotIndex: 1, droneIndex: 0, row: troop.row,
+    sourceTroopId: troop.id, shotIndex: 1, droneIndex: 0, row: troop.row, targetKind: "enemy",
     x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
     origin: { ...origin }, ageMs: 0, trail: createProjectileTrail(4, origin.x, origin.y),
     vx: dx / distance * (config.projectileSpeed || 390),
@@ -3579,7 +3582,7 @@ export function fireDroneSentinela(session, troop, config, target, events = []) 
     const distance = Math.max(1, Math.hypot(dx, dy));
     session.projectiles.push({
       id: id("projectile"), kind: "bullet", troopType: troop.type,
-      sourceTroopId: troop.id, shotIndex, droneIndex: shotIndex, row: troop.row,
+      sourceTroopId: troop.id, shotIndex, droneIndex: shotIndex, row: troop.row, targetKind: "enemy",
       x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
       origin: { ...origin }, ageMs: 0, trail: createProjectileTrail(4, origin.x, origin.y),
       vx: dx / distance * config.projectileSpeed,
@@ -3927,21 +3930,17 @@ function startLumiDefense(session, troop, config, threat) {
 }
 
 function startRepulsorAttack(session, troop, config, target, events = []) {
-  if (target.kind === "forestObstacle") {
-    damageForestObstacle(session, target.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
-    troop.lastRepulsorAt = session.elapsed;
-    troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
-    return;
-  }
   const enemy = target.entity || target;
+  const targetKind = target.kind || "enemy";
+  const targetPoint = targetKind === "forestObstacle" ? getForestObstacleHitPoint(enemy) : getEnemyHitPoint(enemy, ENEMIES[enemy.type]);
   const origin = getMuzzleWorldPosition(troop, config, 0);
   const projectileId = id("projectile");
   session.projectiles.push({
     id: projectileId, kind: "repulsorFist", visualKind: "repulsorFist",
-    troopType: troop.type, sourceTroopId: troop.id, targetId: enemy.id, row: troop.row,
+    troopType: troop.type, sourceTroopId: troop.id, targetKind, targetId: enemy.id, targetX: targetPoint.x, targetY: targetPoint.y, row: troop.row,
     x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
     origin: { ...origin }, ageMs: 0, trail: createProjectileTrail(8, origin.x, origin.y),
-    vx: config.projectileSpeed, vy: 0, damage: config.damage * attackDamageMultiplier(session, troop, { target: enemy }),
+    vx: config.projectileSpeed, vy: 0, damage: config.damage * attackDamageMultiplier(session, troop, { target: targetKind === "enemy" ? enemy : null }),
     pushDistanceTiles: config.pushDistanceTiles * (session.modifiers.territorialControl ? 1.15 : 1),
     stunChance: config.stunChance, stunMs: config.stunMs
       * (session.modifiers.supportDoctrine ? 1.1 : 1)
@@ -4491,7 +4490,7 @@ function updateTroops(session, events, dt) {
       const target = resolveTroopTarget(session, troop, config);
       if (!target) continue;
       if (target.kind === "forestObstacle") {
-        damageForestObstacle(session, target.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+        fireTroop(session, troop, { ...config, attack: "bullet", burst: 1 }, target, events);
       } else fireDroneSentinela(session, troop, config, target.entity, events);
       continue;
     }
@@ -4501,7 +4500,7 @@ function updateTroops(session, events, dt) {
         && (enemy.x < troop.x || enemy.x - troop.x <= config.range * CELL.width));
       if (!target && !hasDroneTarget) continue;
       if (target?.kind === "forestObstacle") {
-        damageForestObstacle(session, target.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+        fireTroop(session, troop, { ...config, attack: "bullet", burst: 1 }, target, events);
         troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
         troop.lastAttackAt = session.elapsed;
         continue;
@@ -4562,8 +4561,10 @@ function updateProjectiles(session, dt, events) {
     if (session.elapsed < projectile.launchAt) continue;
     if (!projectile.launched) {
       if (projectile.kind === "cryoJet") {
-        const lockedTarget = indexedEnemyById(session, projectile.targetId);
-        if (!isEnemyTargetable(lockedTarget)) {
+        const lockedTarget = projectile.targetKind === "forestObstacle"
+          ? null
+          : indexedEnemyById(session, projectile.targetId);
+        if (projectile.targetKind !== "forestObstacle" && !isEnemyTargetable(lockedTarget)) {
           projectile.active = false;
           continue;
         }
@@ -4855,14 +4856,18 @@ function updateProjectiles(session, dt, events) {
       continue;
     }
     if (projectile.kind === "repulsorFist") {
-      const target = indexedEnemyById(session, projectile.targetId);
+      const target = projectile.targetKind === "forestObstacle"
+        ? session.forestObstacles?.find((tree) => tree.id === projectile.targetId) || null
+        : indexedEnemyById(session, projectile.targetId);
       const source = indexedTroopById(session, projectile.sourceTroopId);
-      if (!target) {
+      if (!target && projectile.targetKind !== "forestObstacle") {
         projectile.active = false;
         if (source?.pendingRepulsorShot === projectile.id) source.pendingRepulsorShot = null;
         continue;
       }
-      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+      const targetPoint = projectile.targetKind === "forestObstacle"
+        ? { x: projectile.targetX, y: projectile.targetY }
+        : getEnemyHitPoint(target, ENEMIES[target.type]);
       projectile.previousX = projectile.x;
       projectile.previousY = projectile.y;
       projectile.previousRenderX = projectile.x;
@@ -4879,6 +4884,13 @@ function updateProjectiles(session, dt, events) {
         continue;
       }
 
+      if (projectile.targetKind === "forestObstacle") {
+        if (target?.alive) damageForestObstacle(session, target, projectile.damage, events, stunEnemy);
+        events.push({ type: "forestObstacleProjectileImpact", weapon: projectile.visualKind, targetId: projectile.targetId, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
+        projectile.active = false;
+        if (source?.pendingRepulsorShot === projectile.id) source.pendingRepulsorShot = null;
+        continue;
+      }
       damageEnemy(session, target, projectile.damage, events, { direct: true, sourceX: source?.x ?? projectile.origin?.x, sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId });
       const pushedFromX = target.x;
       let stunned = false;
@@ -4977,7 +4989,10 @@ function updateProjectiles(session, dt, events) {
     }
     let target;
     if (projectile.kind === "cryoJet") {
-      target = indexedEnemyById(session, projectile.targetId);
+      target = projectile.targetKind === "forestObstacle"
+        ? session.forestObstacles?.find((tree) => tree.id === projectile.targetId)
+          || { id: projectile.targetId, alive: false, x: projectile.targetX, y: projectile.targetY }
+        : indexedEnemyById(session, projectile.targetId);
       if (!isEnemyTargetable(target) || !enemyOccupiesTargetRow(target, projectile.row)) target = null;
     } else if (projectile.straightLane) {
       target = null;
@@ -4996,13 +5011,15 @@ function updateProjectiles(session, dt, events) {
           const dy = enemy.y - projectile.y;
           const distanceSquared = dx * dx + dy * dy;
           if (distanceSquared < closestDistanceSquared) {
-            target = enemy;
+          target = enemy;
             closestDistanceSquared = distanceSquared;
           }
         }
       }
     }
-    const targetPoint = target ? getEnemyHitPoint(target, ENEMIES[target.type]) : null;
+    const targetPoint = target
+      ? projectile.targetKind === "forestObstacle" ? getForestObstacleHitPoint(target) : getEnemyHitPoint(target, ENEMIES[target.type])
+      : (projectile.targetKind === "forestObstacle" ? { x: projectile.targetX, y: projectile.targetY } : null);
     if (projectile.kind === "missile" && target) {
       const angle = Math.atan2(targetPoint.y - projectile.y, targetPoint.x - projectile.x);
       projectile.vx += (Math.cos(angle) * 250 - projectile.vx) * 0.08;
@@ -5056,7 +5073,10 @@ function updateProjectiles(session, dt, events) {
       continue;
     }
     if (hitTarget) {
-      if (projectile.kind === "missile") {
+      if (projectile.targetKind === "forestObstacle") {
+        if (target?.alive) damageForestObstacle(session, target, projectile.damage, events, stunEnemy);
+        events.push({ type: "forestObstacleProjectileImpact", weapon: projectile.visualKind, targetId: projectile.targetId, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
+      } else if (projectile.kind === "missile") {
         const affected = session.enemies.filter((enemy) => !enemy.dead && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= projectile.radius);
         affected.forEach((enemy) => damageEnemy(session, enemy, projectile.damage, events));
         affected.forEach((enemy) => applyConcussiveImpact(session, enemy));
@@ -5084,7 +5104,7 @@ function updateProjectiles(session, dt, events) {
           color: projectile.color, seed: projectile.seed,
         });
       }
-      if (projectile.kind === "ice" && !target.dead && !ENEMIES[target.type]?.controlImmune) {
+      if (projectile.targetKind === "enemy" && projectile.kind === "ice" && !target.dead && !ENEMIES[target.type]?.controlImmune) {
         target.slowFactor = projectile.slowFactor;
         const controlFactor = (session.modifiers.supportDoctrine ? 1.1 : 1)
           * (session.modifiers.territorialControl ? 1.15 : 1);

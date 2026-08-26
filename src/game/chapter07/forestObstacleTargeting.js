@@ -46,3 +46,8 @@ export function resolveForestCombatTarget(session, troop, config = {}, enemies =
   if (nearestTree) return { kind: "forestObstacle", entity: nearestTree };
   return null;
 }
+
+export function getForestObstacleHitPoint(tree) {
+  const yOffset = tree?.type === "fragile" ? 16 : tree?.type === "mineralized" ? 28 : 22;
+  return { x: tree?.x || 0, y: (tree?.y || 0) - yOffset };
+}
