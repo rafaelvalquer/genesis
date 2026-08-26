@@ -1,5 +1,7 @@
 import { CELL, FIELD } from "../visualGeometry.js";
 
+export const FOREST_OBSTACLE_GROUND_OFFSET_FACTOR = 0.4;
+
 export const FOREST_OBSTACLE_TYPES = Object.freeze({
   fragile: Object.freeze({ id: "fragile", label: "Tronco Jovem", hp: 80, spore: false, collision: { width: 30, height: 72 } }),
   ferrivore: Object.freeze({ id: "ferrivore", label: "Árvore Ferrívora", hp: 130, spore: false, collision: { width: 42, height: 92 } }),
@@ -27,6 +29,10 @@ export function getForestObstacleConfig(phase) {
 
 export function forestObstaclePosition(row, col) {
   return { x: col * CELL.width + CELL.width / 2, y: row * CELL.height + CELL.height / 2 };
+}
+
+export function forestObstacleBaseY(tree) {
+  return (tree?.y || 0) + CELL.height * FOREST_OBSTACLE_GROUND_OFFSET_FACTOR;
 }
 
 export function isForestObstacleCell(row, col) {

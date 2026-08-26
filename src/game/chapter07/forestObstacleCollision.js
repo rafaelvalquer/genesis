@@ -1,12 +1,16 @@
-import { getForestObstacleConfig, getForestObstacleType } from "./forestObstacleConfig.js";
+import { forestObstacleBaseY, getForestObstacleType } from "./forestObstacleConfig.js";
 
 export function getForestObstacleHitbox(tree) {
   const collision = getForestObstacleType(tree?.type).collision;
+  const scale = Number(tree?.scale) || 1;
+  const width = collision.width * scale;
+  const height = collision.height * scale;
+  const baseY = forestObstacleBaseY(tree);
   return {
     x: tree?.x || 0,
-    y: (tree?.y || 0) - collision.height / 2,
-    width: collision.width,
-    height: collision.height,
+    y: baseY - height / 2,
+    width,
+    height,
   };
 }
 
