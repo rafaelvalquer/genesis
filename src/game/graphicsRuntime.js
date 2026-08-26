@@ -16,6 +16,7 @@ const ENEMY_DEATH_LIFE = {
   derivante: 800,
   raizFulgor: 800,
   tartaragarra: 960,
+  larvaRaizFerro: 840,
 };
 const PULSE_BEAM_LIFE = 360;
 const DISINTEGRATION_LIFE = 420;
@@ -97,7 +98,7 @@ export function createGraphicsRuntime() {
     clockNow: null,
     hits: new Map(), deaths: [], decals: [], lights: [], deployments: [],
     colossoCoreHits: [], convoyImpacts: [],
-    pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [], magma: null,
+    pulseBeams: [], disintegrations: [], pulseScorches: [], windEffects: [], broodBursts: [], magma: null,
     containmentArcs: [], containmentInterferenceUntil: 0,
     camera: { amplitude: 0, seed: 1, startedAt: 0 },
     health: new Map(),
@@ -187,6 +188,7 @@ function lightFor(event, now) {
     executorFinisher: { radius: event.lightRadius || 92, life: 380 },
     pulseCharging: { radius: 96, life: 420 }, pulseFired: { radius: 210, life: 420 }, pulseHit: { radius: 68, life: 220 },
     predatorClaw: { radius: 58, life: 180 }, predatorBite: { radius: 68, life: 220 }, predatorFrenzy: { radius: 92, life: 520 },
+    treeBroodTriggered: { radius: 82, life: 600 }, treeLarvaSpawned: { radius: 42, life: 720 },
   }[event.type];
   if (!values) return null;
   return { x: event.x ?? event.x0 ?? 0, y: event.y ?? event.y0 ?? 0, color: event.color || "#f8fafc", born: now, ...values };
@@ -216,6 +218,9 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
     }
     if (event.type === "colossoCoreHit") {
       runtime.colossoCoreHits.push({ ...event, born: now, life: event.coreExposed ? 260 : 150 });
+    }
+    if (event.type === "treeBroodTriggered") {
+      runtime.broodBursts.push({ x: event.x, y: event.y, born: now, life: 600 });
     }
     if (event.type === "convoyHit") {
       runtime.convoyImpacts.push({ ...event, born: now, life: event.severity === "critical" ? 520 : event.severity === "heavy" ? 400 : 300,
@@ -293,6 +298,7 @@ export function consumeGraphicsEvents(runtime, events, now, settings = {}) {
   runtime.disintegrations = runtime.disintegrations.slice(-80);
   runtime.pulseBeams = runtime.pulseBeams.slice(-8);
   runtime.pulseScorches = runtime.pulseScorches.slice(-48);
+  runtime.broodBursts = runtime.broodBursts.slice(-16);
   runtime.deployments = runtime.deployments.slice(-24);
   runtime.containmentArcs = runtime.containmentArcs.slice(-18);
   runtime.windEffects = runtime.windEffects.slice(-48);
@@ -308,6 +314,7 @@ export function updateGraphicsRuntime(runtime, now, frameMs, counts = {}) {
   runtime.disintegrations = runtime.disintegrations.filter((entry) => now - entry.born < entry.life);
   runtime.pulseBeams = runtime.pulseBeams.filter((entry) => now - entry.born < entry.life);
   runtime.pulseScorches = runtime.pulseScorches.filter((entry) => now - entry.born < entry.life);
+  runtime.broodBursts = runtime.broodBursts.filter((entry) => now - entry.born < entry.life);
   runtime.lights = runtime.lights.filter((entry) => now - entry.born < entry.life);
   runtime.deployments = runtime.deployments.filter((entry) => visualNow - entry.born < entry.life);
   runtime.containmentArcs = runtime.containmentArcs.filter((entry) => now - entry.born < entry.life);

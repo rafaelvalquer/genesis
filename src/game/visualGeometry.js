@@ -246,6 +246,17 @@ export function getLeviathanHitPointForRow(enemy, enemyConfig = {}, troopRow, st
 }
 
 export function getEnemyAnimation(enemy, enemyConfig, elapsed, frameCounts = {}) {
+  if (enemyConfig.id === "larvaRaizFerro") {
+    const state = enemy.dead ? "death" : enemy.animationState === "emerge" || enemy.emergeState === "emerging"
+      ? "emerge" : enemy.meleeAttackPending ? "attack" : enemy.moving ? "walking" : "idle";
+    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
+    const startedAt = state === "emerge" ? enemy.emergeStartedAt : state === "attack" ? enemy.meleeAttackStartedAt : enemy.spawnedAt;
+    const age = Math.max(0, elapsed - (startedAt || 0));
+    const duration = state === "emerge" ? enemyConfig.emergeVisual?.durationMs
+      : state === "attack" ? enemyConfig.attackVisual?.durationMs : state === "death" ? enemyConfig.deathVisual?.durationMs : null;
+    if (Number.isFinite(duration)) return { state, frame: Math.min(count - 1, Math.floor(Math.min(.999, age / duration) * count)) };
+    return { state, frame: Math.floor(age / (enemyConfig.animationFrameMs?.[state] || 110)) % count };
+  }
   if (enemyConfig.id === "saltadorAlado") {
     const stateMap = { jumpPrep: "jumpPrep", jumpAir: "jumpAir", jumpLand: "jumpLand", rasante: "rasante" };
     const state = enemy.dead ? "death" : stateMap[enemy.saltadorState] || (enemy.meleeAttackPending ? "attack" : enemy.moving ? "walking" : "idle");

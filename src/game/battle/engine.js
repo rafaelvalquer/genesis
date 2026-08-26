@@ -445,6 +445,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     sporeFruits: [],
     sporeClouds: [],
     chapterSevenMetrics: { forestTreesSpawned: 0, forestTreesDestroyed: 0, forestDamageReceived: 0, forestSporeTreesDestroyed: 0, forestSporeBursts: 0, forestEnemiesStunned: 0, forestCoverBlocks: 0,
+      larvaRaizFerroSpawned: 0, larvaRaizFerroKilled: 0, forestBroodRolls: 0, forestBroodTriggered: 0, forestBroodSuppressedByCap: 0, forestBroodSuppressedByCooldown: 0,
       sporeFruitsThrown: 0, sporeFruitsHit: 0, sporeTroopsConfused: 0, sporeEscortConfusions: 0, sporeMultiHits: 0, escortLostWhileSporeConfused: 0,
       tartaragarraCharges: 0, tartaragarraChargeHits: 0, tartaragarraChargeMisses: 0, tartaragarraTroopsStunned: 0,
       tartaragarraShellHits: 0, tartaragarraShellDamagePrevented: 0, tartaragarraConvoyHeadbutts: 0, tartaragarraConvoyDamage: 0,
@@ -540,6 +541,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     session.convoyFlow = createConvoyFlow();
     session.convoySectorQueue = session.queue;
   }
+  session.spawnEnemy = (queued) => createEnemy(session, queued);
   if (sessionPhase.chapterId === "chapter_07" && sessionPhase.forestObstacles?.enabled) {
     session.forestObstacles = generateForestObstacles(sessionPhase, seed);
     session.chapterSevenMetrics.forestTreesSpawned = session.forestObstacles.length;
@@ -2896,6 +2898,7 @@ export function getEnemyDamageTakenFactor(enemy, context = {}) {
 
 function rememberEnemyKill(session, enemy, sourceTroopId = null) {
   const config = ENEMIES[enemy?.type] || {};
+  if (enemy?.type === "larvaRaizFerro" && session.chapterSevenMetrics) session.chapterSevenMetrics.larvaRaizFerroKilled += 1;
   const kill = {
     enemy: getEnemyDeathEntity(enemy, session.elapsed),
     sourceTroopId,
@@ -8103,6 +8106,18 @@ function updateEnemies(session, dt, events) {
     enemy.previousRenderY = enemy.y;
     const config = ENEMIES[enemy.type];
     const behavior = getEnemyBehavior(enemy.type);
+    if (enemy.emergeState === "emerging" && enemy.type === "larvaRaizFerro") {
+      enemy.moving = false;
+      enemy.animationState = "emerge";
+      if (session.elapsed < enemy.emergeEndsAt) continue;
+      enemy.emergeState = null;
+      enemy.emergeStartedAt = -Infinity;
+      enemy.emergeEndsAt = -Infinity;
+      enemy.emergeUntil = null;
+      enemy.animationState = "walking";
+      enemy.moving = true;
+      events.push({ type: "treeLarvaEmerged", enemyId: enemy.id, sourceTreeId: enemy.sourceTreeId, row: enemy.row, x: enemy.x, y: enemy.y });
+    }
     if (updateSilicaDiggerEmergence(session, enemy, config, events)) continue;
     if (enemy.type === "scarabEmperor") {
       behavior.update(runtime, enemy, config, dt, events);

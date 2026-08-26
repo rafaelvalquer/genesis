@@ -7,21 +7,21 @@ const SUBTITLES = [
   "Mantenha uma escolta operacional ao lado do transporte.", "Proteja as rotas adjacentes durante a marcha.",
   "Avance antes que os reforços dominem a estrada.", "Caçadores de comboio ocupam o pátio ferroviário.",
   "Administre a reserva durante setores industriais extensos.", "A travessia concentra pressão lateral sobre a patrulha.",
-  "Defenda simultaneamente a base e o transporte.", "Alcance o terminal mesmo sob o comando do Marechal da Forja.",
+  "Defenda simultaneamente a base e o transporte.", "Alcance o terminal antes que a colônia cerque a rota de evacuação.",
 ];
 const POOLS = [
-  ["rastejanteMata", "saqueadorEscoria"],
-  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita"],
-  ["rastejanteMata", "saqueadorEscoria", "sabotadorOxido"],
-  ["rastejanteMata", "couracadoHematita", "garravinha"],
-  ["rastejanteMata", "couracadoHematita", "sabotadorOxido", "garravinha", "tartaragarra"],
-  ["garravinha", "couracadoHematita", "saltadorAlado", "dardifago", "macacoEsporos", "tartaragarra"],
-  ["rastejanteMata", "saqueadorEscoria", "couracadoHematita", "saltadorAlado", "garravinha", "sabotadorOxido", "dardifago", "macacoEsporos", "tartaragarra"],
-  ["couracadoHematita", "garravinha", "sabotadorOxido", "dardifago", "macacoEsporos", "tartaragarra"],
+  ["rastejanteMata"],
+  ["rastejanteMata", "saltadorAlado"],
+  ["rastejanteMata", "macacoEsporos"],
+  ["rastejanteMata", "garravinha", "macacoEsporos"],
+  ["rastejanteMata", "garravinha", "tartaragarra", "macacoEsporos"],
+  ["garravinha", "saltadorAlado", "dardifago", "macacoEsporos", "tartaragarra"],
+  ["rastejanteMata", "saltadorAlado", "garravinha", "dardifago", "macacoEsporos", "tartaragarra"],
+  ["rastejanteMata", "saltadorAlado", "garravinha", "dardifago", "macacoEsporos", "tartaragarra"],
 ];
 
 const packet = (id, atMs, units, routeStrategy = "split", fixedRows) => ({ id, atMs,
-  units: units.map(([type, count]) => ({ type, count, intervalMs: 220 })), routeStrategy, ...(fixedRows ? { fixedRows } : {}) });
+  units: units.map(([type, count, intervalMs = 220]) => ({ type, count, intervalMs })), routeStrategy, ...(fixedRows ? { fixedRows } : {}) });
 
 function createSector(phaseIndex, sectorIndex) {
   const pool = POOLS[phaseIndex];
@@ -43,7 +43,10 @@ function createSector(phaseIndex, sectorIndex) {
       { type: "saltadorAlado", count: 1, intervalMs: 220, delayMs: 900, xOffsetTiles: .25 },
     ], routeStrategy: "scripted", fixedRows: [1, 3],
   });
-  if (phaseIndex === 7 && sectorIndex === 3) packets.unshift(packet("terminal-boss", 4000, [["marechalForja", 1]], "scripted", [0]));
+  if (phaseIndex >= 1) {
+    packets.push(packet(`p${phaseIndex + 49}s${sectorIndex + 1}larvas`, 18500,
+      [["larvaRaizFerro", Math.min(10, 5 + Math.floor(phaseIndex / 2)), 110]], "spread"));
+  }
   const warningAtMs = Math.max(38000, 62000 - phaseIndex * 3000);
   const startsAtMs = warningAtMs + 12000;
   return {
@@ -53,7 +56,7 @@ function createSector(phaseIndex, sectorIndex) {
     reinforcement: { warningAtMs, startsAtMs,
       intervalMs: phaseIndex >= 5 ? 300000 : Math.max(14000, 22000 - phaseIndex * 700),
       maxAliveEnemies: phaseIndex >= 5 ? 14 : 18 + phaseIndex * 2,
-      packetPool: pool.map((type, index) => packet(`reinforcement-${index}`, 0, [[type, ["couracadoHematita", "tartaragarra", "garravinha"].includes(type) ? 1 : 2]], "focused")) },
+      packetPool: pool.map((type, index) => packet(`reinforcement-${index}`, 0, [[type, ["tartaragarra", "garravinha"].includes(type) ? 1 : 2]], "focused")) },
   };
 }
 
@@ -98,8 +101,17 @@ export const CHAPTER_SEVEN_PHASES = deepFreeze(Array.from({ length: 8 }, (_, ind
       { fragile: .1, ferrivore: .4, mineralized: .3, spores: .2 },
     ][index],
   },
-  boss: index === 7,
-  ...(index === 7 ? { bossEncounter: { completionPolicy: "objective", objective: "convoyDestination", bossType: "marechalForja" } } : {}),
+  treeBrood: [
+    { enabled: false, maxActiveBroodLarvae: 0 },
+    { enabled: false, maxActiveBroodLarvae: 0 },
+    { enabled: false, maxActiveBroodLarvae: 0 },
+    { enabled: true, maxActiveBroodLarvae: 3 },
+    { enabled: true, maxActiveBroodLarvae: 4 },
+    { enabled: true, maxActiveBroodLarvae: 5 },
+    { enabled: true, maxActiveBroodLarvae: 6 },
+    { enabled: true, maxActiveBroodLarvae: 8 },
+  ][index],
+  effectAssetDependencies: index >= 3 ? ["treeBroodBurst"] : [],
 })));
 
 export const CHAPTER_SEVEN_PHASE_IDS = Object.freeze(CHAPTER_SEVEN_PHASES.map((phase) => phase.id));

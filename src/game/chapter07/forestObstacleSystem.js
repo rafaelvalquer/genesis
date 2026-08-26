@@ -1,5 +1,6 @@
 import { CELL } from "../visualGeometry.js";
 import { getForestObstacleType } from "./forestObstacleConfig.js";
+import { tryTriggerTreeBrood } from "./treeBroodSystem.js";
 
 export function getForestObstacleDamageStage(tree) {
   if (!tree || tree.hp <= 0) return "destroyed";
@@ -59,5 +60,6 @@ export function damageForestObstacle(session, tree, amount, events = [], stunEne
   metric(session, "forestDamageReceived", applied);
   events.push({ type: "forestObstacleHit", targetId: tree.id, x: tree.x, y: tree.y, amount: Math.round(applied), stage: nextStage, stageChanged });
   if (tree.hp <= 0) destroyForestObstacle(session, tree, events, stunEnemy);
+  else tryTriggerTreeBrood(session, tree, { damage: applied }, events);
   return applied;
 }

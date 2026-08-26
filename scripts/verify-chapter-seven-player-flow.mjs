@@ -191,17 +191,7 @@ async function playChapterSeven(label, initialState) {
     );
 
     if (phase.id === "fase_56") {
-      assert(
-        phase.bossEncounter?.bossType === "marechalForja"
-          && phase.sectors.some((sector) => (
-            sector.openingPackets.some((packet) => (
-              packet.units.some((unit) => (
-                unit.type === "marechalForja"
-              ))
-            ))
-          )),
-        "F56 não contém o encontro final com o Marechal da Forja",
-      );
+      assert(!phase.bossEncounter && phase.boss !== true, "F56 deve ser objetivo de comboio sem boss");
     }
 
     save = recordBattleResult(

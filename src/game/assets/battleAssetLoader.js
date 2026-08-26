@@ -279,6 +279,17 @@ export async function loadBattleAssets(
   }
 
   for (const effectId of effectDependencies) {
+    if (effectId === "treeBroodBurst") {
+      const entries = Object.entries(effectFrameModules)
+        .filter(([key]) => key.includes(`/effects/${effectId}/frame`))
+        .sort(([left], [right]) => frameNumber(left) - frameNumber(right));
+      result.effects[effectId] = {};
+      tasks.push(async () => {
+        const urls = await Promise.all(entries.map(([, load]) => load()));
+        result.effects[effectId].burst = await Promise.all(urls.map((url) => loadDecodedImage(url, options.signal, retainedKeys)));
+      });
+      continue;
+    }
     const states = statesForFolder(
       effectFrameModules,
       effectId,

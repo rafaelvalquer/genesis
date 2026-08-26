@@ -837,6 +837,21 @@ function drawSandstormTroopEffects(ctx, troop, session, assets, settings, visual
   ctx.restore();
 }
 
+function drawTreeBroodBursts(ctx, runtime, assets, now, settings) {
+  const frames = assets.effects?.treeBroodBurst?.burst || [];
+  if (!frames.length) return;
+  for (const burst of runtime.broodBursts || []) {
+    const progress = Math.min(.999, Math.max(0, (now - burst.born) / burst.life));
+    const image = frames[Math.min(frames.length - 1, Math.floor(progress * frames.length))];
+    if (!image) continue;
+    const size = 128;
+    ctx.save();
+    ctx.globalAlpha = settings.reduceMotion ? .55 : 1 - progress * .35;
+    ctx.drawImage(image, burst.x - size / 2, burst.y - size * .2, size, size);
+    ctx.restore();
+  }
+}
+
 function drawPhysicalStunEffect(ctx, troop, elapsed, settings) {
   if (elapsed >= (troop.controlStunnedUntil || 0)) return;
   const pulse = settings.reduceMotion ? 0 : Math.sin(elapsed / 95) * 2;
@@ -1665,6 +1680,7 @@ function drawEmissiveBattle(
   drawProjectileCollection(ctx, session.enemyProjectiles, interpolation, settings, projectileAssets);
   drawSporeFruitEmissive(ctx, session.sporeFruits, session.elapsed, settings);
   drawSporeClouds(ctx, session.sporeClouds, session.elapsed, settings);
+  drawTreeBroodBursts(ctx, runtime, assets, now, settings);
   drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
   drawAdaptiveAid(ctx, session, assets, session.elapsed, settings);
   if (dematerializationEnabled) drawPulseDisintegrations(ctx, runtime, assets, now, settings);
@@ -1766,6 +1782,7 @@ function drawBattle(layers, layerConfig, session, assets, particlesRef, runtime,
   drawWindEffects(overlayCtx, runtime, now, settings, assets.effects?.windCurrent);
   drawConvoyImpacts(overlayCtx, runtime.convoyImpacts, now, settings);
   drawAdaptiveAid(overlayCtx, session, assets, session.elapsed, settings);
+  drawTreeBroodBursts(overlayCtx, runtime, assets, now, settings);
   if (dematerializationEnabled) drawPulseDisintegrations(overlayCtx, runtime, assets, now, settings);
   drawDeploymentEffects(overlayCtx, runtime, now, settings);
   drawTartaragarraEffects(overlayCtx, session, session.elapsed, settings);
@@ -2268,6 +2285,10 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
         if (events.some((event) => event.type === "convoyDestroyed")) play("convoyDestruction", .85);
         if (events.some((event) => event.type === "convoyEvacuated")) play("convoyEvacuation", .85);
         if (events.some((event) => event.type === "rastejanteBite")) play("rastejanteBite", .35);
+        if (events.some((event) => event.type === "treeBroodTriggered")) play("treeBroodOpen", .32);
+        if (events.some((event) => event.type === "treeLarvaSpawned")) play("larvaEmerge", .18);
+        if (events.some((event) => event.type === "melee" && event.sourceEnemyId === "larvaRaizFerro")) play("larvaAttack", .16);
+        if (events.some((event) => event.type === "enemyDeath" && event.entity?.type === "larvaRaizFerro")) play("larvaDeath", .12);
         if (events.some((event) => event.type === "rastejanteFrenzyChanged" && event.frenzyLevel === 2)) play("rastejanteFrenzy", .45);
         if (events.some((event) => event.type === "saltadorJumpStart")) play("saltadorJump", .32);
         if (events.some((event) => event.type === "saltadorJumpLand")) play("saltadorLand", .28);

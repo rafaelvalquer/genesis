@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAPTERS, PHASES, TROOPS } from "../content.js";
+import { CHAPTERS, ENEMIES, PHASES, TROOPS } from "../content.js";
 import { buildSpawnQueue, choosePacketRows, createRng } from "../domain.js";
 import { canPlaceTroop, createBattleSession, FIELD, getSnapshot, getTroopDeploymentLimit, placeTroop, repositionTroop, setEnergyPickupPointer, startWave, stepBattle, updateEnergyPickups, validateLoadoutForPhase } from "../battleModel.js";
 import { getAvailableTroopsForPhase, getCombatRows, getDefaultTroopDeploymentLimit, isSystemEnabledForPhase, isTroopAllowedForPhase, sanitizeLoadoutForPhase } from "../phaseRules.js";
@@ -15,11 +15,30 @@ import { getConvoyColumn } from "./convoyGeometry.js";
 import { getConvoyEntryX, getConvoyRouteStartX } from "./convoyGeometry.js";
 import { StrategicAgent } from "../simulation/ai/StrategicAgent.js";
 import { getConvoyContainmentStatus } from "./convoyContainmentStatus.js";
+import { CHAPTER_SEVEN_ENEMY_IDS } from "../chapterSevenEnemies.js";
 
 const phase49 = PHASES.find((phase) => phase.id === "fase_49");
 const phase56 = PHASES.find((phase) => phase.id === "fase_56");
 
 describe("Chapter 7 structural contract", () => {
+  it("keeps every opening and reinforcement unit in the registered enemy roster", () => {
+    const enemyIds = new Set(Object.keys(ENEMIES));
+    for (const phase of PHASES.filter((entry) => entry.chapterId === "chapter_07")) {
+      for (const sector of phase.sectors) {
+        for (const packet of [...(sector.openingPackets || []), ...(sector.reinforcement?.packetPool || [])]) {
+          for (const unit of packet.units || []) expect(enemyIds.has(unit.type)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("keeps phase 56 as a convoy-only objective", () => {
+    expect(phase56.bossEncounter).toBeUndefined();
+    expect(phase56.boss).toBeUndefined();
+    expect(phase56.sectors.flatMap((sector) => sector.openingPackets || [])
+      .flatMap((packet) => packet.units || []).every((unit) => CHAPTER_SEVEN_ENEMY_IDS.includes(unit.type))).toBe(true);
+  });
+
   it("derives the transport containment module without mutating the session", () => {
     const session = createBattleSession(phase49, ["colono"], 7);
     session.convoyFlow.state = "sectorActive";
@@ -33,17 +52,17 @@ describe("Chapter 7 structural contract", () => {
     expect(status.checkpointProgress).toEqual([.25, .5, .75]);
   });
   it("ships final roster, convoy and audio assets", () => {
-    const enemyFrames = import.meta.glob("../assets/enemy/{legionaroFerrugem,rastejanteMata,saqueadorEscoria,couracadoHematita,cacadorComboio,saltadorAlado,macacoEsporos,sabotadorOxido,atiradorRavina,marechalForja}/{idle,walking,attack}/frame*.png");
-    const concepts = import.meta.glob("../assets/enemy/concepts/{legionaroFerrugem,saqueadorEscoria,couracadoHematita,cacadorComboio,sabotadorOxido,atiradorRavina,marechalForja}.webp");
+    const enemyFrames = import.meta.glob("../assets/enemy/*/{idle,walking,attack}/frame*.png");
     const audio = import.meta.glob("../assets/sfx/c7_*.wav");
     const convoy = import.meta.glob("../assets/chapter07/convoy.png");
-    expect(Object.keys(enemyFrames)).toHaveLength(240);
-    expect(Object.keys(concepts)).toHaveLength(7);
+    for (const enemyId of CHAPTER_SEVEN_ENEMY_IDS) {
+      expect(Object.keys(enemyFrames).some((key) => key.includes(`/enemy/${enemyId}/`))).toBe(true);
+    }
     expect(Object.keys(import.meta.glob("../assets/enemy/rastejanteMata/{idle,walking,attack}/frame*.png"))).toHaveLength(24);
     expect(Object.keys(import.meta.glob("../assets/enemy/saltadorAlado/{idle,walking,attack,jumpPrep,jumpAir,jumpLand,rasante}/frame*.png"))).toHaveLength(46);
     expect(Object.keys(import.meta.glob("../assets/enemy/macacoEsporos/{idle,walking,attack,sporeThrow}/frame*.png"))).toHaveLength(32);
     expect(Object.keys(import.meta.glob("../assets/enemy/garravinha/{idle,walking,attack,latchPrep,latchLeap,latched,death}/frame*.png"))).toHaveLength(52);
-    expect(Object.keys(audio)).toHaveLength(20);
+    expect(Object.keys(audio)).toHaveLength(24);
     expect(Object.keys(convoy)).toHaveLength(1);
     const pioneiroFrames = import.meta.glob("../assets/convoy/tr7_pioneiro/*/*.webp");
     expect(Object.keys(pioneiroFrames)).toHaveLength(30);
@@ -330,7 +349,7 @@ describe("Convoy systems", () => {
 
   it("scenario C: checkpoint clearing cannot advance while a combat threat remains", () => {
     const session = createBattleSession(phase49, ["colono"], 72);
-    session.enemies = [{ id: "threat", type: "legionaroFerrugem", hp: 1, dead: false }];
+    session.enemies = [{ id: "threat", type: "rastejanteMata", hp: 1, dead: false }];
     session.convoyFlow.state = "checkpointDecision";
     session.convoyFlow.checkpointOptionChosen = false;
     expect(enterCheckpointPreparation(session)).toBe(false);
@@ -358,14 +377,14 @@ describe("Convoy systems", () => {
     expect(baseDefeat.outcome).toBe("defeat");
   });
 
-  it("scenario F: a living boss does not block destination victory", () => {
+  it("scenario F: a living enemy does not block destination victory", () => {
     const session = createBattleSession(phase49, ["colono"], 75);
     session.convoyFlow.state = "sectorActive";
     session.convoyFlow.sectorIndex = 3;
     session.convoy.entryState = "active";
     session.convoy.escorted = true;
     session.convoy.x = session.convoy.destinationX - session.convoy.speedPxPerSecond;
-    session.enemies = [{ id: "boss", type: "marechalForja", hp: 9999, dead: false }];
+    session.enemies = [{ id: "enemy", type: "rastejanteMata", hp: 9999, dead: false }];
     expect(session.convoyFlow.state).toBe("sectorActive");
     expect(session.enemies[0].dead).toBe(false);
   });
@@ -388,19 +407,4 @@ describe("Convoy systems", () => {
     expect(session.mineReservations).toEqual([]);
   });
 
-  it("keeps a boss hunter settled at the final checkpoint instead of oscillating", () => {
-    const session = createBattleSession(phase56, ["cacadorLeviatas", "colono", "droneSentinela", "sniper"], 77);
-    const col = getConvoyColumn(session.convoy);
-    const firingCol = FIELD.firstTroopCol + 3;
-    session.convoyFlow.state = "checkpointPreparation";
-    session.convoyFlow.reachedCheckpointCount = 3;
-    session.troops = [
-      { id: "hunter", type: "cacadorLeviatas", row: 0, col: firingCol, hp: 100, dead: false },
-      { id: "lane-shot", type: "sniper", row: 1, col: firingCol, hp: 100, dead: false },
-      { id: "escort-a", type: "colono", row: 1, col: Math.min(FIELD.lastTroopCol, col + 1), hp: 100, dead: false },
-      { id: "escort-b", type: "droneSentinela", row: 3, col: Math.min(FIELD.lastTroopCol, col + 1), hp: 100, dead: false },
-    ];
-    const agent = new StrategicAgent({ phase: phase56, phaseForecast: {}, profile: {}, config: {} });
-    expect(agent.planConvoyReposition(session)).toEqual([]);
-  });
 });

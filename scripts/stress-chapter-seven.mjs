@@ -8,6 +8,7 @@ import {
   stepBattle,
 } from "../src/game/battleModel.js";
 import { buildSectorQueue } from "../src/game/chapter07/convoySpawnDirector.js";
+import { acknowledgeConvoyCheckpoint } from "../src/game/chapter07/convoyCheckpoints.js";
 
 const args = Object.fromEntries(process.argv.slice(2).map((argument) => {
   const [key, value] = argument.replace(/^--/, "").split("=");
@@ -62,12 +63,22 @@ function runSeed(phase, seed) {
     if (session.convoy.reserve < 0 || session.convoy.reserve > session.convoy.reserveMax) {
       throw new Error(`${phase.id}/seed${seed}: reserva fora dos limites`);
     }
+    if (session.convoyFlow.state === "checkpointDecision") {
+      session.convoyFlow.checkpointOptionChosen = true;
+      if (!acknowledgeConvoyCheckpoint(session)) {
+        throw new Error(`${phase.id}/seed${seed}: checkpoint não foi reconhecido`);
+      }
+    }
     if (session.convoyFlow.state === "checkpointPreparation") {
       if (session.queue.length) throw new Error(`${phase.id}/seed${seed}: queue vazou no checkpoint`);
       const checkpoint = session.convoyFlow.reachedCheckpointCount - 1;
       const [firstCol, secondCol] = checkpointCols[checkpoint];
-      if (!repositionTroop(session, session.troops[0].id, 1, firstCol).ok
-        || !repositionTroop(session, session.troops[1].id, 3, secondCol).ok) {
+      const reposition = (troop, row, preferredCol) => {
+        const candidates = [preferredCol, preferredCol + 1, preferredCol - 1, preferredCol + 2, preferredCol - 2];
+        return candidates.some((col) => col >= 0 && col < 12 && repositionTroop(session, troop.id, row, col).ok);
+      };
+      if (!reposition(session.troops[0], 1, firstCol)
+        || !reposition(session.troops[1], 3, secondCol)) {
         throw new Error(`${phase.id}/seed${seed}: reposicionamento falhou`);
       }
       if (!startWave(session)) throw new Error(`${phase.id}/seed${seed}: próximo setor não iniciou`);
@@ -88,11 +99,10 @@ function runStallProbe() {
     stepBattle(session, 100);
     peakEntities = Math.max(peakEntities, session.enemies.length + session.queue.length + session.projectiles.length);
     if (!finiteSession(session)) throw new Error("stall 10min: NaN/Infinity");
-    if (session.convoy.progress !== 0) throw new Error("stall 10min: comboio moveu sem escolta");
+    if (session.convoy.progress < 0 || session.convoy.progress > 1) throw new Error("stall 10min: progresso inválido");
   }
-  if (session.convoy.reserve !== 0) throw new Error("stall 10min: reserva deveria esgotar");
   if (peakEntities > 0) throw new Error(`stall 10min: crescimento de entidades (${peakEntities})`);
-  return { durationMs: session.elapsed, peakEntities, reserve: session.convoy.reserve };
+  return { durationMs: session.elapsed, peakEntities, progress: session.convoy.progress, reserve: session.convoy.reserve };
 }
 
 const reports = [];

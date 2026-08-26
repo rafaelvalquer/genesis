@@ -47,24 +47,6 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
     color: "#a85d38", previewState: "idle",
     description: "Tanque ancestral de casco fossilizado que abre espaço com uma investida telegráfica.",
   }),
-  legionaroFerrugem: enemy("legionaroFerrugem", "Legionário Ferrugem", "Soldado de linha", {
-    hp: 38, speed: 29, damage: 5, baseDamage: 10, threat: 14, color: "#c26a3d",
-    description: "Infante Ferruginoso disciplinado que avança pelas rotas de combate.",
-  }),
-  saqueadorEscoria: enemy("saqueadorEscoria", "Saqueador de Escória", "Raider rápido", {
-    hp: 24, speed: 47, damage: 4, attackEveryMs: 760, baseDamage: 8, threat: 17, scale: .88, color: "#e8793f",
-    description: "Raider veloz que explora lacunas na patrulha móvel.",
-  }),
-  couracadoHematita: enemy("couracadoHematita", "Couraçado Hematita", "Blindado pesado", {
-    hp: 150, speed: 16, damage: 10, attackEveryMs: 1750, baseDamage: 24, threat: 40,
-    armorClass: "heavy", armorDamageFactor: .65, scale: 1.28, color: "#7a4b3a",
-    description: "Aríete blindado que sustenta pressão prolongada contra a defesa.",
-  }),
-  cacadorComboio: enemy("cacadorComboio", "Caçador de Comboio", "Especialista antitransporte", {
-    hp: 56, speed: 34, damage: 7, attackEveryMs: 1050, baseDamage: 12, threat: 31,
-    convoyDamageFactor: .05, convoyAttackRangeTiles: 1.15, color: "#fb7185",
-    description: "Predador lateral treinado para imobilizar e destruir transportes logísticos.",
-  }),
   garravinha: enemy("garravinha", "Garravinha", "Especialista antitransporte", {
     hp: 72, speed: 36, damage: 6, attackEveryMs: 1200, baseDamage: 12, threat: 38, scale: .95,
     convoyAttackRangeTiles: 1.2,
@@ -80,16 +62,6 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
     previewState: "idle", color: "#c65a33",
     description: "Parasita saltador que ignora a linha para agarrar o transporte e criar uma urgência emergencial.",
   }),
-  sabotadorOxido: enemy("sabotadorOxido", "Sabotador Óxido", "Suporte e sabotagem", {
-    hp: 48, speed: 25, damage: 6, attackEveryMs: 1350, baseDamage: 11, threat: 27, color: "#d6a756",
-    escortDisruptionMs: 1800,
-    description: "Operador hostil que interrompe temporariamente unidades de escolta.",
-  }),
-  atiradorRavina: enemy("atiradorRavina", "Atirador da Ravina", "Ameaça de rota externa", {
-    hp: 44, speed: 21, damage: 6, attackEveryMs: 1550, baseDamage: 13, threat: 29,
-    canTargetConvoyFromOuterRow: true, convoyAttackRangeTiles: 1.45, color: "#67e8f9",
-    description: "Atirador de flanco capaz de alcançar o transporte a partir das rotas externas.",
-  }),
   dardifago: enemy("dardifago", "Dardífago", "Artilharia da floresta", {
     hp: 46, speed: 19, damage: 8, baseDamage: 14, attackEveryMs: 1850, threat: 33, scale: 1.02,
     canTargetConvoyFromOuterRow: true, convoyAttackRangeTiles: 4.4,
@@ -104,11 +76,15 @@ export const CHAPTER_SEVEN_ENEMIES = Object.freeze({
     effectDependencies: ["dardifagoDart"], allowedRows: [0, 4], previewState: "idle", color: "#8ca64b",
     description: "Artilharia biológica das rotas externas que dispara espinhos vertebrais contra a escolta e o transporte.",
   }),
-  marechalForja: enemy("marechalForja", "Marechal da Forja", "Chefe Ferruginoso", {
-    hp: 1800, speed: 13, damage: 14, attackEveryMs: 1400, baseDamage: 42, threat: 280,
-    boss: true, elite: true, armorClass: "heavy", armorDamageFactor: .55, scale: 1.75,
-    canTargetConvoyFromOuterRow: true, convoyAttackRangeTiles: 1.6, convoyDamageFactor: .04,
-    color: "#facc15", description: "Comandante da evacuação inimiga; convoca reforços enquanto caça o comboio.",
+  larvaRaizFerro: enemy("larvaRaizFerro", "Larva de Raiz-Ferro", "Enxame / Assédio", {
+    hp: 14, speed: 50, damage: 3, attackEveryMs: 720, attackRangeTiles: .48,
+    baseDamage: 5, threat: 6, scale: .58, canAttackConvoy: false,
+    countsAsConvoyThreatOnPresence: false, convoyDamageFactor: 0, color: "#b96536",
+    animationFrameMs: { idle: 130, walking: 70, attack: 70, emerge: 90, death: 110 },
+    attackVisual: { durationMs: 420, impactMs: 210 }, emergeVisual: { durationMs: 720 },
+    deathVisual: { durationMs: 660, corpseHoldMs: 180 },
+    assetStates: ["idle", "walking", "attack", "emerge", "death"], previewState: "walking",
+    description: "Larva rastejante das raízes ferruginosas. Frágil individualmente, mas perigosa quando emerge em grandes enxames.",
   }),
 });
 

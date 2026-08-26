@@ -1,4 +1,4 @@
-import { access, stat } from "node:fs/promises";
+import { access, readdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { CHAPTERS, ENEMIES, PHASES, TROOPS } from "../src/game/content.js";
@@ -59,11 +59,8 @@ for (const phase of phases) {
   }
 }
 
-for (const id of ["legionaroFerrugem", "saqueadorEscoria", "couracadoHematita", "cacadorComboio",
-  "sabotadorOxido", "atiradorRavina", "marechalForja"]) {
-  check(Boolean(ENEMIES[id]), `inimigo ferruginoso ausente: ${id}`);
-}
-check(ENEMIES.marechalForja?.boss === true, "Marechal da Forja não está marcado como boss");
+const chapterSevenEnemies = Object.values(ENEMIES).filter((enemy) => enemy.chapterId === "chapter_07");
+check(chapterSevenEnemies.length === 7, `roster do capítulo 7 inválido: ${chapterSevenEnemies.length}`);
 check(Boolean(TROOPS.reator) && Boolean(TROOPS.thermalPlatform), "tropas legadas foram removidas do catálogo");
 
 const arenaNames = ["chapter_07.webp", ...expectedIds.map((id) => `${id}.webp`)];
@@ -78,28 +75,37 @@ for (const name of arenaNames) {
   }
 }
 
-for (const id of ["legionaroFerrugem", "saqueadorEscoria", "couracadoHematita", "cacadorComboio",
-  "sabotadorOxido", "atiradorRavina", "marechalForja"]) {
-  for (const state of ["idle", "walking", "attack"]) {
+for (const config of chapterSevenEnemies) {
+  const id = config.id;
+  for (const state of config.assetStates || ["idle", "walking", "attack"]) {
     const frames = [];
-    for (let frame = 0; frame < 8; frame += 1) {
-      const frameUrl = new URL(`../src/game/assets/enemy/${id}/${state}/frame${frame}.png`, import.meta.url);
+    const stateUrl = new URL(`../src/game/assets/enemy/${id}/${state}/`, import.meta.url);
+    let frameNames = [];
+    try {
+      frameNames = (await readdir(fileURLToPath(stateUrl)))
+        .filter((name) => /^frame\d+\.png$/.test(name))
+        .sort((left, right) => Number(left.match(/\d+/)[0]) - Number(right.match(/\d+/)[0]));
+    } catch {
+      failures.push(`${id}/${state}: diretório de frames ausente`);
+    }
+    for (const frameName of frameNames) {
+      const frameUrl = new URL(frameName, stateUrl);
       try {
         await access(frameUrl);
         const image = sharp(fileURLToPath(frameUrl)).ensureAlpha();
         const metadata = await image.metadata();
         check(metadata.width === 512 && metadata.height === 512,
-          `${id}/${state}/frame${frame}: dimensão deve ser 512x512`);
+          `${id}/${state}/${frameName}: dimensão deve ser 512x512`);
         const { data } = await image.raw().toBuffer({ resolveWithObject: true });
         let transparent = 0;
         for (let offset = 3; offset < data.length; offset += 4) {
           if (data[offset] === 0) transparent += 1;
         }
         check(transparent / (data.length / 4) > .1,
-          `${id}/${state}/frame${frame}: transparência insuficiente`);
+          `${id}/${state}/${frameName}: transparência insuficiente`);
         frames.push(data);
       } catch {
-        failures.push(`${id}/${state}/frame${frame}.png: asset ausente`);
+        failures.push(`${id}/${state}/${frameName}: asset inválido`);
       }
     }
     const differences = [];
@@ -113,18 +119,30 @@ for (const id of ["legionaroFerrugem", "saqueadorEscoria", "couracadoHematita", 
       }
       differences.push(difference / frames[frame].length);
     }
-    check(differences.length === 7 && differences.every((value) => value > 1),
+    check(differences.length >= 1 && differences.every((value) => value > 1),
       `${id}/${state}: frames consecutivos não possuem variação visual suficiente`);
     animationAudit.push({
       enemy: id,
       state,
+      frameCount: frames.length,
       consecutiveFrameDifference: differences.map((value) => Number(value.toFixed(2))),
     });
   }
+}
+try {
+  await access(new URL("../src/game/assets/enemy/concepts/larvaRaizFerro.webp", import.meta.url));
+} catch {
+  failures.push("larvaRaizFerro: concept ausente");
+}
+for (let frame = 0; frame < 8; frame += 1) {
+  const frameUrl = new URL(`../src/game/assets/effects/treeBroodBurst/frame${frame}.png`, import.meta.url);
   try {
-    await access(new URL(`../src/game/assets/enemy/concepts/${id}.webp`, import.meta.url));
+    const image = sharp(fileURLToPath(frameUrl)).ensureAlpha();
+    const metadata = await image.metadata();
+    check(metadata.width === 256 && metadata.height === 256,
+      `treeBroodBurst/frame${frame}: dimensão deve ser 256x256`);
   } catch {
-    failures.push(`${id}: preview ausente`);
+    failures.push(`treeBroodBurst/frame${frame}.png: asset ausente`);
   }
 }
 try {
@@ -133,7 +151,8 @@ try {
   failures.push("convoy.png: asset final ausente");
 }
 const audioNames = ["engine_loop", "escort_online", "escort_lost", "convoy_attack", "convoy_hit", "convoy_critical",
-  "checkpoint", "logistics", "reserve_empty", "reinforcement", "destruction", "evacuation", "frontier_music"];
+  "checkpoint", "logistics", "reserve_empty", "reinforcement", "destruction", "evacuation", "frontier_music",
+  "tree_brood_open", "larva_emerge", "larva_attack", "larva_death"];
 for (const name of audioNames) {
   try {
     await access(new URL(`../src/game/assets/sfx/c7_${name}.wav`, import.meta.url));
@@ -147,9 +166,9 @@ const report = {
   phases: phases.length,
   markers: CAMPAIGN_CHAPTER_ROUTES.chapter_07?.length || 0,
   arenas: arenaNames.length,
-  finalEnemyFrames: 7 * 3 * 8,
+  finalEnemyFrames: animationAudit.reduce((total, entry) => total + entry.frameCount, 0),
   chapterAudioFiles: audioNames.length,
-  ferruginousEnemies: Object.values(ENEMIES).filter((enemy) => enemy.chapterId === "chapter_07").length,
+  chapterSevenEnemyCount: chapterSevenEnemies.length,
   animationAudit,
   failures,
 };

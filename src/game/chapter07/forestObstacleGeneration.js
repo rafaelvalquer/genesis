@@ -61,6 +61,7 @@ export function createForestObstacle(entry, index = 0) {
     hitShakeUntil: 0,
     destroyedAt: null,
     deathEffectTriggered: false,
+    brood: { spawnedCount: 0, nextRollAt: 0 },
     flipX: Boolean(entry.flipX),
     scale: Number(entry.scale) || 1,
   };
