@@ -177,6 +177,7 @@ import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.
 import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.js";
 import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
 import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
+import { findFirstForestObstacleCollision } from "../chapter07/forestObstacleCollision.js";
 
 export {
   createWindCurrentState,
@@ -4555,6 +4556,20 @@ function applyCryoShock(session, projectile, target, events) {
   });
 }
 
+function resolveProjectileTarget(session, projectile) {
+  if (projectile.targetKind === "forestObstacle") {
+    return session.forestObstacles?.find((tree) => tree.id === projectile.targetId) || null;
+  }
+  return indexedEnemyById(session, projectile.targetId);
+}
+
+function resolveProjectileTargetPoint(projectile, entity) {
+  if (projectile.targetKind === "forestObstacle") {
+    return entity?.alive ? getForestObstacleHitPoint(entity) : { x: projectile.targetX, y: projectile.targetY };
+  }
+  return entity ? getEnemyHitPoint(entity, ENEMIES[entity.type]) : null;
+}
+
 function updateProjectiles(session, dt, events) {
   for (const projectile of session.projectiles) {
     if (!projectile.active) continue;
@@ -4989,11 +5004,10 @@ function updateProjectiles(session, dt, events) {
     }
     let target;
     if (projectile.kind === "cryoJet") {
-      target = projectile.targetKind === "forestObstacle"
-        ? session.forestObstacles?.find((tree) => tree.id === projectile.targetId)
-          || { id: projectile.targetId, alive: false, x: projectile.targetX, y: projectile.targetY }
-        : indexedEnemyById(session, projectile.targetId);
-      if (!isEnemyTargetable(target) || !enemyOccupiesTargetRow(target, projectile.row)) target = null;
+      target = resolveProjectileTarget(session, projectile);
+      if (projectile.targetKind === "forestObstacle") {
+        target ||= { id: projectile.targetId, alive: false, x: projectile.targetX, y: projectile.targetY };
+      } else if (!isEnemyTargetable(target) || !enemyOccupiesTargetRow(target, projectile.row)) target = null;
     } else if (projectile.straightLane) {
       target = null;
       for (const enemy of enemiesForRow(session, projectile.row)) {
@@ -5001,7 +5015,7 @@ function updateProjectiles(session, dt, events) {
         if (!target || enemy.x < target.x) target = enemy;
       }
     } else {
-      target = indexedEnemyById(session, projectile.targetId);
+      target = resolveProjectileTarget(session, projectile);
       if (!isEnemyTargetable(target)) target = null;
       if (!target) {
         let closestDistanceSquared = Infinity;
@@ -5017,9 +5031,7 @@ function updateProjectiles(session, dt, events) {
         }
       }
     }
-    const targetPoint = target
-      ? projectile.targetKind === "forestObstacle" ? getForestObstacleHitPoint(target) : getEnemyHitPoint(target, ENEMIES[target.type])
-      : (projectile.targetKind === "forestObstacle" ? { x: projectile.targetX, y: projectile.targetY } : null);
+    const targetPoint = resolveProjectileTargetPoint(projectile, target);
     if (projectile.kind === "missile" && target) {
       const angle = Math.atan2(targetPoint.y - projectile.y, targetPoint.x - projectile.x);
       projectile.vx += (Math.cos(angle) * 250 - projectile.vx) * 0.08;
@@ -5064,9 +5076,25 @@ function updateProjectiles(session, dt, events) {
         projectile.nextFireSmokeAt += 160;
       }
     }
+    if (projectile.straightLane) {
+      const tree = findFirstForestObstacleCollision(session, projectile);
+      const enemy = session.enemies
+        .filter((entry) => !entry.dead && enemyOccupiesTargetRow(entry, projectile.row)
+          && entry.x >= Math.min(projectile.previousX, projectile.x) - 24
+          && entry.x <= Math.max(projectile.previousX, projectile.x) + 24)
+        .sort((left, right) => left.x - right.x)[0];
+      const first = [tree ? { kind: "forestObstacle", entity: tree } : null, enemy ? { kind: "enemy", entity: enemy } : null]
+        .filter(Boolean).sort((left, right) => left.entity.x - right.entity.x)[0];
+      if (first) {
+        target = first.entity;
+        projectile.targetKind = first.kind;
+        projectile.targetId = first.entity.id;
+      }
+    }
+    const collisionPoint = resolveProjectileTargetPoint(projectile, target) || targetPoint;
     const distanceTravelled = Math.abs(projectile.x - projectile.origin.x);
     const hitTarget = target && (projectile.straightLane
-      ? projectile.previousX <= targetPoint.x + 24 && projectile.x >= targetPoint.x - 24
+      ? projectile.previousX <= collisionPoint.x + 24 && projectile.x >= collisionPoint.x - 24
       : Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y) <= 32);
     if ((!target && !projectile.straightLane) || (distanceTravelled >= projectile.maxDistance && !hitTarget) || projectile.x > FIELD.width + 80 || projectile.y < -30 || projectile.y > FIELD.height + 30) {
       projectile.active = false;
@@ -5075,7 +5103,7 @@ function updateProjectiles(session, dt, events) {
     if (hitTarget) {
       if (projectile.targetKind === "forestObstacle") {
         if (target?.alive) damageForestObstacle(session, target, projectile.damage, events, stunEnemy);
-        events.push({ type: "forestObstacleProjectileImpact", weapon: projectile.visualKind, targetId: projectile.targetId, x: targetPoint.x, y: targetPoint.y, color: projectile.color, seed: projectile.seed });
+        events.push({ type: "forestObstacleProjectileImpact", weapon: projectile.visualKind, targetId: projectile.targetId, x: collisionPoint.x, y: collisionPoint.y, color: projectile.color, seed: projectile.seed });
       } else if (projectile.kind === "missile") {
         const affected = session.enemies.filter((enemy) => !enemy.dead && Math.hypot(enemy.x - target.x, enemy.y - target.y) <= projectile.radius);
         affected.forEach((enemy) => damageEnemy(session, enemy, projectile.damage, events));

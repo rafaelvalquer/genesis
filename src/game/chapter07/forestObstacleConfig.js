@@ -1,10 +1,10 @@
 import { CELL, FIELD } from "../visualGeometry.js";
 
 export const FOREST_OBSTACLE_TYPES = Object.freeze({
-  fragile: Object.freeze({ id: "fragile", label: "Tronco Jovem", hp: 80, spore: false }),
-  ferrivore: Object.freeze({ id: "ferrivore", label: "Árvore Ferrívora", hp: 130, spore: false }),
-  mineralized: Object.freeze({ id: "mineralized", label: "Árvore Mineralizada", hp: 220, spore: false }),
-  spores: Object.freeze({ id: "spores", label: "Árvore de Esporos", hp: 110, spore: true }),
+  fragile: Object.freeze({ id: "fragile", label: "Tronco Jovem", hp: 80, spore: false, collision: { width: 30, height: 72 } }),
+  ferrivore: Object.freeze({ id: "ferrivore", label: "Árvore Ferrívora", hp: 130, spore: false, collision: { width: 42, height: 92 } }),
+  mineralized: Object.freeze({ id: "mineralized", label: "Árvore Mineralizada", hp: 220, spore: false, collision: { width: 54, height: 104 } }),
+  spores: Object.freeze({ id: "spores", label: "Árvore de Esporos", hp: 110, spore: true, collision: { width: 44, height: 94 } }),
 });
 
 const progression = [
