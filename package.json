@@ -12,6 +12,8 @@
     "audit:convoy": "node scripts/validate-convoy-assets.mjs",
     "assets:leviathan-effects": "node scripts/generate-leviathan-effects.mjs",
     "assets:enemy-anchors": "node scripts/generate-enemy-anchors.mjs --write",
+    "assets:dardifago:sheets": "node scripts/build-dardifago-sheets.mjs",
+    "audit:dardifago": "node scripts/validate-dardifago-assets.mjs",
     "assets:chapter2-cartoon-enemies": "node scripts/process-chapter2-cartoon-enemies.mjs",
     "assets:rastejante-mata": "node scripts/process-rastejante-mata-sprites.mjs",
     "assets:saltador-alado": "node scripts/process-saltador-alado-sprites.mjs",

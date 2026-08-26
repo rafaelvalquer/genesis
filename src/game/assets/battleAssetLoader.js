@@ -269,7 +269,7 @@ export async function loadBattleAssets(
   for (const dependency of resolveForestObstacleAssetDependencies(phase)) {
     result.forestObstacles[dependency.type] ||= {};
     if (!dependency.url) continue;
-    tasks.push(async () => {
+    priorityTasks.push(async () => {
       result.forestObstacles[dependency.type][dependency.stage] = await loadDecodedImage(
         dependency.url,
         options.signal,

@@ -7,6 +7,8 @@ export function repositionTroop(session, troopId, row, col, rebuildIndex = () =>
   if (!troop) return { ok: false, reason: "Tropa não encontrada." };
   const phaseReason = getPlacementBlockReasonForPhase(session.phase, row, col, troop.type);
   if (phaseReason) return { ok: false, reason: phaseReason };
+  const forestObstacle = session.forestObstacles?.find((tree) => tree.alive && tree.row === row && tree.col === col);
+  if (forestObstacle) return { ok: false, reason: "Esta célula está bloqueada por uma árvore ferrívora." };
   if (session.troops.some((entry) => entry.id !== troopId && !entry.dead && entry.row === row && entry.col === col)) return { ok: false, reason: "Célula ocupada." };
   troop.row = row; troop.col = col;
   troop.x = col * CELL.width + CELL.width / 2;

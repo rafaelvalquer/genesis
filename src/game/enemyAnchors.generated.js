@@ -69,6 +69,13 @@ export const ENEMY_FRAME_ANCHORS = {
     "idle": repeat({ x: 0.4869, y: 0.8906 }, 8),
     "walking": repeat({ x: 0.4831, y: 0.8867 }, 8),
   },
+  "dardifago": {
+    "dartAttack": repeat({ x: 0.4906, y: 0.7988 }, 8),
+    "death": repeat({ x: 0.484, y: 0.8691 }, 8),
+    "idle": repeat({ x: 0.4875, y: 0.8398 }, 8),
+    "toxicAttack": repeat({ x: 0.4894, y: 0.8516 }, 8),
+    "walking": repeat({ x: 0.4813, y: 0.8301 }, 8),
+  },
   "derivante": {
     "attack": repeat({ x: 0.4784, y: 0.8594 }, 8),
     "death": repeat({ x: 0.4784, y: 0.8594 }, 8),
@@ -386,12 +393,5 @@ export const ENEMY_FRAME_ANCHORS = {
     "attack": repeat({ x: 0.5134, y: 0.9141 }, 8),
     "idle": repeat({ x: 0.5336, y: 0.9102 }, 8),
     "walking": repeat({ x: 0.5129, y: 0.9141 }, 8),
-  },
-  "dardifago": {
-    "dartAttack": repeat({ x: 0, y: 0 }, 8),
-    "death": repeat({ x: 0, y: 0 }, 8),
-    "idle": repeat({ x: 0, y: 0 }, 8),
-    "toxicAttack": repeat({ x: 0, y: 0 }, 8),
-    "walking": repeat({ x: 0, y: 0 }, 8),
   },
 };

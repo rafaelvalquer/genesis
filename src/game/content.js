@@ -1196,6 +1196,7 @@ export const TROOPS = {
     projectileFlightMs: 850,
     projectileArcHeight: 150,
     attack: "mortar",
+    forestInteraction: { canTargetObstacle: false, ignoresCover: true },
     color: "#fbbf24",
     unlockAt: 8,
     idleVisual: {

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { CHAPTER_SEVEN_ENEMIES } from "../chapterSevenEnemies.js";
 import { dardifagoBehavior, selectDardifagoTarget } from "../enemies/chapter07/dardifago.js";
 
@@ -7,11 +9,25 @@ const runtime = (overrides = {}) => ({ elapsed: 0, troops: () => [], convoyX: ()
 const enemy = (row = 0, overrides = {}) => ({ id: "d", type: "dardifago", row, x: 500, y: row * 72 + 36, dead: false, stunnedUntil: 0, ...dardifagoBehavior.createState({ elapsed: 0 }, {}, config), ...overrides });
 
 describe("Dardífago", () => {
+  it("mantém o contrato de arte com oito frames individuais por estado", async () => {
+    const root = path.resolve("src/game/assets/enemy/dardifago");
+    for (const state of config.assetStates) {
+      const files = (await fs.readdir(path.join(root, state))).filter((file) => /^frame[0-7]\.png$/.test(file)).sort();
+      expect(files).toEqual(Array.from({ length: 8 }, (_, frame) => `frame${frame}.png`));
+    }
+  });
+
   it("is configured as an outer-row ranged enemy", () => {
     expect(config.allowedRows).toEqual([0, 4]);
     expect(config.rangedAttack.releaseMs).toBe(480);
     expect(config.rangedAttack.durationMs).toBe(960);
     expect(config.toxinDart.everyShots).toBe(3);
+  });
+
+  it("keeps release timing at the transition from attached frame 3 to detached frame 4", () => {
+    expect(config.rangedAttack.durationMs).toBe(960);
+    expect(config.rangedAttack.releaseMs).toBe(480);
+    expect(config.attackVisual.releaseFrame).toBe(4);
   });
 
   it("targets only the adjacent escort route and prioritizes it over convoy", () => {

@@ -1,13 +1,14 @@
 /** MANTIS V2: spikes-mísseis aderentes com trajetória em arco. */
 
-export function selectMantisTargets(session, troop, config, { enemyOccupiesTargetRow, isEnemyTargetable, cellWidth = 64 }) {
+export function selectMantisTargets(session, troop, config, { enemyOccupiesTargetRow, isEnemyTargetable, cellWidth = 64, forestObstacleX = Infinity }) {
   const maxDistance = config.range * cellWidth;
   return session.enemies
     .filter((enemy) => isEnemyTargetable(enemy)
       && enemyOccupiesTargetRow(enemy, troop.row)
       && enemy.x >= troop.x
-      && enemy.x - troop.x <= maxDistance)
-    .sort((left, right) => right.x - left.x
+      && enemy.x - troop.x <= maxDistance
+      && enemy.x < forestObstacleX)
+    .sort((left, right) => left.x - right.x
       || (Number(right.speed) || 0) - (Number(left.speed) || 0)
       || left.id.localeCompare(right.id))
     .slice(0, Math.max(1, config.maxTargets || config.salvoSize || 3));

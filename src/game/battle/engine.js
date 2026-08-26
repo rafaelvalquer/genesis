@@ -176,7 +176,7 @@ import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setE
 import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.js";
 import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.js";
 import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
-import { getBlockingForestObstacle, getForestObstacleAt } from "../chapter07/forestObstacleTargeting.js";
+import { getBlockingForestObstacle, getForestObstacleAt, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
 
 export {
   createWindCurrentState,
@@ -2436,40 +2436,25 @@ function enemyHitPointForRow(enemy, row, elapsed) {
   return getLeviathanHitPointForRow(enemy, config, row, animation.state, animation.frame);
 }
 
-function closestEnemy(session, troop, config) {
+function resolveTroopTarget(session, troop, config) {
+  const target = resolveForestCombatTarget(session, troop, {
+    ...config,
+    enemyTargetable: (enemy) => canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type]),
+  }, enemiesForRow(session, troop.row));
+  if (target) {
+    if (target.kind === "forestObstacle") session.chapterSevenMetrics.forestCoverBlocks += 1;
+    return target;
+  }
   if (troop.type === "cryo7") {
-    const blockedEnemy = session.enemies
-      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
-        && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
-      .sort((left, right) => left.x - right.x)
-      .map((enemy) => getBlockingForestObstacle(session, troop, enemy))
-      .find(Boolean);
-    if (blockedEnemy) {
-      session.chapterSevenMetrics.forestCoverBlocks += 1;
-      return blockedEnemy;
-    }
-    return selectCryoTarget(session.enemies, troop, config, {
+    const enemy = selectCryoTarget(session.enemies, troop, config, {
       occupiesTargetRow: enemyOccupiesTargetRow,
-      canTarget: (enemy) => canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type]),
-      enemyConfigFor: (enemy) => ENEMIES[enemy.type],
+      canTarget: (entry) => canTroopTargetEnemy(session, troop, config, entry, ENEMIES[entry.type]),
+      enemyConfigFor: (entry) => ENEMIES[entry.type],
       cellWidth: CELL.width,
     });
+    return enemy ? { kind: "enemy", entity: enemy } : null;
   }
-  const originX = attackOriginX(session, troop, config);
-  let closest = null;
-  const rowEnemies = enemiesForRow(session, troop.row);
-  for (const enemy of rowEnemies) {
-    if (!enemyOccupiesTargetRow(enemy, troop.row) || enemy.x < originX
-      || enemy.x - originX > config.range * CELL.width
-      || !canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type])) continue;
-    if (!closest || enemy.x < closest.x) closest = enemy;
-    const blocker = getBlockingForestObstacle(session, troop, enemy);
-    if (blocker) {
-      session.chapterSevenMetrics.forestCoverBlocks += 1;
-      return blocker;
-    }
-  }
-  return closest;
+  return null;
 }
 
 function enemyColumn(enemy) {
@@ -3397,17 +3382,13 @@ function stunTroop(session, troop, durationMs, events) {
 }
 
 function updateFlameChannel(session, troop, config, events, dt) {
-  const getTargets = () => session.enemies
-    .filter((enemy) => !enemy.dead
-      && enemyOccupiesTargetRow(enemy, troop.row)
-      && enemy.x >= troop.x
-      && enemy.x - troop.x <= config.range * CELL.width)
-    .sort((left, right) => left.x - right.x)
-    .slice(0, config.flameMaxTargets ?? 4);
-  const targets = getTargets();
-  const firstEnemy = targets[0];
-  const blocker = firstEnemy ? getBlockingForestObstacle(session, troop, firstEnemy) : null;
-  const attackTargets = blocker ? [blocker] : targets;
+  const resolve = () => resolveTroopTarget(session, troop, config);
+  const firstTarget = resolve();
+  const attackTargets = firstTarget?.kind === "forestObstacle"
+    ? [firstTarget.entity]
+    : session.enemies.filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
+      && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
+      .sort((left, right) => left.x - right.x).slice(0, config.flameMaxTargets ?? 4);
 
   if (!attackTargets.length) {
     if (troop.channelingAttack) {
@@ -3429,9 +3410,12 @@ function updateFlameChannel(session, troop, config, events, dt) {
 
   while (troop.channelTickAccumulator >= config.attackEveryMs) {
     troop.channelTickAccumulator -= config.attackEveryMs;
-    const activeEnemyTargets = getTargets();
-    const activeBlocker = activeEnemyTargets[0] ? getBlockingForestObstacle(session, troop, activeEnemyTargets[0]) : null;
-    const activeTargets = activeBlocker ? [activeBlocker] : activeEnemyTargets;
+    const activeTarget = resolve();
+    const activeTargets = activeTarget?.kind === "forestObstacle"
+      ? [activeTarget.entity]
+      : session.enemies.filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
+        && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
+        .sort((left, right) => left.x - right.x).slice(0, config.flameMaxTargets ?? 4);
     if (!activeTargets.length) break;
     const frameCount = config.attackVisual?.frameMuzzles?.length || 1;
     const animation = getTroopAnimation(troop, config, session.elapsed, { attack: frameCount });
@@ -3453,26 +3437,29 @@ function updateFlameChannel(session, troop, config, events, dt) {
 
 function fireTroop(session, troop, config, target, events) {
   if (target?.kind === "forestObstacle") {
+    const tree = target.entity;
     const damage = config.damage * attackDamageMultiplier(session, troop, { target: null });
-    damageForestObstacle(session, target, damage, events, stunEnemy);
-    events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: target.id, x: target.x, y: target.y, color: config.color });
+    damageForestObstacle(session, tree, damage, events, stunEnemy);
+    events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: tree.id, x: tree.x, y: tree.y, color: config.color });
     return;
   }
+  const enemy = target?.entity || target;
+  if (!enemy) return;
   const damage = config.damage * attackDamageMultiplier(session, troop, {
     explosive: config.attack === "missile" || config.attack === "mortar",
-    target,
+    target: enemy,
   });
   const muzzleFrame = troop.type === "operadorJano"
     ? config.attackVisual?.shots?.[0]?.frame ?? null
     : null;
   const origin = getMuzzleWorldPosition(troop, config, 0, muzzleFrame);
-  const targetPoint = enemyHitPointForRow(target, troop.row, session.elapsed);
+  const targetPoint = enemyHitPointForRow(enemy, troop.row, session.elapsed);
   const effectSeed = nextEffectSeed(session);
   if (config.attack === "melee") {
-    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
-    events.push({ type: "melee", x: target.x, y: target.y });
+    damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id });
+    events.push({ type: "melee", x: enemy.x, y: enemy.y });
   } else if (config.attack === "laser") {
-    damageEnemy(session, target, damage, events, { direct: true, sourceX: troop.x });
+    damageEnemy(session, enemy, damage, events, { direct: true, sourceX: troop.x, sourceTroopId: troop.id, sourceTroopType: troop.type });
     events.push({
       type: "beam", weapon: config.attackVisual?.effect || "laser", troopType: troop.type,
       sourceTroopId: troop.id, row: troop.row,
@@ -3480,19 +3467,11 @@ function fireTroop(session, troop, config, target, events) {
       color: config.color, seed: effectSeed,
     });
   } else if (config.attack === "shotgun") {
-    const firstEnemy = enemiesForRow(session, troop.row)
-      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
-      .sort((left, right) => left.x - right.x)[0];
-    const blocker = firstEnemy ? getBlockingForestObstacle(session, troop, firstEnemy) : null;
-    if (blocker) {
-      damageForestObstacle(session, blocker, damage, events, stunEnemy);
-      events.push({ type: "forestObstacleShot", sourceTroopId: troop.id, targetId: blocker.id, x: blocker.x, y: blocker.y, color: config.color });
-      return;
-    }
     const maxTargets = config.shotgunMaxTargets ?? 3;
     const damageFactors = config.shotgunDamageFactors ?? [0.48, 0.40, 0.32];
     const targets = session.enemies
-      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width)
+      .filter((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= config.range * CELL.width
+        && (!getForestObstacleAt(session, troop.row, Math.floor(enemy.x / CELL.width)) || enemy.x < (session.forestObstacles.find((tree) => tree.alive && tree.row === troop.row && tree.x > troop.x && tree.x - troop.x <= config.range * CELL.width)?.x ?? Infinity)))
       .sort((left, right) => left.x - right.x)
       .slice(0, maxTargets);
     targets.forEach((enemy, index) => damageEnemy(
@@ -3500,7 +3479,7 @@ function fireTroop(session, troop, config, target, events) {
       enemy,
       damage * config.pellets * (damageFactors[index] ?? 0),
       events,
-        { direct: true, sourceX: troop.x, sourceTroopType: troop.type },
+        { direct: true, sourceX: troop.x, sourceTroopType: troop.type, sourceTroopId: troop.id },
     ));
     events.push({
       type: "shotgun", weapon: config.attackVisual?.effect || "shotgun", troopType: troop.type,
@@ -3526,7 +3505,7 @@ function fireTroop(session, troop, config, target, events) {
         origin: { ...shotOrigin }, ageMs: 0, trail: createProjectileTrail(16, shotOrigin.x, shotOrigin.y),
         vx: straightLane ? speed : dx / distance * speed,
         vy: straightLane ? 0 : dy / distance * speed,
-        damage, targetId: target.id, radius: (config.radius || 0) * session.modifiers.explosiveRadius,
+        damage, targetId: enemy.id, radius: (config.radius || 0) * session.modifiers.explosiveRadius,
         slowFactor: config.slowFactor, slowMs: config.slowMs,
         color: config.color, visualKind: config.attackVisual?.effect || config.attack,
         visualCount: config.attackVisual?.visualCount || 1,
@@ -3540,9 +3519,9 @@ function fireTroop(session, troop, config, target, events) {
       });
       const createdProjectile = session.projectiles[session.projectiles.length - 1];
       if (troop.type === "cryo7") {
-        createdProjectile.cryoThermalTarget = isCryoThermalTarget(ENEMIES[target.type]);
-        createdProjectile.cryoFireTarget = ENEMIES[target.type]?.enemyTags?.includes("fire") || false;
-        createdProjectile.cryoShockDurationMs = getCryoShockDuration(ENEMIES[target.type], config);
+        createdProjectile.cryoThermalTarget = isCryoThermalTarget(ENEMIES[enemy.type]);
+        createdProjectile.cryoFireTarget = ENEMIES[enemy.type]?.enemyTags?.includes("fire") || false;
+        createdProjectile.cryoShockDurationMs = getCryoShockDuration(ENEMIES[enemy.type], config);
         troop.cryoShotCount = (troop.cryoShotCount || 0) + 1;
       }
     }
@@ -3907,13 +3886,12 @@ export function findAdjacentLumiThreat(session, troop) {
 }
 
 export function findRepulsorTarget(session, troop, config = TROOPS.lumiUrsa7) {
-  return session.enemies
-    .filter((enemy) => !enemy.dead
-      && enemyOccupiesTargetRow(enemy, troop.row)
-      && !ENEMIES[enemy.type]?.airborne
-      && enemy.x > troop.x
-      && enemy.x - troop.x <= config.repulsorRangeTiles * CELL.width)
-    .sort((left, right) => left.x - right.x)[0] || null;
+  const target = resolveForestCombatTarget(session, troop, {
+    ...config,
+    range: config.repulsorRangeTiles,
+    enemyTargetable: (enemy) => !ENEMIES[enemy.type]?.airborne,
+  });
+  return target?.entity || null;
 }
 
 export function getLumiKnockbackFactor(enemy) {
@@ -3948,15 +3926,22 @@ function startLumiDefense(session, troop, config, threat) {
   setLumiState(troop, "transitionIn", session.elapsed, config.transitionInMs);
 }
 
-function startRepulsorAttack(session, troop, config, target) {
+function startRepulsorAttack(session, troop, config, target, events = []) {
+  if (target.kind === "forestObstacle") {
+    damageForestObstacle(session, target.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+    troop.lastRepulsorAt = session.elapsed;
+    troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+    return;
+  }
+  const enemy = target.entity || target;
   const origin = getMuzzleWorldPosition(troop, config, 0);
   const projectileId = id("projectile");
   session.projectiles.push({
     id: projectileId, kind: "repulsorFist", visualKind: "repulsorFist",
-    troopType: troop.type, sourceTroopId: troop.id, targetId: target.id, row: troop.row,
+    troopType: troop.type, sourceTroopId: troop.id, targetId: enemy.id, row: troop.row,
     x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
     origin: { ...origin }, ageMs: 0, trail: createProjectileTrail(8, origin.x, origin.y),
-    vx: config.projectileSpeed, vy: 0, damage: config.damage * attackDamageMultiplier(session, troop, { target }),
+    vx: config.projectileSpeed, vy: 0, damage: config.damage * attackDamageMultiplier(session, troop, { target: enemy }),
     pushDistanceTiles: config.pushDistanceTiles * (session.modifiers.territorialControl ? 1.15 : 1),
     stunChance: config.stunChance, stunMs: config.stunMs
       * (session.modifiers.supportDoctrine ? 1.1 : 1)
@@ -3967,7 +3952,7 @@ function startRepulsorAttack(session, troop, config, target) {
     launchAt: session.elapsed + config.attackVisual.releaseMs,
   });
   troop.pendingRepulsorShot = projectileId;
-  troop.attackTargetId = target.id;
+  troop.attackTargetId = enemy.id;
   troop.lastAttackAt = session.elapsed;
   troop.lastRepulsorAt = session.elapsed;
   troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
@@ -3975,7 +3960,7 @@ function startRepulsorAttack(session, troop, config, target) {
   setLumiState(troop, "attack", session.elapsed, config.attackVisual.durationMs);
 }
 
-function updateLumiUrsa7(session, troop, config) {
+function updateLumiUrsa7(session, troop, config, events = []) {
   const threat = findAdjacentLumiThreat(session, troop);
   if (troop.state === "transitionIn") {
     troop.defenseActive = session.elapsed - troop.stateStartedAt >= config.shieldActivationMs;
@@ -4020,9 +4005,13 @@ function updateLumiUrsa7(session, troop, config) {
     return;
   }
   if (troop.state === "attack" && session.elapsed < troop.attackBusyUntil) return;
-  const target = findRepulsorTarget(session, troop, config);
+  const target = resolveForestCombatTarget(session, troop, {
+    ...config,
+    range: config.repulsorRangeTiles,
+    enemyTargetable: (enemy) => !ENEMIES[enemy.type]?.airborne,
+  });
   if (target && session.elapsed >= troop.attackReadyAt) {
-    startRepulsorAttack(session, troop, config, target);
+    startRepulsorAttack(session, troop, config, target, events);
     return;
   }
   troop.attackTargetId = null;
@@ -4362,14 +4351,15 @@ function updateTroops(session, events, dt) {
         troop.stateEndsAt = Infinity;
       }
       if (session.elapsed < troop.attackReadyAt) continue;
-      const target = closestEnemy(session, troop, config);
+      const target = resolveTroopTarget(session, troop, config);
       if (!target) continue;
+      const targetEntity = target.entity;
       troop.state = "attack";
       troop.stateStartedAt = session.elapsed;
       troop.stateEndsAt = session.elapsed + (config.attackVisual?.durationMs || 720);
       troop.lastAttackAt = session.elapsed;
-      troop.attackTargetId = target.id;
-      troop.pendingAresImpact = { targetId: target.id, at: session.elapsed + (config.attackVisual?.impactMs || 470) };
+      troop.attackTargetId = targetEntity.id;
+      troop.pendingAresImpact = { targetId: targetEntity.id, at: session.elapsed + (config.attackVisual?.impactMs || 470) };
       troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
       continue;
     }
@@ -4427,6 +4417,12 @@ function updateTroops(session, events, dt) {
       continue;
     }
     if (config.id === "mantis") {
+      const forestTarget = resolveTroopTarget(session, troop, config);
+      if (forestTarget?.kind === "forestObstacle") {
+        damageForestObstacle(session, forestTarget.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+        troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+        continue;
+      }
       updateMantis(session, troop, config, events, {
         id,
         createProjectileTrail,
@@ -4439,10 +4435,19 @@ function updateTroops(session, events, dt) {
         enemyOccupiesTargetRow,
         isEnemyTargetable,
         cellWidth: CELL.width,
+        forestObstacleX: session.forestObstacles?.filter((tree) => tree.alive && tree.row === troop.row
+          && tree.x > troop.x && tree.x - troop.x <= config.range * CELL.width)
+          .sort((left, right) => left.x - right.x)[0]?.x ?? Infinity,
       });
       continue;
     }
     if (config.id === "fuzileiroVoltaico") {
+      const forestTarget = resolveTroopTarget(session, troop, config);
+      if (forestTarget?.kind === "forestObstacle") {
+        damageForestObstacle(session, forestTarget.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+        troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+        continue;
+      }
       updateFuzileiroVoltaico(session, troop, config, events, {
         occupiesTargetRow: enemyOccupiesTargetRow,
         damageEnemy: (target, amount, context) =>
@@ -4483,17 +4488,25 @@ function updateTroops(session, events, dt) {
     }
     if (config.attack === "none" || session.elapsed < troop.attackReadyAt) continue;
     if (config.attack === "droneVolley") {
-      const target = closestEnemy(session, troop, config);
+      const target = resolveTroopTarget(session, troop, config);
       if (!target) continue;
-      fireDroneSentinela(session, troop, config, target, events);
+      if (target.kind === "forestObstacle") {
+        damageForestObstacle(session, target.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+      } else fireDroneSentinela(session, troop, config, target.entity, events);
       continue;
     }
     if (config.attack === "janoDual") {
-      const target = closestEnemy(session, troop, config);
+      const target = resolveTroopTarget(session, troop, config);
       const hasDroneTarget = session.enemies.some((enemy) => !enemy.dead && enemyOccupiesTargetRow(enemy, troop.row)
         && (enemy.x < troop.x || enemy.x - troop.x <= config.range * CELL.width));
       if (!target && !hasDroneTarget) continue;
-      fireOperadorJano(session, troop, config, target, events);
+      if (target?.kind === "forestObstacle") {
+        damageForestObstacle(session, target.entity, config.damage * attackDamageMultiplier(session, troop, { target: null }), events, stunEnemy);
+        troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
+        troop.lastAttackAt = session.elapsed;
+        continue;
+      }
+      fireOperadorJano(session, troop, config, target?.kind === "enemy" ? target.entity : null, events);
       troop.attackReadyAt = session.elapsed + attackIntervalFor(session, troop, config, config.attackEveryMs);
       troop.lastAttackAt = session.elapsed;
       continue;
@@ -4503,7 +4516,7 @@ function updateTroops(session, events, dt) {
       if (!group) continue;
       fireMortar(session, troop, config, group);
     } else {
-      const target = closestEnemy(session, troop, config);
+      const target = resolveTroopTarget(session, troop, config);
       if (!target) continue;
       fireTroop(session, troop, config, target, events);
     }
