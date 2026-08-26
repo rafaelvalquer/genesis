@@ -1,4 +1,4 @@
-import { CELL } from "../visualGeometry.js";
+import { forestObstacleBaseY } from "./forestObstacleConfig.js";
 
 const COLORS = {
   fragile: ["#6f8f58", "#3c5b39", "#7d4b31"],
@@ -15,7 +15,7 @@ export function getForestObstacleVisualGeometry(tree) {
   return {
     width: size,
     height: size,
-    baseY: (tree?.y || 0) + CELL.height * .4,
+    baseY: forestObstacleBaseY(tree),
     healthBarWidth: tree?.type === "mineralized" ? 58 : tree?.type === "fragile" ? 42 : 50,
     healthBarOffsetY: 8,
   };
