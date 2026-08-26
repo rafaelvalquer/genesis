@@ -31,32 +31,24 @@ function drawTree(ctx, tree, now, reduceMotion, sprites) {
   const geometry = getForestObstacleVisualGeometry(tree);
   const base = geometry.baseY;
   const stage = tree.damageStage === "healthy" ? "hp100" : tree.damageStage === "damaged75" ? "hp75" : tree.damageStage === "damaged50" ? "hp50" : tree.damageStage === "damaged25" ? "hp25" : "hp0";
-  const image = sprites?.[tree.type]?.[stage] || sprites?.ferrivore?.hp100;
+  const image = sprites?.[tree.type]?.[stage];
+  if (isDevelopment) console.debug("[ForestObstacleSprite]", tree.id, tree.type, stage, Boolean(image));
   if (image) {
     ctx.save(); ctx.globalAlpha = tree.alive ? 1 : .52; ctx.translate(x, base); ctx.scale(tree.flipX ? -1 : 1, 1);
     ctx.drawImage(image, -geometry.width / 2, -geometry.height, geometry.width, geometry.height); ctx.restore();
-  } else if (isDevelopment) {
-  ctx.save();
-  ctx.translate(x, base);
-  ctx.scale(tree.flipX ? -scale : scale, scale);
-  ctx.globalAlpha = tree.alive ? 1 : .52;
-  ctx.fillStyle = colors[2];
-  ctx.fillRect(-8, -14, 16, 14);
-  ctx.strokeStyle = colors[1];
-  ctx.lineWidth = tree.type === "mineralized" ? 11 : 7;
-  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-4, -86 * damaged); ctx.stroke();
-  if (tree.alive) {
-    ctx.fillStyle = colors[0];
-    const canopy = tree.type === "fragile" ? 20 : tree.type === "mineralized" ? 34 : 28;
-    for (const [dx, dy, r] of [[-18, -68, canopy], [14, -82, canopy * .9], [0, -112, canopy * .78]]) {
-      ctx.beginPath(); ctx.arc(dx, dy * damaged, r * damaged, 0, Math.PI * 2); ctx.fill();
-    }
-    if (tree.type === "spores") {
-      ctx.fillStyle = colors[2];
-      for (const dx of [-18, 18]) { ctx.beginPath(); ctx.arc(dx, -70 * damaged, 7, 0, Math.PI * 2); ctx.fill(); }
-    }
-  }
-  ctx.restore();
+  } else {
+    if (isDevelopment) console.error(`[ForestObstacle] Sprite ausente: ${tree.type}/${stage}`);
+    ctx.save();
+    ctx.translate(tree.x, base - geometry.height * .5);
+    ctx.globalAlpha = .9;
+    ctx.fillStyle = "#ff00a8";
+    ctx.fillRect(-geometry.width * .38, -18, geometry.width * .76, 36);
+    ctx.fillStyle = "#12000d";
+    ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("TREE ASSET", 0, -2);
+    ctx.fillText("MISSING", 0, 13);
+    ctx.restore();
   }
   if (tree.alive) {
     const width = geometry.healthBarWidth;

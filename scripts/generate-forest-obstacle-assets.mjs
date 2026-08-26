@@ -26,3 +26,8 @@ await Promise.all(Object.entries(types).flatMap(async ([type]) => {
     await sharp(Buffer.from(svg(type, stage, scale))).png().toFile(path.join(root, type, `${stage}.png`));
   }));
 }));
+/**
+ * DEV PLACEHOLDER ONLY.
+ * This script must never be used to produce or overwrite production sprites.
+ * Use import-forest-obstacle-sprite-atlases.mjs for final art imports.
+ */
