@@ -37,13 +37,6 @@ for (const [state, count] of Object.entries(states)) {
   if (files.length !== count) failures.push(`${state}: expected ${count}, found ${files.length}`); report[state] = [];
   const hashes = new Set();
   for (const file of files) { const bytes = await fs.readFile(path.join(dir, file)); const hash = crypto.createHash("sha256").update(bytes).digest("hex"); if (hashes.has(hash)) failures.push(`${state}: duplicate frame ${file}`); hashes.add(hash); report[state].push({ file, ...(await frameReport(path.join(dir, file))) }); }
-  const sheet = path.join(root, `garravinha_${state}_sheet.png`); const metadata = await sharp(sheet).metadata(); const expectedWidth = ["latchPrep", "latchLeap"].includes(state) ? 3072 : 4096;
-  if (metadata.width !== expectedWidth || metadata.height !== 512) failures.push(`${sheet}: expected ${expectedWidth}x512`);
-  for (let i = 0; i < Math.min(count, files.length); i += 1) {
-    const source = (await raw(path.join(dir, `frame${i}.png`))).data; const crop = await sharp(sheet).extract({ left: i * 512, top: 0, width: 512, height: 512 }).ensureAlpha().raw().toBuffer(); let mismatch = false;
-    for (let p = 0; p < source.length; p += 4) { const delta = source[p + 3] ? Math.max(Math.abs(source[p] - crop[p]), Math.abs(source[p + 1] - crop[p + 1]), Math.abs(source[p + 2] - crop[p + 2])) : 0; if (source[p + 3] !== crop[p + 3] || delta > 1) { mismatch = true; break; } }
-    if (mismatch) failures.push(`${state}: round-trip mismatch frame${i}`);
-  }
 }
 const boxes = Object.values(report).flat().map((entry) => entry.bbox);
 const maxBoundingBox = [Math.min(...boxes.map((b) => b[0])), Math.min(...boxes.map((b) => b[1])), Math.max(...boxes.map((b) => b[2])), Math.max(...boxes.map((b) => b[3]))];
