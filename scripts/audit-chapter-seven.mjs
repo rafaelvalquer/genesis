@@ -11,6 +11,13 @@ import {
   sanitizeLoadoutForPhase,
 } from "../src/game/phaseRules.js";
 import { buildSectorQueue } from "../src/game/chapter07/convoySpawnDirector.js";
+import { CHAPTER_SEVEN_ENEMIES } from "../src/game/chapterSevenEnemies.js";
+import {
+  CHAPTER_SEVEN_COMBO_POOLS,
+  CHAPTER_SEVEN_COMBOS,
+  CHAPTER_SEVEN_OPENING_COMBOS,
+  getChapterSevenComboThreat,
+} from "../src/game/chapter07/chapterSevenCombos.js";
 
 const failures = [];
 const animationAudit = [];
@@ -49,6 +56,11 @@ for (const phase of phases) {
     `${phase.id}: pulso logístico deve ser 3/5s`);
   for (let sectorIndex = 0; sectorIndex < 4; sectorIndex += 1) {
     const sector = phase.sectors[sectorIndex];
+    const phasePool = CHAPTER_SEVEN_COMBO_POOLS[phase.id] || [];
+    check(JSON.stringify(sector.director?.allowedComboIds) === JSON.stringify(phasePool),
+      `${phase.id}/S${sectorIndex + 1}: pool do Diretor divergente`);
+    check(sector.director?.openingComboId === CHAPTER_SEVEN_OPENING_COMBOS[phase.id],
+      `${phase.id}/S${sectorIndex + 1}: combo de abertura divergente`);
     check(Boolean(sector?.openingPackets?.length), `${phase.id}/S${sectorIndex + 1}: opening packets ausentes`);
     check(sector?.reinforcement?.startsAtMs > sector?.reinforcement?.warningAtMs,
       `${phase.id}/S${sectorIndex + 1}: reforço sem aviso antecipado`);
@@ -58,6 +70,29 @@ for (const phase of phases) {
     }
   }
 }
+
+check(Object.keys(CHAPTER_SEVEN_COMBOS).length === 16, "catálogo do Diretor deve possuir exatamente 16 combos");
+for (const [comboId, combo] of Object.entries(CHAPTER_SEVEN_COMBOS)) {
+  check(/^C7-\d{2}$/.test(comboId) && combo.id === comboId, `${comboId}: ID de combo inválido`);
+  check(combo.cooldownMs > 0, `${comboId}: cooldown inválido`);
+  check(combo.units?.length > 0, `${comboId}: unidades ausentes`);
+  for (const unit of combo.units || []) {
+    check(Boolean(CHAPTER_SEVEN_ENEMIES[unit.type]), `${comboId}: inimigo inexistente ${unit.type}`);
+    check(unit.count > 0 && unit.delayMs >= 0 && unit.intervalMs > 0, `${comboId}: unidade inválida`);
+  }
+  if (combo.units?.some((unit) => unit.type === "dardifago")) {
+    check(["outerArtillery", "siege", "crossfire", "finalSiege"].includes(combo.routeProfile),
+      `${comboId}: Dardífago fora de perfil externo`);
+    check(JSON.stringify(CHAPTER_SEVEN_ENEMIES.dardifago.allowedRows) === JSON.stringify([0, 4]),
+      `${comboId}: restrição de rota do Dardífago inválida`);
+  }
+  check(getChapterSevenComboThreat(combo) > 0, `${comboId}: threat inválido`);
+}
+for (const [phaseId, pool] of Object.entries(CHAPTER_SEVEN_COMBO_POOLS)) {
+  check(pool.every((comboId) => Boolean(CHAPTER_SEVEN_COMBOS[comboId])), `${phaseId}: pool contém combo inexistente`);
+}
+check(!CHAPTER_SEVEN_COMBO_POOLS.fase_55.includes("C7-16"), "C7-16 não deve estar no pool livre da F55");
+check(CHAPTER_SEVEN_COMBO_POOLS.fase_56.includes("C7-16"), "C7-16 deve estar disponível na F56");
 
 const chapterSevenEnemies = Object.values(ENEMIES).filter((enemy) => enemy.chapterId === "chapter_07");
 check(chapterSevenEnemies.length === 7, `roster do capítulo 7 inválido: ${chapterSevenEnemies.length}`);

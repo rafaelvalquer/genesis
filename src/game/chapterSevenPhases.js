@@ -1,4 +1,5 @@
 import { deepFreeze } from "./deepFreeze.js";
+import { CHAPTER_SEVEN_COMBO_POOLS, CHAPTER_SEVEN_OPENING_COMBOS } from "./chapter07/chapterSevenCombos.js";
 
 const NAMES = ["Posto Ferrugem", "Estrada da Fronteira", "Rota Bombardeada", "Ferrovia de Carga",
   "Complexo de Extração", "Ponte do Abismo", "Cemitério de Comboios", "Terminal de Evacuação"];
@@ -51,6 +52,11 @@ function createSector(phaseIndex, sectorIndex) {
   const startsAtMs = warningAtMs + 12000;
   return {
     id: `sector_${sectorIndex + 1}`, endsAtProgress: (sectorIndex + 1) * .25,
+    director: {
+      enabled: false,
+      allowedComboIds: CHAPTER_SEVEN_COMBO_POOLS[`fase_${phaseIndex + 49}`],
+      openingComboId: CHAPTER_SEVEN_OPENING_COMBOS[`fase_${phaseIndex + 49}`],
+    },
     openingPackets: packets,
     routeWeights: phaseIndex >= 4 ? { 0: 1.2, 1: 2.2, 3: 2.2, 4: 1.2 } : { 0: 1, 1: 1.5, 3: 1.5, 4: 1 },
     reinforcement: { warningAtMs, startsAtMs,
