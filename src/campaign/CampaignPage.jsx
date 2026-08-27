@@ -36,6 +36,7 @@ export default function CampaignPage({ campaign }) {
   const lastSelectedPhaseByChapterRef = useRef(
     new Map(),
   );
+  const pendingSelectionRef = useRef(null);
   const {
     isTransitioning,
     transition,
@@ -69,7 +70,17 @@ export default function CampaignPage({ campaign }) {
   useEffect(() => {
     if (!selectedPhase) return;
     const canonicalChapter = String(activeChapter.number);
-    if (searchParams.get("capitulo") === canonicalChapter && searchParams.get("fase") === selectedPhase.id) return;
+    if (searchParams.get("capitulo") === canonicalChapter && searchParams.get("fase") === selectedPhase.id) {
+      pendingSelectionRef.current = null;
+      return;
+    }
+    const pendingSelection = pendingSelectionRef.current;
+    if (pendingSelection
+      && (pendingSelection.chapterNumber !== canonicalChapter
+        || pendingSelection.phaseId !== selectedPhase.id)) {
+      return;
+    }
+    pendingSelectionRef.current = null;
     const next = new URLSearchParams(searchParams);
     next.set("capitulo", canonicalChapter);
     next.set("fase", selectedPhase.id);
@@ -149,6 +160,10 @@ export default function CampaignPage({ campaign }) {
     );
 
     if (next) {
+      pendingSelectionRef.current = {
+        chapterNumber: String(chapter.number),
+        phaseId: next.get("fase"),
+      };
       setSearchParams(next);
     }
   };
@@ -167,6 +182,10 @@ export default function CampaignPage({ campaign }) {
     );
 
     if (next) {
+      pendingSelectionRef.current = {
+        chapterNumber: next.get("capitulo"),
+        phaseId: next.get("fase"),
+      };
       setSearchParams(
         next,
         { replace: true },

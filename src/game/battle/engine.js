@@ -2440,6 +2440,16 @@ function enemyHitPointForRow(enemy, row, elapsed) {
 }
 
 function resolveTroopTarget(session, troop, config) {
+  if (troop.type === "cryo7") {
+    const enemy = selectCryoTarget(session.enemies, troop, config, {
+      occupiesTargetRow: enemyOccupiesTargetRow,
+      canTarget: (entry) => canTroopTargetEnemy(session, troop, config, entry, ENEMIES[entry.type]),
+      enemyConfigFor: (entry) => ENEMIES[entry.type],
+      cellWidth: CELL.width,
+    });
+    if (enemy) return { kind: "enemy", entity: enemy };
+  }
+
   const targetingTroop = config.attack === "melee"
     ? { ...troop, x: attackOriginX(session, troop, config) }
     : troop;
@@ -2450,15 +2460,6 @@ function resolveTroopTarget(session, troop, config) {
   if (target) {
     if (target.kind === "forestObstacle") session.chapterSevenMetrics.forestCoverBlocks += 1;
     return target;
-  }
-  if (troop.type === "cryo7") {
-    const enemy = selectCryoTarget(session.enemies, troop, config, {
-      occupiesTargetRow: enemyOccupiesTargetRow,
-      canTarget: (entry) => canTroopTargetEnemy(session, troop, config, entry, ENEMIES[entry.type]),
-      enemyConfigFor: (entry) => ENEMIES[entry.type],
-      cellWidth: CELL.width,
-    });
-    return enemy ? { kind: "enemy", entity: enemy } : null;
   }
   return null;
 }
