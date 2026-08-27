@@ -2440,7 +2440,10 @@ function enemyHitPointForRow(enemy, row, elapsed) {
 }
 
 function resolveTroopTarget(session, troop, config) {
-  const target = resolveForestCombatTarget(session, troop, {
+  const targetingTroop = config.attack === "melee"
+    ? { ...troop, x: attackOriginX(session, troop, config) }
+    : troop;
+  const target = resolveForestCombatTarget(session, targetingTroop, {
     ...config,
     enemyTargetable: (enemy) => canTroopTargetEnemy(session, troop, config, enemy, ENEMIES[enemy.type]),
   }, enemiesForRow(session, troop.row));
@@ -3734,10 +3737,11 @@ function enemiesInTroopTile(session, troop) {
 function enemiesInTileMeleeRange(session, troop, config) {
   const rearOverlap = CELL.width / 2;
   const forwardRange = Math.max(0, Number(config.range) || 0) * CELL.width;
+  const originX = attackOriginX(session, troop, config);
   return session.enemies.filter((enemy) => !enemy.dead
     && enemyOccupiesTargetRow(enemy, troop.row)
-    && enemy.x >= troop.x - rearOverlap
-    && enemy.x <= troop.x + forwardRange);
+    && enemy.x >= originX - rearOverlap
+    && enemy.x <= originX + forwardRange);
 }
 
 export function selectNaniteHealTarget(session, medic, config = TROOPS.medicaNanites) {

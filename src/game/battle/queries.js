@@ -32,8 +32,9 @@ export function enemyOccupiesTargetRow(enemy, row) {
 }
 
 export function enemiesForRow(session, row) {
-  const indexed = getBattleIndex(session)?.targetableEnemiesByRow[row];
-  if (indexed) return indexed;
+  // Targetable rows can change in place (notably while Leviatã de Nereida
+  // swims between lanes), so the cached row bucket can become stale between
+  // index rebuilds. Resolve this dynamic relation from the current entities.
   return session.enemies.filter((enemy) => enemyOccupiesTargetRow(enemy, row));
 }
 

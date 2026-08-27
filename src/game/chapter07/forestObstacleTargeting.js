@@ -19,7 +19,9 @@ export function isForestObstacleBlocking(session, troop, enemy) {
 }
 
 function targetRow(enemy, row) {
-  return enemy?.row === row || Boolean(enemy?.targetRows?.includes?.(row));
+  return enemy?.row === row
+    || Boolean(enemy?.targetRows?.includes?.(row))
+    || Boolean(enemy?.leviathanTargetableRows?.includes?.(row));
 }
 
 export function resolveForestCombatTarget(session, troop, config = {}, enemies = session?.enemies || []) {
