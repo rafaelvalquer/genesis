@@ -4,6 +4,10 @@ import { launchDardifagoDart, dardifagoTargetInRange } from "../../chapter07/dar
 
 const living = (troop) => troop && !troop.dead && !troop.structure;
 const setState = (enemy, state, now, duration = Infinity) => {
+  if (enemy.dardifagoState === state) {
+    enemy.moving = state === "walking";
+    return;
+  }
   enemy.dardifagoState = state; enemy.dardifagoStateStartedAt = now;
   enemy.dardifagoStateEndsAt = Number.isFinite(duration) ? now + duration : Infinity;
   enemy.moving = state === "walking";

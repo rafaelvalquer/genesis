@@ -41,6 +41,15 @@ describe("Garravinha antitransporte", () => {
     expect([0, 105, 210, 315, 420, 525, 630, 735, 840].map((elapsed) => getEnemyAnimation(enemy, config, elapsed, frames).frame))
       .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 0]);
   });
+  it("preserva o relógio de walking durante atualizações consecutivas", () => {
+    const session = makeSession(); const events = []; const enemy = makeEnemy(session, "g-walking", { x: 1200 }); const runtime = runtimeFor(session, events);
+    const startedAt = enemy.garravinhaStateStartedAt;
+    session.elapsed = 105; garravinhaBehavior.update(runtime, enemy, config, 16, events);
+    session.elapsed = 210; garravinhaBehavior.update(runtime, enemy, config, 16, events);
+    expect(enemy.garravinhaState).toBe("walking");
+    expect(enemy.garravinhaStateStartedAt).toBe(startedAt);
+    expect(getEnemyAnimation(enemy, config, session.elapsed, { idle: 8, walking: 8 })).toEqual({ state: "walking", frame: 2 });
+  });
   it("expõe a configuração e o behavior dedicado", () => {
     expect(config).toMatchObject({ hp: 72, speed: 36, threat: 38, convoyAttackRangeTiles: 1.2 });
     expect(config.latch).toMatchObject({ prepMs: 420, leapMs: 480, initialDamage: 8, tickDamage: 14, tickEveryMs: 1000 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { CHAPTER_SEVEN_ENEMIES } from "../chapterSevenEnemies.js";
+import { getEnemyAnimation } from "../visualGeometry.js";
 import { dardifagoBehavior, selectDardifagoTarget } from "../enemies/chapter07/dardifago.js";
 
 const config = CHAPTER_SEVEN_ENEMIES.dardifago;
@@ -28,6 +29,16 @@ describe("Dardífago", () => {
     expect(config.rangedAttack.durationMs).toBe(960);
     expect(config.rangedAttack.releaseMs).toBe(480);
     expect(config.attackVisual.releaseFrame).toBe(4);
+  });
+
+  it("preserva o relógio de walking durante atualizações consecutivas", () => {
+    const d = enemy(0); const r = runtime(); const events = [];
+    const startedAt = d.dardifagoStateStartedAt;
+    r.elapsed = 135; dardifagoBehavior.update(r, d, config, 16, events);
+    r.elapsed = 270; dardifagoBehavior.update(r, d, config, 16, events);
+    expect(d.dardifagoState).toBe("walking");
+    expect(d.dardifagoStateStartedAt).toBe(startedAt);
+    expect(getEnemyAnimation(d, config, r.elapsed, { idle: 8, walking: 8 })).toEqual({ state: "walking", frame: 2 });
   });
 
   it("targets only the adjacent escort route and prioritizes it over convoy", () => {

@@ -15,6 +15,10 @@ function recordMetric(runtime, key, amount = 1) {
 }
 
 function setState(enemy, state, now, duration = Infinity) {
+  if (enemy.garravinhaState === state) {
+    enemy.moving = state === "walking";
+    return;
+  }
   enemy.garravinhaState = state;
   enemy.garravinhaStateStartedAt = now;
   enemy.garravinhaStateEndsAt = Number.isFinite(duration) ? now + duration : Infinity;
