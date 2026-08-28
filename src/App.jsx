@@ -209,8 +209,25 @@ export function EncyclopediaPage({ campaign }) {
   </main>;
 }
 
+function TacticalReportIcon() {
+  return <svg className="tactical-report-icon" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 16V9h3v7H3Zm5 0V4h3v12H8Zm5 0V7h3v9h-3Z" fill="currentColor" /></svg>;
+}
+
+function TacticalReportPanel({ report, phase }) {
+  const [tab, setTab] = useState("overview");
+  const summary = report.summary;
+  const tabs = [["overview", "Visão geral"], ["troops", "Tropas"], ["threats", "Ameaças"], ["routes", "Rotas"]];
+  return <section className="tactical-report-panel"><header><span className="eyebrow">RELATÓRIO TÁTICO // {phase.id}</span><h2>Análise da operação</h2></header><nav className="tactical-tabs">{tabs.map(([id, label]) => <button key={id} className={tab === id ? "active" : ""} onClick={() => setTab(id)}>{label}</button>)}</nav>
+    {tab === "overview" && <><div className="insight-stack">{report.insights.slice(0, 2).map((insight) => <article key={insight.id} className={`tactical-insight ${insight.severity}`}><b>{insight.title}</b><p>{insight.message}</p><small>{insight.recommendation}</small></article>)}{!report.insights.length && <article className="tactical-insight positive"><b>Defesa eficiente</b><p>Nenhuma vulnerabilidade tática relevante foi identificada.</p></article>}</div><div className="tactical-kpis"><div><span>Eficiência</span><b>{summary.efficiency}%</b></div><div><span>Dano causado</span><b>{summary.damageDealt.toLocaleString("pt-BR")}</b></div><div><span>Energia gerada</span><b>{summary.energyGenerated}</b></div><div><span>Energia perdida</span><b>{summary.energyWasted}</b></div><div><span>Baixas</span><b>{summary.troopsLost}</b></div><div><span>Rota crítica</span><b>Rota {summary.mostPressuredRoute + 1}</b></div></div></>}
+    {tab === "troops" && <div className="tactical-table"><div className="tactical-table-head"><span>Unidade</span><span>Dano</span><span>Abates</span><span>Recebido</span><span>Mitigado</span><span>Impl./Baixas</span></div>{report.troops.map((troop) => <div key={troop.type}><b>{TROOPS[troop.type]?.label || troop.type}{Object.entries(troop.special || {}).filter(([, value]) => value > 0).slice(0, 1).map(([key, value]) => <small key={key}>{key}: {Math.round(value)}</small>)}</b><span>{Math.round(troop.damageDealt)}</span><span>{troop.kills}</span><span>{Math.round(troop.damageTaken)}</span><span>{Math.round(troop.damagePrevented)}</span><span>{troop.deployed}/{troop.lost}</span></div>)}</div>}
+    {tab === "threats" && <div className="threat-grid"><div><span>Dano inimigo</span><b>{Math.round(report.threats.enemyDamage)}</b></div><div><span>Dano aéreo</span><b>{Math.round(report.threats.airDamage)}</b></div><div><span>Dano terrestre</span><b>{Math.round(report.threats.groundDamage)}</b></div><div><span>Dano ao objetivo</span><b>{summary.objectiveDamage}</b></div></div>}
+    {tab === "routes" && <div className="route-report">{report.routes.map((route) => <div key={route.row}><span>Rota {route.row + 1}</span><i><b style={{ width: `${route.averagePressure}%` }} /></i><strong>{route.averagePressure}%</strong><small>{route.criticalMs > 0 ? "Crítica" : "Estável"}</small></div>)}</div>}
+  </section>;
+}
+
 function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
   const victory = result.outcome === "victory";
+  const [view, setView] = useState("summary");
   const phaseIndex = getPhaseIndex(phase.id);
   const nextPhase = PHASES[phaseIndex + 1];
   const nextChapter = nextPhase && getChapterForPhase(nextPhase);
@@ -218,11 +235,14 @@ function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
   const nextLabel = phaseIndex === PHASES.length - 1
     ? "Ver campanha"
     : nextChapter?.id !== currentChapter?.id ? `Ir ao Capítulo ${nextChapter.number}` : "Próxima fase";
-  return <div className="modal-backdrop result-backdrop"><section className={`result-card ${victory ? "victory" : "defeat"}`}>
+  return <div className="modal-backdrop result-backdrop"><section className={`result-card ${view === "tacticalReport" ? "tactical-view" : ""} ${victory ? "victory" : "defeat"}`}>
+    {view === "tacticalReport" && result.tacticalReport ? <><TacticalReportPanel report={result.tacticalReport} phase={phase} /><button className="secondary-button report-back" onClick={() => setView("summary")}>← Resumo da operação</button></> : <>
     <span className="result-emblem">{victory ? "✦" : "×"}</span><span className="eyebrow">{victory ? "OPERAÇÃO CONCLUÍDA" : "NÚCLEO COMPROMETIDO"}</span><h1>{victory ? "Perímetro assegurado" : "A defesa caiu"}</h1><p>{phase.name} · {result.enemiesDefeated} hostis eliminados</p>
     <Stars value={result.stars} />
     <div className="result-stats"><div><span>Tempo</span><b>{formatTime(result.durationMs)}</b></div><div><span>{phase.progressionMode === "convoy" ? "Comboio" : "Integridade"}</span><b>{result.integrity}%</b></div><div><span>Energia</span><b>{result.energy}</b></div><div><span>Eliminações</span><b>{result.enemiesDefeated}</b></div></div>
+    {result.tacticalReport && <button className="tactical-report-button" onClick={() => setView("tacticalReport")}><TacticalReportIcon /> Relatório tático</button>}
     <div className="result-actions"><button className="secondary-button" onClick={onRetry}>Repetir fase</button>{victory && <button className="primary-button" onClick={onNext}>{nextLabel} <span>→</span></button>}<button className="text-button" onClick={onPhases}>Selecionar fases</button></div>
+    </>}
   </section></div>;
 }
 

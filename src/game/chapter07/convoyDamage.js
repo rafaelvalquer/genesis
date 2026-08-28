@@ -4,6 +4,13 @@ export function damageConvoy(session, amount, events = [], context = {}) {
   const before = convoy.hp;
   convoy.hp = Math.max(0, convoy.hp - amount);
   const dealt = before - convoy.hp;
+  if (session.telemetry) {
+    session.telemetry.objective.damageTaken += dealt;
+    if (context.enemyType) {
+      session.telemetry.threats.enemyDamage += dealt;
+      session.telemetry.threats.byEnemyType[context.enemyType] = (session.telemetry.threats.byEnemyType[context.enemyType] || 0) + dealt;
+    }
+  }
   convoy.lastHitAt = session.elapsed;
   if (context.underAttackHoldMs > 0) {
     convoy.underAttackHoldUntil = Math.max(convoy.underAttackHoldUntil || -Infinity, session.elapsed + context.underAttackHoldMs);

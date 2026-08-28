@@ -42,7 +42,7 @@ describe("save local", () => {
     });
 
     expect(migrated).toMatchObject({
-      version: 2,
+      version: 3,
       unlockedPhaseIndex: 8,
       currentPhaseId: "fase_09",
     });
@@ -87,6 +87,13 @@ describe("save local", () => {
       bestTimeMs: 1000,
     });
     expect(loadCampaign()).toEqual(save);
+  });
+
+  it("acumula estatísticas por tropa e mantém o último relatório da fase", () => {
+    const report = { version: 1, troops: [{ type: "marine", deployed: 2, damageDealt: 70, kills: 4, damageTaken: 10, lost: 1 }] };
+    const save = recordBattleResult(createDefaultSave(), { phaseId: "fase_01", outcome: "defeat", stars: 0, durationMs: 1000, integrity: 10, tacticalReport: report });
+    expect(save.troopStats.marine).toMatchObject({ battlesUsed: 1, deployments: 2, damageDealt: 70, kills: 4, damageTaken: 10, lost: 1 });
+    expect(save.phaseStats.fase_01.lastTacticalReport).toBe(report);
   });
 
   it("libera a fase 34 após vencer a fase 33", () => {

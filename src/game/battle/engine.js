@@ -1,4 +1,4 @@
-import { DAMAGE_TYPES, DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS } from "../content.js";
+import { DAMAGE_TYPES, DEFAULT_MAX_DEPLOYED_PER_TROOP, ENEMIES, TROOPS, getPhaseIndex } from "../content.js";
 import { buildSpawnQueue, calculateStars, createRng, getDecisionOptions, getDecisionStage, isGroundTrapEligible } from "../domain.js";
 import { CHAPTER_FIVE_PACKETS } from "../chapterFivePackets.js";
 import { CHAPTER_SIX_PACKETS } from "../chapterSixWaves.js";
@@ -42,6 +42,20 @@ import {
   selectIcaroBurstRetarget,
   updateInterceptadorIcaro,
 } from "../interceptadorIcaro.js";
+import {
+  createBattleTelemetry,
+  grantEnergy,
+  recordDamageTaken,
+  recordDeployment,
+  recordKill,
+  recordRoutePressure,
+  recordThreatDamage,
+  recordTroopDamage,
+  recordTroopLossTelemetry,
+  refundEnergy,
+  spendEnergy,
+} from "../telemetry/battleTelemetry.js";
+import { buildTacticalReport } from "../telemetry/tacticalReport.js";
 import { initializeMantisFlightPath, sampleMantisArc, updateMantis } from "../mantis.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
 import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
@@ -156,7 +170,7 @@ import {
   indexedTroopById,
   troopsForRow,
 } from "./queries.js";
-import { getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isCombatRow, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
+import { getAvailableTroopsForPhase, getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isCombatRow, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
 import { createConvoyFlow, createConvoyState } from "../chapter07/convoyState.js";
 import { updateConvoyEnergy } from "../chapter07/convoyEnergy.js";
 import { advanceConvoyTransit, completeConvoySector, startConvoySector } from "../chapter07/convoyFlow.js";
@@ -406,6 +420,7 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     energy: sessionPhase.energy,
     energyMax: sessionPhase.energyCapacity ?? sessionPhase.energy,
     lastEnergyGainAt: -Infinity,
+    telemetry: createBattleTelemetry(FIELD.rows),
     integrity: sessionPhase.baseIntegrity,
     integrityMax: sessionPhase.baseIntegrity,
     supply: supplyLimit,
@@ -833,7 +848,7 @@ export function placeTroop(session, troopId, row, col) {
     if (existingPlatform) {
       const renewal = renewThermalPlatform(session, existingPlatform, config);
       if (!freePlacement) {
-        session.energy -= effective.price;
+        spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId });
         session.supply -= effective.supply;
       }
       if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) {
@@ -857,8 +872,9 @@ export function placeTroop(session, troopId, row, col) {
     const platform = createThermalPlatform(session, row, col, config, () => id("support"));
     const temporaryHazard = getTemporaryMagmaAt(session, row, col);
     if (temporaryHazard) platform.temporaryHazardId = temporaryHazard.id;
-    if (!freePlacement) { session.energy -= effective.price; session.supply -= effective.supply; }
+    if (!freePlacement) { spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId }); session.supply -= effective.supply; }
     session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
+    recordDeployment(session.telemetry, troopId);
     if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
     return { ok: true, support: platform, events: [{ type: "thermalPlatformDeployed", row, col, supportId: platform.id, rescuedTroopId: burningTroop?.id || null }], activeCount: (session.supportStructures || []).length, maxDeployed: getTroopDeploymentLimit(troopId, session), event: { type: "deploy", x: col * CELL.width + CELL.width / 2, y: row * CELL.height + CELL.height / 2 } };
   }
@@ -882,7 +898,7 @@ export function placeTroop(session, troopId, row, col) {
   const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
   const fortuneFree = !freePlacement && session.fortuneFreeDeploymentCharges > 0;
   if (!freePlacement) {
-    session.energy -= effective.price;
+    spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId });
     session.supply -= effective.supply;
     if (fortuneFree) session.fortuneFreeDeploymentCharges -= 1;
     else {
@@ -891,6 +907,7 @@ export function placeTroop(session, troopId, row, col) {
     }
   }
   session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
+  recordDeployment(session.telemetry, troopId);
   const skipCooldown = !freePlacement && session.earlyPreparationCharges > 0;
   if (skipCooldown) session.earlyPreparationCharges -= 1;
   if (!freePlacement && !skipCooldown && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
@@ -922,7 +939,7 @@ export function removeTroop(session, row, col) {
     projectile.sourceTroopId !== troop.id || !["mine", "repulsorFist"].includes(projectile.kind));
   const criticalRefund = session.modifiers.organizedRetreat && troop.hp / troop.maxHp < 0.3;
   const refund = Math.floor(Number(troop.energyCost ?? config.price) * (criticalRefund ? 1 : session.modifiers.refundRate));
-  session.energy = Math.min(session.energyMax, session.energy + refund);
+  refundEnergy(session, refund);
   session.supply = Math.min(session.supplyMax, session.supply + Number(troop.supplyCost ?? config.supply));
   refreshSwarmDoctrine(session);
   return { ok: true, refund, troop, event: { type: "remove", x: troop.x, y: troop.y, entity: { ...troop } } };
@@ -1163,9 +1180,8 @@ export function startWave(session) {
   if (session.outcome || session.waveActive || session.pendingDecision || session.pendingPositionalDecision
     || (session.waveOutro?.status && !["idle", "completed"].includes(session.waveOutro.status))) return false;
   if (session.nextWaveEnergy > 0) {
-    const previousEnergy = session.energy;
-    session.energy = Math.min(session.energyMax, session.energy + session.nextWaveEnergy);
-    if (session.energy > previousEnergy) session.lastEnergyGainAt = session.elapsed;
+    const result = grantEnergy(session, session.nextWaveEnergy, { kind: "decision" });
+    if (result.gained > 0) session.lastEnergyGainAt = session.elapsed;
     session.nextWaveEnergy = 0;
   }
   if (session.nextWaveSupply > 0) {
@@ -1175,7 +1191,7 @@ export function startWave(session) {
   session.activeTemporaryDecisions = [...session.queuedTemporaryDecisions];
   session.queuedTemporaryDecisions = [];
   if (session.activeTemporaryDecisions.includes("final_reserve")) {
-    session.energy = Math.min(session.energyMax, session.energy + 30);
+    grantEnergy(session, 30, { kind: "decision" });
   }
   const enemyCountFactor = session.nextWaveEnemyCountFactor;
   session.nextWaveEnemyCountFactor = 1;
@@ -1511,9 +1527,21 @@ function createEnemyRuntime(session, events) {
     moveEnemy: (enemy, dt, events) => moveEnemy(session, enemy, dt, events),
     closestTroop: (enemy, range) => closestTroopForEnemy(session, enemy, range),
     troopBlockDistance,
-    damageTroop: (troop, amount, context = {}) => damageTroop(session, troop, amount, events, context),
+    damageTroop: (troop, amount, context = {}) => {
+      const source = session.telemetryCurrentEnemy;
+      return damageTroop(session, troop, amount, events, {
+        ...(source ? { sourceEnemyId: source.id, sourceEnemyType: source.type, sourceKind: "enemy", sourceRow: source.row } : {}),
+        ...context,
+      });
+    },
     stunTroop: (troop, durationMs) => stunTroop(session, troop, durationMs, events),
-    damageConvoy: (amount, context = {}) => damageConvoy(session, amount, events, context),
+    damageConvoy: (amount, context = {}) => {
+      const source = session.telemetryCurrentEnemy;
+      return damageConvoy(session, amount, events, {
+        ...(source ? { attackerId: source.id, enemyType: source.type, sourceKind: "enemy", sourceRow: source.row } : {}),
+        ...context,
+      });
+    },
     canEnemyReachConvoy: (enemy, config) => canEnemyReachConvoy(session, enemy, config),
     hasBlockingTroop: (enemy) => hasBlockingTroop(session, enemy),
     refreshTroopAttackSpeedFactor: (troop) => refreshTroopAttackSpeedFactor(session, troop),
@@ -2954,6 +2982,8 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       if (metric) session.metrics[metric] = (session.metrics[metric] || 0) + 1;
     }
   }
+  const telemetryHpBefore = Math.max(0, Number(enemy.hp) || 0);
+  const telemetryShieldBefore = Math.max(0, Number(enemy.shield) || 0);
   getEnemyBehavior(enemy.type).receiveDamage(createEnemyRuntime(session, events), enemy, amount, events, context);
   if (isRasgamarSubmerged(enemy)) {
     return;
@@ -3097,6 +3127,12 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
       ...colossoCoreHit, damage: Math.round(incoming),
     });
   }
+  const actualDamage = Math.max(0, telemetryHpBefore + telemetryShieldBefore
+    - Math.max(0, Number(enemy.hp) || 0) - Math.max(0, Number(enemy.shield) || 0));
+  if (context.sourceTroopId || context.sourceTroopType) {
+    const sourceType = context.sourceTroopType || indexedTroopById(session, context.sourceTroopId)?.type;
+    recordTroopDamage(session.telemetry, sourceType, actualDamage);
+  }
   if (enemy.hp <= 0) {
     if (enemy.type === "colossoCaldeira") {
       // Its defeat is an event: preserve the entity long enough for the collapse
@@ -3122,6 +3158,7 @@ function damageEnemy(session, enemy, amount, events, context = {}) {
     detachParasite(session, enemy);
     if (ENEMIES[enemy.type]?.countsAsKill !== false) session.killed += 1;
     rememberEnemyKill(session, enemy, context.sourceTroopId || null);
+    if (context.sourceTroopId || context.sourceTroopType) recordKill(session.telemetry, context.sourceTroopType || indexedTroopById(session, context.sourceTroopId)?.type);
     const bossDeath = enemy.variant === "alpha" || ENEMIES[enemy.type]?.boss;
     events.push({
       type: bossDeath ? "bossDeath" : "enemyDeath",
@@ -3279,6 +3316,7 @@ export function eliminateTroop(session, troop, events, reason = "enemy", options
   troop.defenseActive = false;
   troop.pendingRepulsorShot = null;
   recordTroopLoss(session, troop, reason);
+  recordTroopLossTelemetry(session.telemetry, troop.type);
   recordTideTroopElimination(session, troop, reason);
   releaseParasiteFromTroop(session, troop);
   refreshSwarmDoctrine(session);
@@ -3315,11 +3353,13 @@ export function damageTroop(session, troop, amount, events, context = {}) {
     * finalFortressFactor * bastiaoFactor
     * electricDamageTakenFactor(troop, session.elapsed)
     * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
+  let shieldAbsorbed = 0;
   if ([DAMAGE_TYPES.FIRE, DAMAGE_TYPES.THERMAL].includes(damageType)
     && config.thermalShield && troop.thermalShieldHp > 0) {
     const absorbed = Math.min(troop.thermalShieldHp, incoming);
     troop.thermalShieldHp -= absorbed;
     incoming -= absorbed;
+    shieldAbsorbed += absorbed;
     session.thermalMetrics.aresShieldAbsorbed += absorbed;
     events.push({ type: "aresThermalShieldAbsorb", targetId: troop.id, amount: absorbed, current: troop.thermalShieldHp, max: config.thermalShield.maxHp, x: troop.x, y: troop.y - 54, damageType });
   }
@@ -3327,10 +3367,22 @@ export function damageTroop(session, troop, amount, events, context = {}) {
     const absorbed = Math.min(troop.reactiveShield, incoming);
     troop.reactiveShield -= absorbed;
     incoming -= absorbed;
+    shieldAbsorbed += absorbed;
   }
   const hpBefore = Math.max(0, troop.hp);
   const actualHpDamage = Math.min(hpBefore, Math.max(0, incoming));
   troop.hp = hpBefore - actualHpDamage;
+  const prevented = Math.max(shieldAbsorbed, Math.max(0, amount - actualHpDamage));
+  recordDamageTaken(session.telemetry, troop.type, actualHpDamage, prevented);
+  const sourceEnemy = context.sourceEnemyId
+    ? livingEnemyById(getBattleIndex(session), context.sourceEnemyId) || session.enemies.find((enemy) => enemy.id === context.sourceEnemyId)
+    : null;
+  recordThreatDamage(session.telemetry, actualHpDamage, {
+    enemyType: context.sourceEnemyType || sourceEnemy?.type,
+    airborne: sourceEnemy ? isIcaroAirTarget(sourceEnemy) : false,
+    boss: Boolean(sourceEnemy && ENEMIES[sourceEnemy.type]?.boss),
+    sourceKind: context.sourceKind || (sourceEnemy || context.sourceEnemyId ? "enemy" : "system"),
+  });
   if (session.modifiers.reactiveBarrier && troop.hp > 0 && troop.hp / troop.maxHp < 0.3
     && !session.reactiveBarrierRows.includes(troop.row)) {
     session.reactiveBarrierRows.push(troop.row);
@@ -4387,11 +4439,11 @@ function updateTroops(session, events, dt) {
       if (troop.energyAccumulator < config.attackEveryMs || session.energy >= session.energyMax) continue;
       const overchargeFactor = session.waveIndex === session.overchargedReactorBoostWave ? 1.5 : 1;
       const amount = Math.min(config.energyPerPulse * overchargeFactor, session.energyMax - session.energy);
-      session.energy += amount;
+      const energyResult = grantEnergy(session, config.energyPerPulse * overchargeFactor, { kind: "reactor", troopId: troop.id, troopType: troop.type });
       session.lastEnergyGainAt = session.elapsed;
       troop.energyAccumulator -= config.attackEveryMs;
       troop.lastAttackAt = session.elapsed;
-      events.push({ type: "energyGenerated", sourceTroopId: troop.id, x: troop.x, y: troop.y, amount, color: config.color });
+      events.push({ type: "energyGenerated", sourceTroopId: troop.id, x: troop.x, y: troop.y, amount: energyResult.gained, color: config.color });
       continue;
     }
     if (isNaniteMedic(config)) {
@@ -5311,6 +5363,7 @@ function resolveEnemyBreach(session, enemy, events) {
   if (shielded) session.shieldCharges -= 1;
   const breachDamage = shielded ? 0 : enemy.baseDamage * session.currentWaveBaseDamageFactor * (session.sandboxSettings?.enemyDamageMultiplier ?? 1);
   if (!session.sandboxSettings?.invulnerableBase) session.integrity = Math.max(0, session.integrity - breachDamage);
+  session.telemetry.objective.damageTaken += breachDamage;
   if (shielded) events.push({ type: "shieldBlock", x: FIELD.baseX, y: enemy.y, remaining: session.shieldCharges });
   events.push({ type: "breach", damage: breachDamage, x: FIELD.baseX, y: enemy.y });
   return true;
@@ -7812,6 +7865,7 @@ function resolveRasgamarBaseOrbImpact(session, projectile, events) {
   const requestedDamage = Math.max(1, Math.round(projectile.baseDamage * (Number(session.currentWaveBaseDamageFactor) || 1) * (session.sandboxSettings?.enemyDamageMultiplier ?? 1)));
   const damage = shielded || invulnerable ? 0 : requestedDamage;
   if (damage > 0) session.integrity = Math.max(0, session.integrity - damage);
+  session.telemetry.objective.damageTaken += damage;
   if (shielded) events.push({ type: "shieldBlock", x: FIELD.baseX, y: projectile.y, remaining: session.shieldCharges });
   if (damage > 0) events.push({ type: "breach", damage, x: FIELD.baseX, y: projectile.y });
   events.push({ type: "rasgamarBaseAttack", enemyId: projectile.sourceEnemyId, row: projectile.row, damage, requestedDamage, shielded, integrityBefore, integrityAfter: session.integrity, x: FIELD.baseX, y: projectile.y, color: projectile.color, seed: projectile.seed });
@@ -8107,6 +8161,7 @@ function updateEnemies(session, dt, events) {
   for (let enemyIndex = 0; enemyIndex < enemyCountAtStart; enemyIndex += 1) {
     const enemy = session.enemies[enemyIndex];
     if (enemy.dead) continue;
+    session.telemetryCurrentEnemy = enemy;
     enemy.previousRenderX = enemy.x;
     enemy.previousRenderY = enemy.y;
     const config = ENEMIES[enemy.type];
@@ -8381,6 +8436,14 @@ function finish(session, outcome) {
       selectedOption: session.adaptiveAid.selectedOptionId,
     },
   };
+  session.result.tacticalReport = buildTacticalReport(session, {
+    integrity: integrityPercent,
+    durationMs: session.elapsed,
+    targetDurationMs: session.phase.targetDurationMs,
+    phase: session.phase,
+    loadout: session.loadout,
+    availableTroops: getAvailableTroopsForPhase(session.phase, getPhaseIndex(session.phase.id)).map((troop) => troop.id),
+  });
 }
 
 export function repositionTroop(session, troopId, row, col) {
@@ -8416,6 +8479,9 @@ export function selectAdaptiveAidOption(session, optionId, target = null) {
 export function stepBattle(session, dt = 32) {
   if (session.outcome) return [];
   const events = [];
+  if (session.elapsed - session.telemetry.lastRouteSampleAt >= 500) {
+    recordRoutePressure(session.telemetry, getRouteTelemetryFromState(session, enemyOccupiesTargetRow), session.elapsed);
+  }
   const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
   if (convoyMission && session.convoyFlow.state === "sectorCountdown") return events;
   if (convoyMission && session.convoyFlow.state === "convoyEntry") {
@@ -8565,7 +8631,7 @@ export function stepBattle(session, dt = 32) {
       const waveCompletionAmount = Math.min(waveCompletionEnergy, Math.max(0, session.energyMax - session.energy));
       let outroEnergyGained = waveCompletionAmount;
       if (waveCompletionAmount > 0) {
-        session.energy += waveCompletionAmount;
+        grantEnergy(session, waveCompletionEnergy, { kind: "wave" });
         session.lastEnergyGainAt = session.elapsed;
         events.push({
           type: "energyGenerated",
@@ -8582,10 +8648,10 @@ export function stepBattle(session, dt = 32) {
         const amount = Math.min(config.waveEnergyBonus, Math.max(0, session.energyMax - session.energy));
         if (amount > 0) {
           outroEnergyGained += amount;
-          session.energy += amount;
+          const energyResult = grantEnergy(session, config.waveEnergyBonus, { kind: "reactor", troopId: reactor.id, troopType: reactor.type });
           session.lastEnergyGainAt = session.elapsed;
           reactor.lastAttackAt = session.elapsed;
-          events.push({ type: "energyGenerated", sourceTroopId: reactor.id, x: reactor.x, y: reactor.y, amount, reason: "wave", color: config.color });
+          events.push({ type: "energyGenerated", sourceTroopId: reactor.id, x: reactor.x, y: reactor.y, amount: energyResult.gained, reason: "wave", color: config.color });
         }
       }
       const finalWave = completedWave >= session.phase.waves.length - 1;

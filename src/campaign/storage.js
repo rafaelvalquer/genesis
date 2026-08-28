@@ -16,10 +16,11 @@ export const DEFAULT_SETTINGS = {
 
 export function createDefaultSave() {
   return {
-    version: 2,
+    version: 3,
     unlockedPhaseIndex: 0,
     currentPhaseId: PHASES[0].id,
     phaseStats: {},
+    troopStats: {},
   };
 }
 
@@ -65,13 +66,15 @@ export function migrateSave(value) {
     0,
     Math.min(PHASES.length - 1, migratedIndex),
   );
+  const troopStats = isPlainObject(value.troopStats) ? value.troopStats : {};
 
   return {
-    version: 2,
+    version: 3,
     unlockedPhaseIndex: unlocked,
     currentPhaseId: PHASES[unlocked]?.id
       || PHASES[0].id,
     phaseStats,
+    troopStats,
   };
 }
 
@@ -112,6 +115,20 @@ export function recordBattleResult(
   if (phaseIndex < 0) return migrateSave(save);
 
   const previous = save.phaseStats?.[result.phaseId] || {};
+  const reportTroops = result.tacticalReport?.troops || [];
+  const troopStats = { ...(save.troopStats || {}) };
+  for (const troop of reportTroops) {
+    const prior = troopStats[troop.type] || {};
+    troopStats[troop.type] = {
+      ...prior,
+      battlesUsed: Number(prior.battlesUsed || 0) + (troop.deployed > 0 ? 1 : 0),
+      deployments: Number(prior.deployments || 0) + Number(troop.deployed || 0),
+      damageDealt: Number(prior.damageDealt || 0) + Number(troop.damageDealt || 0),
+      kills: Number(prior.kills || 0) + Number(troop.kills || 0),
+      damageTaken: Number(prior.damageTaken || 0) + Number(troop.damageTaken || 0),
+      lost: Number(prior.lost || 0) + Number(troop.lost || 0),
+    };
+  }
   const won = result.outcome === "victory";
   const next = {
     ...migrateSave(save),
@@ -153,8 +170,10 @@ export function recordBattleResult(
         ),
         lastOutcome: result.outcome,
         lastPlayedAt: Date.now(),
+        lastTacticalReport: result.tacticalReport || previous.lastTacticalReport || null,
       },
     },
+    troopStats,
   };
 
   return saveCampaign(next, storage);

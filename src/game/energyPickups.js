@@ -1,5 +1,6 @@
 import { isSystemEnabledForPhase } from "./phaseRules.js";
 import { ENEMIES } from "./content.js";
+import { grantEnergy } from "./telemetry/battleTelemetry.js";
 
 export const ENERGY_PICKUP_LIFETIME_MS = 10000;
 export const ENERGY_PICKUP_MAGNET_RADIUS = 140;
@@ -83,10 +84,9 @@ export function updateEnergyPickups(session, dt, events = [], { freezeLifetime =
     pickup.y += pickup.vy * dtSeconds;
     const collectionDistance = pointer ? Math.hypot(pointer.x - pickup.x, pointer.y - pickup.y) : Infinity;
     if (collectionDistance <= ENERGY_PICKUP_COLLECT_RADIUS && session.energy < session.energyMax) {
-      const amount = Math.min(pickup.amount, session.energyMax - session.energy);
-      session.energy += amount;
+      const result = grantEnergy(session, pickup.amount, { kind: "pickup" });
       session.lastEnergyGainAt = session.elapsed;
-      events.push({ type: "energyCollected", x: pickup.x, y: pickup.y, amount, sourceKind: pickup.sourceKind, color: "#fbbf24" });
+      events.push({ type: "energyCollected", x: pickup.x, y: pickup.y, amount: result.gained, sourceKind: pickup.sourceKind, color: "#fbbf24" });
       continue;
     }
     remaining.push(pickup);
