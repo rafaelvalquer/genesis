@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CHAPTER_SEVEN_ENEMIES } from "../chapterSevenEnemies.js";
-import { CELL } from "../visualGeometry.js";
+import { CELL, getEnemyAnimation } from "../visualGeometry.js";
 import { garravinhaBehavior } from "../enemies/chapter07/garravinha.js";
 import { getEnemyBehavior } from "../enemies/enemyRegistry.js";
 import { getConvoyAttackSummary } from "./convoySummary.js";
@@ -35,6 +35,12 @@ function runtimeFor(session, events) {
 }
 
 describe("Garravinha antitransporte", () => {
+  it("avança os oito frames de walking na cadência configurada", () => {
+    const enemy = { type: "garravinha", garravinhaState: "walking", garravinhaStateStartedAt: 0, garravinhaStateEndsAt: Infinity };
+    const frames = { idle: 8, walking: 8 };
+    expect([0, 105, 210, 315, 420, 525, 630, 735, 840].map((elapsed) => getEnemyAnimation(enemy, config, elapsed, frames).frame))
+      .toEqual([0, 1, 2, 3, 4, 5, 6, 7, 0]);
+  });
   it("expõe a configuração e o behavior dedicado", () => {
     expect(config).toMatchObject({ hp: 72, speed: 36, threat: 38, convoyAttackRangeTiles: 1.2 });
     expect(config.latch).toMatchObject({ prepMs: 420, leapMs: 480, initialDamage: 8, tickDamage: 14, tickEveryMs: 1000 });

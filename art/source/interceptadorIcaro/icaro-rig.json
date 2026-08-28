@@ -1,0 +1,28 @@
+{
+  "format": "genesis-spine-rig-contract/v1",
+  "canvas": { "width": 1536, "height": 1536, "exportScale": 0.25 },
+  "root": { "name": "root", "x": 768, "y": 1484, "lockTranslationForStandingStates": true },
+  "slots": [
+    "bootBack", "legBack", "kneeBack", "pelvis", "torso", "shoulderBack", "armBack", "forearmBack",
+    "head", "hairBack", "hairFront", "implant", "shoulderFront", "armFront", "forearmFront",
+    "rifle", "handTrigger", "handSupport", "kneeFront", "legFront", "bootFront", "cyanAccents"
+  ],
+  "bones": [
+    { "name": "root" },
+    { "name": "pelvis", "parent": "root" },
+    { "name": "legBack", "parent": "pelvis" }, { "name": "bootBack", "parent": "legBack" },
+    { "name": "legFront", "parent": "pelvis" }, { "name": "bootFront", "parent": "legFront" },
+    { "name": "torso", "parent": "pelvis" }, { "name": "head", "parent": "torso" },
+    { "name": "shoulderBack", "parent": "torso" }, { "name": "armBack", "parent": "shoulderBack" },
+    { "name": "shoulderFront", "parent": "torso" }, { "name": "armFront", "parent": "shoulderFront" },
+    { "name": "rifle", "parent": "torso" }, { "name": "muzzle", "parent": "rifle" },
+    { "name": "supportHandTarget", "parent": "rifle" }
+  ],
+  "constraints": [
+    "twoBoneIK: legBack -> bootBack, target=root", "twoBoneIK: legFront -> bootFront, target=root",
+    "transform: handTrigger follows rifle grip", "transform: handSupport follows supportHandTarget"
+  ],
+  "animations": [
+    "idle", "attackBurst", "interceptionLock", "interceptionFire", "interceptionFireUp", "interceptionFireDown", "paralyzed", "death"
+  ]
+}

@@ -78,11 +78,13 @@ export function createBattleAudioChannels(assets, chapterId = null) {
 export function useBattleAudio({ audioRef, settings, paused, windActive, convoyActive = false, chapterId = null }) {
   const fadeLoop = useCallback((audio, targetVolume, durationMs = 220, pauseAfter = false) => {
     if (!audio) return;
-    const startVolume = Number.isFinite(audio.volume) ? audio.volume : 0;
+    const clampVolume = (value) => Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+    const startVolume = clampVolume(audio.volume);
+    const safeTargetVolume = clampVolume(targetVolume);
     const startedAt = performance.now();
     const tick = (now) => {
       const ratio = Math.min(1, (now - startedAt) / durationMs);
-      audio.volume = startVolume + (targetVolume - startVolume) * ratio;
+      audio.volume = clampVolume(startVolume + (safeTargetVolume - startVolume) * ratio);
       if (ratio < 1) requestAnimationFrame(tick);
       else if (pauseAfter) audio.pause();
     };

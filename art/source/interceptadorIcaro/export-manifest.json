@@ -1,0 +1,15 @@
+{
+  "format": "genesis-rig-export/v1",
+  "canvas": { "width": 384, "height": 384, "safeMargin": 12 },
+  "root": { "x": 192, "standingBaselineY": 371 },
+  "states": {
+    "idle": { "frames": 8, "loop": true },
+    "attackBurst": { "frames": 8, "loop": false, "muzzleFrames": [] },
+    "interceptionLock": { "frames": 8, "loop": false },
+    "interceptionFire": { "frames": 8, "loop": false, "muzzleFrames": [] },
+    "interceptionFireUp": { "frames": 8, "loop": false, "muzzleFrames": [] },
+    "interceptionFireDown": { "frames": 8, "loop": false, "muzzleFrames": [] },
+    "paralyzed": { "frames": 8, "loop": true },
+    "death": { "frames": 8, "loop": false, "frame0Equals": "idle/frame0.png" }
+  }
+}

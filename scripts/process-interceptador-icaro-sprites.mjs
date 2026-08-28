@@ -26,6 +26,32 @@ const states = [
   "paralyzed",
   "death",
 ];
+const strictCanvas = process.argv.includes("--strict-canvas");
+
+async function hasRigCanvas(source) {
+  const metadata = await sharp(source).metadata();
+  return metadata.width === frameSize && metadata.height === frameSize && metadata.channels === 4;
+}
+
+async function publishRigFrame(source, state, frame) {
+  const decoded = await sharp(source).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  removeStrayComponents(decoded.data, decoded.info.width, decoded.info.height, decoded.info.channels);
+  const bounds = alphaBounds(
+    decoded.data,
+    decoded.info.width,
+    decoded.info.height,
+    decoded.info.channels,
+  );
+  if (bounds.left < safeMargin || bounds.top < safeMargin
+    || bounds.left + bounds.width > frameSize - safeMargin
+    || bounds.top + bounds.height > frameSize - safeMargin) {
+    throw new Error(`${state}/frame${frame}.png excede a margem segura do canvas do rig.`);
+  }
+  if (standingStates.has(state) && Math.abs(bounds.top + bounds.height - 1 - 371) > 2) {
+    throw new Error(`${state}/frame${frame}.png não preserva a baseline comum do rig.`);
+  }
+  return sharp(decoded.data, { raw: decoded.info });
+}
 
 function removeStrayComponents(data, width, height, channels) {
   const opaque = new Uint8Array(width * height);
@@ -220,9 +246,15 @@ for (const state of states) {
     if (!metadata.width || !metadata.height || metadata.channels !== 4) {
       throw new Error(`${source} precisa ser um PNG RGBA individual.`);
     }
-    const image = standingStates.has(state)
-      ? await normalizeStanding(source)
-      : await normalizeDeath(source, frame);
+    const rigCanvas = await hasRigCanvas(source);
+    if (strictCanvas && !rigCanvas) {
+      throw new Error(`${source} precisa ser exportado pelo rig em ${frameSize}x${frameSize} RGBA.`);
+    }
+    const image = rigCanvas
+      ? await publishRigFrame(source, state, frame)
+      : standingStates.has(state)
+        ? await normalizeStanding(source)
+        : await normalizeDeath(source, frame);
     const output = await image
       .png({
         compressionLevel: 9,
@@ -236,4 +268,4 @@ for (const state of states) {
   }
 }
 
-console.log(`64 sprites individuais e alinhados do Interceptador Ícaro gerados em ${outputRoot}`);
+console.log(`64 sprites individuais e alinhados do Interceptador Ícaro gerados em ${outputRoot}${strictCanvas ? " (canvas de rig validado)" : ""}`);

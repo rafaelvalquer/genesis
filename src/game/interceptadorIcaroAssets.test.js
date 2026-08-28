@@ -12,15 +12,20 @@ const expected = {
   attackBurst: 8,
   interceptionLock: 8,
   interceptionFire: 8,
+  interceptionFireUp: 8,
+  interceptionFireDown: 8,
   paralyzed: 8,
   death: 8,
 };
+const directionalStates = ["interceptionFireUp", "interceptionFireDown"];
 
 const visuals = [
   "idleVisual",
   "attackVisual",
   "interceptionLockVisual",
   "interceptionFireVisual",
+  "interceptionFireUpVisual",
+  "interceptionFireDownVisual",
   "paralyzedVisual",
   "deathVisual",
 ];
@@ -32,8 +37,11 @@ describe("assets do Interceptador Ícaro", () => {
     }
   });
 
-  it("registra somente os seis estados aprovados com oito quadros cada", () => {
-    expect(TROOPS.interceptadorIcaro.assetStates).toEqual(Object.keys(expected));
+  it("registra os oito estados aprovados com oito quadros cada", () => {
+    expect(TROOPS.interceptadorIcaro.assetStates).toEqual(
+      Object.keys(expected).filter((state) => !directionalStates.includes(state)),
+    );
+    expect(TROOPS.interceptadorIcaro.assetDirectionalStates).toEqual(directionalStates);
     for (const [state, count] of Object.entries(expected)) {
       expect(fs.readdirSync(path.join(root, state)).filter((name) => name.endsWith(".png")))
         .toHaveLength(count);
@@ -70,7 +78,7 @@ describe("assets do Interceptador Ícaro", () => {
             }
           }
         }
-        expect([45, 46]).toContain(top);
+        expect(top).toBeGreaterThanOrEqual(12);
         expect(bottom).toBe(371);
         expect(left).toBeGreaterThanOrEqual(12);
         expect(right).toBeLessThanOrEqual(371);
