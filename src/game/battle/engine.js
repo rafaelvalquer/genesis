@@ -53,9 +53,14 @@ import {
   recordTroopDamage,
   recordTroopLossTelemetry,
   refundEnergy,
+  refundSupply,
+  grantSupply,
+  expandSupply,
+  spendSupply,
   spendEnergy,
 } from "../telemetry/battleTelemetry.js";
 import { buildTacticalReport } from "../telemetry/tacticalReport.js";
+import { createBattleTimeline, recordTimelineEvent, sampleBattleTimeline } from "../telemetry/battleTimeline.js";
 import { initializeMantisFlightPath, sampleMantisArc, updateMantis } from "../mantis.js";
 import { updateFuzileiroVoltaico } from "../fuzileiroVoltaico.js";
 import { getAresFireBonus, updateAresThermalShields } from "../troops/aresT.js";
@@ -551,6 +556,8 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
     sandbox,
     sandboxSettings,
   };
+  session.telemetry.timeline = createBattleTimeline();
+  sampleBattleTimeline(session, { force: true });
   if (sessionPhase.progressionMode === "convoy") {
     session.convoy = createConvoyState(sessionPhase);
     session.convoyFlow = createConvoyFlow();
@@ -803,8 +810,8 @@ export function deployStartingTroops(session) {
     occupiedCells.add(cellKey);
     provided.push(troop);
 
-    if (rules.consumeEnergy) session.energy = Math.max(0, session.energy - energyCost);
-    if (rules.consumeSupply) session.supply = Math.max(0, session.supply - supplyCost);
+    if (rules.consumeEnergy) spendEnergy(session, energyCost, { kind: "deployment", troopType });
+    if (rules.consumeSupply) spendSupply(session, supplyCost, { kind: "deployment", troopType });
   }
 
   if (provided.length) rebuildBattleIndex(session);
@@ -849,7 +856,7 @@ export function placeTroop(session, troopId, row, col) {
       const renewal = renewThermalPlatform(session, existingPlatform, config);
       if (!freePlacement) {
         spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId });
-        session.supply -= effective.supply;
+        spendSupply(session, effective.supply, { kind: "deployment", troopType: troopId });
       }
       if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) {
         session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
@@ -872,9 +879,10 @@ export function placeTroop(session, troopId, row, col) {
     const platform = createThermalPlatform(session, row, col, config, () => id("support"));
     const temporaryHazard = getTemporaryMagmaAt(session, row, col);
     if (temporaryHazard) platform.temporaryHazardId = temporaryHazard.id;
-    if (!freePlacement) { spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId }); session.supply -= effective.supply; }
+    if (!freePlacement) { spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId }); spendSupply(session, effective.supply, { kind: "deployment", troopType: troopId }); }
     session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
     recordDeployment(session.telemetry, troopId);
+    recordTimelineEvent(session, "troop_deployed", { troopType: troopId, row, col, energyCost: effective.price, supplyCost: effective.supply });
     if (!freePlacement && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
     return { ok: true, support: platform, events: [{ type: "thermalPlatformDeployed", row, col, supportId: platform.id, rescuedTroopId: burningTroop?.id || null }], activeCount: (session.supportStructures || []).length, maxDeployed: getTroopDeploymentLimit(troopId, session), event: { type: "deploy", x: col * CELL.width + CELL.width / 2, y: row * CELL.height + CELL.height / 2 } };
   }
@@ -899,7 +907,7 @@ export function placeTroop(session, troopId, row, col) {
   const fortuneFree = !freePlacement && session.fortuneFreeDeploymentCharges > 0;
   if (!freePlacement) {
     spendEnergy(session, effective.price, { kind: "deployment", troopType: troopId });
-    session.supply -= effective.supply;
+    spendSupply(session, effective.supply, { kind: "deployment", troopType: troopId });
     if (fortuneFree) session.fortuneFreeDeploymentCharges -= 1;
     else {
       if (session.efficientBatteryCharges > 0) session.efficientBatteryCharges -= 1;
@@ -908,6 +916,7 @@ export function placeTroop(session, troopId, row, col) {
   }
   session.deployed[troopId] = (session.deployed[troopId] || 0) + 1;
   recordDeployment(session.telemetry, troopId);
+  recordTimelineEvent(session, "troop_deployed", { troopType: troopId, troopId: troop.id, row, col, energyCost: effective.price, supplyCost: effective.supply });
   const skipCooldown = !freePlacement && session.earlyPreparationCharges > 0;
   if (skipCooldown) session.earlyPreparationCharges -= 1;
   if (!freePlacement && !skipCooldown && (session.waveActive || session.sandbox || config.cooldownDuringPreparation)) session.deployCooldowns[troopId] = session.elapsed + effective.deployCooldownMs;
@@ -931,6 +940,7 @@ export function removeTroop(session, row, col) {
     return { ok: false, reason: "Esta tropa faz parte da defesa inicial da missão e não pode ser removida." };
   }
   const [troop] = session.troops.splice(index, 1);
+  recordTimelineEvent(session, "troop_removed", { troopType: troop.type, troopId: troop.id, row: troop.row, col: troop.col });
   recordTroopLoss(session, troop, "manualRemoval");
   releaseParasiteFromTroop(session, troop);
   const config = TROOPS[troop.type];
@@ -940,7 +950,7 @@ export function removeTroop(session, row, col) {
   const criticalRefund = session.modifiers.organizedRetreat && troop.hp / troop.maxHp < 0.3;
   const refund = Math.floor(Number(troop.energyCost ?? config.price) * (criticalRefund ? 1 : session.modifiers.refundRate));
   refundEnergy(session, refund);
-  session.supply = Math.min(session.supplyMax, session.supply + Number(troop.supplyCost ?? config.supply));
+  refundSupply(session, Number(troop.supplyCost ?? config.supply), { kind: "removal", troopType: troop.type });
   refreshSwarmDoctrine(session);
   return { ok: true, refund, troop, event: { type: "remove", x: troop.x, y: troop.y, entity: { ...troop } } };
 }
@@ -1004,11 +1014,11 @@ function applyDecision(session, decisionId, target = null) {
   const multiply = (field, factor) => { session.modifiers[field] *= factor; };
   switch (decisionId) {
     case "emergency_energy":
-      session.energy = Math.min(session.energyMax, session.energy + 20);
+      grantEnergy(session, 20, { kind: "decision", id: decisionId });
       break;
     case "supply_expansion":
-      session.supplyMax += 4;
-      session.supply += 4;
+      expandSupply(session, 4, { kind: "decision", id: decisionId });
+      grantSupply(session, 4, { kind: "decision", id: decisionId });
       break;
     case "repair_core":
       session.integrity = Math.min(session.integrityMax, session.integrity + 25);
@@ -1133,15 +1143,15 @@ function applyDecision(session, decisionId, target = null) {
       session.overchargedReactorInactiveWave = session.waveIndex + 1;
       break;
     case "supply_reserve":
-      session.supply = Math.min(session.supplyMax, session.supply + 4);
+      grantSupply(session, 4, { kind: "decision", id: decisionId });
       session.nextWaveSupply += 4;
       break;
     case "early_assault":
-      session.energy = Math.min(session.energyMax, session.energy + 30);
+      grantEnergy(session, 30, { kind: "decision", id: decisionId });
       break;
     case "total_mobilization":
-      session.supplyMax += 5;
-      session.supply += 5;
+      expandSupply(session, 5, { kind: "decision", id: decisionId });
+      grantSupply(session, 5, { kind: "decision", id: decisionId });
       session.nextWaveEnemyCountFactor *= 1.12;
       break;
     case "frontline_doctrine":
@@ -1185,7 +1195,7 @@ export function startWave(session) {
     session.nextWaveEnergy = 0;
   }
   if (session.nextWaveSupply > 0) {
-    session.supply = Math.min(session.supplyMax, session.supply + session.nextWaveSupply);
+    grantSupply(session, session.nextWaveSupply, { kind: "decision" });
     session.nextWaveSupply = 0;
   }
   session.activeTemporaryDecisions = [...session.queuedTemporaryDecisions];
@@ -1193,6 +1203,7 @@ export function startWave(session) {
   if (session.activeTemporaryDecisions.includes("final_reserve")) {
     grantEnergy(session, 30, { kind: "decision" });
   }
+  recordTimelineEvent(session, "wave_start", { wave: session.waveIndex });
   const enemyCountFactor = session.nextWaveEnemyCountFactor;
   session.nextWaveEnemyCountFactor = 1;
   session.currentWaveBaseDamageFactor = session.nextWaveBaseDamageFactor;
@@ -1241,6 +1252,7 @@ export function selectDecision(session, option, target = null) {
   }
   if (!applyDecision(session, option.id, target)) return false;
   session.decisions.push({ wave: session.waveIndex, level: session.pendingDecisionLevel, id: option.id, ...(target ? { target: { ...target, columns: target.columns ? [...target.columns] : undefined } } : {}) });
+  recordTimelineEvent(session, "decision", { decisionId: option.id });
   session.pendingDecision = null;
   session.pendingDecisionLevel = null;
   if (option.id === "early_assault") startWave(session);
@@ -1470,6 +1482,7 @@ function createEnemyLegacy(session, queued) {
   if (queued.type === "leviathanNereida") enemy.leviathanHomeY = enemy.y;
   session.enemies.push(enemy);
   registerEnemyInIndex(getBattleIndex(session), enemy);
+  if (ENEMIES[enemy.type]?.boss) recordTimelineEvent(session, "boss_start", { enemyType: enemy.type, row: enemy.row });
   if (queued.type === "crisalio" && !Number.isFinite(session.prismaticMantle.rows[enemy.row].nextPulseAt)) {
     session.prismaticMantle.rows[enemy.row].nextPulseAt = session.elapsed + base.shieldPulseEveryMs;
   }
@@ -3317,6 +3330,7 @@ export function eliminateTroop(session, troop, events, reason = "enemy", options
   troop.pendingRepulsorShot = null;
   recordTroopLoss(session, troop, reason);
   recordTroopLossTelemetry(session.telemetry, troop.type);
+  recordTimelineEvent(session, "troop_lost", { troopType: troop.type, troopId: troop.id, row: troop.row, reason });
   recordTideTroopElimination(session, troop, reason);
   releaseParasiteFromTroop(session, troop);
   refreshSwarmDoctrine(session);
@@ -8408,6 +8422,7 @@ function finish(session, outcome) {
   session.waveActive = false;
   enterThermalIntermission(session);
   session.preparing = false;
+  sampleBattleTimeline(session, { force: true });
   session.result = {
     phaseId: session.phase.id,
     outcome,
@@ -8482,6 +8497,7 @@ export function stepBattle(session, dt = 32) {
   if (session.elapsed - session.telemetry.lastRouteSampleAt >= 500) {
     recordRoutePressure(session.telemetry, getRouteTelemetryFromState(session, enemyOccupiesTargetRow), session.elapsed);
   }
+  sampleBattleTimeline(session);
   const convoyMission = session.phase?.progressionMode === "convoy" && session.convoyFlow;
   if (convoyMission && session.convoyFlow.state === "sectorCountdown") return events;
   if (convoyMission && session.convoyFlow.state === "convoyEntry") {
@@ -8552,7 +8568,7 @@ export function stepBattle(session, dt = 32) {
     session.supplyAccumulator += dt;
     while (session.supplyAccumulator >= 1000) {
       session.supplyAccumulator -= 1000;
-      session.supply = Math.min(session.supplyMax, session.supply + 1);
+      grantSupply(session, 1, { kind: "regeneration" });
     }
     while (session.waveActive && session.queue.length && session.elapsed >= session.nextSpawnAt) {
       if (shouldDeferChapterFiveSpawn(session, session.queue[0])) {
@@ -8621,6 +8637,7 @@ export function stepBattle(session, dt = 32) {
       && session.alphaPressure.pendingSpawns.length === 0;
     if (waveCleared) {
       session.waveActive = false;
+      recordTimelineEvent(session, "wave_end", { wave: session.waveIndex, kills: session.killed - session.waveKillStart });
       enterThermalIntermission(session);
       session.activeTemporaryDecisions = [];
       endSandstorm(session, events, true);

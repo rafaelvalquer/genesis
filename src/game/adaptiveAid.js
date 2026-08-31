@@ -1,6 +1,7 @@
 import { ENEMIES, TROOPS } from "./content.js";
 import { CELL, FIELD } from "./visualGeometry.js";
 import { createPositionalConfirmationEvent, validatePositionalTarget } from "./positionalTargeting.js";
+import { grantEnergy } from "./telemetry/battleTelemetry.js";
 
 export const ADAPTIVE_AID_EVALUATION_MS = 1000;
 export const ADAPTIVE_AID_DIFFICULT_HOLD_MS = 6000;
@@ -367,7 +368,7 @@ export function selectAdaptiveAidOption(session, optionId, target = null, events
     return { ok: true, targeting: true };
   }
   let applied = true;
-  if (option.id === "energy_reserve") session.energy = Math.min(session.energyMax, session.energy + 20);
+  if (option.id === "energy_reserve") grantEnergy(session, 20, { kind: "decision", id: option.id });
   else if (option.id === "contingency_repairs") session.integrity = Math.min(session.integrityMax, session.integrity + 15);
   else if (option.id === "logistics_sync") Object.keys(session.deployCooldowns).forEach((id) => { session.deployCooldowns[id] = session.elapsed; });
   else if (option.id === "free_reinforcement") session.fortuneFreeDeploymentCharges += 1;

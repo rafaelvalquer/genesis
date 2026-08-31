@@ -1,3 +1,4 @@
+import { refundEnergy } from "./telemetry/battleTelemetry.js";
 const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 
 export const THERMAL_STATES = Object.freeze({
@@ -130,7 +131,7 @@ export function updateTemporaryMagmaHazards(session, events = []) {
         platform.destroyed = true;
         platform.destroyedAt = session.elapsed;
         const freePlacement = session.sandbox && session.sandboxSettings?.rulesMode === "free";
-        if (!freePlacement) session.energy = Math.min(session.energyMax, session.energy + Math.round((platform.paidEnergy || 8) * .5));
+        if (!freePlacement) refundEnergy(session, Math.round((platform.paidEnergy || 8) * .5));
         events.push({ type: "thermalPlatformReclaimed", supportId: platform.id, row: platform.row, col: platform.col, refund: freePlacement ? 0 : Math.round((platform.paidEnergy || 8) * .5) });
       }
     }

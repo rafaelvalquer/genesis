@@ -14,7 +14,16 @@ export function buildTacticalReport(session, options = {}) {
   const mostPressured = routes.reduce((best, route) => route.pressureSum > best.pressureSum ? route : best, routes[0] || { row: 0 });
   const summary = { damageDealt: Math.round(telemetry.combat.totalDamageDealt), damageReceived: Math.round(telemetry.combat.totalDamageReceived), damagePrevented: Math.round(telemetry.combat.totalDamagePrevented), energyGenerated: Math.round(telemetry.energy.generated), energySpent: Math.round(telemetry.energy.spent), energyWasted: Math.round(telemetry.energy.wasted), energyRefunded: Math.round(telemetry.energy.refunded), troopsDeployed: deployed, troopsLost: lost, mostPressuredRoute: mostPressured.row, objectiveDamage: Math.round(telemetry.objective.damageTaken) };
   summary.efficiency = calculateTacticalEfficiency({ integrity: options.integrity, troopsDeployed: deployed, troopsLost: lost, energyGenerated: summary.energyGenerated, energyWasted: summary.energyWasted, durationMs: options.durationMs, targetDurationMs: options.targetDurationMs });
-  const report = { version: 1, summary, troops, threats: { ...telemetry.threats }, routes, insights: [] };
+  const timeline = telemetry.timeline || { sampleIntervalMs: 1000, samples: [], events: [] };
+  const report = {
+    version: 2, summary, troops, threats: { ...telemetry.threats }, routes, insights: [],
+    timeline: {
+      sampleIntervalMs: timeline.sampleIntervalMs,
+      durationMs: options.durationMs || 0,
+      samples: timeline.samples.map((sample) => ({ ...sample, activeTroopsByType: { ...sample.activeTroopsByType } })),
+      events: timeline.events.map((event) => ({ ...event })),
+    },
+  };
   report.insights = buildTacticalInsights(report, options);
   return report;
 }

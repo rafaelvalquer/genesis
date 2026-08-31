@@ -1,3 +1,5 @@
+import { recordTimelineEvent } from "../telemetry/battleTimeline.js";
+
 export function damageConvoy(session, amount, events = [], context = {}) {
   const convoy = session.convoy;
   if (!convoy || convoy.invulnerable || convoy.hp <= 0 || amount <= 0) return 0;
@@ -11,6 +13,7 @@ export function damageConvoy(session, amount, events = [], context = {}) {
       session.telemetry.threats.byEnemyType[context.enemyType] = (session.telemetry.threats.byEnemyType[context.enemyType] || 0) + dealt;
     }
   }
+  if (dealt > 0) recordTimelineEvent(session, "objective_damage", { target: "convoy", amount: dealt, integrity: convoy.hp });
   convoy.lastHitAt = session.elapsed;
   if (context.underAttackHoldMs > 0) {
     convoy.underAttackHoldUntil = Math.max(convoy.underAttackHoldUntil || -Infinity, session.elapsed + context.underAttackHoldMs);
