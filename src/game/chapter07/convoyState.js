@@ -15,6 +15,7 @@ export function createConvoyState(phase) {
     reserve: phase.convoy.reserveInitial, reserveMax: phase.convoy.reserveMax,
     nextEnergyPulseAt: phase.convoy.energyPulseEveryMs || 5000,
     reserveEmptyEmitted: false, damageState: "normal",
+    pendingEnergySpawn: null,
     animation: { state: "idle", startedAt: 0 },
     lastHitAt: -Infinity, destroyedAt: null,
   };

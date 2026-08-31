@@ -200,6 +200,8 @@ describe("Convoy systems", () => {
     session.energy = 100; session.elapsed = 5000; session.convoy.nextEnergyPulseAt = 5000;
     updateConvoyEnergy(session);
     expect(session.energy).toBe(100); expect(session.convoy.reserve).toBe(77);
+    expect(session.energyPickups.filter((pickup) => pickup.sourceKind === "convoy")).toHaveLength(0);
+    session.elapsed += 450; updateConvoyEnergy(session);
     expect(session.energyPickups.filter((pickup) => pickup.sourceKind === "convoy")).toHaveLength(3);
     session.energy = 200; session.elapsed = 10000; updateConvoyEnergy(session);
     expect(session.convoy.reserve).toBe(77);
@@ -215,6 +217,8 @@ describe("Convoy systems", () => {
     session.energy = 100;
     session.elapsed = 5000;
     session.convoy.nextEnergyPulseAt = 5000;
+    updateConvoyEnergy(session);
+    session.elapsed += 450;
     updateConvoyEnergy(session);
     const pickup = session.energyPickups.find((entry) => entry.sourceKind === "convoy");
     session.energyPickups.filter((entry) => entry !== pickup).forEach((entry, index) => { entry.x += 100 + index * 20; });

@@ -15,7 +15,6 @@ function visualElapsed(convoy, state, time, paused) {
 function drawEffects(ctx, convoy, session, x, y, time, settings, state) {
   const density = settings.reduceMotion || settings.quality === "low" ? 1 : settings.quality === "medium" ? 2 : 3;
   if (["light", "heavy", "critical", "destroyed"].includes(convoy.damageState)) { const count = convoy.damageState === "critical" || convoy.damageState === "destroyed" ? density : 1; ctx.fillStyle = `rgba(62,68,70,${settings.reduceMotion ? .22 : .16 + Math.sin(time * .004) * .06})`; for (let i = 0; i < count; i += 1) { ctx.beginPath(); ctx.arc(x - 22 + i * 12, y - 36 - i * 9, 13 + i * 5, 0, Math.PI * 2); ctx.fill(); } }
-  if (!settings.reduceMotion) { const progress = state === "energy_spawn" ? Math.min(1, Math.max(0, (time - (convoy.animation?.startedAt || time)) / 450)) : .28 + Math.sin(time * .006) * .08; ctx.fillStyle = `rgba(103,232,249,${.12 + progress * .35})`; ctx.beginPath(); ctx.arc(x + 18, y - 38, 7 + progress * 16, 0, Math.PI * 2); ctx.fill(); }
 }
 export function getConvoyThreatVisual(convoy, now = 0) {
   const hitAge = now - (convoy?.lastHitAt ?? -Infinity);
@@ -29,16 +28,15 @@ export function drawConvoy(ctx, session, time = 0, settings = {}) {
   const vehicleId = getConvoyVehicleId(session.phase);
   if (!requestedVehicles.has(vehicleId)) { requestedVehicles.add(vehicleId); loadConvoyAssets(vehicleId).catch(() => requestedVehicles.delete(vehicleId)); }
   const state = convoy.animation?.state || "idle"; const elapsed = visualElapsed(convoy, state, time, settings.paused);
-  const frames = getConvoyFrames(vehicleId, state); const image = imageFor(frames[resolveConvoyAnimationFrame(state, elapsed, frames.length)]);
+  const frames = getConvoyFrames(vehicleId, state); const frame = state === "idle" ? 0 : resolveConvoyAnimationFrame(state, elapsed, frames.length); const image = imageFor(frames[frame]);
   const hitAge = session.elapsed - (convoy.lastHitAt ?? -Infinity); const hitOffset = hitAge >= 0 && hitAge < 180 && !settings.reduceMotion ? Math.sin(hitAge * .32) * 4 * (1 - hitAge / 180) : 0;
-  const x = convoy.x + hitOffset; const y = convoy.y;
+  const x = convoy.x + hitOffset; const y = convoy.y; const idleBob = state === "idle" && !settings.reduceMotion ? Math.sin(time * .008) * 1.5 : 0;
   const threat = getConvoyThreatVisual(convoy, session.elapsed);
   ctx.save(); ctx.fillStyle = "rgba(0,0,0,.42)"; ctx.beginPath(); ctx.ellipse(x, y + 29, 56, 12, 0, 0, Math.PI * 2); ctx.fill();
   if (threat.level !== "none") { ctx.fillStyle = threat.critical ? "rgba(251,113,133,.3)" : "rgba(251,113,133,.18)"; ctx.filter = `blur(${threat.critical ? 13 : 8}px)`; ctx.beginPath(); ctx.ellipse(x, y + 29, 62, 15, 0, 0, Math.PI * 2); ctx.fill(); ctx.filter = "none"; }
   if (threat.level !== "none") ctx.filter = `drop-shadow(0 0 ${threat.critical ? 10 : 6}px rgba(251,113,133,${threat.critical ? .8 : .55}))`;
-  if (image?.complete && image.naturalWidth) { ctx.globalAlpha = convoy.damageState === "critical" ? .8 : 1; ctx.drawImage(image, x - CONVOY_RENDER_WIDTH / 2, y - 56, CONVOY_RENDER_WIDTH, 112); ctx.globalAlpha = 1; }
+  if (image?.complete && image.naturalWidth) { ctx.globalAlpha = convoy.damageState === "critical" ? .8 : 1; ctx.drawImage(image, x - CONVOY_RENDER_WIDTH / 2, y - 56 + idleBob, CONVOY_RENDER_WIDTH, 112); ctx.globalAlpha = 1; }
   ctx.filter = "none";
   drawEffects(ctx, convoy, session, x, y, time, settings, state);
-  if (threat.recent && !settings.reduceMotion) { const flash = Math.max(0, 1 - hitAge / 180); ctx.globalAlpha = flash * .7; ctx.globalCompositeOperation = "screen"; ctx.fillStyle = "white"; ctx.fillRect(x - 58, y - 48, 116, 82); ctx.globalCompositeOperation = "source-over"; ctx.globalAlpha = 1; }
   ctx.restore();
 }
