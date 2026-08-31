@@ -252,7 +252,7 @@ function ResultScreen({ result, phase, onRetry, onNext, onPhases }) {
     <span className="result-emblem">{victory ? "✦" : "×"}</span><span className="eyebrow">{victory ? "OPERAÇÃO CONCLUÍDA" : "NÚCLEO COMPROMETIDO"}</span><h1>{victory ? "Perímetro assegurado" : "A defesa caiu"}</h1><p>{phase.name} · {result.enemiesDefeated} hostis eliminados</p>
     <Stars value={result.stars} />
     <div className="result-stats"><div><span>Tempo</span><b>{formatTime(result.durationMs)}</b></div><div><span>{phase.progressionMode === "convoy" ? "Comboio" : "Integridade"}</span><b>{result.integrity}%</b></div><div><span>Energia</span><b>{result.energy}</b></div><div><span>Eliminações</span><b>{result.enemiesDefeated}</b></div></div>
-    {result.tacticalReport && <button className="tactical-report-button" onClick={() => setView("tacticalReport")}><TacticalReportIcon /> Relatório tático</button>}
+    {result.tacticalReport && <button className="tactical-report-trigger" onClick={() => setView("tacticalReport")} aria-label="Abrir relatório tático" title="Relatório tático"><TacticalReportIcon /></button>}
     <div className="result-actions"><button className="secondary-button" onClick={onRetry}>Repetir fase</button>{victory && <button className="primary-button" onClick={onNext}>{nextLabel} <span>→</span></button>}<button className="text-button" onClick={onPhases}>Selecionar fases</button></div>
     </>}
   </section></div>;
