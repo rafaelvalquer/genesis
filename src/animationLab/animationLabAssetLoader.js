@@ -9,8 +9,7 @@ const convoyModules = import.meta.glob("../game/assets/convoy/**/*.webp", { quer
 const manifestModules = import.meta.glob("../game/assets/enemy/*/manifest.json", { eager: true, import: "default" });
 
 const CONVOY_ENTRIES = Object.freeze([
-  ["tr7_pioneiro", "TR-7 Pioneiro"], ["tr7r_peregrino", "TR-7R Peregrino"], ["tr7a_bastilha", "TR-7A Bastilha"], ["tr7f_ferrum", "TR-7F Ferrum"],
-  ["tr9_atlas", "TR-9 Atlas"], ["tr9p_vertice", "TR-9P Vértice"], ["tr9s_sobrevivente", "TR-9S Sobrevivente"], ["trx_exodo", "TR-X Êxodo"],
+  ["trg_dinamo", "Dínamo — Unidade Móvel de Geração"],
 ].map(([id, label]) => ({ id, label, assetStates: Object.keys(CONVOY_ANIMATION_CONFIG) })));
 const defaultStates = (type, entity) => entity?.assetStates || (type === "troop" ? ["idle", "attack"] : ["walking", "attack", "idle"]);
 const entityFor = (type, id) => type === "troop" ? TROOPS[id] : type === "convoy" ? CONVOY_ENTRIES.find((entry) => entry.id === id) : ENEMIES[id];

@@ -1,4 +1,6 @@
 import { spawnEnergyPickup } from "../energyPickups.js";
+import { triggerConvoyEnergySpawn } from "./convoyAnimation.js";
+import { CONVOY_VISUAL_CONFIG } from "./convoyAnimationConfig.js";
 
 export function refillConvoyReserve(session, amount = 50) {
   const convoy = session?.convoy;
@@ -20,11 +22,14 @@ export function updateConvoyEnergy(session, events = []) {
     const availableCapacity = Math.max(0, session.energyMax - session.energy - pendingPickupEnergy);
     const amount = Math.floor(Math.min(session.phase.convoy.energyPerPulse || 3, convoy.reserve, availableCapacity));
     if (amount > 0) {
+      const { offsetX, offsetY } = CONVOY_VISUAL_CONFIG.energyEmitter;
+      const emitterX = convoy.x + offsetX;
+      const emitterY = convoy.y + offsetY;
       for (let index = 0; index < amount; index += 1) {
         const angle = (index - (amount - 1) / 2) * 0.9;
         spawnEnergyPickup(session, {
-          x: convoy.x + Math.cos(angle) * 14,
-          y: convoy.y - 35 + Math.sin(angle) * 12,
+          x: emitterX + Math.cos(angle) * 14,
+          y: emitterY + Math.sin(angle) * 12,
           amount: 1,
           initialVx: Math.cos(angle) * 28,
           initialVy: Math.sin(angle) * 18 - 12,
@@ -33,6 +38,7 @@ export function updateConvoyEnergy(session, events = []) {
         }, events);
       }
       convoy.reserve -= amount;
+      triggerConvoyEnergySpawn(convoy, session.elapsed);
       events.push({ type: "energyGenerated", sourceKind: "convoy", amount, remainingReserve: convoy.reserve, x: convoy.x, y: convoy.y });
     }
     if (convoy.reserve === 0 && !convoy.reserveEmptyEmitted) {

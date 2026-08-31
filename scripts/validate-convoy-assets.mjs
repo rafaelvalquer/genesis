@@ -1,16 +1,16 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import sharp from "sharp";
-const CONVOY_VEHICLES = [
-  "tr7_pioneiro", "tr7r_peregrino", "tr7a_bastilha", "tr7f_ferrum",
-  "tr9_atlas", "tr9p_vertice", "tr9s_sobrevivente", "trx_exodo",
-];
+const CONVOY_VEHICLE_ID = "trg_dinamo";
 
 const root = process.cwd();
-const states = { idle: 6, run: 8, destroyed_transition: 10, destroyed_loop: 6 };
+const states = { idle: 8, energy_spawn: 10 };
 const issues = [];
 let total = 0;
-for (const vehicleId of CONVOY_VEHICLES) {
+const vehicleDirectories = (await fs.readdir(path.join(root, "src", "game", "assets", "convoy"), { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+if (JSON.stringify(vehicleDirectories) !== JSON.stringify([CONVOY_VEHICLE_ID])) issues.push(`Expected only ${CONVOY_VEHICLE_ID}, found ${vehicleDirectories.join(", ") || "none"}`);
+for (const vehicleId of [CONVOY_VEHICLE_ID]) {
   for (const [state, expected] of Object.entries(states)) {
     const dir = path.join(root, "src", "game", "assets", "convoy", vehicleId, state);
     let files = [];

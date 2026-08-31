@@ -38,8 +38,8 @@ describe("entrada inicial do comboio", () => {
     advanceConvoyEntry(session, 1100, events);
     expect(session.convoy.x).toBeGreaterThan(getConvoyEntryX());
     expect(session.convoy.x).toBeLessThan(firstStopX);
-    expect(session.convoy.animation.state).toBe("run");
-    expect(getDesiredConvoyAnimationState(session)).toBe("run");
+    expect(session.convoy.animation.state).toBe("idle");
+    expect(getDesiredConvoyAnimationState(session)).toBe("idle");
     expect(session.elapsed).toBe(0);
 
     expect(advanceConvoyEntry(session, 1100, events)).toBe(true);

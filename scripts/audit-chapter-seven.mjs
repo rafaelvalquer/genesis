@@ -180,10 +180,14 @@ for (let frame = 0; frame < 8; frame += 1) {
     failures.push(`treeBroodBurst/frame${frame}.png: asset ausente`);
   }
 }
-try {
-  await access(new URL("../src/game/assets/chapter07/convoy.png", import.meta.url));
-} catch {
-  failures.push("convoy.png: asset final ausente");
+for (const [state, count] of Object.entries({ idle: 8, energy_spawn: 10 })) {
+  for (let frame = 0; frame < count; frame += 1) {
+    try {
+      await access(new URL(`../src/game/assets/convoy/trg_dinamo/${state}/trg_dinamo_${state}_${String(frame).padStart(2, "0")}.webp`, import.meta.url));
+    } catch {
+      failures.push(`trg_dinamo/${state}: frame ${frame} ausente`);
+    }
+  }
 }
 const audioNames = ["engine_loop", "escort_online", "escort_lost", "convoy_attack", "convoy_hit", "convoy_critical",
   "checkpoint", "logistics", "reserve_empty", "reinforcement", "destruction", "evacuation", "frontier_music",

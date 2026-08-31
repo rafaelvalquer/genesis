@@ -1,22 +1,22 @@
-import { CONVOY_ANIMATION_CONFIG, CONVOY_DESTROYED_TRANSITION_MS } from "./convoyAnimationConfig.js";
+import { CONVOY_ANIMATION_CONFIG, CONVOY_ENERGY_SPAWN_DURATION_MS } from "./convoyAnimationConfig.js";
 
 export function getDesiredConvoyAnimationState(session) {
-  const convoy = session?.convoy;
-  if (!convoy) return "idle";
-  if (convoy.hp <= 0) return "destroyed_transition";
-  return ["convoyTransit", "convoyEntry"].includes(session?.convoyFlow?.state) ? "run" : "idle";
+  return session?.convoy ? "idle" : "idle";
+}
+
+export function triggerConvoyEnergySpawn(convoy, now = 0) {
+  if (!convoy) return null;
+  convoy.animation = { state: "energy_spawn", startedAt: now };
+  return convoy.animation;
 }
 
 export function updateConvoyAnimation(session) {
   const convoy = session?.convoy;
   if (!convoy) return null;
-  const animation = convoy.animation || (convoy.animation = { state: "idle", startedAt: session.elapsed || 0, previousState: null });
-  const desired = getDesiredConvoyAnimationState(session);
-  if (animation.state === "destroyed_transition" && (session.elapsed - animation.startedAt) >= CONVOY_DESTROYED_TRANSITION_MS) {
-    animation.previousState = animation.state; animation.state = "destroyed_loop"; animation.startedAt = session.elapsed;
-  } else if (animation.state !== "destroyed_loop" && animation.state !== desired) {
-    animation.previousState = animation.state; animation.state = desired; animation.startedAt = session.elapsed;
-    if (desired === "destroyed_transition") convoy.destroyedAt ??= session.elapsed;
+  const animation = convoy.animation || (convoy.animation = { state: "idle", startedAt: session.elapsed || 0 });
+  if (animation.state === "energy_spawn" && session.elapsed - animation.startedAt >= CONVOY_ENERGY_SPAWN_DURATION_MS) {
+    animation.state = "idle";
+    animation.startedAt = session.elapsed;
   }
   return animation;
 }

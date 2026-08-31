@@ -54,7 +54,6 @@ describe("Chapter 7 structural contract", () => {
   it("ships final roster, convoy and audio assets", () => {
     const enemyFrames = import.meta.glob("../assets/enemy/*/{idle,walking,attack}/frame*.png");
     const audio = import.meta.glob("../assets/sfx/c7_*.wav");
-    const convoy = import.meta.glob("../assets/chapter07/convoy.png");
     for (const enemyId of CHAPTER_SEVEN_ENEMY_IDS) {
       expect(Object.keys(enemyFrames).some((key) => key.includes(`/enemy/${enemyId}/`))).toBe(true);
     }
@@ -63,21 +62,10 @@ describe("Chapter 7 structural contract", () => {
     expect(Object.keys(import.meta.glob("../assets/enemy/macacoEsporos/{idle,walking,attack,sporeThrow}/frame*.png"))).toHaveLength(32);
     expect(Object.keys(import.meta.glob("../assets/enemy/garravinha/{idle,walking,attack,latchPrep,latchLeap,latched,death}/frame*.png"))).toHaveLength(52);
     expect(Object.keys(audio)).toHaveLength(24);
-    expect(Object.keys(convoy)).toHaveLength(1);
-    const pioneiroFrames = import.meta.glob("../assets/convoy/tr7_pioneiro/*/*.webp");
-    expect(Object.keys(pioneiroFrames)).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/idle/*.webp"))).toHaveLength(6);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/run/*.webp"))).toHaveLength(8);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/destroyed_transition/*.webp"))).toHaveLength(10);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr7_pioneiro/destroyed_loop/*.webp"))).toHaveLength(6);
-    const peregrinoFrames = import.meta.glob("../assets/convoy/tr7r_peregrino/*/*.webp");
-    expect(Object.keys(peregrinoFrames)).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr7a_bastilha/*/*.webp"))).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr7f_ferrum/*/*.webp"))).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr9_atlas/*/*.webp"))).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr9p_vertice/*/*.webp"))).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/tr9s_sobrevivente/*/*.webp"))).toHaveLength(30);
-    expect(Object.keys(import.meta.glob("../assets/convoy/trx_exodo/*/*.webp"))).toHaveLength(30);
+    const dinamoFrames = import.meta.glob("../assets/convoy/trg_dinamo/*/*.webp");
+    expect(Object.keys(dinamoFrames)).toHaveLength(18);
+    expect(Object.keys(import.meta.glob("../assets/convoy/trg_dinamo/idle/*.webp"))).toHaveLength(8);
+    expect(Object.keys(import.meta.glob("../assets/convoy/trg_dinamo/energy_spawn/*.webp"))).toHaveLength(10);
   });
   it("maps every convoy cue and keeps the engine and music as resumable loops", () => {
     const PreviousAudio = globalThis.Audio;

@@ -1,25 +1,27 @@
 import { describe, expect, it } from "vitest";
-import { resolveConvoyAnimationFrame, updateConvoyAnimation } from "./convoyAnimation.js";
+import { getDesiredConvoyAnimationState, resolveConvoyAnimationFrame, triggerConvoyEnergySpawn, updateConvoyAnimation } from "./convoyAnimation.js";
 
 describe("convoy animation state", () => {
-  it("uses run durante a entrada e o trânsito, e idle durante o setor", () => {
-    const session = { elapsed: 40, convoyFlow: { state: "convoyEntry" }, convoy: { hp: 100, animation: { state: "idle", startedAt: 0, previousState: null } } };
+  it("keeps idle while the convoy changes position", () => {
+    const session = { elapsed: 40, convoyFlow: { state: "convoyEntry" }, convoy: { animation: { state: "idle", startedAt: 0 } } };
+    expect(getDesiredConvoyAnimationState(session)).toBe("idle");
     updateConvoyAnimation(session);
-    expect(session.convoy.animation.state).toBe("run");
-    session.elapsed = 80; session.convoyFlow.state = "sectorActive"; updateConvoyAnimation(session);
+    expect(session.convoy.animation.state).toBe("idle");
+    session.elapsed = 80; session.convoyFlow.state = "convoyTransit"; updateConvoyAnimation(session);
     expect(session.convoy.animation.state).toBe("idle");
   });
 
-  it("keeps the destruction transition terminal before its loop", () => {
-    const session = { elapsed: 0, convoyFlow: { state: "defeat" }, convoy: { hp: 0, escorted: false, underAttack: false, animation: { state: "idle", startedAt: 0, previousState: null } } };
-    updateConvoyAnimation(session);
-    expect(session.convoy.animation.state).toBe("destroyed_transition");
-    session.elapsed = 1200; updateConvoyAnimation(session);
-    expect(session.convoy.animation.state).toBe("destroyed_loop");
+  it("plays energy_spawn once and returns to idle", () => {
+    const session = { elapsed: 100, convoy: { animation: { state: "idle", startedAt: 0 } } };
+    triggerConvoyEnergySpawn(session.convoy, session.elapsed);
+    session.elapsed = 999; updateConvoyAnimation(session);
+    expect(session.convoy.animation.state).toBe("energy_spawn");
+    session.elapsed = 1000; updateConvoyAnimation(session);
+    expect(session.convoy.animation.state).toBe("idle");
   });
 
-  it("loops moving frames and clamps the destruction transition", () => {
-    expect(resolveConvoyAnimationFrame("run", 680, 8)).toBe(0);
-    expect(resolveConvoyAnimationFrame("destroyed_transition", 9999, 10)).toBe(9);
+  it("loops idle frames and clamps energy_spawn", () => {
+    expect(resolveConvoyAnimationFrame("idle", 1200, 8)).toBe(0);
+    expect(resolveConvoyAnimationFrame("energy_spawn", 9999, 10)).toBe(9);
   });
 });

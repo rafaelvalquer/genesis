@@ -77,7 +77,7 @@ export const CHAPTER_SEVEN_PHASES = deepFreeze(Array.from({ length: 8 }, (_, ind
   rules: { combatRows: [0, 1, 3, 4], transportRow: 2, defaultTroopDeploymentLimit: 4,
     blockedTroopIds: ["reator", "thermalPlatform"],
     disabledSystems: ["dematerializationPulse", "legacyWaveOutro", "legacyWaveDecisions", "waveCompletionEnergy", "enemyEnergyPickups", "reactor", "thermalPlatform"] },
-  convoy: { vehicleId: ["tr7_pioneiro", "tr7r_peregrino", "tr7a_bastilha", "tr7f_ferrum", "tr9_atlas", "tr9p_vertice", "tr9s_sobrevivente", "trx_exodo"][index], row: 2,
+  convoy: { row: 2,
     maxHp: 1000, checkpointProgress: [.25, .5, .75], escortRows: [1, 3],
     sectorStops: [0.06, 0.28, 0.51, 0.74, 0.96], entryDurationMs: 2200, transitDurationMs: 2400, targetUninterruptedTravelMs: 180000 + index * 6000,
     reserveInitial: 80, reserveMax: 80, energyPerPulse: 3, energyPulseEveryMs: 5000,
