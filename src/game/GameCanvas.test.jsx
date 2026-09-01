@@ -6,7 +6,7 @@ import {
   CapsuleInteractionButton, ColossusSpecialButtons, DecisionModal, FortuneChoiceModal, WaveOutroOverlay,
   getWaveOutroCameraTransform,
   SandboxPanel, getThermalBannerText, resolveCanvasClickAction, resolveInspectedTroopId,
-  drawLeviathanBrineJet, isLeviathanShadowOnly,
+  drawLeviathanBrineJet, FREE_HAND_ACTIVATED_MESSAGE, isLeviathanShadowOnly,
 } from "./GameCanvas.jsx";
 import { getLeviathanBrineMouthPosition } from "./visualGeometry.js";
 
@@ -32,6 +32,13 @@ describe("tooltip do loadout", () => {
   it("inspeciona somente a tropa sob o mouse e ignora a selecao persistente", () => {
     expect(resolveInspectedTroopId({ hoveredTroop: "marine", selectedTroop: "guard" })).toBe("marine");
     expect(resolveInspectedTroopId({ hoveredTroop: null, selectedTroop: "guard" })).toBeNull();
+  });
+});
+
+describe("Mão Livre", () => {
+  it("reutiliza a confirmação temporária sem instrução do Colosso", () => {
+    expect(FREE_HAND_ACTIVATED_MESSAGE).toBe("Mão livre ativada.");
+    expect(FREE_HAND_ACTIVATED_MESSAGE).not.toMatch(/Colosso|Esmagamento/i);
   });
 });
 

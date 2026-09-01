@@ -24,7 +24,7 @@ export function isEnemyTargetable(enemy) {
   if (isRasgamarSubmerged(enemy)) return false;
   if (isIncubatorSubmerged(enemy)) return false;
   if (enemy.type === "leviathanNereida") return Boolean(enemy.leviathanTargetable);
-  if (enemy.targetableRows) return Boolean(enemy.colossoTargetable ?? enemy.targetable);
+  if (enemy.type === "colossoCaldeira") return Boolean(enemy.colossoTargetable);
   return true;
 }
 

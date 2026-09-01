@@ -1,7 +1,7 @@
 import { getConvoyFrames, loadConvoyAssets } from "../assets/convoyAssetCatalog.js";
 import { resolveConvoyAnimationFrame } from "./convoyAnimation.js";
 import { getConvoyVehicleId } from "./convoyVehicleConfig.js";
-import { CONVOY_RENDER_WIDTH } from "./convoyGeometry.js";
+import { CONVOY_RENDER_HEIGHT, CONVOY_RENDER_WIDTH } from "./convoyGeometry.js";
 
 const images = new Map(); const requestedVehicles = new Set(); const visualStates = new WeakMap();
 function imageFor(url) { if (!url || typeof Image === "undefined") return null; if (!images.has(url)) { const image = new Image(); image.src = url; images.set(url, image); } return images.get(url); }
@@ -32,10 +32,10 @@ export function drawConvoy(ctx, session, time = 0, settings = {}) {
   const hitAge = session.elapsed - (convoy.lastHitAt ?? -Infinity); const hitOffset = hitAge >= 0 && hitAge < 180 && !settings.reduceMotion ? Math.sin(hitAge * .32) * 4 * (1 - hitAge / 180) : 0;
   const x = convoy.x + hitOffset; const y = convoy.y; const idleBob = state === "idle" && !settings.reduceMotion ? Math.sin(time * .008) * 1.5 : 0;
   const threat = getConvoyThreatVisual(convoy, session.elapsed);
-  ctx.save(); ctx.fillStyle = "rgba(0,0,0,.42)"; ctx.beginPath(); ctx.ellipse(x, y + 29, 56, 12, 0, 0, Math.PI * 2); ctx.fill();
-  if (threat.level !== "none") { ctx.fillStyle = threat.critical ? "rgba(251,113,133,.3)" : "rgba(251,113,133,.18)"; ctx.filter = `blur(${threat.critical ? 13 : 8}px)`; ctx.beginPath(); ctx.ellipse(x, y + 29, 62, 15, 0, 0, Math.PI * 2); ctx.fill(); ctx.filter = "none"; }
+  ctx.save(); ctx.fillStyle = "rgba(0,0,0,.42)"; ctx.beginPath(); ctx.ellipse(x, y + 36, 70, 15, 0, 0, Math.PI * 2); ctx.fill();
+  if (threat.level !== "none") { ctx.fillStyle = threat.critical ? "rgba(251,113,133,.3)" : "rgba(251,113,133,.18)"; ctx.filter = `blur(${threat.critical ? 13 : 8}px)`; ctx.beginPath(); ctx.ellipse(x, y + 36, 78, 19, 0, 0, Math.PI * 2); ctx.fill(); ctx.filter = "none"; }
   if (threat.level !== "none") ctx.filter = `drop-shadow(0 0 ${threat.critical ? 10 : 6}px rgba(251,113,133,${threat.critical ? .8 : .55}))`;
-  if (image?.complete && image.naturalWidth) { ctx.globalAlpha = convoy.damageState === "critical" ? .8 : 1; ctx.drawImage(image, x - CONVOY_RENDER_WIDTH / 2, y - 56 + idleBob, CONVOY_RENDER_WIDTH, 112); ctx.globalAlpha = 1; }
+  if (image?.complete && image.naturalWidth) { ctx.globalAlpha = convoy.damageState === "critical" ? .8 : 1; ctx.drawImage(image, x - CONVOY_RENDER_WIDTH / 2, y - CONVOY_RENDER_HEIGHT / 2 + idleBob, CONVOY_RENDER_WIDTH, CONVOY_RENDER_HEIGHT); ctx.globalAlpha = 1; }
   ctx.filter = "none";
   drawEffects(ctx, convoy, session, x, y, time, settings, state);
   ctx.restore();

@@ -1,0 +1,10 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import sharp from "sharp";
+const qa=path.resolve("art/qa/interceptadorIcaro-v2"), source=path.resolve("art/source/interceptadorIcaro/v2/idle"), runtime=path.resolve("src/game/assets/troop/interceptadorIcaro/idle");
+await fs.mkdir(qa,{recursive:true});
+const high=await Promise.all(Array.from({length:8},(_,i)=>fs.readFile(path.join(source,`frame${i}.png`))));
+await sharp({create:{width:1254*4,height:1254*2,channels:4,background:{r:18,g:22,b:34,alpha:1}}}).composite(high.map((input,i)=>({input,left:(i%4)*1254,top:Math.floor(i/4)*1254}))).png().toFile(path.join(qa,"idle-full-resolution-grid.png"));
+const troops=["marine","cacador","cacadorLeviatas","interceptadorIcaro"], cells=await Promise.all(troops.map(async(name,i)=>({input:await sharp(path.resolve(`src/game/assets/troop/${name}/idle/frame0.png`)).resize(192,192).png().toBuffer(),left:i*192,top:0})));
+await sharp({create:{width:192*troops.length,height:192,channels:4,background:{r:18,g:22,b:34,alpha:1}}}).composite(cells).png().toFile(path.join(qa,"troop-scale-comparison.png"));
+console.log("QA do idle v2 gerado.");

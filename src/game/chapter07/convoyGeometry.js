@@ -1,7 +1,9 @@
 import { CELL, FIELD } from "../visualGeometry.js";
 
 export const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-export const CONVOY_RENDER_WIDTH = 224;
+// Keep the mobile generator clearly larger than the escort units it protects.
+export const CONVOY_RENDER_WIDTH = 280;
+export const CONVOY_RENDER_HEIGHT = 140;
 export const getConvoyEntryX = () => -(CONVOY_RENDER_WIDTH / 2 + 24);
 export const getConvoyRouteStartX = () => FIELD.combatOffsetX + CELL.width * 0.35;
 // Kept as a compatibility alias for callers that mean the strategic route start.

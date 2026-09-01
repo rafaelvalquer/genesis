@@ -35,7 +35,9 @@ export function selectVoltaicPrimaryTarget(
       && enemy.x - troop.x <= maximumDistance
     ))
     .sort((left, right) => (
-      left.x - right.x
+      Number(right.type === "garravinha" && right.garravinhaState === "latched")
+      - Number(left.type === "garravinha" && left.garravinhaState === "latched")
+      || left.x - right.x
       || Math.abs(left.x - troop.x) - Math.abs(right.x - troop.x)
       || String(left.id).localeCompare(String(right.id))
     ))[0] || null;

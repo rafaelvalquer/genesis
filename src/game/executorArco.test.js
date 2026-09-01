@@ -44,6 +44,10 @@ function enemy(id, troop, {
   };
 }
 
+function forestTree(id, troop, { x = troop.x + CELL.width, row = troop.row, hp = 130, type = "ferrivore" } = {}) {
+  return { id, type, row, x, y: row * CELL.height + CELL.height / 2, hp, maxHp: hp, alive: true, blocksPlacement: true, blocksLineOfSight: true, damageStage: "healthy", deathEffectTriggered: false };
+}
+
 function startAndImpact(session, impactMs) {
   const started = stepBattle(session, 1);
   const before = stepBattle(session, impactMs - 1);
@@ -72,6 +76,7 @@ describe("Vórtice — Executor de Arco", () => {
       combo3Damage: 24,
       combo3CollateralFactor: 0.3,
       comboWindowMs: 1800,
+      forestInteraction: { canTargetObstacle: true, ignoresCover: false },
       unlockAt: 8,
       assetStates: ["idle", "attack1", "attack2", "attack3", "attackRanged"],
     });
@@ -99,7 +104,7 @@ describe("Vórtice — Executor de Arco", () => {
     const first = place(session, 0, 2);
     const second = place(session, 1, 2);
     expect(first).toMatchObject({
-      comboStep: 0, comboTargetId: null, comboExpiresAt: null,
+      comboStep: 0, comboTargetId: null, comboTargetKind: null, comboExpiresAt: null,
       pendingComboImpact: null, attackTargetId: null, attackBusyUntil: 0,
       state: "idle",
     });
@@ -196,6 +201,52 @@ describe("Vórtice — Executor de Arco", () => {
     stepBattle(session, TROOPS.executorArco.rangedAttackVisual.releaseMs);
     expect(replacement.hp).toBe(100);
     expect(session.projectiles).toHaveLength(0);
+  });
+
+  it("ataca árvore exposta com combo e preserva cobertura de inimigos atrás dela", () => {
+    const session = createSession();
+    const troop = place(session);
+    const tree = forestTree("tree", troop, { x: troop.x + CELL.width, hp: 130 });
+    const hidden = enemy("hidden", troop, { x: tree.x + 20 });
+    session.forestObstacles = [tree]; session.enemies = [hidden];
+    const { impact } = startAndImpact(session, 240);
+    expect(tree.hp).toBe(124);
+    expect(hidden.hp).toBe(100);
+    expect(impact).toContainEqual(expect.objectContaining({ type: "executorSlash", targetKind: "forestObstacle", targetId: tree.id }));
+    expect(troop).toMatchObject({ comboTargetId: tree.id, comboTargetKind: "forestObstacle" });
+  });
+
+  it("prefere inimigo exposto antes da árvore e usa Corte de Arco na árvore distante", () => {
+    const session = createSession();
+    const troop = place(session);
+    const tree = forestTree("tree", troop, { x: troop.x + 1.8 * CELL.width });
+    const exposed = enemy("exposed", troop, { x: troop.x + CELL.width });
+    session.forestObstacles = [tree]; session.enemies = [exposed];
+    stepBattle(session, 1);
+    expect(troop.comboTargetId).toBe(exposed.id);
+
+    const rangedSession = createSession();
+    const rangedTroop = place(rangedSession);
+    const rangedTree = forestTree("ranged-tree", rangedTroop, { x: rangedTroop.x + 1.8 * CELL.width });
+    rangedSession.forestObstacles = [rangedTree]; rangedSession.enemies = [];
+    stepBattle(rangedSession, 1);
+    expect(rangedSession.projectiles[0]).toMatchObject({ kind: "executorArcSlash", targetKind: "forestObstacle", targetId: rangedTree.id, damage: 4 });
+    stepBattle(rangedSession, TROOPS.executorArco.rangedAttackVisual.releaseMs);
+    expect(rangedTree.hp).toBe(126);
+  });
+
+  it("libera o inimigo após destruir uma árvore sem transferir o combo", () => {
+    const session = createSession();
+    const troop = place(session);
+    const tree = forestTree("tree", troop, { x: troop.x + CELL.width, hp: 6 });
+    const hidden = enemy("hidden", troop, { x: tree.x + 20 });
+    session.forestObstacles = [tree]; session.enemies = [hidden];
+    startAndImpact(session, 240);
+    expect(tree.alive).toBe(false);
+    expect(hidden.hp).toBe(100);
+    expect(troop.comboStep).toBe(0);
+    stepBattle(session, 280);
+    expect(troop.comboTargetId).toBe(hidden.id);
   });
 
   it("aplica Ataque 1 somente no impacto e mantém o alvo bloqueado", () => {

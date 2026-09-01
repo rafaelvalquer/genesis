@@ -1314,6 +1314,7 @@ export const TROOPS = {
     combo3Damage: 24,
     combo3CollateralFactor: 0.3,
     comboWindowMs: 1800,
+    forestInteraction: { canTargetObstacle: true, ignoresCover: false },
     color: "#fb923c",
     unlockAt: 8,
     assetStates: ["idle", "attack1", "attack2", "attack3", "attackRanged"],

@@ -36,4 +36,14 @@ describe("forest obstacle targeting", () => {
     const mortar = resolveForestCombatTarget(session([tree(600)]), { row: 1, x: 300 }, { range: 8, forestInteraction: { canTargetObstacle: false, ignoresCover: true } }, [enemy("rear", 850)]);
     expect(mortar).toEqual({ kind: "enemy", entity: expect.objectContaining({ id: "rear" }) });
   });
+
+  it("makes a latched Garravinha targetable from either escort route and prioritizes it in range", () => {
+    const latched = { ...enemy("latched", 700, 1), type: "garravinha", garravinhaState: "latched", targetableRows: [1, 3] };
+    const normal = enemy("normal", 500, 3);
+    expect(resolveForestCombatTarget(session([]), { row: 1, x: 300 }, { range: 6 }, [latched])).toEqual({ kind: "enemy", entity: latched });
+    expect(resolveForestCombatTarget(session([]), { row: 3, x: 300 }, { range: 6 }, [normal, latched])).toEqual({ kind: "enemy", entity: latched });
+    expect(resolveForestCombatTarget(session([]), { row: 2, x: 300 }, { range: 6 }, [latched])).toBeNull();
+    expect(resolveForestCombatTarget(session([]), { row: 4, x: 300 }, { range: 6 }, [latched])).toBeNull();
+    expect(resolveForestCombatTarget(session([]), { row: 3, x: 0 }, { range: 4 }, [latched])).toBeNull();
+  });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CHAPTER_SEVEN_ENEMIES } from "../chapterSevenEnemies.js";
 import { CELL, getEnemyAnimation } from "../visualGeometry.js";
 import { garravinhaBehavior } from "../enemies/chapter07/garravinha.js";
+import { enemiesForRow, enemyOccupiesTargetRow } from "../battle/queries.js";
 import { getEnemyBehavior } from "../enemies/enemyRegistry.js";
 import { getConvoyAttackSummary } from "./convoySummary.js";
 import { canReserveConvoyGrapple, commitConvoyGrapple, isConvoyGrappled, releaseConvoyGrapple, reserveConvoyGrapple } from "./convoyGrapple.js";
@@ -75,10 +76,26 @@ describe("Garravinha antitransporte", () => {
     session.elapsed = 420; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(enemy.garravinhaState).toBe("latchLeap");
     session.elapsed = 900; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(enemy.garravinhaState).toBe("latched"); expect(enemy.x).toBe(908); expect(enemy.y).toBe(session.convoy.y - 38);
     expect(session.convoy.hp).toBe(992); expect(events.map((e) => e.type)).toContain("garravinhaLatched");
+    expect(enemy.row).toBe(1); expect(enemy.targetableRows).toEqual([1, 3]);
+    expect(events.at(-1).targetableRows).toEqual([1, 3]);
+  });
+  it("fica alvo somente das rotas R2 e R4 depois de agarrar, sem ocupar a rota do transporte", () => {
+    const session = makeSession(); const events = []; const enemy = makeEnemy(session); const runtime = runtimeFor(session, events); session.enemies = [enemy];
+    expect(enemiesForRow(session, 1)).toContain(enemy); expect(enemiesForRow(session, 3)).not.toContain(enemy);
+    garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 420; garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 900; garravinhaBehavior.update(runtime, enemy, config, 16, events);
+    expect(enemy.row).toBe(1); expect(enemy.targetableRows).toEqual([1, 3]);
+    expect([1, 3].map((row) => enemiesForRow(session, row))).toEqual([[enemy], [enemy]]);
+    expect([0, 2, 4].every((row) => !enemyOccupiesTargetRow(enemy, row))).toBe(true);
+  });
+  it("expõe as mesmas rotas de alvo quando veio da R4", () => {
+    const session = makeSession(); const events = []; const enemy = makeEnemy(session, "g-r4", { row: 3, y: 3 * CELL.height + CELL.height / 2 }); const runtime = runtimeFor(session, events); session.enemies = [enemy];
+    garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 420; garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 900; garravinhaBehavior.update(runtime, enemy, config, 16, events);
+    expect(enemy.row).toBe(3); expect(enemy.targetableRows).toEqual([1, 3]);
+    expect(enemiesForRow(session, 1)).toContain(enemy); expect(enemiesForRow(session, 3)).toContain(enemy);
   });
   it("stun cancela prep, libera reservation e aplica cooldown", () => {
     const session = makeSession(); const events = []; const enemy = makeEnemy(session); const runtime = runtimeFor(session, events); garravinhaBehavior.update(runtime, enemy, config, 16, events); enemy.stunnedUntil = 100; session.elapsed = 10; garravinhaBehavior.update(runtime, enemy, config, 16, events);
-    expect(enemy.garravinhaState).toBe("walking"); expect(session.convoy.grappleReservationEnemyId).toBeNull(); expect(enemy.garravinhaReadyAt).toBe(2210); expect(events.at(-1).type).toBe("garravinhaLatchInterrupted");
+    expect(enemy.garravinhaState).toBe("walking"); expect(enemy.targetableRows).toBeNull(); expect(session.convoy.grappleReservationEnemyId).toBeNull(); expect(enemy.garravinhaReadyAt).toBe(2210); expect(events.at(-1).type).toBe("garravinhaLatchInterrupted");
   });
   it("aplica dano inicial e no máximo um tick por intervalo", () => {
     const session = makeSession(); const events = []; const enemy = makeEnemy(session); const runtime = runtimeFor(session, events); garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 420; garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 900; garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 1899; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(session.convoy.hp).toBe(992); session.elapsed = 1900; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(session.convoy.hp).toBe(978); expect(events.filter((e) => e.type === "garravinhaLatchTick")).toHaveLength(1);
@@ -87,7 +104,7 @@ describe("Garravinha antitransporte", () => {
     const session = makeSession(); const events = []; const enemy = makeEnemy(session); const runtime = runtimeFor(session, events); garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 420; garravinhaBehavior.update(runtime, enemy, config, 16, events); session.elapsed = 900; garravinhaBehavior.update(runtime, enemy, config, 16, events); enemy.stunnedUntil = 2000; session.elapsed = 1900; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(isConvoyGrappled(session)).toBe(true); expect(enemy.x).toBe(908); expect(session.convoy.hp).toBe(992); session.elapsed = 2100; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(session.convoy.hp).toBe(978);
   });
   it("morte libera grapple ou reservation imediatamente", () => {
-    const session = makeSession(); const events = []; const enemy = makeEnemy(session); reserveConvoyGrapple(session, enemy.id); commitConvoyGrapple(session, enemy.id); enemy.dead = true; garravinhaBehavior.onDeath(runtimeFor(session, events), enemy, events); expect(session.convoy.grappledByEnemyId).toBeNull(); expect(session.convoy.grappleReservationEnemyId).toBeNull(); expect(events.at(-1).type).toBe("garravinhaReleased");
+    const session = makeSession(); const events = []; const enemy = makeEnemy(session, "g-1", { garravinhaState: "latched", targetableRows: [1, 3] }); reserveConvoyGrapple(session, enemy.id); commitConvoyGrapple(session, enemy.id); enemy.dead = true; garravinhaBehavior.onDeath(runtimeFor(session, events), enemy, events); expect(session.convoy.grappledByEnemyId).toBeNull(); expect(session.convoy.grappleReservationEnemyId).toBeNull(); expect(enemy.targetableRows).toBeNull(); expect(events.at(-1).type).toBe("garravinhaReleased");
   });
   it("segunda Garravinha não empilha e pode usar sideAttack", () => {
     const session = makeSession(); reserveConvoyGrapple(session, "a"); commitConvoyGrapple(session, "a"); const events = []; const enemy = makeEnemy(session, "b"); const runtime = runtimeFor(session, events); garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(enemy.garravinhaState).toBe("sideAttack"); session.elapsed = 400; garravinhaBehavior.update(runtime, enemy, config, 16, events); expect(events.at(-1).type).toBe("garravinhaSideAttack");

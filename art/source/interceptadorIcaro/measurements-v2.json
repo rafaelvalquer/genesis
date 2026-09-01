@@ -1,0 +1,127 @@
+{
+  "canvas": {
+    "width": 384,
+    "height": 384,
+    "safeMargin": 12,
+    "baseline": 371
+  },
+  "source": {
+    "width": 1254,
+    "height": 1254
+  },
+  "scale": 0.2734113712374582,
+  "frames": [
+    {
+      "frame": 0,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 1,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 2,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 3,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 4,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 5,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 6,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    },
+    {
+      "frame": 7,
+      "bounds": {
+        "left": 63,
+        "top": 45,
+        "width": 288,
+        "height": 327,
+        "bottom": 371
+      },
+      "root": {
+        "x": 192,
+        "y": 371
+      }
+    }
+  ]
+}

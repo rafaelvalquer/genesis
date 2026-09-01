@@ -28,6 +28,10 @@ export function getCryoTargetPriority(enemyConfig = {}) {
   return 2;
 }
 
+function isLatchedGarravinha(enemy) {
+  return enemy?.type === "garravinha" && enemy.garravinhaState === "latched";
+}
+
 export function selectCryoTarget(enemies, troop, config, { occupiesTargetRow, canTarget, enemyConfigFor, cellWidth = 100 } = {}) {
   const originX = troop.x;
   return enemies
@@ -36,6 +40,8 @@ export function selectCryoTarget(enemies, troop, config, { occupiesTargetRow, ca
       && (!occupiesTargetRow || occupiesTargetRow(enemy, troop.row))
       && (!canTarget || canTarget(enemy)))
     .sort((left, right) => {
+      const latchPriority = Number(isLatchedGarravinha(right)) - Number(isLatchedGarravinha(left));
+      if (latchPriority) return latchPriority;
       const priority = getCryoTargetPriority(enemyConfigFor?.(left) || {})
         - getCryoTargetPriority(enemyConfigFor?.(right) || {});
       return priority || left.x - right.x;

@@ -161,6 +161,9 @@ import { advanceConvoyEntry, advanceConvoySectorCountdown, startConvoySectorCoun
 import { acknowledgeConvoyCheckpoint } from "./chapter07/convoyCheckpoints.js";
 import { applyConvoyCheckpointOption } from "./chapter07/convoyCheckpointRewards.js";
 import "./chapter07/chapter07.css";
+
+export const FREE_HAND_ACTIVATED_MESSAGE = "Mão livre ativada.";
+
 export function resolveCanvasClickAction(session, fieldPoint, selectedTroop = null, removeMode = false) {
   if (!fieldPoint) return null;
   const cell = cellFromPoint(fieldPoint.x, fieldPoint.y);
@@ -1443,6 +1446,35 @@ function drawRasgaCeusTargetMarker(ctx, session, enemy) {
   ctx.restore();
 }
 
+function drawLatchedGarravinhaMarker(ctx, session, enemy) {
+  if (enemy.type !== "garravinha" || enemy.garravinhaState !== "latched") return;
+  const latchAge = Math.max(0, session.elapsed - (enemy.garravinhaStateStartedAt || session.elapsed));
+  const pulse = 0.5 + Math.sin(session.elapsed / 110) * 0.5;
+  const teachingAlpha = latchAge < 1100 ? 1 - latchAge / 1100 : 0;
+  const y = enemy.y - 18;
+  ctx.save();
+  ctx.strokeStyle = `rgba(251,146,60,${0.55 + pulse * 0.35})`;
+  ctx.lineWidth = 1.75;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = "#fb7185";
+  ctx.beginPath();
+  ctx.arc(enemy.x, y, 29 + pulse * 3, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  if (teachingAlpha > 0) {
+    ctx.strokeStyle = `rgba(251,191,36,${teachingAlpha * .7})`;
+    [1, 3].forEach((row) => {
+      const laneY = row * CELL.height + CELL.height / 2;
+      ctx.beginPath(); ctx.moveTo(enemy.x - 48, laneY); ctx.lineTo(enemy.x - 26, y); ctx.stroke();
+    });
+  }
+  ctx.fillStyle = `rgba(254,215,170,${.72 + pulse * .2})`;
+  ctx.font = "800 9px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText("ALVO PRIORITÁRIO", enemy.x, Math.max(14, y - 37));
+  ctx.restore();
+}
+
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
   const logicalEntity = entry.entity;
   if (logicalEntity.type === "colossoCaldeira") {
@@ -1562,9 +1594,10 @@ export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, 
     ctx.restore();
   }
   drawStructuralRupture(ctx, scratch, session.elapsed, settings);
-  if (logicalEntity.type !== "leviathanNereida" && emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive)) {
+  if (logicalEntity.type !== "leviathanNereida" && emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && (shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive) || (logicalEntity.type === "garravinha" && logicalEntity.garravinhaState === "latched"))) {
     drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
   }
+  drawLatchedGarravinhaMarker(ctx, session, logicalEntity);
   if (logicalEntity.variant === "alpha") {
     ctx.fillStyle = "#fecdd3";
     ctx.font = "700 11px system-ui";
@@ -2489,7 +2522,7 @@ export default function GameCanvas({ phase, unlockedTroops, onFinish, onExit, sa
     if (sessionRef.current.adaptiveAid?.status === "targeting") return;
     setSelectedTroop(null);
     setRemoveMode(false);
-    setActionMessage("Mão livre: clique em um Colosso carregado para usar o Esmagamento Total.");
+    setMessage(FREE_HAND_ACTIVATED_MESSAGE);
   };
 
   const handleActivateDematerializationPulse = (row) => {

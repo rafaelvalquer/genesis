@@ -8,6 +8,15 @@ import {
 } from "../../chapter07/convoyGrapple.js";
 
 const living = (troop) => troop && !troop.dead && !troop.structure;
+export const GARRAVINHA_LATCH_TARGET_ROWS = Object.freeze([1, 3]);
+
+function exposeLatchedGarravinha(enemy) {
+  enemy.targetableRows = GARRAVINHA_LATCH_TARGET_ROWS;
+}
+
+function clearLatchedTargeting(enemy) {
+  enemy.targetableRows = null;
+}
 
 function recordMetric(runtime, key, amount = 1) {
   runtime.session.chapterSevenMetrics ??= {};
@@ -42,6 +51,7 @@ function beginAttack(runtime, enemy, target, config, state = "attack") {
 
 function cancelLatch(runtime, enemy, events, reason = "interrupted") {
   const config = runtime.configFor(enemy);
+  clearLatchedTargeting(enemy);
   releaseConvoyGrapple(runtime.session, enemy.id);
   enemy.leapFromX = null;
   enemy.leapFromY = null;
@@ -80,6 +90,7 @@ export const garravinhaBehavior = enemyBehavior({
     leapToY: null,
     leapStartedAt: null,
     attachedToConvoy: false,
+    targetableRows: null,
     nextLatchDamageAt: Infinity,
     latchStunPauseStartedAt: null,
     garravinhaMetrics: {
@@ -91,6 +102,7 @@ export const garravinhaBehavior = enemyBehavior({
   }),
 
   onDeath: (runtime, enemy, events) => {
+    clearLatchedTargeting(enemy);
     const released = releaseConvoyGrapple(runtime.session, enemy.id);
     if (!released) return;
     enemy.attachedToConvoy = false;
@@ -105,6 +117,7 @@ export const garravinhaBehavior = enemyBehavior({
     const stunned = runtime.elapsed < (enemy.stunnedUntil || 0);
 
     if (enemy.garravinhaState === "latched") {
+      exposeLatchedGarravinha(enemy);
       attachToConvoy(runtime, enemy, config);
       if (stunned) {
         enemy.moving = false;
@@ -163,6 +176,7 @@ export const garravinhaBehavior = enemyBehavior({
       enemy.moving = false;
       if (progress >= 1) {
         if (!commitConvoyGrapple(runtime.session, enemy.id)) { cancelLatch(runtime, enemy, events, "slot-lost"); return true; }
+        exposeLatchedGarravinha(enemy);
         setState(enemy, "latched", runtime.elapsed);
         enemy.nextLatchDamageAt = runtime.elapsed + latch.tickEveryMs;
         enemy.garravinhaMetrics.latches += 1;
@@ -173,7 +187,7 @@ export const garravinhaBehavior = enemyBehavior({
         });
         enemy.garravinhaMetrics.latchDamage += dealt;
         recordMetric(runtime, "garravinhaLatchDamage", dealt);
-        events.push({ type: "garravinhaLatched", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, damage: dealt });
+        events.push({ type: "garravinhaLatched", sourceEnemyId: enemy.id, x: enemy.x, y: enemy.y, damage: dealt, targetableRows: [...GARRAVINHA_LATCH_TARGET_ROWS] });
       }
       return true;
     }

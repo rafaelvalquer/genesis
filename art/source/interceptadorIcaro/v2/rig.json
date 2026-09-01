@@ -1,0 +1,41 @@
+{
+  "canvas": {
+    "width": 1254,
+    "height": 1254,
+    "transparent": true
+  },
+  "root": {
+    "name": "feet",
+    "x": 627,
+    "y": 1253
+  },
+  "hierarchy": [
+    "feet > shin > thigh > pelvis",
+    "pelvis > torso > shoulders > arms > weapon",
+    "torso > neck > head > hair > eyeBionico",
+    "pelvis > backpack > wings"
+  ],
+  "idle": {
+    "frameMs": 130,
+    "chestYOffsetRuntime": [
+      0,
+      -1,
+      -2,
+      -3,
+      -2,
+      -1,
+      0,
+      0
+    ],
+    "torsoScaleY": [
+      1,
+      1.004,
+      1.008,
+      1.012,
+      1.009,
+      1.005,
+      1.002,
+      1
+    ]
+  }
+}

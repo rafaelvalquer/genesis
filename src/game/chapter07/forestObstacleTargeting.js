@@ -18,10 +18,23 @@ export function isForestObstacleBlocking(session, troop, enemy) {
   return Boolean(getBlockingForestObstacle(session, troop, enemy));
 }
 
+export function getNearestTargetableForestObstacle(session, troop, rangeTiles) {
+  const range = Math.max(0, Number(rangeTiles) || 0) * CELL.width;
+  return (session?.forestObstacles || [])
+    .filter((tree) => tree.alive && tree.blocksLineOfSight !== false
+      && tree.row === troop?.row && tree.x > troop?.x && tree.x - troop.x <= range)
+    .sort((left, right) => left.x - right.x)[0] || null;
+}
+
 function targetRow(enemy, row) {
   return enemy?.row === row
+    || Boolean(enemy?.targetableRows?.includes?.(row))
     || Boolean(enemy?.targetRows?.includes?.(row))
     || Boolean(enemy?.leviathanTargetableRows?.includes?.(row));
+}
+
+function targetPriority(enemy) {
+  return enemy?.type === "garravinha" && enemy.garravinhaState === "latched" ? 1 : 0;
 }
 
 export function resolveForestCombatTarget(session, troop, config = {}, enemies = session?.enemies || []) {
@@ -29,13 +42,7 @@ export function resolveForestCombatTarget(session, troop, config = {}, enemies =
   const range = Math.max(0, Number(config.range || 0) * CELL.width);
   const canTargetObstacle = config.forestInteraction?.canTargetObstacle !== false;
   const ignoresCover = config.forestInteraction?.ignoresCover === true;
-  const trees = canTargetObstacle
-    ? (session.forestObstacles || [])
-      .filter((tree) => tree.alive && tree.blocksLineOfSight !== false
-        && tree.row === troop.row && tree.x > troop.x && tree.x - troop.x <= range)
-      .sort((left, right) => left.x - right.x)
-    : [];
-  const nearestTree = trees[0] || null;
+  const nearestTree = canTargetObstacle ? getNearestTargetableForestObstacle(session, troop, config.range) : null;
   const enemyTargetable = config.enemyTargetable || isEnemyTargetable;
   const visibleEnemies = (enemies || [])
     .filter((enemy) => !enemy.dead && enemyTargetable(enemy)
@@ -43,7 +50,8 @@ export function resolveForestCombatTarget(session, troop, config = {}, enemies =
       && enemy.x >= troop.x
       && enemy.x - troop.x <= range
       && (ignoresCover || !nearestTree || enemy.x < nearestTree.x))
-    .sort((left, right) => left.x - right.x || String(left.id).localeCompare(String(right.id)));
+    .sort((left, right) => targetPriority(right) - targetPriority(left)
+      || left.x - right.x || String(left.id).localeCompare(String(right.id)));
   if (visibleEnemies[0]) return { kind: "enemy", entity: visibleEnemies[0] };
   if (nearestTree) return { kind: "forestObstacle", entity: nearestTree };
   return null;

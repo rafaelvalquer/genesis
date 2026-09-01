@@ -70,6 +70,7 @@ function restoreTroopsForPlanning(session) {
     troop.specialRequested = false;
     troop.comboStep = 0;
     troop.comboTargetId = null;
+    troop.comboTargetKind = null;
     troop.comboExpiresAt = null;
     troop.defenseActive = false;
     troop.defenseThreatId = null;

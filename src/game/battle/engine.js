@@ -195,7 +195,7 @@ import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setE
 import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.js";
 import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.js";
 import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
-import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
+import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, getNearestTargetableForestObstacle, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
 import { findFirstForestObstacleCollision } from "../chapter07/forestObstacleCollision.js";
 
 export {
@@ -726,7 +726,7 @@ export function createTroopEntity(session, troopId, row, col, options = {}) {
     thermalShieldPausedAt: null,
     attackTargetId: null, specialRequested: false, attackBusyUntil: 0,
     attackReleased: false, attackReleaseAt: Infinity,
-    comboStep: 0, comboTargetId: null, comboExpiresAt: null,
+    comboStep: 0, comboTargetId: null, comboTargetKind: null, comboExpiresAt: null,
     specialReadyAt: config.specialEveryMs ? session.elapsed + config.specialEveryMs : Infinity,
     state: "idle", stateStartedAt: session.elapsed, stateEndsAt: Infinity,
     defenseActive: false, defenseThreatId: null, defenseExitAt: null,
@@ -4161,15 +4161,18 @@ function updateTileMelee(session, troop, config, events) {
 }
 
 function launchExecutorArcSlash(session, troop, config, target, visual) {
+  const targetKind = target.kind || "enemy";
+  const entity = target.entity || target;
+  const targetPoint = targetKind === "forestObstacle" ? getForestObstacleHitPoint(entity) : getEnemyHitPoint(entity, ENEMIES[entity.type]);
   const origin = getMuzzleWorldPosition(troop, config, 0);
   session.projectiles.push({
     id: id("projectile"), kind: "executorArcSlash", visualKind: "executorArcSlash",
-    troopType: troop.type, sourceTroopId: troop.id, targetId: target.id, row: troop.row,
+    troopType: troop.type, sourceTroopId: troop.id, targetKind, targetId: entity.id, row: troop.row,
     x: origin.x, y: origin.y, previousX: origin.x, previousY: origin.y,
-    origin: { ...origin }, targetX: target.x, ageMs: 0,
+    origin: { ...origin }, targetX: targetPoint.x, targetY: targetPoint.y, ageMs: 0,
     trail: createProjectileTrail(8, origin.x, origin.y),
     vx: config.rangedProjectileSpeed, vy: 0, visualArcHeight: 18,
-    damage: config.rangedDamage * attackDamageMultiplier(session, troop, { target }),
+    damage: config.rangedDamage * attackDamageMultiplier(session, troop, { target: targetKind === "enemy" ? entity : null }),
     color: config.color, active: true, launched: false, phase: "flying",
     seed: nextEffectSeed(session), launchAt: session.elapsed + visual.releaseMs,
   });
@@ -4478,6 +4481,15 @@ function updateTroops(session, events, dt) {
         recoveryFor: (milliseconds) => attackIntervalFor(session, troop, config, milliseconds),
         launchRangedSlash: (source, target, visual) =>
           launchExecutorArcSlash(session, source, config, target, visual),
+        getForestTarget: (source, rangeTiles) => config.forestInteraction?.canTargetObstacle
+          ? getNearestTargetableForestObstacle(session, source, rangeTiles) : null,
+        resolveForestTarget: (treeId) => session.forestObstacles?.find((tree) => tree.id === treeId && tree.alive) || null,
+        isForestInRange: (source, tree, rangeTiles, minimumRangeTiles = 0) => tree?.alive
+          && tree.row === source.row && tree.x > source.x
+          && tree.x - source.x <= rangeTiles * CELL.width
+          && tree.x - source.x > minimumRangeTiles * CELL.width,
+        damageForestObstacle: (tree, amount) => damageForestObstacle(session, tree, amount, events, stunEnemy),
+        forestHitPoint: getForestObstacleHitPoint,
       });
       continue;
     }
@@ -4897,13 +4909,15 @@ function updateProjectiles(session, dt, events) {
         if (session.elapsed >= projectile.impactStartedAt + 360) projectile.active = false;
         continue;
       }
-      const target = indexedEnemyById(session, projectile.targetId);
-      if (!isEnemyTargetable(target)) { projectile.active = false; continue; }
+      const target = projectile.targetKind === "forestObstacle"
+        ? session.forestObstacles?.find((tree) => tree.id === projectile.targetId && tree.alive) || null
+        : indexedEnemyById(session, projectile.targetId);
+      if (projectile.targetKind !== "forestObstacle" && !isEnemyTargetable(target)) { projectile.active = false; continue; }
       if (!target) {
         projectile.active = false;
         continue;
       }
-      const targetPoint = getEnemyHitPoint(target, ENEMIES[target.type]);
+      const targetPoint = projectile.targetKind === "forestObstacle" ? getForestObstacleHitPoint(target) : getEnemyHitPoint(target, ENEMIES[target.type]);
       projectile.previousX = projectile.x;
       projectile.previousY = projectile.y;
       projectile.previousRenderX = projectile.x;
@@ -4923,11 +4937,9 @@ function updateProjectiles(session, dt, events) {
         projectile.active = false;
         continue;
       }
-      damageEnemy(session, target, projectile.damage, events, {
-        direct: true,
-        sourceX: projectile.origin.x,
-        sourceTroopType: projectile.troopType,
-        sourceTroopId: projectile.sourceTroopId,
+      if (projectile.targetKind === "forestObstacle") damageForestObstacle(session, target, projectile.damage, events, stunEnemy);
+      else damageEnemy(session, target, projectile.damage, events, {
+        direct: true, sourceX: projectile.origin.x, sourceTroopType: projectile.troopType, sourceTroopId: projectile.sourceTroopId,
       });
       projectile.phase = "impact";
       projectile.impactStartedAt = session.elapsed;
@@ -4938,7 +4950,7 @@ function updateProjectiles(session, dt, events) {
       projectile.previousY = projectile.y;
       events.push({
         type: "executorArcSlashImpact", weapon: projectile.visualKind,
-        sourceTroopId: projectile.sourceTroopId, targetId: target.id,
+        sourceTroopId: projectile.sourceTroopId, targetKind: projectile.targetKind || "enemy", targetId: target.id,
         x: targetPoint.x, y: targetPoint.y,
         color: projectile.color, seed: projectile.seed,
       });
@@ -9006,6 +9018,7 @@ function restoreTroopsForPlanning(session) {
     troop.specialRequested = false;
     troop.comboStep = 0;
     troop.comboTargetId = null;
+    troop.comboTargetKind = null;
     troop.comboExpiresAt = null;
 
     troop.defenseActive = false;
