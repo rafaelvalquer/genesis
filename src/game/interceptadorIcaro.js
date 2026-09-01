@@ -3,6 +3,7 @@ import { CELL } from "./visualGeometry.js";
 import { getBattleIndex, livingEnemyById } from "./battleIndex.js";
 import { createProjectileTrail } from "./projectileTrail.js";
 import { isEnemyTargetable } from "./enemyTargeting.js";
+import { getBlockingForestObstacle, getNearestTargetableForestObstacle } from "./chapter07/forestObstacleTargeting.js";
 
 const alive = (enemy) => enemy && !enemy.dead && enemy.hp > 0;
 const baseDistance = (enemy) => Number(enemy.x) || Infinity;
@@ -60,11 +61,23 @@ export function selectIcaroTarget(session, troop, config) {
   return bestAir || bestGround;
 }
 
-function inInterceptionRange(enemy, troop, config) {
+export function selectIcaroCombatTarget(session, troop, config) {
+  const tree = config.forestInteraction?.canTargetObstacle === false
+    ? null : getNearestTargetableForestObstacle(session, troop, config.range);
+  const candidates = getBattleIndex(session)?.enemiesByRow[troop.row] || session.enemies;
+  let best = null;
+  for (const enemy of candidates) {
+    if (!inNormalRange(enemy, troop, config) || (tree && enemy.x >= tree.x)) continue;
+    if (!best || comparePriority(enemy, best, normalPriority) < 0) best = enemy;
+  }
+  return best ? { kind: "enemy", entity: best } : tree ? { kind: "forestObstacle", entity: tree } : null;
+}
+
+function inInterceptionRange(session, enemy, troop, config) {
   if (!isEnemyTargetable(enemy) || !isIcaroAirTarget(enemy) || enemy.x < troop.x) return false;
   const dx = (enemy.x - troop.x) / CELL.width;
   const dy = (enemy.y - troop.y) / CELL.height;
-  return Math.hypot(dx, dy) <= config.range;
+  return Math.hypot(dx, dy) <= config.range && !getBlockingForestObstacle(session, troop, enemy);
 }
 
 function interceptionPriority(enemy) {
@@ -75,9 +88,12 @@ function interceptionPriority(enemy) {
 
 export function selectIcaroInterceptionTargets(session, troop, config) {
   const selected = [];
+  const seenTargetIds = new Set();
   const rows = getBattleIndex(session)?.enemiesByRow;
   const consider = (enemy) => {
-    if (!inInterceptionRange(enemy, troop, config)) return;
+    if (seenTargetIds.has(enemy.id)) return;
+    if (!inInterceptionRange(session, enemy, troop, config)) return;
+    seenTargetIds.add(enemy.id);
     let insertAt = selected.length;
     while (insertAt > 0
       && comparePriority(enemy, selected[insertAt - 1], interceptionPriority) < 0) insertAt -= 1;
@@ -89,21 +105,12 @@ export function selectIcaroInterceptionTargets(session, troop, config) {
   } else {
     for (const enemy of session.enemies) consider(enemy);
   }
-  // Ícaro trava apenas um alvo por vez. Isso evita que uma unidade na rota
-  // central dispare simultaneamente para inimigos das rotas adjacentes.
-  return selected.slice(0, 1);
+  return selected;
 }
 
 export function selectIcaroBurstRetarget(session, projectile, config) {
-  const candidates = getBattleIndex(session)?.enemiesByRow[projectile.row] || session.enemies;
-  let best = null;
-  for (const enemy of candidates) {
-    if (!isEnemyTargetable(enemy) || enemy.row !== projectile.row || !isIcaroAirTarget(enemy)
-      || enemy.x < projectile.origin.x
-      || enemy.x - projectile.origin.x > config.range * CELL.width) continue;
-    if (!best || comparePriority(enemy, best, normalPriority) < 0) best = enemy;
-  }
-  return best;
+  const surrogate = { x: projectile.origin.x, y: projectile.origin.y, row: projectile.row };
+  return selectIcaroCombatTarget(session, surrogate, config);
 }
 
 function setState(troop, state, now, durationMs) {
@@ -112,16 +119,20 @@ function setState(troop, state, now, durationMs) {
   troop.stateEndsAt = now + durationMs;
 }
 
-function launchProjectile(session, troop, config, target, special, shotIndex, dependencies) {
-  const origin = dependencies.getMuzzleWorldPosition(troop, config, shotIndex);
+function launchProjectile(session, troop, config, target, special, shotIndex, dependencies, aimDirection = "forward") {
+  const entity = target.entity || target;
+  const targetKind = target.kind || "enemy";
+  const origin = dependencies.getMuzzleWorldPosition(troop, config, shotIndex, undefined, aimDirection);
   session.projectiles.push({
     id: dependencies.createId("projectile"),
     kind: special ? "icaroInterceptionShot" : "icaroBullet",
     visualKind: special ? "icaroInterceptionShot" : "icaroBullet",
     troopType: troop.type,
     sourceTroopId: troop.id,
-    targetId: target.id,
-    lockedTargetId: target.id,
+    targetKind,
+    targetId: entity.id,
+    lockedTargetId: targetKind === "enemy" ? entity.id : null,
+    aimDirection,
     row: troop.row,
     shotIndex,
     x: origin.x,
@@ -153,6 +164,11 @@ function startInterception(session, troop, config, targets, events, dependencies
     : rowDelta > 0
       ? "down"
       : "forward";
+  troop.icaroInterceptionShotPlan = targets.map((entry, shotIndex) => ({
+    targetId: entry.id,
+    shotIndex,
+    direction: entry.row < troop.row ? "up" : entry.row > troop.row ? "down" : "forward",
+  }));
   troop.interceptionReadyAt = session.elapsed
     + dependencies.recoveryFor(config.interceptionCooldownMs);
   setState(troop, "interceptionLock", session.elapsed, config.interceptionLockVisual.durationMs);
@@ -177,8 +193,10 @@ function fireInterception(session, troop, config, events, dependencies) {
       : session.enemies.find((candidate) => candidate.id === targetId && alive(candidate));
     if (enemy && isIcaroAirTarget(enemy)) targets.push(enemy);
   }
-  targets.forEach((target, index) =>
-    launchProjectile(session, troop, config, target, true, index, dependencies));
+  targets.forEach((target, index) => {
+    const direction = troop.icaroInterceptionShotPlan?.find((entry) => entry.targetId === target.id)?.direction || "forward";
+    launchProjectile(session, troop, config, { kind: "enemy", entity: target }, true, index, dependencies, direction);
+  });
   setState(troop, "interceptionFire", session.elapsed, config.interceptionFireVisual.durationMs);
   troop.lastAttackAt = session.elapsed;
   events.push({
@@ -196,7 +214,12 @@ function startBurst(session, troop, config, target, dependencies) {
   setState(troop, "attackBurst", session.elapsed, config.attackVisual.durationMs);
   troop.lastAttackAt = session.elapsed;
   troop.attackStartedAt = session.elapsed;
-  troop.attackTargetId = target.id;
+  troop.attackTargetId = target.entity.id;
+  troop.attackTargetKind = target.kind;
+  if (target.kind === "forestObstacle") {
+    session.chapterSevenMetrics ??= {};
+    session.chapterSevenMetrics.forestCoverBlocks = (session.chapterSevenMetrics.forestCoverBlocks || 0) + 1;
+  }
   troop.attackReadyAt = session.elapsed + dependencies.recoveryFor(config.attackEveryMs);
   for (let shot = 0; shot < config.burstCount; shot += 1) {
     launchProjectile(session, troop, config, target, false, shot, dependencies);
@@ -227,6 +250,6 @@ export function updateInterceptadorIcaro(session, troop, config, events, depende
     }
   }
   if (session.elapsed < troop.attackReadyAt) return;
-  const target = selectIcaroTarget(session, troop, config);
+  const target = selectIcaroCombatTarget(session, troop, config);
   if (target) startBurst(session, troop, config, target, dependencies);
 }

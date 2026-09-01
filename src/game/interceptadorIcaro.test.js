@@ -164,8 +164,8 @@ describe("Interceptador Ícaro", () => {
     ];
     const ground = addEnemy(session, "medu", troop, { distance: 180 });
     const targets = selectIcaroInterceptionTargets(session, troop, config);
-    expect(targets).toHaveLength(1);
-    expect(new Set(targets.map((target) => target.id)).size).toBe(1);
+    expect(targets).toHaveLength(3);
+    expect(new Set(targets.map((target) => target.id)).size).toBe(3);
     expect(targets).not.toContain(ground);
     expect(targets.every((target) => air.includes(target))).toBe(true);
 
@@ -179,8 +179,8 @@ describe("Interceptador Ícaro", () => {
     ];
     const shots = fireEvents.filter((event) =>
       event.type === "shoot" && event.weapon === "icaroInterceptionShot");
-    expect(shots).toHaveLength(1);
-    expect(new Set(shots.map((event) => event.shotIndex)).size).toBe(1);
+    expect(shots).toHaveLength(3);
+    expect(new Set(shots.map((event) => event.shotIndex)).size).toBe(3);
   });
 
   it("paralisia impede o início de novos ataques", () => {

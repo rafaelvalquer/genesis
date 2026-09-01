@@ -303,6 +303,7 @@ export const TROOPS = {
     deployCooldownMs: 7000,
     maxDeployed: 5,
     hp: 30,
+    healthBarOffset: 62,
     range: 6.5,
     damage: 3,
     burstCount: 4,
@@ -317,6 +318,7 @@ export const TROOPS = {
     interceptionDamage: 8,
     interceptionProjectileSpeed: 680,
     interceptionShotIntervalMs: 80,
+    forestInteraction: { canTargetObstacle: true, ignoresCover: false },
     canTargetAir: true,
     canTargetGround: true,
     windResistance: 0,
@@ -328,13 +330,13 @@ export const TROOPS = {
     assetDirectionalStates: ["interceptionFireUp", "interceptionFireDown"],
     idleVisual: {
       state: "idle",
-      height: 115.5,
+      height: 132,
       durationMs: 1040,
       timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 130, frame })),
     },
     attackVisual: {
       state: "attackBurst",
-      height: 115.5,
+      height: 132,
       durationMs: 720,
       // Every standing frame is normalized by the sprite processor: common center,
       // common floor and the same visual scale.  Keeping explicit anchors makes
@@ -363,10 +365,10 @@ export const TROOPS = {
       })),
       effect: "icaroBullet",
     },
-    interceptionLockVisual: { state: "interceptionLock", height: 115.5, durationMs: 800 },
+    interceptionLockVisual: { state: "interceptionLock", height: 132, durationMs: 800 },
     interceptionFireVisual: {
       state: "interceptionFire",
-      height: 115.5,
+      height: 132,
       durationMs: 700,
       frameMuzzles: [
         { x: 0.9609, y: 0.4844 }, { x: 0.8646, y: 0.4844 },
@@ -383,7 +385,7 @@ export const TROOPS = {
     },
     interceptionFireUpVisual: {
       state: "interceptionFireUp",
-      height: 115.5,
+      height: 132,
       durationMs: 700,
       frameMuzzles: [
         { x: 0.69, y: 0.31 }, { x: 0.73, y: 0.28 }, { x: 0.76, y: 0.25 }, { x: 0.79, y: 0.22 },
@@ -394,7 +396,7 @@ export const TROOPS = {
     },
     interceptionFireDownVisual: {
       state: "interceptionFireDown",
-      height: 115.5,
+      height: 132,
       durationMs: 700,
       frameMuzzles: [
         { x: 0.69, y: 0.69 }, { x: 0.73, y: 0.73 }, { x: 0.76, y: 0.76 }, { x: 0.79, y: 0.79 },
@@ -403,8 +405,8 @@ export const TROOPS = {
       shots: [3, 4, 5].map((frame, index) => ({ atMs: index * 80, frame, muzzle: { x: 0.77, y: 0.77 } })),
       effect: "icaroInterceptionShot",
     },
-    paralyzedVisual: { state: "paralyzed", height: 115.5, durationMs: 720, loop: true },
-    deathVisual: { state: "death", height: 115.5, durationMs: 800 },
+    paralyzedVisual: { state: "paralyzed", height: 132, durationMs: 720, loop: true },
+    deathVisual: { state: "death", height: 132, durationMs: 800 },
     description:
       "Especialista antiaéreo equipado com radar de rastreamento e um fuzil de interceptação. Dispara rajadas precisas contra inimigos voadores e executa salvas automáticas contra múltiplos alvos aéreos.",
   },

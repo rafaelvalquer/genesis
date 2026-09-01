@@ -31,9 +31,9 @@ const visuals = [
 ];
 
 describe("assets do Interceptador Ícaro", () => {
-  it("usa 115,5 px de altura em todos os estados", () => {
+  it("usa 132 px de altura em todos os estados", () => {
     for (const visual of visuals) {
-      expect(TROOPS.interceptadorIcaro[visual].height).toBe(115.5);
+      expect(TROOPS.interceptadorIcaro[visual].height).toBe(132);
     }
   });
 
