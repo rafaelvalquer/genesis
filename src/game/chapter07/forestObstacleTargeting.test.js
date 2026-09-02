@@ -46,4 +46,13 @@ describe("forest obstacle targeting", () => {
     expect(resolveForestCombatTarget(session([]), { row: 4, x: 300 }, { range: 6 }, [latched])).toBeNull();
     expect(resolveForestCombatTarget(session([]), { row: 3, x: 0 }, { range: 4 }, [latched])).toBeNull();
   });
+
+  it("accepts a caller-owned enemy comparator without duplicating visibility rules", () => {
+    const near = enemy("near", 420);
+    const preferred = enemy("preferred", 520);
+    const result = resolveForestCombatTarget(session([]), { row: 1, x: 300 }, { range: 8 }, [near, preferred], {
+      compareEnemies: (left, right) => (left.id === "preferred" ? -1 : right.id === "preferred" ? 1 : left.x - right.x),
+    });
+    expect(result).toEqual({ kind: "enemy", entity: preferred });
+  });
 });

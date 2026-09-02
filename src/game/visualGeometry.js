@@ -1,4 +1,8 @@
 import { ENEMY_FRAME_ANCHORS } from "./enemyAnchors.generated.js";
+import { getTroopVisualResolver, registerTroopVisualResolver } from "./troopVisualRegistry.js";
+import { resolveIcaroVisual } from "./troops/interceptadorIcaro/visual.js";
+
+registerTroopVisualResolver("interceptadorIcaro", resolveIcaroVisual);
 
 const freezeLayout = (entries) => Object.freeze(entries.map((entry) => Object.freeze(entry)));
 export const DRONE_SENTINELA_LAYOUTS = Object.freeze({
@@ -76,6 +80,8 @@ export function getTroopFrameAnchor(troopConfig = {}, state = "idle", frame = 0)
 }
 
 export function getTroopAttackVisual(troop, troopConfig = {}) {
+  const resolver = getTroopVisualResolver(troop?.type);
+  if (resolver) return resolver(troop, troopConfig);
   if (troop?.type === "operadorJano") {
     return troop.state === "attack" ? troopConfig.attackVisual : troopConfig.idleVisual;
   }
@@ -89,19 +95,6 @@ export function getTroopAttackVisual(troop, troopConfig = {}) {
     if (troop.state === "attack") return troopConfig.attackVisual;
     if (troop.state === "dead") return troopConfig.deathVisual;
     return troopConfig.idleVisual;
-  }
-  if (troop?.type === "interceptadorIcaro") {
-    if (troop.state === "interceptionLock") return troopConfig.interceptionLockVisual;
-    if (troop.state === "interceptionFire") {
-      return troop.interceptionAimDirection === "up"
-        ? troopConfig.interceptionFireUpVisual || troopConfig.interceptionFireVisual
-        : troop.interceptionAimDirection === "down"
-          ? troopConfig.interceptionFireDownVisual || troopConfig.interceptionFireVisual
-          : troopConfig.interceptionFireVisual;
-    }
-    if (troop.state === "paralyzed") return troopConfig.paralyzedVisual;
-    if (troop.state === "idle") return troopConfig.idleVisual;
-    return troopConfig.attackVisual;
   }
   if (troop?.type === "medicaNanites") {
     if (troop.state === "healing") return troopConfig.healVisual || troopConfig.attackVisual;
@@ -130,7 +123,18 @@ export function getTroopSpriteRect(troop, troopConfig = {}) {
 }
 
 export function getMuzzleWorldPosition(troop, troopConfig = {}, shotIndex = 0, animationFrame = null) {
-  const visual = getTroopAttackVisual(troop, troopConfig) || {};
+  const options = shotIndex && typeof shotIndex === "object" ? shotIndex : null;
+  const index = options ? Number(options.shotIndex || 0) : shotIndex;
+  const explicitState = options?.state;
+  const direction = options?.direction;
+  const visualTroop = { ...troop, ...(explicitState ? { state: explicitState } : {}) };
+  const visualResolver = getTroopVisualResolver(troop?.type);
+  const visual = options?.visual
+    || visualResolver?.(visualTroop, troopConfig, { ...options, direction, state: explicitState })
+    || getTroopAttackVisual(visualTroop, troopConfig)
+    || {};
+  shotIndex = index;
+  animationFrame = options ? options.animationFrame ?? null : animationFrame;
   const shots = visual.shots || [];
   const shot = shots[Math.min(Math.max(0, shotIndex), Math.max(0, shots.length - 1))];
   const frameMuzzles = visual.frameMuzzles || [];

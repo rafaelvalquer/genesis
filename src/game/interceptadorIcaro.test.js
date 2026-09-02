@@ -10,14 +10,15 @@ import {
 } from "./battleModel.js";
 import {
   isIcaroAirTarget,
+  selectIcaroCombatTarget,
   selectIcaroInterceptionTargets,
-  selectIcaroTarget,
 } from "./interceptadorIcaro.js";
 import {
   resetWindCurrentForWave,
   updateWindCurrent,
 } from "./windCurrent.js";
 import { CELL } from "./visualGeometry.js";
+import { createForestObstacle } from "./chapter07/forestObstacleGeneration.js";
 
 const config = TROOPS.interceptadorIcaro;
 
@@ -47,6 +48,12 @@ function addEnemy(session, type, troop, {
   enemy.stunnedUntil = Infinity;
   enemy.packetId = packetId;
   return enemy;
+}
+
+function addForestObstacle(session, troop, { id = `tree_${session.forestObstacles.length + 1}`, row = troop.row, distance = 300, type = "ferrivore" } = {}) {
+  const tree = createForestObstacle({ id, type, row, col: 5, x: troop.x + distance, y: row * CELL.height + CELL.height / 2 });
+  session.forestObstacles.push(tree);
+  return tree;
 }
 
 function advanceUntil(session, predicate, limitMs = 4000) {
@@ -83,7 +90,7 @@ describe("Interceptador Ícaro", () => {
         { id: "nim", type: "nimbarca", row: 2, x: 500, hp: 10, temporarilyGrounded: true },
       ],
     };
-    expect(selectIcaroTarget(session, troop, config).id).toBe("nim");
+    expect(selectIcaroCombatTarget(session, troop, config)).toEqual({ kind: "enemy", entity: expect.objectContaining({ id: "nim" }) });
     expect(isIcaroAirTarget(session.enemies.at(-1))).toBe(true);
   });
 
@@ -91,8 +98,8 @@ describe("Interceptador Ícaro", () => {
     const troop = { row: 1, x: 200, y: 180 };
     const ground = { id: "ground", type: "medu", row: 1, x: 220, hp: 10 };
     const air = { id: "air", type: "voltriz", row: 1, x: 500, hp: 10 };
-    expect(selectIcaroTarget({ enemies: [ground, air] }, troop, config)).toBe(air);
-    expect(selectIcaroTarget({ enemies: [ground] }, troop, config)).toBe(ground);
+    expect(selectIcaroCombatTarget({ enemies: [ground, air] }, troop, config)).toEqual({ kind: "enemy", entity: air });
+    expect(selectIcaroCombatTarget({ enemies: [ground] }, troop, config)).toEqual({ kind: "enemy", entity: ground });
   });
 
   it("dispara exatamente quatro tiros nos intervalos configurados e não sobrepõe rajadas", () => {
@@ -102,6 +109,7 @@ describe("Interceptador Ícaro", () => {
     stepBattle(session, 32);
     const burst = session.projectiles.filter((projectile) => projectile.kind === "icaroBullet");
     expect(burst).toHaveLength(4);
+    expect(burst.every((projectile) => projectile.rangeOrigin.x === troop.x && projectile.rangeOrigin.row === troop.row)).toBe(true);
     expect(burst.map((projectile) => projectile.launchAt)).toEqual([32, 132, 232, 332]);
     stepBattle(session, 100);
     expect(session.projectiles.filter((projectile) => projectile.kind === "icaroBullet")).toHaveLength(4);
@@ -191,6 +199,97 @@ describe("Interceptador Ícaro", () => {
     stepBattle(session, 1000);
     expect(session.projectiles.filter((projectile) => projectile.troopType === troop.type)).toHaveLength(0);
     expect(troop.lastAttackAt).toBe(-Infinity);
+  });
+
+  it("preserva os shotIndex originais quando um alvo morre durante o lock", () => {
+    const session = sandbox();
+    const troop = deploy(session);
+    const targets = [
+      addEnemy(session, "voltriz", troop, { row: 0, distance: 220 }),
+      addEnemy(session, "voltriz", troop, { row: 1, distance: 240 }),
+      addEnemy(session, "voltriz", troop, { row: 2, distance: 260 }),
+    ];
+    troop.attackReadyAt = Infinity;
+    stepBattle(session, config.interceptionCooldownMs);
+    expect(troop.state).toBe("interceptionLock");
+    targets[0].dead = true;
+    stepBattle(session, config.interceptionLockVisual.durationMs);
+    expect(session.projectiles.filter((projectile) => projectile.kind === "icaroInterceptionShot")
+      .map((projectile) => projectile.shotIndex)).toEqual([1, 2]);
+  });
+
+  it.each([
+    [1, [0]], [2, [0, 1]], [3, [0, 1, 2]],
+  ])("Interception Fire dispara %s alvo(s) com shotIndex estável", (count, expectedIndexes) => {
+    const session = sandbox();
+    const troop = deploy(session);
+    for (let index = 0; index < count; index += 1) addEnemy(session, "voltriz", troop, { row: index + 1, distance: 220 + index * 20 });
+    troop.attackReadyAt = Infinity;
+    stepBattle(session, config.interceptionCooldownMs);
+    expect(troop.icaroInterceptionShotPlan).toHaveLength(count);
+    const events = [
+      ...stepBattle(session, config.interceptionLockVisual.durationMs),
+      ...stepBattle(session, config.interceptionShotIntervalMs),
+      ...stepBattle(session, config.interceptionShotIntervalMs),
+    ];
+    const shots = events.filter((event) => event.type === "shoot" && event.weapon === "icaroInterceptionShot");
+    expect(shots.map((event) => event.shotIndex)).toEqual(expectedIndexes);
+  });
+
+  it("preserva os slots 0 e 2 quando o alvo intermediário morre no lock", () => {
+    const session = sandbox();
+    const troop = deploy(session);
+    const targets = [0, 1, 2].map((row) => addEnemy(session, "voltriz", troop, { row, distance: 220 + row * 20 }));
+    troop.attackReadyAt = Infinity;
+    stepBattle(session, config.interceptionCooldownMs);
+    targets[1].dead = true;
+    const events = [
+      ...stepBattle(session, config.interceptionLockVisual.durationMs),
+      ...stepBattle(session, config.interceptionShotIntervalMs),
+      ...stepBattle(session, config.interceptionShotIntervalMs),
+    ];
+    expect(events.filter((event) => event.type === "shoot" && event.weapon === "icaroInterceptionShot")
+      .map((event) => event.shotIndex)).toEqual([0, 2]);
+  });
+
+  it("mantém a prioridade Nimbarca, Alpha, suporte aéreo e aéreo normal", () => {
+    const session = sandbox();
+    const troop = deploy(session);
+    const normal = addEnemy(session, "voltriz", troop, { row: 1, distance: 300 });
+    const support = addEnemy(session, "voltriz", troop, { row: 3, distance: 230 });
+    support.variant = "support";
+    const alpha = addEnemy(session, "voltriz", troop, { row: 0, distance: 240, variant: "alpha" });
+    const nimbarca = addEnemy(session, "nimbarca", troop, { row: 2, distance: 250 });
+    expect(selectIcaroInterceptionTargets(session, troop, config).map((enemy) => enemy.id)).toEqual([nimbarca.id, alpha.id, support.id]);
+    expect(normal).toBeTruthy();
+  });
+
+  it("trata árvores como cobertura e alvo do Attack Burst", () => {
+    const session = sandbox();
+    const troop = deploy(session);
+    const tree = addForestObstacle(session, troop, { distance: 220 });
+    const rear = addEnemy(session, "voltriz", troop, { distance: 360 });
+    const target = selectIcaroCombatTarget(session, troop, config);
+    expect(target).toEqual({ kind: "forestObstacle", entity: tree });
+    expect(rear.x).toBeGreaterThan(tree.x);
+    tree.alive = false;
+    expect(selectIcaroCombatTarget(session, troop, config)).toEqual({ kind: "enemy", entity: rear });
+  });
+
+  it("mantém o inimigo exposto como alvo quando a árvore está atrás", () => {
+    const session = sandbox();
+    const troop = deploy(session);
+    const enemy = addEnemy(session, "voltriz", troop, { distance: 220 });
+    addForestObstacle(session, troop, { distance: 360 });
+    expect(selectIcaroCombatTarget(session, troop, config)).toEqual({ kind: "enemy", entity: enemy });
+  });
+
+  it("não inclui alvo aéreo atrás de árvore no Interception Fire", () => {
+    const session = sandbox();
+    const troop = deploy(session);
+    addForestObstacle(session, troop, { distance: 220 });
+    const covered = addEnemy(session, "voltriz", troop, { distance: 360 });
+    expect(selectIcaroInterceptionTargets(session, troop, config)).not.toContain(covered);
   });
 
   it("Corrente de Vento desloca o Ícaro por ele ser uma unidade leve sem âncora", () => {

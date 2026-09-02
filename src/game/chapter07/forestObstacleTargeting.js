@@ -1,17 +1,16 @@
 import { CELL } from "../visualGeometry.js";
 import { isEnemyTargetable } from "../enemyTargeting.js";
+import { findFirstForestObstacleOnSegment } from "./forestObstacleCollision.js";
 
 export function getForestObstacleAt(session, row, col) {
   return session?.forestObstacles?.find((tree) => tree.row === row && tree.col === col) || null;
 }
 
 export function getBlockingForestObstacle(session, troop, enemy) {
-  if (!troop || !enemy || troop.row == null || enemy.x == null) return null;
-  if (troop.row !== enemy.row && !enemy.targetRows?.includes?.(troop.row)) return null;
-  return (session.forestObstacles || [])
-    .filter((tree) => tree.alive && tree.blocksLineOfSight && tree.row === troop.row
-      && tree.x > troop.x && tree.x < enemy.x)
-    .sort((left, right) => left.x - right.x)[0] || null;
+  if (!troop || !enemy || enemy.x == null) return null;
+  const troopY = troop.y ?? troop.row * CELL.height + CELL.height / 2;
+  const enemyY = enemy.y ?? enemy.row * CELL.height + CELL.height / 2;
+  return findFirstForestObstacleOnSegment(session, { x: troop.x, y: troopY }, { x: enemy.x, y: enemyY })?.tree || null;
 }
 
 export function isForestObstacleBlocking(session, troop, enemy) {
@@ -37,21 +36,23 @@ function targetPriority(enemy) {
   return enemy?.type === "garravinha" && enemy.garravinhaState === "latched" ? 1 : 0;
 }
 
-export function resolveForestCombatTarget(session, troop, config = {}, enemies = session?.enemies || []) {
+export function resolveForestCombatTarget(session, troop, config = {}, enemies = session?.enemies || [], options = {}) {
   if (!session || !troop) return null;
   const range = Math.max(0, Number(config.range || 0) * CELL.width);
   const canTargetObstacle = config.forestInteraction?.canTargetObstacle !== false;
   const ignoresCover = config.forestInteraction?.ignoresCover === true;
   const nearestTree = canTargetObstacle ? getNearestTargetableForestObstacle(session, troop, config.range) : null;
   const enemyTargetable = config.enemyTargetable || isEnemyTargetable;
+  const compareEnemies = options.compareEnemies || ((left, right) =>
+    targetPriority(right) - targetPriority(left)
+      || left.x - right.x || String(left.id).localeCompare(String(right.id)));
   const visibleEnemies = (enemies || [])
     .filter((enemy) => !enemy.dead && enemyTargetable(enemy)
       && targetRow(enemy, troop.row)
       && enemy.x >= troop.x
       && enemy.x - troop.x <= range
-      && (ignoresCover || !nearestTree || enemy.x < nearestTree.x))
-    .sort((left, right) => targetPriority(right) - targetPriority(left)
-      || left.x - right.x || String(left.id).localeCompare(String(right.id)));
+      && (ignoresCover || !getBlockingForestObstacle(session, troop, enemy)))
+    .sort(compareEnemies);
   if (visibleEnemies[0]) return { kind: "enemy", entity: visibleEnemies[0] };
   if (nearestTree) return { kind: "forestObstacle", entity: nearestTree };
   return null;

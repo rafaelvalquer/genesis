@@ -39,7 +39,6 @@ import {
 } from "../executorArco.js";
 import {
   isIcaroAirTarget,
-  selectIcaroBurstRetarget,
   updateInterceptadorIcaro,
 } from "../interceptadorIcaro.js";
 import {
@@ -197,6 +196,8 @@ import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.j
 import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
 import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, getNearestTargetableForestObstacle, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
 import { findFirstForestObstacleCollision } from "../chapter07/forestObstacleCollision.js";
+import { getProjectileHandler } from "../projectileRegistry.js";
+import "../troops/interceptadorIcaro/projectiles.js";
 
 export {
   createWindCurrentState,
@@ -4758,77 +4759,19 @@ function updateProjectiles(session, dt, events) {
       }
       continue;
     }
-    if (projectile.kind === "icaroBullet" || projectile.kind === "icaroInterceptionShot") {
-      const config = TROOPS.interceptadorIcaro;
-      const source = indexedTroopById(session, projectile.sourceTroopId);
-      let target = projectile.targetKind === "forestObstacle"
-        ? session.forestObstacles?.find((tree) => tree.id === projectile.targetId && tree.alive) || null
-        : indexedEnemyById(session, projectile.targetId);
-      if (projectile.targetKind !== "forestObstacle" && !isEnemyTargetable(target)) target = null;
-      if (!target && !projectile.special) {
-        const replacement = selectIcaroBurstRetarget(session, projectile, config);
-        target = replacement?.entity || null;
-        projectile.targetKind = replacement?.kind || null;
-        projectile.targetId = target?.id || null;
-      }
-      if (!target || (projectile.special && (projectile.targetKind !== "enemy" || !isIcaroAirTarget(target)))) {
-        projectile.active = false;
-        continue;
-      }
-      const targetPoint = projectile.targetKind === "forestObstacle"
-        ? getForestObstacleHitPoint(target)
-        : getEnemyHitPoint(target, ENEMIES[target.type]);
-      const angle = Math.atan2(targetPoint.y - projectile.y, targetPoint.x - projectile.x);
-      projectile.vx = Math.cos(angle) * projectile.speed;
-      projectile.vy = Math.sin(angle) * projectile.speed;
-      projectile.previousX = projectile.x;
-      projectile.previousY = projectile.y;
-      projectile.previousRenderX = projectile.x;
-      projectile.previousRenderY = projectile.y;
-      projectile.x += projectile.vx * dt / 1000;
-      projectile.y += projectile.vy * dt / 1000;
-      pushProjectileTrail(projectile.trail, projectile.x, projectile.y);
-      const treeHit = findFirstForestObstacleCollision(session, projectile);
-      if (treeHit) {
-        const factor = source ? attackDamageMultiplier(session, source, { target: null }) : session.modifiers.troopDamage;
-        damageForestObstacle(session, treeHit, projectile.baseDamage * factor, events, stunEnemy);
-        events.push({ type: projectile.special ? "icaroInterceptionImpact" : "icaroBulletImpact", weapon: projectile.visualKind, sourceTroopId: projectile.sourceTroopId, targetKind: "forestObstacle", targetId: treeHit.id, x: treeHit.x, y: treeHit.y, color: projectile.color, seed: projectile.seed });
-        projectile.active = false;
-        continue;
-      }
-      const hit = Math.hypot(targetPoint.x - projectile.x, targetPoint.y - projectile.y)
-        <= Math.max(32, projectile.speed * dt / 1000);
-      if (!hit) {
-        if (projectile.ageMs <= 3000) continue;
-        projectile.active = false;
-        continue;
-      }
-      const targetFactor = projectile.targetKind === "forestObstacle" ? 1 : projectile.special
-        ? 1 : isIcaroAirTarget(target) ? config.airborneDamageFactor : config.groundDamageFactor;
-      const decisionFactor = source
-        ? attackDamageMultiplier(session, source, { target: projectile.targetKind === "enemy" ? target : null })
-        : session.modifiers.troopDamage;
-      if (projectile.targetKind === "forestObstacle") damageForestObstacle(session, target, projectile.baseDamage * decisionFactor, events, stunEnemy);
-      else damageEnemy(session, target, projectile.baseDamage * targetFactor * decisionFactor, events, {
-        direct: true,
-        ranged: true,
-        sourceX: projectile.origin.x,
-        sourceTroopType: projectile.troopType,
-        sourceTroopId: projectile.sourceTroopId,
-        nimbarcaShieldIgnoreFactor: config.nimbarcaShieldIgnoreFactor,
+    const projectileHandler = getProjectileHandler(projectile.kind);
+    if (projectileHandler) {
+      projectileHandler({
+        session,
+        projectile,
+        dt,
+        events,
+        dependencies: {
+          damageEnemy,
+          damageForestObstacle: (battleSession, tree, amount) => damageForestObstacle(battleSession, tree, amount, events, stunEnemy),
+          attackDamageMultiplier,
+        },
       });
-      events.push({
-        type: projectile.special ? "icaroInterceptionImpact" : "icaroBulletImpact",
-        weapon: projectile.visualKind,
-        sourceTroopId: projectile.sourceTroopId,
-        targetKind: projectile.targetKind || "enemy",
-        targetId: target.id,
-        x: targetPoint.x,
-        y: targetPoint.y,
-        color: projectile.color,
-        seed: projectile.seed,
-      });
-      projectile.active = false;
       continue;
     }
     if (projectile.kind === "mantisSpike") {

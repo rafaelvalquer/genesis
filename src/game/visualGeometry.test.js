@@ -329,6 +329,18 @@ describe("geometria visual dos disparos", () => {
     });
   });
 
+  it("resolve o muzzle do Interception Fire pela direção explícita, mesmo durante o lock", () => {
+    const locked = { type: "interceptadorIcaro", state: "interceptionLock", x: 400, y: 240 };
+    for (const [direction, visual] of [["up", TROOPS.interceptadorIcaro.interceptionFireUpVisual], ["forward", TROOPS.interceptadorIcaro.interceptionFireVisual], ["down", TROOPS.interceptadorIcaro.interceptionFireDownVisual]]) {
+      const muzzle = getMuzzleWorldPosition(locked, TROOPS.interceptadorIcaro, { shotIndex: 1, animationFrame: 3, state: "interceptionFire", direction });
+      const anchor = getTroopFrameAnchor(TROOPS.interceptadorIcaro, visual.state, 3);
+      const rect = getAnchoredSpriteRect(locked, visual.height, 1, anchor);
+      const expected = visual.frameMuzzles[3];
+      expect(muzzle.x).toBeCloseTo(rect.x + rect.width * expected.x, 5);
+      expect(muzzle.y).toBeCloseTo(rect.y + rect.height * expected.y, 5);
+    }
+  });
+
   it("mantem os dezesseis frames do cacador presos ao mesmo ponto no chao", () => {
     const cacador = { x: 280, y: 240 };
     for (const state of ["idle", "attack"]) {

@@ -3,7 +3,7 @@ import { CELL } from "./visualGeometry.js";
 import { getBattleIndex, livingEnemyById } from "./battleIndex.js";
 import { createProjectileTrail } from "./projectileTrail.js";
 import { isEnemyTargetable } from "./enemyTargeting.js";
-import { getBlockingForestObstacle, getNearestTargetableForestObstacle } from "./chapter07/forestObstacleTargeting.js";
+import { getBlockingForestObstacle, resolveForestCombatTarget } from "./chapter07/forestObstacleTargeting.js";
 
 const alive = (enemy) => enemy && !enemy.dead && enemy.hp > 0;
 const baseDistance = (enemy) => Number(enemy.x) || Infinity;
@@ -18,13 +18,6 @@ export function isIcaroAirTarget(enemy) {
     || enemy.temporarilyGrounded
     || Number(enemy.groundedUntil) > 0,
   );
-}
-
-function inNormalRange(enemy, troop, config) {
-  return isEnemyTargetable(enemy)
-    && enemy.row === troop.row
-    && enemy.x >= troop.x
-    && enemy.x - troop.x <= config.range * CELL.width;
 }
 
 function normalPriority(enemy) {
@@ -46,31 +39,11 @@ function comparePriority(left, right, priority) {
   return 0;
 }
 
-export function selectIcaroTarget(session, troop, config) {
-  const candidates = getBattleIndex(session)?.enemiesByRow[troop.row] || session.enemies;
-  let bestAir = null;
-  let bestGround = null;
-  for (const enemy of candidates) {
-    if (!inNormalRange(enemy, troop, config)) continue;
-    if (isIcaroAirTarget(enemy)) {
-      if (!bestAir || comparePriority(enemy, bestAir, normalPriority) < 0) bestAir = enemy;
-    } else if (!bestGround || comparePriority(enemy, bestGround, normalPriority) < 0) {
-      bestGround = enemy;
-    }
-  }
-  return bestAir || bestGround;
-}
-
 export function selectIcaroCombatTarget(session, troop, config) {
-  const tree = config.forestInteraction?.canTargetObstacle === false
-    ? null : getNearestTargetableForestObstacle(session, troop, config.range);
   const candidates = getBattleIndex(session)?.enemiesByRow[troop.row] || session.enemies;
-  let best = null;
-  for (const enemy of candidates) {
-    if (!inNormalRange(enemy, troop, config) || (tree && enemy.x >= tree.x)) continue;
-    if (!best || comparePriority(enemy, best, normalPriority) < 0) best = enemy;
-  }
-  return best ? { kind: "enemy", entity: best } : tree ? { kind: "forestObstacle", entity: tree } : null;
+  return resolveForestCombatTarget(session, troop, config, candidates, {
+    compareEnemies: (left, right) => comparePriority(left, right, normalPriority),
+  });
 }
 
 function inInterceptionRange(session, enemy, troop, config) {
@@ -109,7 +82,8 @@ export function selectIcaroInterceptionTargets(session, troop, config) {
 }
 
 export function selectIcaroBurstRetarget(session, projectile, config) {
-  const surrogate = { x: projectile.origin.x, y: projectile.origin.y, row: projectile.row };
+  const rangeOrigin = projectile.rangeOrigin || projectile.origin;
+  const surrogate = { x: rangeOrigin.x, y: rangeOrigin.y, row: rangeOrigin.row ?? projectile.row };
   return selectIcaroCombatTarget(session, surrogate, config);
 }
 
@@ -122,7 +96,11 @@ function setState(troop, state, now, durationMs) {
 function launchProjectile(session, troop, config, target, special, shotIndex, dependencies, aimDirection = "forward") {
   const entity = target.entity || target;
   const targetKind = target.kind || "enemy";
-  const origin = dependencies.getMuzzleWorldPosition(troop, config, shotIndex, undefined, aimDirection);
+  const origin = dependencies.getMuzzleWorldPosition(troop, config, {
+    shotIndex,
+    state: special ? "interceptionFire" : "attackBurst",
+    direction: special ? aimDirection : "forward",
+  });
   session.projectiles.push({
     id: dependencies.createId("projectile"),
     kind: special ? "icaroInterceptionShot" : "icaroBullet",
@@ -140,6 +118,7 @@ function launchProjectile(session, troop, config, target, special, shotIndex, de
     previousX: origin.x,
     previousY: origin.y,
     origin: { ...origin },
+    rangeOrigin: { x: troop.x, y: troop.y, row: troop.row },
     ageMs: 0,
     trail: createProjectileTrail(special ? 8 : 4, origin.x, origin.y),
     speed: special ? config.interceptionProjectileSpeed : config.projectileSpeed,
@@ -185,18 +164,18 @@ function startInterception(session, troop, config, targets, events, dependencies
 }
 
 function fireInterception(session, troop, config, events, dependencies) {
-  const targets = [];
   const index = getBattleIndex(session);
-  for (const targetId of troop.icaroLockedTargetIds) {
+  const plan = troop.icaroInterceptionShotPlan || troop.icaroLockedTargetIds.map((targetId, shotIndex) => ({ targetId, shotIndex, direction: troop.interceptionAimDirection || "forward" }));
+  const targets = [];
+  for (const entry of plan) {
+    const targetId = entry.targetId;
     const enemy = index
       ? livingEnemyById(index, targetId)
       : session.enemies.find((candidate) => candidate.id === targetId && alive(candidate));
-    if (enemy && isIcaroAirTarget(enemy)) targets.push(enemy);
+    if (!enemy || !isIcaroAirTarget(enemy)) continue;
+    targets.push(enemy);
+    launchProjectile(session, troop, config, { kind: "enemy", entity: enemy }, true, entry.shotIndex, dependencies, entry.direction || "forward");
   }
-  targets.forEach((target, index) => {
-    const direction = troop.icaroInterceptionShotPlan?.find((entry) => entry.targetId === target.id)?.direction || "forward";
-    launchProjectile(session, troop, config, { kind: "enemy", entity: target }, true, index, dependencies, direction);
-  });
   setState(troop, "interceptionFire", session.elapsed, config.interceptionFireVisual.durationMs);
   troop.lastAttackAt = session.elapsed;
   events.push({
