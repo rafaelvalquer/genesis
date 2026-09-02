@@ -1,0 +1,35 @@
+name: Genesis CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify encoding and gameplay contracts
+        run: npm run verify:encoding && npm run verify:no-gameplay-skips
+      - name: Ícaro regression gate
+        run: npm run test:icaro
+      - name: Unit tests
+        run: npm run test:unit
+      - name: Chapter 7 tests and audit
+        run: npm run test:chapter-seven && npm run audit:chapter-seven
+      - name: Build
+        run: npm run build

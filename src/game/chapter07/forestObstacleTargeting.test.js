@@ -19,7 +19,7 @@ describe("forest obstacle targeting", () => {
 
   it("targets a living tree even when the lane has no enemies", () => {
     const result = resolveForestCombatTarget(session([tree(600)]), { row: 1, x: 300 }, { range: 6 }, []);
-    expect(result).toEqual({ kind: "forestObstacle", entity: expect.objectContaining({ x: 600 }) });
+    expect(result).toEqual({ kind: "forestObstacle", entity: expect.objectContaining({ x: 600 }), reason: "direct", blockedTargetId: null });
   });
 
   it("prefers an exposed enemy and never targets an enemy behind the tree", () => {

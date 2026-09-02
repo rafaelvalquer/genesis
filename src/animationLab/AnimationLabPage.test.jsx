@@ -38,12 +38,12 @@ describe("Laboratório de Animações", () => {
     expect(getAnimationFrame({ states: { idle: [idle], slamAttack: [] } }, "slamAttack", 0)).toBeNull();
   });
 
-  it("inspeciona os quatro estados dos transportes do comboio", async () => {
+  it("inspeciona os estados disponíveis dos transportes do comboio", async () => {
     render(<MemoryRouter><AnimationLabPage /></MemoryRouter>);
     fireEvent.click(screen.getByRole("tab", { name: "Transportes" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: /Destroyed transition/ })).toBeInTheDocument());
-    expect(screen.getAllByText(/TR-7 Pioneiro/).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /Destroyed transition/ }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /Energy spawn/ })).toBeInTheDocument());
+    expect(screen.getAllByText(/Dínamo — Unidade Móvel de Geração/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Energy spawn/ }));
     expect(screen.getByText(/Timing:/)).toBeInTheDocument();
   });
 });

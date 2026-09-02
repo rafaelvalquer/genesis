@@ -1,6 +1,8 @@
 import { CELL } from "../visualGeometry.js";
 import { isEnemyTargetable } from "../enemyTargeting.js";
-import { findFirstForestObstacleOnSegment } from "./forestObstacleCollision.js";
+import { resolveCombatLine } from "./forestObstacleCollision.js";
+
+/** @typedef {{ kind: "enemy" | "forestObstacle", entity: object, reason?: "direct" | "cover", blockedTargetId?: string | null }} CombatTarget */
 
 export function getForestObstacleAt(session, row, col) {
   return session?.forestObstacles?.find((tree) => tree.row === row && tree.col === col) || null;
@@ -10,7 +12,7 @@ export function getBlockingForestObstacle(session, troop, enemy) {
   if (!troop || !enemy || enemy.x == null) return null;
   const troopY = troop.y ?? troop.row * CELL.height + CELL.height / 2;
   const enemyY = enemy.y ?? enemy.row * CELL.height + CELL.height / 2;
-  return findFirstForestObstacleOnSegment(session, { x: troop.x, y: troopY }, { x: enemy.x, y: enemyY })?.tree || null;
+  return resolveCombatLine(session, { x: troop.x, y: troopY }, { x: enemy.x, y: enemyY }).blocker || null;
 }
 
 export function isForestObstacleBlocking(session, troop, enemy) {
@@ -54,7 +56,17 @@ export function resolveForestCombatTarget(session, troop, config = {}, enemies =
       && (ignoresCover || !getBlockingForestObstacle(session, troop, enemy)))
     .sort(compareEnemies);
   if (visibleEnemies[0]) return { kind: "enemy", entity: visibleEnemies[0] };
-  if (nearestTree) return { kind: "forestObstacle", entity: nearestTree };
+  if (nearestTree) {
+    const blocked = (enemies || []).find((enemy) => !enemy.dead && enemyTargetable(enemy)
+      && targetRow(enemy, troop.row) && enemy.x >= troop.x && enemy.x - troop.x <= range
+      && getBlockingForestObstacle(session, troop, enemy)?.id === nearestTree.id);
+    return {
+      kind: "forestObstacle",
+      entity: nearestTree,
+      reason: blocked ? "cover" : "direct",
+      blockedTargetId: blocked?.id || null,
+    };
+  }
   return null;
 }
 

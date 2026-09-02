@@ -1,8 +1,8 @@
 import { ENEMY_FRAME_ANCHORS } from "./enemyAnchors.generated.js";
-import { getTroopVisualResolver, registerTroopVisualResolver } from "./troopVisualRegistry.js";
-import { resolveIcaroVisual } from "./troops/interceptadorIcaro/visual.js";
+import { getTroopAnimationResolver, getTroopVisualResolver, registerTroopVisualResolver } from "./troopVisualRegistry.js";
+import { resolveIcaroAnimation, resolveIcaroVisual } from "./troops/interceptadorIcaro/visual.js";
 
-registerTroopVisualResolver("interceptadorIcaro", resolveIcaroVisual);
+registerTroopVisualResolver("interceptadorIcaro", { resolveVisual: resolveIcaroVisual, resolveAnimation: resolveIcaroAnimation });
 
 const freezeLayout = (entries) => Object.freeze(entries.map((entry) => Object.freeze(entry)));
 export const DRONE_SENTINELA_LAYOUTS = Object.freeze({
@@ -719,6 +719,8 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
   }
 
   const visual = getTroopAttackVisual(troop, troopConfig);
+  const animationResolver = getTroopAnimationResolver(troop?.type);
+  if (animationResolver) return animationResolver(troop, troopConfig, elapsed, frameCounts);
   if (troop.type === "mantis") {
     const paralyzed = elapsed < Number(troop.electricParalyzedUntil || 0);
     const state = paralyzed ? "paralyzed" : ["targetLock", "arcSpikeAttack", "rearm", "death"].includes(troop.state)
@@ -728,37 +730,6 @@ export function getTroopAnimation(troop, troopConfig, elapsed, frameCounts = {})
     const duration = Math.max(1, stateVisual?.durationMs || 960);
     const age = Math.max(0, elapsed - (paralyzed ? 0 : troop.stateStartedAt));
     const frame = state === "idle" || state === "paralyzed"
-      ? Math.floor(age / (duration / count)) % count
-      : Math.min(count - 1, Math.floor(age / (duration / count)));
-    return { state, frame };
-  }
-  if (troop.type === "interceptadorIcaro") {
-    const paralyzed = elapsed < Number(troop.electricParalyzedUntil || 0);
-    const state = paralyzed
-      ? "paralyzed"
-      : troop.state === "interceptionFire" && troop.interceptionAimDirection === "up"
-        ? "interceptionFireUp"
-        : troop.state === "interceptionFire" && troop.interceptionAimDirection === "down"
-          ? "interceptionFireDown"
-          : troop.state || "idle";
-    const count = Math.max(1, frameCounts[state] || frameCounts.idle || 1);
-    const stateVisual = paralyzed
-      ? troopConfig.paralyzedVisual
-      : state === "interceptionLock"
-        ? troopConfig.interceptionLockVisual
-        : state === "interceptionFireUp"
-          ? troopConfig.interceptionFireUpVisual
-          : state === "interceptionFireDown"
-            ? troopConfig.interceptionFireDownVisual
-            : state === "interceptionFire"
-              ? troopConfig.interceptionFireVisual
-          : state === "attackBurst"
-            ? troopConfig.attackVisual
-            : troopConfig.idleVisual;
-    const duration = Math.max(1, stateVisual?.durationMs || 800);
-    const stateStartedAt = Number.isFinite(troop.stateStartedAt) ? troop.stateStartedAt : 0;
-    const age = Math.max(0, elapsed - (paralyzed ? 0 : stateStartedAt));
-    const frame = state === "idle" || paralyzed
       ? Math.floor(age / (duration / count)) % count
       : Math.min(count - 1, Math.floor(age / (duration / count)));
     return { state, frame };

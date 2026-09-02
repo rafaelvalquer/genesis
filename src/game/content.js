@@ -359,7 +359,7 @@ export const TROOPS = {
       ],
       timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 90, frame })),
       shots: [3, 4, 5, 6].map((frame, index) => ({
-        atMs: index * 100,
+        atMs: 270 + index * 100,
         frame,
         muzzle: { x: 0.9, y: 0.45 },
       })),
@@ -370,6 +370,7 @@ export const TROOPS = {
       state: "interceptionFire",
       height: 132,
       durationMs: 700,
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 80, frame })),
       frameMuzzles: [
         { x: 0.9609, y: 0.4844 }, { x: 0.8646, y: 0.4844 },
         { x: 0.8698, y: 0.5104 }, { x: 0.9141, y: 0.5208 },
@@ -377,7 +378,7 @@ export const TROOPS = {
         { x: 0.875, y: 0.4974 }, { x: 0.8958, y: 0.5339 },
       ],
       shots: [3, 4, 5].map((frame, index) => ({
-        atMs: index * 80,
+        atMs: 240 + index * 80,
         frame,
         muzzle: { x: 0.93, y: 0.42 },
       })),
@@ -387,22 +388,24 @@ export const TROOPS = {
       state: "interceptionFireUp",
       height: 132,
       durationMs: 700,
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 80, frame })),
       frameMuzzles: [
         { x: 0.69, y: 0.31 }, { x: 0.73, y: 0.28 }, { x: 0.76, y: 0.25 }, { x: 0.79, y: 0.22 },
         { x: 0.77, y: 0.24 }, { x: 0.74, y: 0.27 }, { x: 0.71, y: 0.3 }, { x: 0.69, y: 0.31 },
       ],
-      shots: [3, 4, 5].map((frame, index) => ({ atMs: index * 80, frame, muzzle: { x: 0.77, y: 0.24 } })),
+      shots: [3, 4, 5].map((frame, index) => ({ atMs: 240 + index * 80, frame, muzzle: { x: 0.77, y: 0.24 } })),
       effect: "icaroInterceptionShot",
     },
     interceptionFireDownVisual: {
       state: "interceptionFireDown",
       height: 132,
       durationMs: 700,
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * 80, frame })),
       frameMuzzles: [
         { x: 0.69, y: 0.69 }, { x: 0.73, y: 0.73 }, { x: 0.76, y: 0.76 }, { x: 0.79, y: 0.79 },
         { x: 0.77, y: 0.77 }, { x: 0.74, y: 0.74 }, { x: 0.71, y: 0.71 }, { x: 0.69, y: 0.69 },
       ],
-      shots: [3, 4, 5].map((frame, index) => ({ atMs: index * 80, frame, muzzle: { x: 0.77, y: 0.77 } })),
+      shots: [3, 4, 5].map((frame, index) => ({ atMs: 240 + index * 80, frame, muzzle: { x: 0.77, y: 0.77 } })),
       effect: "icaroInterceptionShot",
     },
     paralyzedVisual: { state: "paralyzed", height: 132, durationMs: 720, loop: true },

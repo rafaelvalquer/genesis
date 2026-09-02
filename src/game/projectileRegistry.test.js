@@ -9,4 +9,9 @@ describe("projectile registry", () => {
     expect(getProjectileHandler("testProjectileRegistry")).toBe(handler);
     expect(getProjectileHandler("unregisteredProjectileRegistry")).toBeNull();
   });
+
+  it("rejects accidental duplicate registration", () => {
+    registerProjectileHandler("duplicateProjectileRegistry", () => null);
+    expect(() => registerProjectileHandler("duplicateProjectileRegistry", () => null)).toThrow(/already registered/);
+  });
 });

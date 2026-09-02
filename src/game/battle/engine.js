@@ -197,7 +197,7 @@ import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forest
 import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, getNearestTargetableForestObstacle, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
 import { findFirstForestObstacleCollision } from "../chapter07/forestObstacleCollision.js";
 import { getProjectileHandler } from "../projectileRegistry.js";
-import "../troops/interceptadorIcaro/projectiles.js";
+import "../registerProjectileHandlers.js";
 
 export {
   createWindCurrentState,

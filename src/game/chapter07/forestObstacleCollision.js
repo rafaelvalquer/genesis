@@ -41,6 +41,13 @@ export function findFirstForestObstacleOnSegment(session, start, end, options = 
     .sort((left, right) => left.t - right.t)[0] || null;
 }
 
+export function resolveCombatLine(session, sourcePoint, targetPoint, options = {}) {
+  const blocker = findFirstForestObstacleOnSegment(session, sourcePoint, targetPoint, options);
+  return blocker
+    ? { clear: false, blocker: blocker.tree, intersection: { t: blocker.t, point: blocker.point } }
+    : { clear: true, blocker: null, intersection: null };
+}
+
 export function projectileCrossesForestObstacle(projectile, tree, previousX, previousY, currentX, currentY) {
   return Boolean(intersectSegmentWithForestObstacle(
     { x: previousX, y: previousY }, { x: currentX, y: currentY }, tree,

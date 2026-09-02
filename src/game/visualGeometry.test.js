@@ -20,9 +20,31 @@ import {
   viewportPointToFieldPoint,
   writeEnemyVisualPosition,
 } from "./visualGeometry.js";
+import { getActiveIcaroInterceptionShot, getVisualShotTime } from "./troops/interceptadorIcaro/visual.js";
 
 describe("geometria visual dos disparos", () => {
   const troop = { id: "marine_1", type: "marine", x: 150, y: 60, lastAttackAt: 32 };
+
+  it("mantém o shot ativo e o tempo oficial do visual de Interception por direção", () => {
+    const icaro = {
+      type: "interceptadorIcaro",
+      state: "interceptionFire",
+      stateStartedAt: 1000,
+      interceptionFireStartedAt: 1000,
+      icaroInterceptionShotPlan: [
+        { targetId: "a", shotIndex: 0, direction: "up" },
+        { targetId: "b", shotIndex: 1, direction: "forward" },
+        { targetId: "c", shotIndex: 2, direction: "down" },
+      ],
+    };
+    expect(getVisualShotTime(TROOPS.interceptadorIcaro.interceptionFireVisual, 0)).toBe(240);
+    expect(getActiveIcaroInterceptionShot(icaro, 1250, TROOPS.interceptadorIcaro)).toMatchObject({ targetId: "a", shotIndex: 0, direction: "up" });
+    expect(getActiveIcaroInterceptionShot(icaro, 1350, TROOPS.interceptadorIcaro)).toMatchObject({ targetId: "b", shotIndex: 1, direction: "forward" });
+    expect(getActiveIcaroInterceptionShot(icaro, 1450, TROOPS.interceptadorIcaro)).toMatchObject({ targetId: "c", shotIndex: 2, direction: "down" });
+    expect(getTroopAnimation(icaro, TROOPS.interceptadorIcaro, 1240, { interceptionFireUp: 8 })).toMatchObject({ state: "interceptionFireUp", frame: 3 });
+    expect(getTroopAnimation(icaro, TROOPS.interceptadorIcaro, 1320, { interceptionFire: 8 })).toMatchObject({ state: "interceptionFire", frame: 4 });
+    expect(getTroopAnimation(icaro, TROOPS.interceptadorIcaro, 1400, { interceptionFireDown: 8 })).toMatchObject({ state: "interceptionFireDown", frame: 5 });
+  });
 
   it("converte os tres canos do marine para a mesma geometria usada pelo sprite", () => {
     const rect = getTroopSpriteRect(troop, TROOPS.marine);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { TROOPS } from "../content.js";
 import { CELL, getMuzzleWorldPosition } from "../visualGeometry.js";
-import { findFirstForestObstacleCollision, findFirstForestObstacleOnSegment, getForestObstacleHitbox, intersectSegmentWithForestObstacle, projectileCrossesForestObstacle } from "./forestObstacleCollision.js";
+import { findFirstForestObstacleCollision, findFirstForestObstacleOnSegment, getForestObstacleHitbox, intersectSegmentWithForestObstacle, projectileCrossesForestObstacle, resolveCombatLine } from "./forestObstacleCollision.js";
 
 const tree = (x, type = "ferrivore", row = 1) => ({ id: `tree_${x}`, type, row, x, y: row * CELL.height + CELL.height / 2, alive: true, blocksLineOfSight: true, scale: 1 });
 
@@ -68,5 +68,17 @@ describe("forest obstacle projectile collision", () => {
     const hit = findFirstForestObstacleOnSegment({ forestObstacles: [tree(600)] }, { x: 0, y: 360 }, { x: 1100, y: 0 });
     expect(hit?.point.x).toBeGreaterThan(0);
     expect(hit?.point.x).toBeLessThan(1100);
+  });
+
+  it("exposes the same geometric blocker contract for targeting and flight", () => {
+    const obstacle = tree(600);
+    const result = resolveCombatLine({ forestObstacles: [obstacle] }, { x: 300, y: 180 }, { x: 800, y: 180 });
+    expect(result).toMatchObject({ clear: false, blocker: obstacle, intersection: { t: expect.any(Number), point: expect.any(Object) } });
+  });
+
+  it("handles vertical and zero-length segments without row shortcuts", () => {
+    const obstacle = tree(600);
+    expect(intersectSegmentWithForestObstacle({ x: 600, y: 100 }, { x: 600, y: 300 }, obstacle)).not.toBeNull();
+    expect(intersectSegmentWithForestObstacle({ x: 300, y: 180 }, { x: 300, y: 180 }, obstacle)).toBeNull();
   });
 });

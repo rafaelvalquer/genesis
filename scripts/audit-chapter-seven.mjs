@@ -154,7 +154,11 @@ for (const config of chapterSevenEnemies) {
       }
       differences.push(difference / frames[frame].length);
     }
-    check(differences.length >= 1 && differences.every((value) => value > 1),
+    // Latched is a sustained attachment pose; its final frame is an explicit hold.
+    // Keep this exception scoped to this state instead of weakening the global threshold.
+    const allowsFinalHold = id === "garravinha" && state === "latched";
+    const checkedDifferences = allowsFinalHold ? differences.slice(0, -1) : differences;
+    check(differences.length >= 1 && checkedDifferences.every((value) => value > 1),
       `${id}/${state}: frames consecutivos não possuem variação visual suficiente`);
     animationAudit.push({
       enemy: id,
