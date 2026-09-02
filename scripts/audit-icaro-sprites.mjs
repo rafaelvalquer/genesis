@@ -11,10 +11,16 @@ const errors = [];
 for (const root of roots) {
   for (const state of states) {
     const folder = path.join(root, state);
-    let files = [];
-    try { files = (await fs.readdir(folder)).filter((name) => /^frame\d+\.png$/.test(name)); } catch { errors.push(`${root}: estado ausente ${state}`); continue; }
-    if (files.length !== 8) errors.push(`${root}/${state}: esperado 8 frames, encontrado ${files.length}`);
-    for (const file of files) {
+    let entries = [];
+    try { entries = await fs.readdir(folder); } catch { errors.push(`${root}: estado ausente ${state}`); continue; }
+    const files = entries.filter((name) => /^frame\d+\.png$/.test(name));
+    const expected = Array.from({ length: 8 }, (_, index) => `frame${index}.png`);
+    const missing = expected.filter((name) => !files.includes(name));
+    const extra = entries.filter((name) => name.toLowerCase().endsWith(".png") && !expected.includes(name));
+    if (missing.length) errors.push(`${root}/${state}: frames ausentes ${missing.join(", ")}`);
+    if (extra.length) errors.push(`${root}/${state}: frames extras ${extra.join(", ")}`);
+    if (files.length !== 8) errors.push(`${root}/${state}: esperado exatamente 8 frames, encontrado ${files.length}`);
+    for (const file of expected.filter((name) => files.includes(name))) {
       const filePath = path.join(folder, file);
       const image = sharp(filePath);
       const metadata = await image.metadata();
