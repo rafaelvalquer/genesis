@@ -12,6 +12,7 @@ export function advanceBattleFrameProgress({
   fortunePaused,
   frameDelta,
   lastCriticalBeepRef,
+  now,
   particlesRef,
   paused,
   phase,
