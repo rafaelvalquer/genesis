@@ -26,13 +26,30 @@ import { registerEnvironmentRenderer } from "./environmentRenderer.js";
 registerEnvironmentRenderer("forest", ({ stage, ctx, session, settings, assets }) => {
   if (stage === "entitiesBefore") drawForestObstacles(ctx, session, session.elapsed, settings, assets);
 }, { replace: true });
+
 registerEnvironmentRenderer("spores", ({ stage, ctx, session, settings, assets }) => {
   if (stage !== "effects") return;
   drawSporeFruits(ctx, session.sporeFruits, session.elapsed, assets.effects?.sporeFruit, settings);
   drawSporeClouds(ctx, session.sporeClouds, session.elapsed, settings);
 }, { replace: true });
+
 registerEnvironmentRenderer("convoy", ({ stage, ctx, session, settings }) => {
-  if (stage === "entitiesAfter") drawConvoy(ctx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
+  if (stage === "entitiesAfter") {
+    drawConvoy(ctx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
+  }
+}, { replace: true });
+
+registerEnvironmentRenderer("tide", ({ stage, ctx, session, settings, adaptive, now, hoveredCell }) => {
+  if (stage === "effectsBefore") drawTideUnderlay(ctx, session, now, settings, adaptive);
+  if (stage === "overlayBefore") drawTideOverlay(ctx, session, now, settings, adaptive, hoveredCell);
+}, { replace: true });
+
+registerEnvironmentRenderer("wind", ({ stage, ctx, runtime, settings, assets, now }) => {
+  if (stage === "overlayBefore") drawWindEffects(ctx, runtime, now, settings, assets.effects?.windCurrent);
+}, { replace: true });
+
+registerEnvironmentRenderer("thermal", ({ stage, ctx, session }) => {
+  if (stage === "entityStatus") drawThermalPlatformHeatBars(ctx, session);
 }, { replace: true });
 
 /**
@@ -43,7 +60,7 @@ registerEnvironmentRenderer("convoy", ({ stage, ctx, session, settings }) => {
 export const BATTLE_LAYER_RENDERERS = Object.freeze({
   clearRenderLayer, drawContainmentUnderlay, drawArenaBackground, drawArenaUnderlay,
   drawIncubatorFissureUnderlay, getPlacementPreviewGeometry, drawTacticalGrid,
-  drawPlacementRange, isSystemEnabledForPhase, drawTideUnderlay,
+  drawPlacementRange, isSystemEnabledForPhase,
   drawIncubatorFissureEffects, drawIncubatorTargetTelegraph, drawDecals,
   drawPulseScorches, drawDematerializationPulses, drawMines,
   drawProjectileCollection,
@@ -52,8 +69,8 @@ export const BATTLE_LAYER_RENDERERS = Object.freeze({
     ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers,
     field: FIELD,
   }),
-  drawAttachedConvoyEnemies, drawThermalPlatformHeatBars,
-  drawTroopPlacementPreview, drawDeathVisuals, drawTideOverlay, drawWindEffects,
+  drawAttachedConvoyEnemies,
+  drawTroopPlacementPreview, drawDeathVisuals,
   drawConvoyImpacts, drawAdaptiveAid, drawTreeBroodBursts,
   drawPulseDisintegrations, drawDeploymentEffects, drawTartaragarraEffects,
   drawDynamicLights, drawArenaForeground, drawPulseBeams, drawEnergyPickups,
