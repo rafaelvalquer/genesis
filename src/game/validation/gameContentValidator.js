@@ -43,12 +43,13 @@ function resolveDeclaredStates(entityType, entityId, config) {
 
 function walkVisualContracts(value, path = "", output = []) {
   if (!isObject(value)) return output;
+  const visualPath = path.split(".").some((segment) => /visuals?$/i.test(segment));
   const looksVisual = typeof value.state === "string"
-    || Object.hasOwn(value, "durationMs")
     || Array.isArray(value.timeline)
     || Array.isArray(value.shots)
     || Object.hasOwn(value, "frameMuzzles")
-    || Object.hasOwn(value, "muzzle");
+    || Object.hasOwn(value, "muzzle")
+    || (visualPath && Object.hasOwn(value, "durationMs"));
   if (looksVisual) output.push({ path, visual: value });
   for (const [key, child] of Object.entries(value)) {
     if (!isObject(child)) continue;
