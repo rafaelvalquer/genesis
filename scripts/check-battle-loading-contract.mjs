@@ -20,6 +20,19 @@ const battleScreenSource = read("src/game/BattleScreen.jsx");
 const battleCanvasSource = read("src/game/render/BattleCanvas.jsx");
 const eventSource = read("src/game/hooks/battleCanvasEvents.js");
 
+const loadingGuardIndex = battleScreenSource.indexOf("  if (!loading.ready) {");
+if (loadingGuardIndex < 0) {
+  errors.push("BattleScreen.jsx não possui o guard de carregamento esperado.");
+} else {
+  const hooksAfterLoadingGuard = [...battleScreenSource
+    .slice(loadingGuardIndex)
+    .matchAll(/\b(use[A-Z][A-Za-z0-9_]*)\s*\(/g)]
+    .map((match) => match[1]);
+  if (hooksAfterLoadingGuard.length) {
+    errors.push(`BattleScreen.jsx chama Hooks após o retorno condicional de carregamento: ${[...new Set(hooksAfterLoadingGuard)].join(", ")}.`);
+  }
+}
+
 if (!hookSource.includes('progress.phase === "deferred"')) {
   errors.push("useBattleAssets.js não separa progresso crítico de progresso adiado.");
 }
