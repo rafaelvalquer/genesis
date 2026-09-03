@@ -66,7 +66,7 @@
     "verify:crisalio": "node scripts/check-crisalio-frames.mjs",
     "verify:no-gameplay-skips": "node scripts/verify-no-gameplay-skips.mjs",
     "audit:leviathan": "node scripts/audit-leviathan-sprite-components.mjs",
-    "ci": "npm run verify:encoding && npm run verify:no-gameplay-skips && npm run test:icaro && npm run test:gameplay-contracts && npm run test:chapter-seven && npm run audit:chapter-seven && npm run stress:chapter-seven:ci && npm run verify:asset-boundaries && npm run verify:gamecanvas-render-dependencies && npm run verify:battle-loading && npm run verify:play-route && npm run verify:route-transitions && npm run verify:simulation && npm run verify:campaign-all-chapters && npm run audit:interceptador-icaro && npm run audit:chapter-six && npm run audit:colosso-caldeira && npm run test && npm run stress:phase48:ci && npm run build",
+    "ci": "npm run verify:encoding && npm run verify:repository-hygiene && npm run validate:game-content && npm run verify:no-gameplay-skips && npm run test:icaro && npm run test:gameplay-contracts && npm run test:chapter-seven && npm run audit:chapter-seven && npm run stress:chapter-seven:ci && npm run verify:asset-boundaries && npm run verify:gamecanvas-render-dependencies && npm run verify:battle-loading && npm run verify:play-route && npm run verify:route-transitions && npm run verify:simulation && npm run verify:campaign-all-chapters && npm run audit:interceptador-icaro && npm run audit:chapter-six && npm run audit:colosso-caldeira && npm run test && npm run stress:phase48:ci && npm run build",
     "release:check": "npm run ci && npm run verify:chapter-seven-player-flow && npm run verify:asset-manifest && npm run verify:assets && npm run verify:crisalio",
     "verify:asset-manifest": "node scripts/validate-asset-manifest.mjs --json=reports/asset-manifest.json",
     "verify:asset-boundaries": "node scripts/check-asset-module-boundaries.mjs",
@@ -88,7 +88,11 @@
     "test:simulation": "vitest run src/game/simulation",
     "test:simulation:smoke": "node scripts/smoke-ai-simulation.mjs",
     "stress:phase48": "node scripts/stress-phase48.mjs",
-    "stress:phase48:ci": "npm run stress:phase48 -- --seeds=25"
+    "stress:phase48:ci": "npm run stress:phase48 -- --seeds=25",
+    "verify:repository-hygiene": "node scripts/verify-repository-hygiene.mjs",
+    "validate:game-content": "node scripts/validate-game-content.mjs",
+    "validate:game-content:report": "node scripts/validate-game-content.mjs --report",
+    "ci:fast": "npm run verify:encoding && npm run verify:repository-hygiene && npm run validate:game-content && npm run verify:no-gameplay-skips && npm run verify:gamecanvas-render-dependencies && npm run verify:battle-loading && npm run verify:play-route && npm run test:icaro && npm run test:unit && npm run test:chapter-seven && npm run audit:chapter-seven && npm run build"
   },
   "dependencies": {
     "@fontsource/chakra-petch": "^5.2.7",

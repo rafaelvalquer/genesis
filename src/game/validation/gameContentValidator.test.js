@@ -82,6 +82,16 @@ describe("validateGameContent", () => {
     ]));
   });
 
+  it("não interpreta durationMs de regra de gameplay como duração visual", () => {
+    const troop = validTroop({
+      fracture: { durationMs: { 2: 9000, 3: 12000 }, columns: [2, 3, 4] },
+    });
+    const result = validateGameContent({ troops: { sample: troop }, assetManifest: manifest() });
+
+    expect(result.valid).toBe(true);
+    expect(result.errors.map((entry) => entry.code)).not.toContain("VISUAL_DURATION_INVALID");
+  });
+
   it("mantém contradições de targeting e sobreposição como warnings", () => {
     const troop = validTroop({
       role: "Interceptador antiaéreo",

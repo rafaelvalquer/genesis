@@ -1290,7 +1290,7 @@ export const TROOPS = {
     targetLockVisual: { state: "targetLock", height: 112, aspectRatio: 0.78, durationMs: 420, loop: false },
     attackVisual: { state: "arcSpikeAttack", height: 112, aspectRatio: 0.78, durationMs: 900, loop: false, frameMuzzles: [
       { x: 0.80, y: 0.36 }, { x: 0.86, y: 0.32 }, { x: 0.76, y: 0.42 },
-    ], shots: [{ frame: 0 }, { frame: 1 }, { frame: 2 }] },
+    ], shots: [{ atMs: 0, frame: 0 }, { atMs: 80, frame: 1 }, { atMs: 160, frame: 2 }] },
     rearmVisual: { state: "rearm", height: 112, aspectRatio: 0.78, durationMs: 620, loop: false },
     paralyzedVisual: { state: "paralyzed", height: 112, aspectRatio: 0.78, durationMs: 820, loop: true },
     deathVisual: { state: "death", height: 112, aspectRatio: 0.78, durationMs: 900, loop: false },
@@ -1668,7 +1668,7 @@ export const TROOPS = {
         idle: Array.from({ length: 8 }, () => ({ x: 0.5, y: 0.9844 })),
         attack: Array.from({ length: 8 }, () => ({ x: 0.5, y: 0.9844 })),
       },
-      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * (780 / 7), frame })),
+      timeline: Array.from({ length: 8 }, (_, frame) => ({ atMs: frame * (780 / 8), frame })),
       shots: [{ atMs: 390, frame: 4, muzzle: { x: 0.97, y: 0.37 } }],
     },
     deathVisual: {
