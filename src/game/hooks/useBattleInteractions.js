@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { TROOPS } from "../content.js";
 import {
   CELL,
+  VIEWPORT,
   accelerateWaveOutro,
   cellFromPoint,
   createPositionalConfirmationEvent,
@@ -61,7 +62,7 @@ export function useBattleInteractions({
     return () => window.removeEventListener("keydown", cancel);
   }, [sessionRef, setMessage, setSnapshot, setTargetingDecision, snapshot.adaptiveAid.status, targetingDecision]);
 
-  const canvasPointFromPointer = (event) => getBattleFieldPoint(event);
+  const canvasPointFromPointer = (event) => getBattleFieldPoint(event, VIEWPORT);
 
   const handleCanvasMove = (event) => {
     const point = canvasPointFromPointer(event);
