@@ -175,29 +175,46 @@ import {
   troopsForRow,
 } from "./queries.js";
 import { getAvailableTroopsForPhase, getDefaultTroopDeploymentLimit, getPlacementBlockReasonForPhase, isCombatRow, isSystemEnabledForPhase, isTroopAllowedForPhase } from "../phaseRules.js";
-import { createConvoyFlow, createConvoyState } from "../chapter07/convoyState.js";
-import { updateConvoyEnergy } from "../chapter07/convoyEnergy.js";
-import { advanceConvoyTransit, completeConvoySector, startConvoySector } from "../chapter07/convoyFlow.js";
-import { hasCombatRelevantEnemies, enterCheckpointPreparation } from "../chapter07/convoyCheckpoints.js";
-import { applyConvoyCheckpointOption } from "../chapter07/convoyCheckpointRewards.js";
-import { updateConvoyReinforcements } from "../chapter07/convoySpawnDirector.js";
-import { canEnemyReachConvoy, hasBlockingTroop, updateConvoyThreat } from "../chapter07/convoyTargeting.js";
-import { damageConvoy } from "../chapter07/convoyDamage.js";
-import { getPersistentBiteMultiplier, commitPersistentBite, resetPersistentBite } from "../chapter07/persistentBite.js";
-import { updateSaltadorAlado } from "../chapter07/saltadorAlado.js";
-import { updateSporeField } from "../chapter07/sporeField.js";
-import { repositionTroop as repositionConvoyTroop } from "../chapter07/convoyReposition.js";
-import { calculateConvoyStars } from "../chapter07/convoyScoring.js";
-import { updateConvoyAnimation } from "../chapter07/convoyAnimation.js";
-import { CONVOY_DEFEAT_RESULT_DELAY_MS } from "../chapter07/convoyAnimationConfig.js";
 import { spawnEnergyPickup, trySpawnEnemyEnergyPickup, updateEnergyPickups, setEnergyPickupPointer } from "../energyPickups.js";
-import { getVertebralToxinAttackSpeedFactor } from "../chapter07/vertebralToxin.js";
-import { generateForestObstacles } from "../chapter07/forestObstacleGeneration.js";
-import { damageForestObstacle, destroyForestObstacle } from "../chapter07/forestObstacleSystem.js";
-import { getBlockingForestObstacle, getForestObstacleAt, getForestObstacleHitPoint, getNearestTargetableForestObstacle, resolveForestCombatTarget } from "../chapter07/forestObstacleTargeting.js";
-import { findFirstForestObstacleCollision } from "../chapter07/forestObstacleCollision.js";
+import { getBattleSystemRegistry } from "./systems/battleSystemRegistry.js";
 import { getProjectileHandler } from "../projectileRegistry.js";
 import "../registerProjectileHandlers.js";
+
+const {
+  createConvoyFlow,
+  createConvoyState,
+  updateConvoyEnergy,
+  advanceConvoyTransit,
+  completeConvoySector,
+  startConvoySector,
+  hasCombatRelevantEnemies,
+  enterCheckpointPreparation,
+  applyConvoyCheckpointOption,
+  updateConvoyReinforcements,
+  canEnemyReachConvoy,
+  hasBlockingTroop,
+  updateConvoyThreat,
+  damageConvoy,
+  getPersistentBiteMultiplier,
+  commitPersistentBite,
+  resetPersistentBite,
+  updateSaltadorAlado,
+  updateSporeField,
+  repositionConvoyTroop,
+  calculateConvoyStars,
+  updateConvoyAnimation,
+  CONVOY_DEFEAT_RESULT_DELAY_MS,
+  getVertebralToxinAttackSpeedFactor,
+  generateForestObstacles,
+  damageForestObstacle,
+  destroyForestObstacle,
+  getBlockingForestObstacle,
+  getForestObstacleAt,
+  getForestObstacleHitPoint,
+  getNearestTargetableForestObstacle,
+  resolveForestCombatTarget,
+  findFirstForestObstacleCollision,
+} = getBattleSystemRegistry().chapterPlugins.require("chapter_07");
 
 export {
   createWindCurrentState,
