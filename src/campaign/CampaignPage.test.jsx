@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { CHAPTERS, getPhaseIndex } from "../game/content.js";
 import CampaignPage from "./CampaignPage.jsx";
 import CampaignWebGLFallback from "./CampaignWebGLFallback.jsx";
@@ -33,6 +33,14 @@ const makeCampaign = (unlockedPhaseIndex = 0, phaseStats = {}) => ({
 function LocationProbe() {
   const location = useLocation();
   return <output data-testid="location">{location.pathname}{location.search}</output>;
+}
+
+function HistoryProbe() {
+  const navigate = useNavigate();
+  return <>
+    <button type="button" data-testid="history-back" onClick={() => navigate(-1)}>Voltar histórico</button>
+    <button type="button" data-testid="history-forward" onClick={() => navigate(1)}>Avançar histórico</button>
+  </>;
 }
 
 function renderPage(path = "/fases?capitulo=1", campaign = makeCampaign()) {
@@ -131,19 +139,25 @@ describe("mapa de campanha", () => {
   });
 
   it("acompanha voltar e avançar do histórico", async () => {
-    const router = createMemoryRouter([{
-      path: "/fases",
-      element: <><CampaignPage campaign={makeCampaign(16)} /><LocationProbe /></>,
-    }], { initialEntries: ["/fases?capitulo=1"] });
-    render(<RouterProvider router={router} />);
+    render(<MemoryRouter initialEntries={["/fases?capitulo=1"]}>
+      <Routes>
+        <Route path="/fases" element={<><CampaignPage campaign={makeCampaign(16)} /><LocationProbe /><HistoryProbe /></>} />
+      </Routes>
+    </MemoryRouter>);
+
     fireEvent.click(screen.getByRole("button", { name: /Mar de Vidro, 0 de 8 concluídas/i }));
-    await waitFor(() => expect(router.state.location.search).toBe("?capitulo=2&fase=fase_16"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2&fase=fase_16"));
+
     fireEvent.click(screen.getByRole("button", { name: /Dunas de Quitina, 0 de 8 concluídas/i }));
-    await waitFor(() => expect(router.state.location.search).toBe("?capitulo=3&fase=fase_17"));
-    await router.navigate(-1);
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=3&fase=fase_17"));
+
+    fireEvent.click(screen.getByTestId("history-back"));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Trono dos Reflexos" })).toBeInTheDocument());
-    await router.navigate(1);
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=2&fase=fase_16"));
+
+    fireEvent.click(screen.getByTestId("history-forward"));
     await waitFor(() => expect(screen.getByRole("heading", { name: "Limiar das Dunas" })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/fases?capitulo=3&fase=fase_17"));
   });
 
   it("seleciona a fase válida recebida na URL", async () => {
