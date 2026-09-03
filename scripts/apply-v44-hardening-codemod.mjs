@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const root = process.cwd();
 
@@ -66,5 +67,8 @@ update("src/game/render/entityRenderer.js", (source) => {
   if (!next.includes(oldRegistrations)) throw new Error("Registros antigos de efeitos de tropa não foram encontrados.");
   return next.replace(oldRegistrations, newRegistrations);
 });
+
+await import("./apply-quality-gates.mjs");
+execFileSync("git", ["add", "package.json", "README.md"], { cwd: root });
 
 console.log("V44 hardening codemod aplicado.");
