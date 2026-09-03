@@ -5,10 +5,7 @@ export {
   CapsuleInteractionButton,
   ColossusSpecialButtons,
   DecisionModal,
-  drawBattleRows,
-  drawEnemyEntity,
   drawLeviathanBrineJet,
-  drawTroopEntity,
   FREE_HAND_ACTIVATED_MESSAGE,
   FortuneChoiceModal,
   getThermalBannerText,
@@ -20,3 +17,8 @@ export {
   SandboxPanel,
   WaveOutroOverlay,
 } from "./BattleScreen.jsx";
+export {
+  drawBattleRows,
+  drawEnemyEntity,
+  drawTroopEntity,
+} from "./render/entityRenderer.js";
