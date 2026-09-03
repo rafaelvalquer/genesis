@@ -15,15 +15,23 @@ const battleScreenPath = path.join(
   "game",
   "BattleScreen.jsx",
 );
+const entityRendererPath = path.join(
+  repoRoot,
+  "src",
+  "game",
+  "render",
+  "entityRenderer.js",
+);
 
 describe("dependências de renderização da BattleScreen", () => {
-  it("importa getAnchoredSpriteRect somente de visualGeometry.js", () => {
-    const source = fs.readFileSync(battleScreenPath, "utf8");
+  it("mantém a geometria de sprite no entityRenderer", () => {
+    const screenSource = fs.readFileSync(battleScreenPath, "utf8");
+    const entitySource = fs.readFileSync(entityRendererPath, "utf8");
 
-    const reactImport = findNamedImport(source, "react");
+    const reactImport = findNamedImport(screenSource, "react");
     const geometryImport = findNamedImport(
-      source,
-      "./visualGeometry.js",
+      entitySource,
+      "../visualGeometry.js",
     );
 
     expect(reactImport).not.toBeNull();
@@ -32,11 +40,31 @@ describe("dependências de renderização da BattleScreen", () => {
     expect(reactImport.symbols)
       .not.toContain("getAnchoredSpriteRect");
 
+    expect(screenSource)
+      .not.toContain("getAnchoredSpriteRect");
+
     expect(
       geometryImport.symbols.filter(
         (symbol) => symbol === "getAnchoredSpriteRect",
       ),
     ).toHaveLength(1);
+  });
+
+  it("delega a montagem de renderizadores de camada ao módulo de render", () => {
+    const screenSource = fs.readFileSync(battleScreenPath, "utf8");
+
+    expect(screenSource).toContain("./render/battleFrameRenderer.js");
+    expect(screenSource).not.toContain("./render/battleLayerRenderers.js");
+    expect(screenSource).not.toContain("./chapter07/forestObstacleRenderer.js");
+    expect(screenSource).not.toContain("./chapter07/convoyRenderer.js");
+    expect(screenSource).not.toContain("./render/entityRenderer.js");
+  });
+
+  it("delega reações de eventos do frame a um módulo de hook", () => {
+    const screenSource = fs.readFileSync(battleScreenPath, "utf8");
+
+    expect(screenSource).toContain("./hooks/battleStepEvents.js");
+    expect(screenSource).toContain("handleBattleStepEvents(events");
   });
 
   it("executa getAnchoredSpriteRect como função", () => {

@@ -1,7 +1,9 @@
+import { drawEnvironmentLayer } from "./environmentRenderer.js";
+
 /**
  * Owns the ordered canvas-layer pipeline. Concrete visual renderers are
- * injected by BattleScreen so this module remains a rendering composition
- * boundary, not a second source of gameplay or environment rules.
+ * supplied by the render pipeline so this module remains a rendering
+ * composition boundary, not a second source of gameplay or environment rules.
  */
 export function drawBattleLayers({
   layers, layerConfig, session, assets, particlesRef, runtime, selectedTroop,
@@ -15,8 +17,8 @@ export function drawBattleLayers({
     drawPlacementRange, isSystemEnabledForPhase, drawTideUnderlay,
     drawIncubatorFissureEffects, drawIncubatorTargetTelegraph, drawDecals,
     drawPulseScorches, drawDematerializationPulses, drawMines,
-    drawProjectileCollection, drawSporeFruits, drawSporeClouds,
-    drawNaniteHealingBeams, drawForestObstacles, drawBattleRows, drawConvoy,
+    drawProjectileCollection,
+    drawNaniteHealingBeams, drawBattleRows,
     drawAttachedConvoyEnemies, drawThermalPlatformHeatBars,
     drawTroopPlacementPreview, drawDeathVisuals, drawTideOverlay, drawWindEffects,
     drawConvoyImpacts, drawAdaptiveAid, drawTreeBroodBursts,
@@ -33,6 +35,10 @@ export function drawBattleLayers({
   // Keep phase systems on the graphics runtime: it is visual-only and allows
   // environment renderers to opt into a precomputed plan without touching gameplay.
   runtime.renderPlan = renderPlan;
+  const drawEnvironment = (stage, ctx) => drawEnvironmentLayer({
+    stage, ctx, session, assets, settings, adaptive, now, runtime,
+    scene: { renderPlan },
+  });
   const dematerializationEnabled = isSystemEnabledForPhase(session.phase, "dematerializationPulse");
 
   let started = performance.now();
@@ -70,8 +76,7 @@ export function drawBattleLayers({
   }
   drawProjectileCollection(effectCtx, session.projectiles, interpolation, settings, runtime.projectileAssets);
   drawProjectileCollection(effectCtx, session.enemyProjectiles, interpolation, settings, runtime.projectileAssets);
-  drawSporeFruits(effectCtx, session.sporeFruits, session.elapsed, assets.effects?.sporeFruit, settings);
-  drawSporeClouds(effectCtx, session.sporeClouds, session.elapsed, settings);
+  drawEnvironment("effects", effectCtx);
   drawNaniteHealingBeams(effectCtx, session, settings);
   effectCtx.restore();
   const backEffectMs = performance.now() - started;
@@ -79,10 +84,12 @@ export function drawBattleLayers({
   started = performance.now();
   clearRenderLayer(entityCtx, layers.entityLayer, scales.entityLayer);
   entityCtx.save(); entityCtx.translate(0, viewport.fieldOffsetY);
-  drawForestObstacles(entityCtx, session, session.elapsed, settings, assets);
+  // Preserve the original composition contract: forest cover is behind
+  // combatants, while the convoy remains in front of regular battle rows.
+  drawEnvironment("entitiesBefore", entityCtx);
   drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, rowBuffers);
-  drawConvoy(entityCtx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
-  drawAttachedConvoyEnemies(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers, renderers.drawEnemyEntity);
+  drawEnvironment("entitiesAfter", entityCtx);
+  drawAttachedConvoyEnemies(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
   drawThermalPlatformHeatBars(entityCtx, session);
   drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(entityCtx, runtime, assets, now, session.phase);

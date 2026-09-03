@@ -3,16 +3,22 @@ import { CELL, getTroopRangePenaltyTiles } from "../battleModel.js";
 import { resolveTroopFrame } from "../assets/battleAssetLoader.js";
 import { getThermalPlatformVisual } from "../thermalPlatformRenderer.js";
 import { getHealthVisual, getHitReaction } from "../graphicsRuntime.js";
-import { getAnchoredSpriteRect, getDroneSentinelaLayout, getJanoDroneAnimation, getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor } from "../visualGeometry.js";
+import { buildBattleRenderRows, getAnchoredSpriteRect, getDroneSentinelaLayout, getEnemyAnimation, getEnemySpriteRect, getJanoDroneAnimation, getMuzzleWorldPosition, getTroopAnimation, getTroopAttackVisual, getTroopFrameAnchor, isEnemyFrozen, writeEnemyVisualPosition } from "../visualGeometry.js";
 import { drawContactShadow } from "../arenaRenderer.js";
-import { drawCachedSpriteHalo, getTroopSpriteFilter } from "../graphicsRenderer.js";
+import { drawCachedSpriteHalo, drawWetReflections, getSpriteFilter, getTroopSpriteFilter } from "../graphicsRenderer.js";
 import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "../thermalBurningTroopRenderer.js";
 import { drawExecutorComboIndicator } from "../executorArcoRenderer.js";
-import { drawSprite, getTroopVisualEntity } from "./battleSceneRenderer.js";
+import { getColossoAnimation } from "../colossoCaldeira.js";
+import { drawColossoBossHealth, drawColossoCaldeira } from "../colossoCaldeiraRenderer.js";
+import { drawFrozenEnemyEffect, drawStunnedEnemyEffect } from "../projectileRenderer.js";
+import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./battleSceneRenderer.js";
+import { drawAbyssCharge, drawLatchedGarravinhaMarker, drawLeviathanBossEffects, drawLeviathanBossHealth, drawProceduralGlassEnemy, drawRasgaCeusShadow, drawRasgaCeusTargetMarker, drawRasgamarUnderwaterShadow, drawStructuralRupture, isLeviathanShadowOnly, isRasgamarShadowOnly, silicaDiggerEmergenceProgress } from "./enemyEffectsRenderer.js";
+import { getEnemyVisualEffects } from "./enemyEffectsRegistry.js";
 import { registerTroopVisualEffects } from "./troopEffectsRegistry.js";
 
 const troopFrameCountsCache = new WeakMap();
 const enemyFrameCountsCache = new WeakMap();
+const missingColossoAssetWarnings = new Set();
 
 function getTroopFrameCounts(troopAssets) {
   let counts = troopFrameCountsCache.get(troopAssets);
@@ -251,6 +257,94 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
 registerTroopVisualEffects("medicaNanites", { underlay: drawNaniteTargetEffect });
 registerTroopVisualEffects("lumiUrsa7", { overlay: drawLumiDefenseShield });
 
+/** Draws one enemy, including its registered visual effects and status layers. */
+export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
+  const logicalEntity = entry.entity;
+  if (logicalEntity.type === "colossoCaldeira") {
+    const enemyAssets = assets.enemies.colossoCaldeira || {};
+    const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets), settings.reduceMotion);
+    const image = enemyAssets?.[animation.state]?.[animation.frame] || null;
+    const transitionImage = animation.previousState ? enemyAssets?.[animation.previousState]?.[animation.previousFrame] || null : null;
+    if (!image) {
+      const missingKey = `${animation.state}:${animation.frame}`;
+      if (!missingColossoAssetWarnings.has(missingKey)) {
+        missingColossoAssetWarnings.add(missingKey);
+        console.error(`[Colosso] Asset ausente para ${missingKey}; fallback para idle desativado.`);
+      }
+    }
+    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation, transitionImage }, image, {
+      ...(assets.effects || {}),
+      colossoCoreHits: runtime?.colossoCoreHits || [],
+    });
+    drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
+    return;
+  }
+  if (logicalEntity.type === "vermeIncubador" && logicalEntity.incubatorSubmerged) return;
+  if (isRasgamarShadowOnly(logicalEntity, session.elapsed)) return;
+  const config = ENEMIES[logicalEntity.type];
+  const reaction = getHitReaction(runtime, logicalEntity.id, now);
+  Object.assign(scratch, logicalEntity);
+  writeEnemyVisualPosition(logicalEntity, config, session.elapsed, interpolation, settings.reduceMotion, scratch);
+  scratch.x += reaction.offsetX;
+  const frozen = isEnemyFrozen(logicalEntity, session.elapsed);
+  const stunned = session.elapsed < (logicalEntity.stunnedUntil || 0);
+  if (logicalEntity.type === "duneRipper" && logicalEntity.duneState === "roar" && !settings.reduceMotion && !stunned) {
+    const roarAge = session.elapsed - logicalEntity.duneStateStartedAt;
+    scratch.x += Math.sin(roarAge / 24) * 1.8;
+    scratch.y += Math.cos(roarAge / 31) * 0.8;
+  }
+  const enemyAssets = assets.enemies[logicalEntity.type] || {};
+  const frameCounts = getEnemyFrameCounts(enemyAssets);
+  let animation = getEnemyAnimation(logicalEntity, config, session.elapsed, frameCounts);
+  if (logicalEntity.type === "workerQueen" && reaction.flash > 0.12 && enemyAssets.hit?.length) {
+    animation = { state: "hit", frame: Math.min(enemyAssets.hit.length - 1, Math.floor((1 - reaction.flash) * enemyAssets.hit.length)) };
+  }
+  if (logicalEntity.type === "scarabEmperor" && !logicalEntity.scarabTransitionToPhase && reaction.flash > 0.12) {
+    const hitState = `phase${logicalEntity.bossPhase || 1}Hit`;
+    if (enemyAssets[hitState]?.length) animation = { state: hitState, frame: Math.min(enemyAssets[hitState].length - 1, Math.floor((1 - reaction.flash) * enemyAssets[hitState].length)) };
+  }
+  const frames = enemyAssets[animation.state] || enemyAssets.flying || enemyAssets.walking || enemyAssets.idle || [];
+  const image = frames[animation.frame % Math.max(1, frames.length)];
+  const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
+  const enemyRect = getEnemySpriteRect(scratch, config, animation.state, animation.frame, enemyAspectRatio);
+  const leviathanShadowOnly = isLeviathanShadowOnly(logicalEntity, session.elapsed, animation.frame);
+  const spriteFilter = getSpriteFilter(reaction.flash, logicalEntity.bossPhase || 0, logicalEntity.variant === "alpha", logicalEntity.isEcho, frozen);
+  const visualEffects = getEnemyVisualEffects(logicalEntity.type);
+  visualEffects.underlay?.(ctx, scratch, session.elapsed, settings);
+  visualEffects.beforeSprite?.(ctx, scratch, session.elapsed, settings);
+  const emergenceProgress = silicaDiggerEmergenceProgress(logicalEntity, session.elapsed);
+  if (drawHalo && !leviathanShadowOnly && emergenceProgress >= 0.45) drawCachedSpriteHalo(ctx, enemyRect, logicalEntity.isEcho ? "#7fffd4" : session.phase.palette.accent, settings, logicalEntity.isEcho ? 1.4 : 1);
+  const flipEnemy = logicalEntity.type === "garravinha" || (logicalEntity.type === "rasgaCeusCinereo" && logicalEntity.visualFacing > 0);
+  let spriteDrawn = leviathanShadowOnly ? false : drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter, flipEnemy);
+  if (!spriteDrawn && !leviathanShadowOnly) spriteDrawn = drawProceduralGlassEnemy(ctx, scratch, config, session.elapsed, spriteFilter);
+  if (frozen && spriteDrawn) drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
+  if (!spriteDrawn && !leviathanShadowOnly) {
+    ctx.fillStyle = frozen ? "#38bdf8" : config.color;
+    ctx.beginPath(); ctx.arc(scratch.x, scratch.y, 24 * logicalEntity.scale, 0, Math.PI * 2); ctx.fill();
+  }
+  drawLeviathanBossEffects(ctx, scratch, session, settings);
+  drawLeviathanBossHealth(ctx, logicalEntity);
+  drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
+  drawPrismaticShield(ctx, scratch, session.elapsed, settings);
+  if (frozen && !leviathanShadowOnly) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
+  if (stunned) drawStunnedEnemyEffect(ctx, scratch, session.elapsed, settings);
+  if (logicalEntity.isEcho) {
+    const radius = 31 * logicalEntity.scale;
+    ctx.save(); ctx.strokeStyle = "rgba(127,255,212,.72)"; ctx.lineWidth = 1.5; ctx.shadowBlur = 10; ctx.shadowColor = "#8b5cf6";
+    ctx.beginPath(); ctx.moveTo(scratch.x, scratch.y - radius); ctx.lineTo(scratch.x + radius * .72, scratch.y); ctx.lineTo(scratch.x, scratch.y + radius * .45); ctx.lineTo(scratch.x - radius * .72, scratch.y); ctx.closePath(); ctx.stroke(); ctx.restore();
+  }
+  drawStructuralRupture(ctx, scratch, session.elapsed, settings);
+  if (logicalEntity.type !== "leviathanNereida" && emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && (shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive) || (logicalEntity.type === "garravinha" && logicalEntity.garravinhaState === "latched"))) {
+    drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
+  }
+  drawLatchedGarravinhaMarker(ctx, session, logicalEntity);
+  if (logicalEntity.variant === "alpha") {
+    ctx.fillStyle = "#fecdd3"; ctx.font = "700 11px system-ui"; ctx.textAlign = "center";
+    ctx.fillText(`${config.label.toUpperCase()} ALFA`, scratch.x, Math.max(30, scratch.y - 76 * logicalEntity.scale));
+  }
+  drawRasgaCeusTargetMarker(ctx, session, logicalEntity);
+}
+
 export function drawThermalPlatforms(ctx, session, assets) {
   const frames = assets.troops.thermalPlatform || {};
   for (const platform of session.supportStructures || []) {
@@ -264,7 +358,7 @@ export function drawThermalPlatforms(ctx, session, assets) {
 }
 
 /** Draws the visual-only convoy attachment pass after the normal entity rows. */
-export function drawAttachedConvoyEnemies(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers, drawEnemyEntity) {
+export function drawAttachedConvoyEnemies(ctx, session, assets, runtime, settings, adaptive, now, interpolation, buffers) {
   for (const enemy of session.enemies) {
     if (enemy.dead || !enemy.attachedToConvoy) continue;
     drawEnemyEntity(ctx, { kind: "enemy", entity: enemy, x: enemy.x, y: enemy.y }, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, false);
@@ -283,15 +377,9 @@ export function drawAttachedConvoyEnemies(ctx, session, assets, runtime, setting
 
 /**
  * Preserves the established row ordering while keeping entity composition out
- * of the React screen. Screen-specific sprite callbacks are injected.
+ * of the React screen.
  */
-export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers, field, dependencies }) {
-  const {
-    buildBattleRenderRows, drawWetReflections, getHitReaction, isRasgamarShadowOnly,
-    isLeviathanShadowOnly, drawRasgamarUnderwaterShadow, drawRasgaCeusShadow,
-    silicaDiggerEmergenceProgress, drawContactShadow, drawTroopEntity, drawEnemyEntity,
-    enemies,
-  } = dependencies;
+export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers, field }) {
   drawThermalPlatforms(ctx, session, assets);
   buildBattleRenderRows(session.troops, session.enemies, interpolation, session.elapsed, settings.reduceMotion, buffers);
   drawWetReflections(ctx, session.phase, buffers.rows, settings, adaptive);
@@ -319,7 +407,7 @@ export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, 
     }
   }
   for (const entry of bossEntries) {
-    const entity = entry.entity; const config = enemies[entity.type]; const reaction = getHitReaction(runtime, entity.id, now);
+    const entity = entry.entity; const config = ENEMIES[entity.type]; const reaction = getHitReaction(runtime, entity.id, now);
     buffers.position.x = entry.x + reaction.offsetX; buffers.position.y = entry.y;
     if (!isLeviathanShadowOnly(entity, session.elapsed)) {
       buffers.position.x += (config.visualOffsetX || config.spriteOffsetX || 0) * (entity.scale || config.scale || 1);
@@ -330,16 +418,14 @@ export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, 
 }
 
 /**
- * Compatibility entry point for the established row pass. It keeps row-order
- * orchestration in the entity renderer while allowing the screen to supply
- * the remaining legacy sprite callbacks during the staged migration.
+ * Compatibility entry point for the established row pass.
  */
 export function drawBattleRows({
   ctx, session, assets, runtime, settings, adaptive, now, animationElapsed,
-  interpolation, buffers, field, dependencies,
+  interpolation, buffers, field,
 }) {
   return drawBattleEntityRows({
     ctx, session, assets, runtime, settings, adaptive, now, animationElapsed,
-    interpolation, buffers, field, dependencies,
+    interpolation, buffers, field,
   });
 }

@@ -2,77 +2,26 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
 } from "react";
 import { DECISION_STAGE_RULES,
   ENEMIES,
   TROOPS } from "./content.js";
 import { getArenaUrl } from "./assets/arenaCatalog.js";
 import { getTroopPreviewUrl } from "./assets/troopPreviewCatalog.js";
-import { resolveTroopFrame } from "./assets/battleAssetLoader.js";
 import { getDeployCooldownProgress } from "./cooldownVisual.js";
 import { waveSpawnCount } from "./domain.js";
+import { pushEventParticles } from "./projectileRenderer.js";
+import { createBattleRowBuffers } from "./visualGeometry.js";
 import {
-  drawArenaBackground,
-  drawArenaForeground,
-  drawArenaUnderlay,
-  drawContactShadow,
-  drawPlacementRange,
-  drawTacticalGrid,
-  getPlacementPreviewGeometry,
-  } from "./arenaRenderer.js";
-import { drawFrozenEnemyEffect,
-  drawMines,
-  drawParticles,
-  drawProjectileCollection,
-  drawStunnedEnemyEffect,
-  pushEventParticles } from "./projectileRenderer.js";
-import {
-  drawDematerializationPulses,
-  drawPulseBeams,
-  drawPulseDisintegrations,
-  drawPulseScorches,
-  } from "./pulseRenderer.js";
-import {
-  getAnchoredSpriteRect,
-  getEnemyAnimation,
-  getEnemySpriteRect,
-  getJanoDroneAnimation,
-  getMuzzleWorldPosition,
-  getTroopAnimation,
-  getTroopAttackVisual,
-  getTroopFrameAnchor,
-  buildBattleRenderRows,
-  createBattleRowBuffers,
-  getDroneSentinelaLayout,
-  isEnemyFrozen,
-  writeEnemyVisualPosition,
-} from "./visualGeometry.js";
-import {
-  clearRenderLayer, configureHiDPICanvas, configureRenderLayers, consumeGraphicsEvents,
-  createGraphicsRuntime, createRenderLayers, getCameraOffset,
-  getAdaptiveEffects, getHitReaction, updateGraphicsRuntime,
+  configureHiDPICanvas, configureRenderLayers, consumeGraphicsEvents,
+  createGraphicsRuntime, createRenderLayers,
 } from "./graphicsRuntime.js";
-import {
-  drawCachedSpriteHalo, drawDecals, drawDeploymentEffects, drawDynamicLights, drawPostProcessing,
-  drawWetReflections, getSpriteFilter, getTroopSpriteFilter, presentScene,
-} from "./graphicsRenderer.js";
-import { getColossoAnimation } from "./colossoCaldeira.js";
-import { drawColossoBossHealth, drawColossoCaldeira } from "./colossoCaldeiraRenderer.js";
-import { drawForestObstacles } from "./chapter07/forestObstacleRenderer.js";
-import {
-  drawSporeClouds,
-  drawSporeFruits,
-} from "./chapter07/sporeFruitRenderer.js";
-import { drawTartaragarraEffects } from "./chapter07/tartaragarraRenderer.js";
-import { drawThermalBurnBackLayer, drawThermalBurnFrontLayer, getTroopThermalVisualState } from "./thermalBurningTroopRenderer.js";
 import {
   CELL, FIELD, VIEWPORT,
   adaptiveAidBlocksIntermission,
   adaptiveAidCinematicFactor,
   adaptiveAidPausesSimulation,
   accelerateWaveOutro,
-  advanceWaveOutro,
   activateDematerializationPulse,
   cellFromPoint,
   clearSandboxEntities,
@@ -103,18 +52,7 @@ import {
   WAVE_OUTRO_TIMINGS,
   DEMATERIALIZATION_PULSE,
 } from "./battleModel.js";
-import { drawExecutorComboIndicator } from "./executorArcoRenderer.js";
-import { drawContainmentForeground, drawContainmentUnderlay } from "./containmentRenderer.js";
-import { drawThermalPlatformHeatBars } from "./thermalPlatformRenderer.js";
-import { drawIncubatorFissureEffects, drawIncubatorFissureUnderlay, drawIncubatorTargetTelegraph } from "./incubatorFissureRenderer.js";
-import { drawAdaptiveAid } from "./adaptiveAidRenderer.js";
-import { drawWindEffects } from "./windCurrentRenderer.js";
-import { drawTideOverlay, drawTideUnderlay } from "./tideRenderer.js";
-import { loadSettings } from "../campaign/storage.js";
 import { positionalTargetInstruction, positionalTargetMessage } from "./positionalTargeting.js";
-import { isSystemEnabledForPhase } from "./phaseRules.js";
-import { useBattleAssets } from "./hooks/useBattleAssets.js";
-import { useBattleAudio } from "./hooks/useBattleAudio.js";
 import { useBattleLoopControls } from "./hooks/useBattleLoop.js";
 import {
   getNextBattleSpeed,
@@ -130,21 +68,19 @@ import {
 } from "./components/BattleControlIcons.jsx";
 import { useBattleFullscreen } from "./hooks/useBattleFullscreen.js";
 import { useBattleController } from "./hooks/useBattleController.js";
+import { handleBattleStepEvents } from "./hooks/battleStepEvents.js";
+import { advanceBattleFrameProgress } from "./hooks/battleFrameProgress.js";
+import { advanceBattleSimulation, BATTLE_SIMULATION_STEP_MS } from "./hooks/battleFrameSimulation.js";
+import { renderBattleFrame } from "./render/battleFrameRenderer.js";
 import BattleCanvas from "./render/BattleCanvas.jsx";
-import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./render/battleSceneRenderer.js";
-import { drawBattleLayers } from "./render/battleLayerRenderer.js";
-import { advanceTroopAnimationClock } from "./troopAnimationClock.js";
 import { WaveOutroCinematicOverlay } from "./waveOutro/WaveOutroCinematicOverlay.jsx";
 import BattlePauseMenu from "./components/BattlePauseMenu.jsx";
-import { getWaveOutroCueState, getWaveOutroMusicVolumeFactor } from "./waveOutro/waveOutroAudio.js";
 import { getCinematicWaveOutroCameraTransform } from "./waveOutro/waveOutroCamera.js";
-import { drawConvoy } from "./chapter07/convoyRenderer.js";
-import { drawConvoyImpacts } from "./chapter07/convoyImpactRenderer.js";
 import { getConvoyAttackSummary } from "./chapter07/convoySummary.js";
 import ConvoyCheckpointOverlay from "./chapter07/components/ConvoyCheckpointOverlay.jsx";
 import ConvoySectorCountdown from "./chapter07/components/ConvoySectorCountdown.jsx";
 import ConvoyToast from "./chapter07/components/ConvoyToast.jsx";
-import { advanceConvoyEntry, advanceConvoySectorCountdown, startConvoySectorCountdown } from "./chapter07/convoyFlow.js";
+import { startConvoySectorCountdown } from "./chapter07/convoyFlow.js";
 import { acknowledgeConvoyCheckpoint } from "./chapter07/convoyCheckpoints.js";
 import { applyConvoyCheckpointOption } from "./chapter07/convoyCheckpointRewards.js";
 import { getBattleFieldPoint, resolveCanvasClickAction } from "./input/battlePointerActions.js";
@@ -154,21 +90,8 @@ import { FortuneChoiceModal } from "./components/FortuneChoiceModal.jsx";
 import { CapsuleInteractionButton } from "./components/CapsuleInteractionButton.jsx";
 import { SandboxPanel } from "./components/SandboxPanel.jsx";
 import { getThermalBannerText, resolveInspectedTroopId } from "./components/battleHudModel.js";
-import { playCriticalAlarmBeep } from "./battleAudioEffects.js";
 import BattleOverlays from "./components/BattleOverlays.jsx";
-import {
-  drawAbyssCharge, drawLatchedGarravinhaMarker, drawLeviathanBossEffects, drawLeviathanBossHealth,
-  drawLeviathanBrineJet, drawProceduralGlassEnemy, drawRasgaCeusShadow, drawRasgaCeusTargetMarker,
-  drawRasgamarUnderwaterShadow, drawStructuralRupture, isLeviathanShadowOnly, isRasgamarShadowOnly,
-  silicaDiggerEmergenceProgress,
-} from "./render/enemyEffectsRenderer.js";
-import { getEnemyVisualEffects } from "./render/enemyEffectsRegistry.js";
-import {
-  drawAttachedConvoyEnemies, drawBattleRows, drawHealth, drawLumiDefenseShield, drawNaniteHealingBeams,
-  drawNaniteTargetEffect, drawPrismaticShield, drawTroopCooldown,
-  drawTroopEntity, drawTroopSpecialReady, drawLeviathanStateEffect, drawPhysicalStunEffect, drawSporeConfusionEffect, drawAresThermalShield, drawElectricTroopStatus, drawTroopPlacementPreview, drawWorkerQueenWebDebuff, drawSandstormTroopEffects, getEnemyFrameCounts, shouldDrawEnemyHealth,
-} from "./render/entityRenderer.js";
-import { drawDeathVisuals, drawEmissiveBattle, drawEnergyPickups, drawTreeBroodBursts } from "./render/battleVfxRenderer.js";
+import { drawLeviathanBrineJet, isLeviathanShadowOnly, isRasgamarShadowOnly } from "./render/enemyEffectsRenderer.js";
 import "./chapter07/chapter07.css";
 
 export const FREE_HAND_ACTIVATED_MESSAGE = "Mão livre ativada.";
@@ -182,287 +105,7 @@ export { isLeviathanShadowOnly, isRasgamarShadowOnly };
 export { drawLeviathanBrineJet };
 export { resolveInspectedTroopId };
 
-let entityRendererDependencies = null;
-
-function getEntityRendererDependencies() {
-  if (entityRendererDependencies) return entityRendererDependencies;
-  entityRendererDependencies = Object.freeze({
-    buildBattleRenderRows, drawWetReflections, getHitReaction, isRasgamarShadowOnly,
-    isLeviathanShadowOnly, drawRasgamarUnderwaterShadow, drawRasgaCeusShadow,
-    silicaDiggerEmergenceProgress, drawContactShadow, drawTroopEntity, drawEnemyEntity,
-    enemies: ENEMIES,
-  });
-  return entityRendererDependencies;
-}
-
-// The screen selects the concrete visual implementations; the ordered canvas
-// pipeline itself lives in render/battleLayerRenderer.
-const BATTLE_LAYER_RENDERERS = Object.freeze({
-  clearRenderLayer, drawContainmentUnderlay, drawArenaBackground, drawArenaUnderlay,
-  drawIncubatorFissureUnderlay, getPlacementPreviewGeometry, drawTacticalGrid,
-  drawPlacementRange, isSystemEnabledForPhase, drawTideUnderlay,
-  drawIncubatorFissureEffects, drawIncubatorTargetTelegraph, drawDecals,
-  drawPulseScorches, drawDematerializationPulses, drawMines,
-  drawProjectileCollection, drawSporeFruits, drawSporeClouds,
-  drawNaniteHealingBeams, drawForestObstacles,
-  drawBattleRows: (ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers) => drawBattleRows({
-    ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers,
-    field: FIELD,
-    dependencies: getEntityRendererDependencies(),
-  }), drawConvoy,
-  drawAttachedConvoyEnemies, drawEnemyEntity, drawThermalPlatformHeatBars,
-  drawTroopPlacementPreview, drawDeathVisuals, drawTideOverlay, drawWindEffects,
-  drawConvoyImpacts, drawAdaptiveAid, drawTreeBroodBursts,
-  drawPulseDisintegrations, drawDeploymentEffects, drawTartaragarraEffects,
-  drawDynamicLights, drawArenaForeground, drawPulseBeams, drawEnergyPickups,
-  drawParticles, drawPostProcessing, drawContainmentForeground, drawEmissiveBattle,
-});
-
 export { DecisionModal };
-
-const missingColossoAssetWarnings = new Set();
-
-/* Migrated to render/entityRenderer.js. Kept as a non-executable reference
- * only until the broader entity migration removes the matching legacy imports. */
-/*
-function legacyDrawTroopEntity(ctx, entry, session, assets, runtime, settings, now, animationElapsed, scratch, drawHalo = true) {
-  const logicalEntity = entry.entity;
-  const reaction = getHitReaction(runtime, logicalEntity.id, now);
-  const config = TROOPS[logicalEntity.type];
-  const troopAssets = assets.troops[logicalEntity.type] || {};
-  Object.assign(scratch, logicalEntity);
-  scratch.x = entry.x + reaction.offsetX;
-  scratch.y = entry.y + (config.spriteOffsetY || 0);
-  const troopElapsed = logicalEntity.state === "idle" ? animationElapsed : session.elapsed;
-  const animation = getTroopAnimation(logicalEntity, config, troopElapsed, getTroopFrameCounts(troopAssets));
-  const image = resolveTroopFrame(troopAssets, animation.state, animation.frame);
-  const frameAnchor = getTroopFrameAnchor(config, animation.state, animation.frame);
-  const visual = getTroopAttackVisual(logicalEntity, config);
-  const height = (visual?.height || config.attackVisual?.height || (logicalEntity.type === "muralhaReforcada" ? 112 : 126))
-    * (config.spriteScale || 1);
-  const troopFilter = getTroopSpriteFilter(reaction.flash);
-  const thermalState = getTroopThermalVisualState(logicalEntity, session.elapsed);
-  const thermalRect = image?.width && image?.height
-    ? getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor)
-    : { x: scratch.x - 24, y: scratch.y - 60, width: 48, height: 68 };
-  drawThermalBurnBackLayer(ctx, logicalEntity, thermalRect, session.elapsed, settings, thermalState);
-  let spriteDrawn = false;
-  if (logicalEntity.type === "droneSentinela") {
-    const baseX = scratch.x;
-    const baseY = scratch.y;
-    const layout = getDroneSentinelaLayout(logicalEntity.droneCount);
-    const frames = troopAssets[animation.state] || [];
-    for (const unit of layout) {
-      const frameIndex = animation.state === "idle"
-        ? (animation.frame + unit.idlePhase) % Math.max(1, frames.length)
-        : animation.frame;
-      const unitImage = resolveTroopFrame(troopAssets, animation.state, frameIndex);
-      scratch.x = baseX + unit.x;
-      scratch.y = baseY + unit.y;
-      if (drawHalo && unitImage?.width && unitImage?.height) {
-        const rect = getAnchoredSpriteRect(
-          scratch, height * unit.scale, unitImage.width / unitImage.height, frameAnchor,
-        );
-        drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
-      }
-      spriteDrawn = drawSprite(
-        ctx, unitImage, scratch, height * unit.scale, 1, troopFilter, frameAnchor, config.flipX,
-      ) || spriteDrawn;
-    }
-    scratch.x = baseX;
-    scratch.y = baseY;
-  } else {
-    if (drawHalo && image?.width && image?.height) {
-      const rect = getAnchoredSpriteRect(scratch, height, image.width / image.height, frameAnchor);
-      drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
-    }
-    spriteDrawn = drawSprite(ctx, image, scratch, height, 1, troopFilter, frameAnchor, config.flipX);
-  }
-  if (logicalEntity.type === "operadorJano") {
-    const droneAnimation = getJanoDroneAnimation(
-      logicalEntity, config, session.elapsed, getTroopFrameCounts(troopAssets),
-    );
-    const droneImage = resolveTroopFrame(troopAssets, droneAnimation.state, droneAnimation.frame);
-    const offset = config.droneOffset || { x: 42, y: -76 };
-    const droneEntity = {
-      x: scratch.x + offset.x,
-      y: scratch.y + offset.y - 51.6,
-    };
-    const droneHeight = config.droneVisuals?.[droneAnimation.state]?.height || 72;
-    if (drawHalo && droneImage?.width && droneImage?.height) {
-      const rect = getAnchoredSpriteRect(droneEntity, droneHeight, droneImage.width / droneImage.height, { x: 0.5, y: 0.5 });
-      drawCachedSpriteHalo(ctx, rect, session.phase.palette.primary, settings);
-    }
-    drawSprite(ctx, droneImage, droneEntity, droneHeight, 1, troopFilter, { x: 0.5, y: 0.5 }, false);
-  }
-  if (!spriteDrawn) {
-    ctx.fillStyle = config.color;
-    ctx.fillRect(scratch.x - 24, scratch.y - 34, 48, 68);
-  }
-  drawThermalBurnFrontLayer(ctx, logicalEntity, thermalRect, session.elapsed, settings, thermalState);
-  drawLumiDefenseShield(ctx, scratch, config, session.elapsed, settings);
-  if (config.specialEveryMs && !logicalEntity.specialRequested && session.elapsed >= logicalEntity.specialReadyAt) {
-    drawTroopSpecialReady(ctx, scratch, session.elapsed, settings);
-  }
-  drawNaniteTargetEffect(ctx, scratch, session, settings);
-  drawTroopCooldown(ctx, scratch, session, settings);
-  drawLeviathanStateEffect(ctx, scratch, session, settings);
-  drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings);
-  drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings);
-  drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height);
-  drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings);
-  drawPhysicalStunEffect(ctx, logicalEntity, session.elapsed, settings);
-  drawSporeConfusionEffect(ctx, logicalEntity, session.elapsed, settings);
-  drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
-  drawAresThermalShield(ctx, logicalEntity, settings);
-  if (logicalEntity.type === "droneSentinela") {
-    ctx.save();
-    ctx.font = "700 13px Inter, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = "#e0f2fe";
-    ctx.strokeStyle = "#082f49";
-    ctx.lineWidth = 3;
-    const countLabel = `×${Number(logicalEntity.droneCount || 1)}`;
-    ctx.strokeText(countLabel, scratch.x + 33, scratch.y - 58);
-    ctx.fillText(countLabel, scratch.x + 33, scratch.y - 58);
-    ctx.restore();
-  }
-}
-*/
-
-export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {
-  const logicalEntity = entry.entity;
-  if (logicalEntity.type === "colossoCaldeira") {
-    const enemyAssets = assets.enemies.colossoCaldeira || {};
-    const animation = getColossoAnimation(logicalEntity, session.elapsed, getEnemyFrameCounts(enemyAssets), settings.reduceMotion);
-    const image = enemyAssets?.[animation.state]?.[animation.frame] || null;
-    const transitionImage = animation.previousState ? enemyAssets?.[animation.previousState]?.[animation.previousFrame] || null : null;
-    if (!image) {
-      const missingKey = `${animation.state}:${animation.frame}`;
-      if (!missingColossoAssetWarnings.has(missingKey)) {
-        missingColossoAssetWarnings.add(missingKey);
-        console.error(`[Colosso] Asset ausente para ${missingKey}; fallback para idle desativado.`);
-      }
-    }
-    drawColossoCaldeira(ctx, logicalEntity, { ...settings, elapsed: session.elapsed, animation, transitionImage }, image, {
-      ...(assets.effects || {}),
-      colossoCoreHits: runtime?.colossoCoreHits || [],
-    });
-    drawColossoBossHealth(ctx, logicalEntity, session.elapsed);
-    return;
-  }
-  if (logicalEntity.type === "vermeIncubador" && logicalEntity.incubatorSubmerged) return;
-  if (isRasgamarShadowOnly(logicalEntity, session.elapsed)) return;
-  const config = ENEMIES[logicalEntity.type];
-  const reaction = getHitReaction(runtime, logicalEntity.id, now);
-  Object.assign(scratch, logicalEntity);
-  writeEnemyVisualPosition(logicalEntity, config, session.elapsed, interpolation, settings.reduceMotion, scratch);
-  scratch.x += reaction.offsetX;
-  const frozen = isEnemyFrozen(logicalEntity, session.elapsed);
-  const stunned = session.elapsed < (logicalEntity.stunnedUntil || 0);
-  if (logicalEntity.type === "duneRipper" && logicalEntity.duneState === "roar"
-    && !settings.reduceMotion && !stunned) {
-    const roarAge = session.elapsed - logicalEntity.duneStateStartedAt;
-    scratch.x += Math.sin(roarAge / 24) * 1.8;
-    scratch.y += Math.cos(roarAge / 31) * 0.8;
-  }
-  const enemyAssets = assets.enemies[logicalEntity.type] || {};
-  const frameCounts = getEnemyFrameCounts(enemyAssets);
-  let animation = getEnemyAnimation(logicalEntity, config, session.elapsed, frameCounts);
-  if (logicalEntity.type === "workerQueen" && reaction.flash > 0.12 && enemyAssets.hit?.length) {
-    animation = {
-      state: "hit",
-      frame: Math.min(enemyAssets.hit.length - 1, Math.floor((1 - reaction.flash) * enemyAssets.hit.length)),
-    };
-  }
-  if (logicalEntity.type === "scarabEmperor" && !logicalEntity.scarabTransitionToPhase && reaction.flash > 0.12) {
-    const hitState = `phase${logicalEntity.bossPhase || 1}Hit`;
-    if (enemyAssets[hitState]?.length) {
-      animation = {
-        state: hitState,
-        frame: Math.min(enemyAssets[hitState].length - 1, Math.floor((1 - reaction.flash) * enemyAssets[hitState].length)),
-      };
-    }
-  }
-  const frames =
-    enemyAssets[animation.state] ||
-    enemyAssets.flying ||
-    enemyAssets.walking ||
-    enemyAssets.idle ||
-    [];
-  const image = frames[animation.frame % Math.max(1, frames.length)];
-  const enemyAspectRatio = image?.width && image?.height ? image.width / image.height : 1;
-  const enemyRect = getEnemySpriteRect(scratch, config, animation.state, animation.frame, enemyAspectRatio);
-  const leviathanShadowOnly = isLeviathanShadowOnly(logicalEntity, session.elapsed, animation.frame);
-  const spriteFilter = getSpriteFilter(
-    reaction.flash,
-    logicalEntity.bossPhase || 0,
-    logicalEntity.variant === "alpha",
-    logicalEntity.isEcho,
-    frozen,
-  );
-  const visualEffects = getEnemyVisualEffects(logicalEntity.type);
-  visualEffects.underlay?.(ctx, scratch, session.elapsed, settings);
-  visualEffects.beforeSprite?.(ctx, scratch, session.elapsed, settings);
-  const emergenceProgress = silicaDiggerEmergenceProgress(logicalEntity, session.elapsed);
-  if (drawHalo && !leviathanShadowOnly && emergenceProgress >= 0.45) {
-    drawCachedSpriteHalo(
-      ctx,
-      enemyRect,
-      logicalEntity.isEcho ? "#7fffd4" : session.phase.palette.accent,
-      settings,
-      logicalEntity.isEcho ? 1.4 : 1,
-    );
-  }
-  const flipEnemy = logicalEntity.type === "garravinha"
-    || (logicalEntity.type === "rasgaCeusCinereo" && logicalEntity.visualFacing > 0);
-  let spriteDrawn = leviathanShadowOnly ? false : drawSpriteInRect(ctx, image, enemyRect, logicalEntity.isEcho ? 0.72 : 1, spriteFilter, flipEnemy);
-  if (!spriteDrawn && !leviathanShadowOnly) spriteDrawn = drawProceduralGlassEnemy(ctx, scratch, config, session.elapsed, spriteFilter);
-  if (frozen && spriteDrawn) {
-    drawSpriteInRect(ctx, image, enemyRect, 0.38, "brightness(0) saturate(100%) invert(82%) sepia(46%) saturate(1134%) hue-rotate(156deg) brightness(104%) contrast(102%)");
-  }
-  if (!spriteDrawn && !leviathanShadowOnly) {
-    ctx.fillStyle = frozen ? "#38bdf8" : config.color;
-    ctx.beginPath();
-    ctx.arc(scratch.x, scratch.y, 24 * logicalEntity.scale, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  drawLeviathanBossEffects(ctx, scratch, session, settings);
-  drawLeviathanBossHealth(ctx, logicalEntity);
-  drawAbyssCharge(ctx, scratch, config, session.elapsed, settings);
-  drawPrismaticShield(ctx, scratch, session.elapsed, settings);
-  if (frozen && !leviathanShadowOnly) drawFrozenEnemyEffect(ctx, scratch, session.elapsed, settings);
-  if (stunned) drawStunnedEnemyEffect(ctx, scratch, session.elapsed, settings);
-  if (logicalEntity.isEcho) {
-    const radius = 31 * logicalEntity.scale;
-    ctx.save();
-    ctx.strokeStyle = "rgba(127,255,212,.72)";
-    ctx.lineWidth = 1.5;
-    ctx.shadowBlur = 10;
-    ctx.shadowColor = "#8b5cf6";
-    ctx.beginPath();
-    ctx.moveTo(scratch.x, scratch.y - radius);
-    ctx.lineTo(scratch.x + radius * .72, scratch.y);
-    ctx.lineTo(scratch.x, scratch.y + radius * .45);
-    ctx.lineTo(scratch.x - radius * .72, scratch.y);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.restore();
-  }
-  drawStructuralRupture(ctx, scratch, session.elapsed, settings);
-  if (logicalEntity.type !== "leviathanNereida" && emergenceProgress >= 0.45 && !logicalEntity.rasgamarSubmerged && (shouldDrawEnemyHealth(logicalEntity, frozen, stunned, adaptive) || (logicalEntity.type === "garravinha" && logicalEntity.garravinhaState === "latched"))) {
-    drawHealth(ctx, logicalEntity, runtime, now, logicalEntity.variant === "alpha" ? 100 : 58, 58 * logicalEntity.scale, logicalEntity.isEcho ? "#7fffd4" : null);
-  }
-  drawLatchedGarravinhaMarker(ctx, session, logicalEntity);
-  if (logicalEntity.variant === "alpha") {
-    ctx.fillStyle = "#fecdd3";
-    ctx.font = "700 11px system-ui";
-    ctx.textAlign = "center";
-    ctx.fillText(`${config.label.toUpperCase()} ALFA`, scratch.x, Math.max(30, scratch.y - 76 * logicalEntity.scale));
-  }
-  drawRasgaCeusTargetMarker(ctx, session, logicalEntity);
-}
 
 export { CapsuleInteractionButton };
 
@@ -474,9 +117,8 @@ export { getThermalBannerText };
 
 export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox = false }) {
   const controller = useBattleController({ phase, unlockedTroops, sandbox });
-  const frameLoopRef = useRef(null);
   const {
-    loadout, battleShellRef, canvasRef, assetsRef, sessionRef, particlesRef, graphicsRef, battleRowsRef,
+    loadout, battleShellRef, canvasRef, assetsRef, sessionRef, particlesRef, graphicsRef, battleRowsRef, frameLoopRef,
     adaptiveSettingsRef, hoveredCellRef, finishSentRef, convoyDestructionRevealUntilRef, audioRef,
     lastCriticalBeepRef, notificationIdRef, waveOutroCueRef, convoyCountdownStepRef, troopAnimationClockRef,
     snapshot, setSnapshot, paused, setPaused, speed, setSpeed, runtimeRevision, setRuntimeRevision,
@@ -485,7 +127,7 @@ export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox 
     setFortuneTier, selectedTroop, setSelectedTroop, repositionTroopId, setRepositionTroopId, hoveredTroop,
     setHoveredTroop, removeMode, setRemoveMode, targetingDecision, setTargetingDecision, graphicsMetrics,
     setGraphicsMetrics, notification, setNotification, banner, setBanner,
-    renderPlan, getOverlayModel,
+    renderPlan, getOverlayModel, settings, loading, play, stopAudio,
   } = controller;
   const consumeGraphicsEventsAtVisualTime = (events, simulationNow = sessionRef.current.elapsed) => {
     const visualNow = performance.now();
@@ -532,15 +174,6 @@ export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox 
     await exitFullscreen();
     onExit();
   }, [exitFullscreen, onExit]);
-  const settings = useMemo(loadSettings, []);
-  const { configureAudio, play, stopAudio } = useBattleAudio({
-    audioRef,
-    settings,
-    paused,
-    windActive: sessionRef.current.windCurrent?.state === "active",
-    convoyActive: phase.chapterId === "chapter_07" && snapshot.convoy?.moving,
-    chapterId: phase.chapterId,
-  });
   const resetBattleRuntime = useCallback((nextSandboxSettings = sandboxSettingsState) => {
     stopAudio();
     sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox, ...(sandbox ? { sandboxSettings: nextSandboxSettings } : {}) });
@@ -557,15 +190,6 @@ export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox 
     setSpeed(1); setPaused(false); setSnapshot(getSnapshot(sessionRef.current));
     setRuntimeRevision((value) => value + 1);
   }, [loadout, phase, sandbox, sandboxSettingsState, stopAudio]);
-  const loading = useBattleAssets({
-    phase,
-    loadout,
-    sandbox,
-    assetsRef,
-    onAssetsReady: configureAudio,
-    onCleanup: stopAudio,
-  });
-
   useEffect(() => {
     if (!loading.ready || sandbox || phase.id !== "fase_49") return;
     setMessage("MANTENHA UMA TROPA EM R2 OU R4 PRÓXIMA AO TRANSPORTE.", { tone: "action", persistent: true });
@@ -623,276 +247,63 @@ export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox 
       previous = now;
       const fortunePaused = adaptiveAidPausesSimulation(sessionRef.current.adaptiveAid?.status);
       const outroFactor = getWaveOutroCinematicFactor(sessionRef.current, settings.reduceMotion);
-      if (!pausedRef.current && !fortunePaused) {
-        const battleSpeed = outroFactor < 1 ? outroFactor : speedRef.current;
-        accumulator += frameDelta * battleSpeed * adaptiveAidCinematicFactor(sessionRef.current);
-      }
-      const outroEvents = advanceWaveOutro(sessionRef.current, frameDelta);
-      if (outroEvents.length) {
-        pushEventParticles(particlesRef.current, outroEvents, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-        consumeGraphicsEventsAtVisualTime(outroEvents, sessionRef.current.elapsed);
-        if (outroEvents.some((event) => event.type === "waveCompleteBanner")) {
-          audioRef.current.theme?.pause();
-          setBanner(sessionRef.current.waveOutro.finalWave
-            ? "PERÍMETRO ASSEGURADO"
-            : `ONDA ${sessionRef.current.waveOutro.completedWave} CONCLUÍDA`);
-          play("alert", 0.38);
-        }
-        if (outroEvents.some((event) => event.type === "decisionIntro")) setBanner("NOVA VANTAGEM TÁTICA");
-        if (outroEvents.some((event) => event.type === "victoryIntro")) {
-          setBanner("MISSÃO CONCLUÍDA");
-          play("alert", 0.62);
-        }
-      }
-      const activeSession = sessionRef.current;
-      if (!pausedRef.current && !fortunePaused && activeSession?.convoyFlow?.state === "sectorCountdown") {
-        const remainingBeforeStep = Math.max(0, (activeSession.convoyFlow.countdownDurationMs || 2400) - (activeSession.convoyFlow.countdownElapsedMs || 0));
-        const countdownStep = Math.max(1, Math.min(3, Math.ceil(remainingBeforeStep / 800)));
-        if (convoyCountdownStepRef.current !== countdownStep) {
-          convoyCountdownStepRef.current = countdownStep;
-          play("alert", 0.2);
-        }
-        const countdownEvents = [];
-        advanceConvoySectorCountdown(activeSession, frameDelta * speedRef.current, countdownEvents);
-        if (countdownEvents.length) {
-          consumeGraphicsEventsAtVisualTime(countdownEvents, activeSession.elapsed);
-          play("alert", 0.45);
-          convoyCountdownStepRef.current = null;
-        }
-      }
-      if (!pausedRef.current && !fortunePaused && activeSession?.convoyFlow?.state === "convoyEntry") {
-        const entryEvents = [];
-        advanceConvoyEntry(activeSession, frameDelta, entryEvents);
-        if (entryEvents.length) consumeGraphicsEventsAtVisualTime(entryEvents, activeSession.elapsed);
-      }
-      const activeOutro = activeSession?.waveOutro?.status
-        && !["idle", "completed"].includes(activeSession.waveOutro.status);
-      const cueState = getWaveOutroCueState(activeSession?.waveOutro);
-      if (cueState?.impactReady && waveOutroCueRef.current !== cueState.key) {
-        waveOutroCueRef.current = cueState.key;
-        const lastEnemy = activeSession.waveOutro.lastKill?.enemy;
-        const impactEvent = {
-          type: cueState.finalWave ? "missionFinalImpact" : "waveFinalImpact",
-          x: Number.isFinite(lastEnemy?.x) ? lastEnemy.x : FIELD.width * 0.64,
-          y: Number.isFinite(lastEnemy?.y)
-            ? lastEnemy.y
-            : ((activeSession.waveOutro.lastKill?.row ?? 2) + 0.5) * CELL.height,
-          shake: settings.reduceMotion ? 0 : cueState.shake,
-          color: phase.palette.accent,
-          seed: Math.round((lastEnemy?.x || 17) * 31 + (lastEnemy?.y || 23) * 17),
-        };
-        consumeGraphicsEventsAtVisualTime([impactEvent], activeSession.elapsed);
-        play("melee", cueState.finalWave ? 0.88 : cueState.cinematic ? 0.68 : 0.48);
-        play("alert", cueState.finalWave ? 0.30 : 0.14);
-      }
-      const themeAudio = audioRef.current.theme;
-      if (themeAudio && activeOutro) {
-        const baseMusicVolume = settings.masterVolume * settings.musicVolume;
-        themeAudio.volume = baseMusicVolume * getWaveOutroMusicVolumeFactor(activeSession.waveOutro);
-      }
-      if (activeSession && !activeOutro && !activeSession.outcome && activeSession.integrity > 0 && (activeSession.integrity / activeSession.integrityMax) <= 0.25) {
-        if (now - lastCriticalBeepRef.current >= 1200) {
-          lastCriticalBeepRef.current = now;
-          playCriticalAlarmBeep(settings.masterVolume * settings.effectsVolume);
-        }
-      }
+      advanceBattleFrameProgress({
+        adaptiveSettingsRef, audioRef, consumeGraphicsEventsAtVisualTime,
+        convoyCountdownStepRef, fortunePaused, frameDelta, lastCriticalBeepRef,
+        particlesRef, paused: pausedRef.current, phase, play, pushEventParticles,
+        sessionRef, setBanner, settings, speed: speedRef.current, waveOutroCueRef,
+      });
       const stepStarted = performance.now();
-      while (accumulator >= 32) {
-        const events = stepBattle(sessionRef.current, 32);
+      accumulator = advanceBattleSimulation({
+        accumulator,
+        cinematicFactor: adaptiveAidCinematicFactor(sessionRef.current),
+        fortunePaused,
+        frameDelta,
+        outroFactor,
+        paused: pausedRef.current,
+        speed: speedRef.current,
+        onStep: (stepMs) => {
+        const events = stepBattle(sessionRef.current, stepMs);
         pushEventParticles(particlesRef.current, events, sessionRef.current.elapsed, adaptiveSettingsRef.current);
         consumeGraphicsEventsAtVisualTime(events, sessionRef.current.elapsed);
-        if (events.some((event) => event.type === "spawn")) play("alert", 0.08);
-        if (events.some((event) => event.type === "convoyUnderAttack")) play("convoyAttack", .34);
-        if (events.some((event) => event.type === "convoyUnderAttack")) setMessage("TRANSPORTE SOB ATAQUE", { tone: "danger" });
-        if (events.some((event) => event.type === "escortLost")) setMessage("SEM ESCOLTA · o transporte permanecerá parado", { tone: "warning", persistent: true });
-        if (events.some((event) => event.type === "escortRestored")) setMessage("ESCOLTA RESTAURADA", { tone: "info" });
-        if (events.some((event) => event.type === "convoyAttackCleared")) setMessage("ESCOLTA RESTAURADA", { tone: "info" });
-        if (events.some((event) => event.type === "convoyHit")) play("convoyHit", .42);
-        if (events.some((event) => event.type === "convoyCritical")) play("convoyCritical", .68);
-        if (events.some((event) => event.type === "checkpointReached")) play("convoyCheckpoint", .72);
-        if (events.some((event) => event.type === "checkpointReached")) setMessage("CHECKPOINT ALCANÇADO", { tone: "info" });
-        if (events.some((event) => event.type === "checkpointPreparation")) {
-          setSelectedTroop(null);
-          setRepositionTroopId(null);
-          setRemoveMode(false);
-          setMessage("CHECKPOINT ALCANÇADO", { tone: "info" });
-        }
-        if (events.some((event) => event.type === "energyGenerated" && event.sourceKind === "convoy")) play("convoyLogistics", .24);
-        if (events.some((event) => event.type === "reserveEmpty")) play("convoyReserveEmpty", .58);
-        if (events.some((event) => event.type === "reserveEmpty")) setMessage("RESERVA ESGOTADA", { tone: "warning" });
-        if (events.some((event) => event.type === "reinforcementWarning")) play("convoyReinforcement", .5);
-        if (events.some((event) => event.type === "reinforcementWarning")) setMessage("REFORÇOS INIMIGOS", { tone: "danger" });
-        if (events.some((event) => event.type === "convoyDestroyed")) play("convoyDestruction", .85);
-        if (events.some((event) => event.type === "convoyEvacuated")) play("convoyEvacuation", .85);
-        if (events.some((event) => event.type === "rastejanteBite")) play("rastejanteBite", .35);
-        if (events.some((event) => event.type === "treeBroodTriggered")) play("treeBroodOpen", .32);
-        if (events.some((event) => event.type === "treeLarvaSpawned")) play("larvaEmerge", .18);
-        if (events.some((event) => event.type === "melee" && event.sourceEnemyId === "larvaRaizFerro")) play("larvaAttack", .16);
-        if (events.some((event) => event.type === "enemyDeath" && event.entity?.type === "larvaRaizFerro")) play("larvaDeath", .12);
-        if (events.some((event) => event.type === "rastejanteFrenzyChanged" && event.frenzyLevel === 2)) play("rastejanteFrenzy", .45);
-        if (events.some((event) => event.type === "saltadorJumpStart")) play("saltadorJump", .32);
-        if (events.some((event) => event.type === "saltadorJumpLand")) play("saltadorLand", .28);
-        if (events.some((event) => event.type === "saltadorRasanteImpact")) play("saltadorRasante", .42);
-        if (events.some((event) => event.type === "pulseCharging")) play("alert", 0.65);
-        if (events.some((event) => event.type === "shoot" && !["icaroBullet", "icaroInterceptionShot"].includes(event.weapon))) play("shoot", 0.18);
-        if (events.some((event) => event.type === "shoot" && event.weapon === "icaroBullet")) play("icaroBurstShot", 0.34);
-        if (events.some((event) => event.type === "mantisSpikeImpact")) play("shoot", 0.12);
-        if (events.some((event) => event.type === "mantisSpikeDetonation")) play("melee", 0.24);
-        if (events.some((event) => event.type === "icaroTargetLock")) play("icaroInterceptionLock", 0.5);
-        if (events.some((event) => event.type === "icaroInterceptionFire")) play("icaroInterceptionFire", 0.58);
-        if (events.some((event) => event.type === "troopDeath" && event.entity?.type === "interceptadorIcaro")) play("icaroDeath", 0.5);
-        if (events.some((event) => event.type === "leviathanChargeStarted")) play("leviathanCharge", 0.5);
-        if (events.some((event) => event.type === "leviathanFire")) play("leviathanFire", 0.78);
-        if (events.some((event) => ["leviathanImpact", "leviathanSecondImpact"].includes(event.type))) play("leviathanImpact", 0.58);
-        if (events.some((event) => event.type === "structuralRuptureApplied")) play("leviathanRupture", 0.72);
-        if (events.some((event) => event.type === "leviathanCooldownStarted")) play("leviathanCooldown", 0.35);
-        if (events.some((event) => event.type === "colossoAwakened")) {
-          setBanner("⚠ COLOSSO DA CALDEIRA");
-          play("colossoAwaken", 0.88);
-        }
-        if (events.some((event) => event.type === "permanentThermalHazardStarted")) {
-          setBanner("⚠ A CALDEIRA ENTROU EM ERUPÇÃO · LINHA FRONTAL INSTÁVEL");
-          play("alert", 0.72);
-        }
-        const colossoTelegraph = events.find((event) => event.type === "colossoTelegraph");
-        if (colossoTelegraph) play({ rift: "colossoRiftCharge", slam: "colossoSlamCharge", fracture: "colossoFracture", seismic: "colossoSeismicCharge" }[colossoTelegraph.attack], 0.52);
-        const colossoImpact = events.find((event) => event.type === "colossoAttackImpact");
-        if (colossoImpact) play({ rift: "colossoRiftOpen", slam: "colossoSlamImpact", fracture: "colossoFracture", seismic: "colossoSeismicImpact", finalCollapse: "colossoFinalCollapse" }[colossoImpact.attack], 0.72);
-        const colossoPhaseEvent = events.find((event) => event.type === "colossoPhaseChanged");
-        if (colossoPhaseEvent) {
-          setBanner(colossoPhaseEvent.phase === 2 ? "FASE II · RUPTURA" : "FASE III · COLAPSO");
-          play(colossoPhaseEvent.phase === 2 ? "colossoPhase2" : "colossoPhase3", 0.76);
-        }
-        if (events.some((event) => event.type === "colossoFinalCollapse")) {
-          setBanner("⚠ COLAPSO DA CALDEIRA");
-          play("colossoFinalCollapse", 0.9);
-        }
-        if (events.some((event) => event.type === "colossoDeathStarted")) {
-          setBanner("NÚCLEO INSTÁVEL · COLOSSO EM COLAPSO");
-          play("colossoDeath", 0.84);
-        }
-        if (events.some((event) => event.type === "pulseFired")) play("shoot", 0.85);
-        if (events.some((event) => event.type === "melee")) play("melee", 0.2);
-        if (events.some((event) => event.type === "ramImpact")) play("melee", 0.65);
-        if (events.some((event) => event.type === "duneRipperRoar")) play("alert", 0.45);
-        if (events.some((event) => event.type === "executorSlash" && event.combo === 1)) play("executorSlash1", 0.45);
-        if (events.some((event) => event.type === "executorSlash" && event.combo === 2)) play("executorSlash2", 0.5);
-        if (events.some((event) => event.type === "executorFinisher")) play("executorFinisher", 0.7);
-        if (events.some((event) => event.type === "executorComboReset")) play("executorComboReset", 0.25);
-        if (events.some((event) => event.type === "windCurrentWarning")) {
-          play("windWarning", 0.55);
-          play("thunder", 0.18);
-        }
-        if (events.some((event) => event.type === "windCurrentStarted")) {
-          const loopAudio = audioRef.current.windActiveLoop;
-          if (loopAudio) {
-            loopAudio.currentTime = 0;
-            loopAudio.volume = Math.max(0, Math.min(1,
-              settings.masterVolume * settings.effectsVolume * 0.42));
-            loopAudio.play().catch(() => {});
-          }
-        }
-        if (events.some((event) => event.type === "windPrimaryGust")) play("windPrimaryGust", 0.78);
-        if (events.some((event) => event.type === "windTroopShifted"
-          || event.type === "windTroopChainShifted"
-          || event.type === "windEnemyShifted")) play("windTroopShift", 0.42);
-        if (events.some((event) => event.type === "windTroopEjected"
-          || event.type === "windTroopEjectedPermanent"
-          || event.type === "windTroopCollision"
-          || event.type === "windEnemyEjected")) play("windEjection", 0.72);
-        if (events.some((event) => event.type === "windCurrentRecovering")) {
-          audioRef.current.windActiveLoop?.pause();
-          play("windRecovery", 0.48);
-        }
-        if (events.some((event) => event.type === "windCurrentEnded")) {
-          audioRef.current.windActiveLoop?.pause();
-        }
-        if (events.some((event) => event.type === "tideWarning")) play("alert", 0.52);
-        if (events.some((event) => event.type === "tideHighStarted")) play("melee", 0.38);
-        if (events.some((event) => event.type === "tideLowStarted")) play("deploy", 0.24);
-        if (events.some((event) => event.type === "capsuleIncoming")) {
-          setBanner("OPORTUNIDADE TÁTICA");
-          setMessage("Transmissão aliada interceptada. Recursos de emergência disponíveis.");
-          play("alert", 0.7);
-        }
-        if (events.some((event) => event.type === "capsuleLanded")) play("melee", 0.45);
-        if (events.some((event) => event.type === "capsuleOpening")) play("deploy", 0.5);
-        const phaseEvent = events.find((event) => event.type === "bossPhase");
-        if (phaseEvent) {
-          const alpha = sessionRef.current.enemies.find((enemy) => enemy.variant === "alpha");
-          const alphaName = ENEMIES[alpha?.type]?.label?.toUpperCase() || "ALFA";
-          setBanner(`⚠ ${alphaName} ALFA · FASE ${phaseEvent.phase + 1}`);
-        }
-        if (events.some((event) => event.type === "waveComplete")) {
-          audioRef.current.windActiveLoop?.pause();
-          setBanner("PERÍMETRO SEGURO · REORGANIZAÇÃO EM CURSO");
-        }
-        accumulator -= 32;
-      }
-      const stepMs = performance.now() - stepStarted;
-      const interpolation = Math.min(1, accumulator / 32);
-      const activeEntities = sessionRef.current.troops.length + sessionRef.current.enemies.length
-        + sessionRef.current.projectiles.length + sessionRef.current.enemyProjectiles.length;
-      updateGraphicsRuntime(graphicsRef.current, sessionRef.current.elapsed, frameDelta, {
-        clockNow: now,
-        stepMs,
-        drawMs: lastDrawMs,
-        presentMs: lastPresentMs,
-        ...lastLayerTimings,
-        activeEntities,
-        particles: particlesRef.current.length,
+        handleBattleStepEvents(events, {
+          audioRef, play, sessionRef, setBanner, setMessage, setRemoveMode,
+          setRepositionTroopId, setSelectedTroop, settings,
+        });
+        },
+        stepMs: BATTLE_SIMULATION_STEP_MS,
       });
-      const adaptive = getAdaptiveEffects(
-        settings,
-        graphicsRef.current.adaptive.level,
-        graphicsRef.current.metrics.frameMs,
-      );
-      Object.assign(adaptiveSettingsRef.current, settings, { adaptiveLevel: adaptive.level });
+      const stepMs = performance.now() - stepStarted;
+      const interpolation = Math.min(1, accumulator / BATTLE_SIMULATION_STEP_MS);
       sessionRef.current.renderPaused = pausedRef.current;
-      const troopAnimationElapsed = advanceTroopAnimationClock(
-        troopAnimationClockRef.current,
-        sessionRef.current,
-        now,
-      );
-      const drawStarted = performance.now();
-      lastLayerTimings = drawBattleLayers({
-        layers: renderLayers,
-        layerConfig,
-        session: sessionRef.current,
+      const renderResult = renderBattleFrame({
+        adaptiveSettings: adaptiveSettingsRef.current,
+        animationClock: troopAnimationClockRef.current,
         assets: assetsRef.current,
+        ctx,
+        frameDelta,
+        hoveredCell: hoveredCellRef.current,
+        interpolation,
+        lastDrawMs,
+        lastLayerTimings,
+        lastPresentMs,
+        layerConfig,
+        layers: renderLayers,
+        now,
         particlesRef,
+        removeMode,
+        renderPlan,
+        renderScale,
+        rowBuffers: battleRowsRef.current,
         runtime: graphicsRef.current,
         selectedTroop,
-        removeMode,
-        hoveredCell: hoveredCellRef.current,
-        settings: adaptiveSettingsRef.current,
-        adaptive,
-        now: sessionRef.current.elapsed,
-        animationElapsed: troopAnimationElapsed,
-        interpolation,
-        rowBuffers: battleRowsRef.current,
-        field: FIELD,
-        viewport: VIEWPORT,
-        renderPlan,
-        renderers: BATTLE_LAYER_RENDERERS,
+        session: sessionRef.current,
+        settings,
+        stepMs,
       });
-      lastDrawMs = performance.now() - drawStarted;
-      const presentStarted = performance.now();
-      const camera = getCameraOffset(graphicsRef.current, sessionRef.current.elapsed, adaptiveSettingsRef.current);
-      const outroCamera = getCinematicWaveOutroCameraTransform(sessionRef.current, settings.reduceMotion);
-      const presentationCamera = outroCamera ? {
-        ...camera,
-        ...outroCamera,
-        x: camera.x + outroCamera.impactX,
-        y: camera.y + outroCamera.impactY,
-      } : camera;
-      presentScene(
-        ctx, renderLayers, null, renderScale,
-        presentationCamera,
-        adaptiveSettingsRef.current, adaptive,
-      );
-
-      lastPresentMs = performance.now() - presentStarted;
+      lastLayerTimings = renderResult.layerTimings;
+      lastDrawMs = renderResult.drawMs;
+      lastPresentMs = renderResult.presentMs;
       if (now - lastUi > 100) {
         lastUi = now;
         setSnapshot(getSnapshot(sessionRef.current));

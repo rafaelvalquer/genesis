@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ENEMIES } from "../content.js";
+import { loadSettings } from "../../campaign/storage.js";
 import {
   activateTroopSpecial,
   createBattleSession,
@@ -12,6 +13,8 @@ import { createGraphicsRuntime } from "../graphicsRuntime.js";
 import { createBattleRowBuffers } from "../visualGeometry.js";
 import { createBattleRenderPlan } from "../render/battleSceneRenderer.js";
 import { createBattleOverlayModel } from "../components/battleOverlayModel.js";
+import { useBattleAssets } from "./useBattleAssets.js";
+import { useBattleAudio } from "./useBattleAudio.js";
 
 function initialBanner(phase, sandbox) {
   if (sandbox) return "LABORATÓRIO · CAMPO DE PROVAS";
@@ -27,6 +30,7 @@ function initialBanner(phase, sandbox) {
  */
 export function useBattleController({ phase, unlockedTroops, sandbox = false }) {
   const loadout = useMemo(() => unlockedTroops.map((entry) => typeof entry === "string" ? entry : entry.id), [unlockedTroops]);
+  const settings = useMemo(loadSettings, []);
   // Phase-only render systems are resolved once rather than in the frame hot path.
   const renderPlan = useMemo(() => createBattleRenderPlan(phase), [phase]);
   const battleShellRef = useRef(null);
@@ -46,6 +50,7 @@ export function useBattleController({ phase, unlockedTroops, sandbox = false }) 
   const waveOutroCueRef = useRef(null);
   const convoyCountdownStepRef = useRef(null);
   const troopAnimationClockRef = useRef({ session: null, elapsed: 0, lastNow: 0, planning: false });
+  const frameLoopRef = useRef(null);
   if (!sessionRef.current) sessionRef.current = createBattleSession(phase, loadout, Date.now(), { sandbox });
 
   const [snapshot, setSnapshot] = useState(() => getSnapshot(sessionRef.current));
@@ -67,6 +72,22 @@ export function useBattleController({ phase, unlockedTroops, sandbox = false }) 
   const [graphicsMetrics, setGraphicsMetrics] = useState(null);
   const [notification, setNotification] = useState({ id: 0, text: "Selecione uma unidade e posicione-a no campo.", tone: "info", persistent: false });
   const [banner, setBanner] = useState(() => initialBanner(phase, sandbox));
+  const { configureAudio, play, stopAudio } = useBattleAudio({
+    audioRef,
+    settings,
+    paused,
+    windActive: sessionRef.current.windCurrent?.state === "active",
+    convoyActive: phase.chapterId === "chapter_07" && snapshot.convoy?.moving,
+    chapterId: phase.chapterId,
+  });
+  const loading = useBattleAssets({
+    phase,
+    loadout,
+    sandbox,
+    assetsRef,
+    onAssetsReady: configureAudio,
+    onCleanup: stopAudio,
+  });
   const refreshSnapshot = useCallback(() => setSnapshot(getSnapshot(sessionRef.current)), []);
   const actions = useMemo(() => ({
     placeTroop: (type, row, col) => {
@@ -108,8 +129,8 @@ export function useBattleController({ phase, unlockedTroops, sandbox = false }) 
   }), [snapshot, notification]);
 
   return {
-    loadout, battleShellRef, canvasRef, assetsRef, sessionRef, particlesRef, graphicsRef, battleRowsRef,
-    adaptiveSettingsRef, hoveredCellRef, finishSentRef, convoyDestructionRevealUntilRef, audioRef,
+    loadout, settings, loading, play, stopAudio, battleShellRef, canvasRef, assetsRef, sessionRef, particlesRef, graphicsRef, battleRowsRef,
+    adaptiveSettingsRef, hoveredCellRef, finishSentRef, convoyDestructionRevealUntilRef, audioRef, frameLoopRef,
     lastCriticalBeepRef, notificationIdRef, waveOutroCueRef, convoyCountdownStepRef, troopAnimationClockRef,
     snapshot, setSnapshot, paused, setPaused, speed, setSpeed, runtimeRevision, setRuntimeRevision,
     sandboxSettingsState, setSandboxSettingsState, selectedEnemy, setSelectedEnemy, spawnRow, setSpawnRow,

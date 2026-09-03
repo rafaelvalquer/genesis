@@ -20,6 +20,25 @@ describe("environment renderer registry", () => {
     expect(getEnvironmentRenderer("absent")).toBeNull();
   });
 
+  it("repassa o estágio de composição sem alterar a ordem do plano", () => {
+    const calls = [];
+    const suffix = `${Date.now()}-${Math.random()}`;
+    const behind = `behind-${suffix}`;
+    const ahead = `ahead-${suffix}`;
+    registerEnvironmentRenderer(behind, ({ stage }) => {
+      if (stage === "entitiesBefore") calls.push(behind);
+    });
+    registerEnvironmentRenderer(ahead, ({ stage }) => {
+      if (stage === "entitiesAfter") calls.push(ahead);
+    });
+
+    const scene = { renderPlan: { environments: [behind, ahead] } };
+    drawEnvironmentLayer({ scene, stage: "entitiesBefore" });
+    drawEnvironmentLayer({ scene, stage: "entitiesAfter" });
+
+    expect(calls).toEqual([behind, ahead]);
+  });
+
   it("protege contra registros duplicados sem replace explícito", () => {
     const name = `duplicate-${Date.now()}-${Math.random()}`;
     registerEnvironmentRenderer(name, () => {});

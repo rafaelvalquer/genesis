@@ -5,11 +5,12 @@ import { useBattleController } from "./useBattleController.js";
 
 describe("useBattleController", () => {
   it("mantém a sessão mutável fora do estado React e publica ações de domínio", () => {
-    const { result } = renderHook(() => useBattleController({
+    const { result, unmount } = renderHook(() => useBattleController({
       phase: PHASES[0], unlockedTroops: ["marine"], sandbox: true,
     }));
     const session = result.current.sessionRef.current;
     expect(result.current.snapshot.energy).toBe(session.energy);
+    expect(result.current.frameLoopRef.current).toBeNull();
     expect(result.current.renderPlan.environments).toEqual(expect.any(Array));
     expect(result.current.getRenderScene()).toMatchObject({
       session,
@@ -34,5 +35,6 @@ describe("useBattleController", () => {
 
     // A ação permanece no controller mesmo quando a UI trata seus efeitos visuais.
     expect(typeof result.current.actions.activateSpecial).toBe("function");
+    unmount();
   });
 });
