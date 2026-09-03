@@ -5,8 +5,13 @@ dist/
 .env*
 !.env.example
 
-# Backups locais dos instaladores Genesis
+# Local tooling/workspaces
+.codex-tmp/
 .genesis-backups/
+artifacts/
+*.bak
+*.backup
+*.tmp
 
 # Genesis AI campaign simulator
 reports/campaign-simulation.json
