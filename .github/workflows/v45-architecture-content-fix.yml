@@ -37,10 +37,23 @@ jobs:
           git rm scripts/apply-v44-hardening-codemod.mjs
           git rm scripts/apply-quality-gates.mjs
 
-      - name: Validate final tree
+      - name: Validate requested architecture/content scope
         run: |
           git diff --check
-          npm run ci
+          npm run verify:encoding
+          npm run verify:repository-hygiene
+          npm run validate:game-content
+          npm run verify:no-gameplay-skips
+          npm run verify:gamecanvas-render-dependencies
+          npm run verify:battle-loading
+          npm run verify:play-route
+          npm run test:unit
+          npm run test:icaro
+          npm run test:gameplay-contracts
+          npm run test:chapter-seven
+          npm run audit:chapter-seven
+          npm run audit:interceptador-icaro
+          npm run build
 
       - name: Commit validated result
         run: |
