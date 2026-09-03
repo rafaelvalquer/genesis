@@ -687,6 +687,8 @@ export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox 
     }
   }, loading.ready);
 
+  const overlayModel = useMemo(() => getOverlayModel({ fortuneBlocksIntermission }), [getOverlayModel, fortuneBlocksIntermission]);
+
   if (!loading.ready) {
     const loadingFailed = loading.stage === "error";
 
@@ -818,7 +820,6 @@ export function BattleScreen({ phase, unlockedTroops, onFinish, onExit, sandbox 
             : convoyAttackSummary || alphaWarning || tideBanner || windBanner || sandstormBanner || thermalBanner || defaultContainmentSummary;
   const inspectedTroopId = resolveInspectedTroopId({ hoveredTroop, selectedTroop });
   const inspectedTroop = inspectedTroopId ? TROOPS[inspectedTroopId] : null;
-  const overlayModel = useMemo(() => getOverlayModel({ fortuneBlocksIntermission }), [getOverlayModel, fortuneBlocksIntermission]);
 
   return (
     <section ref={battleShellRef} className={`battle-shell environment-${phase.environment} ${phase.chapterId === "chapter_02" ? "chapter-2-battle" : ""} ${phase.chapterId === "chapter_03" ? "chapter-3-battle" : ""} ${phase.chapterId === "chapter_04" ? "chapter-4-battle" : ""} ${phase.chapterId === "chapter_06" ? "chapter-6-battle" : ""} ${phase.chapterId === "chapter_07" ? "chapter-7-battle" : ""} ${sandbox ? "sandbox-battle" : ""}`}>
