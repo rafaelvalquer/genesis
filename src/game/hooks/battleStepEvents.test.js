@@ -35,4 +35,18 @@ describe("handleBattleStepEvents", () => {
     expect(context.play).toHaveBeenCalledWith("icaroInterceptionLock", 0.5);
     expect(context.setBanner).toHaveBeenCalledWith("PERÍMETRO SEGURO · REORGANIZAÇÃO EM CURSO");
   });
+
+  it("mantém reações únicas mesmo quando o mesmo evento aparece várias vezes no step", () => {
+    const context = createContext();
+
+    handleBattleStepEvents([
+      { type: "convoyHit" },
+      { type: "convoyHit" },
+      { type: "icaroTargetLock" },
+      { type: "icaroTargetLock" },
+    ], context);
+
+    expect(context.play.mock.calls.filter(([name]) => name === "convoyHit")).toHaveLength(1);
+    expect(context.play.mock.calls.filter(([name]) => name === "icaroInterceptionLock")).toHaveLength(1);
+  });
 });

@@ -14,13 +14,13 @@ export function drawBattleLayers({
   const {
     clearRenderLayer, drawContainmentUnderlay, drawArenaBackground, drawArenaUnderlay,
     drawIncubatorFissureUnderlay, getPlacementPreviewGeometry, drawTacticalGrid,
-    drawPlacementRange, isSystemEnabledForPhase, drawTideUnderlay,
+    drawPlacementRange, isSystemEnabledForPhase,
     drawIncubatorFissureEffects, drawIncubatorTargetTelegraph, drawDecals,
     drawPulseScorches, drawDematerializationPulses, drawMines,
     drawProjectileCollection,
     drawNaniteHealingBeams, drawBattleRows,
-    drawAttachedConvoyEnemies, drawThermalPlatformHeatBars,
-    drawTroopPlacementPreview, drawDeathVisuals, drawTideOverlay, drawWindEffects,
+    drawAttachedConvoyEnemies,
+    drawTroopPlacementPreview, drawDeathVisuals,
     drawConvoyImpacts, drawAdaptiveAid, drawTreeBroodBursts,
     drawPulseDisintegrations, drawDeploymentEffects, drawTartaragarraEffects,
     drawDynamicLights, drawArenaForeground, drawPulseBeams, drawEnergyPickups,
@@ -36,7 +36,7 @@ export function drawBattleLayers({
   // environment renderers to opt into a precomputed plan without touching gameplay.
   runtime.renderPlan = renderPlan;
   const drawEnvironment = (stage, ctx) => drawEnvironmentLayer({
-    stage, ctx, session, assets, settings, adaptive, now, runtime,
+    stage, ctx, session, assets, settings, adaptive, now, runtime, hoveredCell,
     scene: { renderPlan },
   });
   const dematerializationEnabled = isSystemEnabledForPhase(session.phase, "dematerializationPulse");
@@ -63,7 +63,7 @@ export function drawBattleLayers({
   started = performance.now();
   clearRenderLayer(effectCtx, layers.effectLayer, scales.effectLayer);
   effectCtx.save(); effectCtx.translate(0, viewport.fieldOffsetY);
-  drawTideUnderlay(effectCtx, session, now, settings, adaptive);
+  drawEnvironment("effectsBefore", effectCtx);
   drawIncubatorFissureEffects(effectCtx, session, now, settings);
   drawIncubatorTargetTelegraph(effectCtx, session, now, settings);
   drawDecals(effectCtx, runtime, settings);
@@ -90,7 +90,7 @@ export function drawBattleLayers({
   drawBattleRows(entityCtx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, rowBuffers);
   drawEnvironment("entitiesAfter", entityCtx);
   drawAttachedConvoyEnemies(entityCtx, session, assets, runtime, settings, adaptive, now, interpolation, rowBuffers);
-  drawThermalPlatformHeatBars(entityCtx, session);
+  drawEnvironment("entityStatus", entityCtx);
   drawTroopPlacementPreview(entityCtx, assets, selectedTroop, placementPreview, now, settings);
   drawDeathVisuals(entityCtx, runtime, assets, now, session.phase);
   entityCtx.restore();
@@ -98,8 +98,7 @@ export function drawBattleLayers({
 
   clearRenderLayer(overlayCtx, layers.overlayEffectLayer, scales.overlayEffectLayer);
   overlayCtx.save(); overlayCtx.translate(0, viewport.fieldOffsetY);
-  drawTideOverlay(overlayCtx, session, now, settings, adaptive, hoveredCell);
-  drawWindEffects(overlayCtx, runtime, now, settings, assets.effects?.windCurrent);
+  drawEnvironment("overlayBefore", overlayCtx);
   drawConvoyImpacts(overlayCtx, runtime.convoyImpacts, now, settings);
   drawAdaptiveAid(overlayCtx, session, assets, session.elapsed, settings);
   drawTreeBroodBursts(overlayCtx, runtime, assets, now, settings);

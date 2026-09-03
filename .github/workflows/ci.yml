@@ -16,20 +16,30 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: lts/*
+          node-version: 24
           cache: npm
+
       - name: Install dependencies
         run: npm ci
-      - name: Verify encoding and gameplay contracts
-        run: npm run verify:encoding && npm run verify:no-gameplay-skips
-      - name: Ícaro regression gate
-        run: npm run test:icaro
-      - name: Unit tests
-        run: npm run test:unit
-      - name: Chapter 7 tests and audit
-        run: npm run test:chapter-seven && npm run audit:chapter-seven
-      - name: Build
-        run: npm run build
+
+      - name: Repository hygiene and content contracts
+        run: node scripts/verify-repository-hygiene.mjs && node scripts/validate-game-content.mjs
+
+      - name: Fast pull-request gate
+        if: github.event_name == 'pull_request'
+        run: |
+          npm run verify:encoding
+          npm run verify:no-gameplay-skips
+          npm run test:icaro
+          npm run test:unit
+          npm run test:chapter-seven
+          npm run audit:chapter-seven
+          npm run build
+
+      - name: Full main gate
+        if: github.event_name != 'pull_request'
+        run: npm run ci

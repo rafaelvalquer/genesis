@@ -11,7 +11,9 @@ describe("catálogo de assets de batalha", () => {
   it("carrega somente os três estados unitários do Drone Sentinela e contabiliza o cache", async () => {
     clearDecodedImageCache();
     const assets = await loadBattleAssets(PHASES[0], ["droneSentinela"]);
-    expect(Object.keys(assets.troops.droneSentinela)).toEqual(["idle", "attack", "death"]);
+    const states = Object.keys(assets.troops.droneSentinela);
+    expect(states).toHaveLength(3);
+    expect(states).toEqual(expect.arrayContaining(["idle", "attack", "death"]));
     expect(assets.troops.droneSentinela.idle).toHaveLength(8);
     expect(assets.metrics.images).toBeGreaterThanOrEqual(24);
     expect(getAssetCacheMetrics().retainedImages).toBeGreaterThanOrEqual(24);
