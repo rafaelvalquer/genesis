@@ -2,22 +2,36 @@ import { DEMATERIALIZATION_PULSE, getDematerializationPulseTargets } from "../de
 import { CELL, FIELD, VIEWPORT } from "../visualGeometry.js";
 import "./dematerializationPulseControls.css";
 
-export function DematerializationPulseControls({ session, onActivate }) {
-  if (!session || session.outcome || !(session.waveActive || session.sandbox))
-    return null;
-
+export function getDematerializationPulseControls(session) {
+  if (!session || session.outcome || !(session.waveActive || session.sandbox)) return [];
   return (session.dematerializationPulses || []).map((pulse) => {
     const targets = getDematerializationPulseTargets(session, pulse.row);
-    const targetCount = targets.length;
-    const potentialDamage = targets.reduce(
+    return {
+      id: pulse.id,
+      row: pulse.row,
+      state: pulse.state,
+      fireAt: pulse.fireAt,
+      targetCount: targets.length,
+      potentialDamage: targets.reduce(
       (total, enemy) =>
         total + Math.min(Number(enemy.hp) || 0, DEMATERIALIZATION_PULSE.damage),
       0,
-    );
+      ),
+    };
+  });
+}
+
+export function DematerializationPulseControls({ controls, session, elapsed, onActivate }) {
+  // Session support is temporary compatibility for direct consumers/tests.
+  const pulses = controls || getDematerializationPulseControls(session);
+  const battleElapsed = elapsed ?? session?.elapsed ?? 0;
+  return pulses.map((pulse) => {
     const ready = pulse.state === "ready";
     const charging = pulse.state === "charging";
+    const targetCount = pulse.targetCount || 0;
+    const potentialDamage = pulse.potentialDamage || 0;
     const remainingMs = charging
-      ? Math.max(0, Number(pulse.fireAt || 0) - Number(session.elapsed || 0))
+      ? Math.max(0, Number(pulse.fireAt || 0) - Number(battleElapsed || 0))
       : 0;
     const disabled = !ready || targetCount === 0;
     const cannonX = FIELD.defenseCol * CELL.width + CELL.width / 2;

@@ -3,7 +3,7 @@ import { HashRouter as BrowserRouter, Link, NavLink, Navigate, Route, Routes, us
 import { createRetryableLazyModule } from "./routing/retryableLazyModule.js";
 import { RouteTransitionProvider } from "./routing/RouteTransitionProvider.jsx";
 import { loadLoadoutModule } from "./routing/routeModules.js";
-export const loadGameCanvasModule = createRetryableLazyModule(() => import("./game/GameCanvas.jsx"));
+export const loadGameCanvasModule = createRetryableLazyModule(() => import("./game/BattleScreen.jsx"));
 const GameCanvas = lazy(loadGameCanvasModule);
 const CampaignPage = lazy(() => import("./campaign/CampaignPage.jsx"));
 const LoadoutPicker = lazy(loadLoadoutModule);

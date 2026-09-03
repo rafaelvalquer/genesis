@@ -1,5 +1,44 @@
 import { getAnchoredSpriteRect } from "../visualGeometry.js";
 
+export const BATTLE_RENDER_STAGES = Object.freeze([
+  "background",
+  "environment",
+  "entities",
+  "projectiles",
+  "vfx",
+  "foreground",
+]);
+
+/**
+ * Executes the battle z-order contract. Render callbacks receive one ephemeral
+ * render context and must never mutate the battle session.
+ */
+export function renderBattleScene(renderContext, stages) {
+  const timings = {};
+  for (const name of BATTLE_RENDER_STAGES) {
+    const draw = stages?.[name];
+    if (!draw) continue;
+    const startedAt = performance.now();
+    draw(renderContext);
+    timings[`${name}Ms`] = performance.now() - startedAt;
+  }
+  return timings;
+}
+
+/** Resolve phase-level visual systems once, outside the frame hot path. */
+export function createBattleRenderPlan(phase = {}) {
+  const chapterId = phase.chapterId;
+  const environments = [];
+  if (phase.environment === "forest" || chapterId === "chapter_07") environments.push("forest", "spores", "convoy");
+  if (phase.environment === "thermal" || chapterId === "chapter_06") environments.push("thermal");
+  if (phase.environment === "tide" || chapterId === "chapter_05") environments.push("tide");
+  if (phase.environment === "wind" || chapterId === "chapter_04") environments.push("wind");
+  return Object.freeze({
+    environments: Object.freeze([...new Set(environments)]),
+    stages: BATTLE_RENDER_STAGES,
+  });
+}
+
 export function drawSprite(
   ctx,
   image,

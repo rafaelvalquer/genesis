@@ -9,16 +9,16 @@ import {
 } from "./visualGeometry.js";
 
 const repoRoot = process.cwd();
-const gameCanvasPath = path.join(
+const battleScreenPath = path.join(
   repoRoot,
   "src",
   "game",
-  "GameCanvas.jsx",
+  "BattleScreen.jsx",
 );
 
-describe("dependências de renderização do GameCanvas", () => {
+describe("dependências de renderização da BattleScreen", () => {
   it("importa getAnchoredSpriteRect somente de visualGeometry.js", () => {
-    const source = fs.readFileSync(gameCanvasPath, "utf8");
+    const source = fs.readFileSync(battleScreenPath, "utf8");
 
     const reactImport = findNamedImport(source, "react");
     const geometryImport = findNamedImport(

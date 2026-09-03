@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
-import { fireEvent, render } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
-import { DematerializationPulseControls } from "./DematerializationPulseControls.jsx";
+import { cleanup, fireEvent, render } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DematerializationPulseControls, getDematerializationPulseControls } from "./DematerializationPulseControls.jsx";
 
 function session(overrides = {}) {
   return {
@@ -20,6 +20,8 @@ function session(overrides = {}) {
     ...overrides,
   };
 }
+
+afterEach(cleanup);
 
 describe("DematerializationPulseControls", () => {
   it("habilita apenas a rota com alvo e dispara a rota correta", () => {
@@ -45,5 +47,13 @@ describe("DematerializationPulseControls", () => {
     const route3 = getByRole("button", { name: /Canhão da rota 3.*Carregando/i });
     expect(route3).toBeDisabled();
     expect(route3).toHaveTextContent("CARREGANDO");
+  });
+
+  it("renderiza a partir do modelo derivado, sem receber a sessão", () => {
+    const onActivate = vi.fn();
+    const controls = getDematerializationPulseControls(session());
+    const { getByRole } = render(<DematerializationPulseControls controls={controls} elapsed={1000} onActivate={onActivate} />);
+    fireEvent.click(getByRole("button", { name: /Canhão da rota 3.*500 de dano/i }));
+    expect(onActivate).toHaveBeenCalledWith(2);
   });
 });

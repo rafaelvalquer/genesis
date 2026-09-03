@@ -8,6 +8,7 @@ import {
   SandboxPanel, getThermalBannerText, resolveCanvasClickAction, resolveInspectedTroopId,
   drawLeviathanBrineJet, FREE_HAND_ACTIVATED_MESSAGE, isLeviathanShadowOnly,
 } from "./GameCanvas.jsx";
+import { getReadyColossusControls } from "./components/ColossusSpecialButtons.jsx";
 import { getLeviathanBrineMouthPosition } from "./visualGeometry.js";
 
 afterEach(cleanup);
@@ -149,6 +150,17 @@ describe("botão contextual do Colosso", () => {
       />,
     );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("aceita o modelo derivado do Colosso sem expor a sessão ao overlay", () => {
+    const onActivate = vi.fn();
+    const session = {
+      troops: [{ id: "colosso_model", type: "colossoImpacto", row: 1, x: 250, y: 180, dead: false, specialRequested: false, specialReadyAt: 10 }],
+      elapsed: 10, waveActive: true, outcome: null,
+    };
+    render(<ColossusSpecialButtons controls={getReadyColossusControls(session)} onActivate={onActivate} />);
+    fireEvent.click(screen.getByRole("button", { name: /rota 2/i }));
+    expect(onActivate).toHaveBeenCalledWith("colosso_model");
   });
 });
 
