@@ -8,7 +8,7 @@ const scripts = packageJson.scripts ||= {};
 scripts["verify:repository-hygiene"] = "node scripts/verify-repository-hygiene.mjs";
 scripts["validate:game-content"] = "node scripts/validate-game-content.mjs";
 scripts["validate:game-content:report"] = "node scripts/validate-game-content.mjs --report";
-scripts["ci:fast"] = "npm run verify:encoding && npm run verify:repository-hygiene && npm run validate:game-content && npm run verify:no-gameplay-skips && npm run test:icaro && npm run test:unit && npm run test:chapter-seven && npm run audit:chapter-seven && npm run build";
+scripts["ci:fast"] = "npm run verify:encoding && npm run verify:repository-hygiene && npm run validate:game-content && npm run verify:no-gameplay-skips && npm run verify:gamecanvas-render-dependencies && npm run verify:battle-loading && npm run verify:play-route && npm run test:icaro && npm run test:unit && npm run test:chapter-seven && npm run audit:chapter-seven && npm run build";
 
 const originalCi = scripts.ci || "";
 if (!originalCi.includes("verify:repository-hygiene")) {
