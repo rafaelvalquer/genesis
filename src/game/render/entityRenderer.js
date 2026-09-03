@@ -14,7 +14,7 @@ import { drawFrozenEnemyEffect, drawStunnedEnemyEffect } from "../projectileRend
 import { drawSprite, drawSpriteInRect, getTroopVisualEntity } from "./battleSceneRenderer.js";
 import { drawAbyssCharge, drawLatchedGarravinhaMarker, drawLeviathanBossEffects, drawLeviathanBossHealth, drawProceduralGlassEnemy, drawRasgaCeusShadow, drawRasgaCeusTargetMarker, drawRasgamarUnderwaterShadow, drawStructuralRupture, isLeviathanShadowOnly, isRasgamarShadowOnly, silicaDiggerEmergenceProgress } from "./enemyEffectsRenderer.js";
 import { getEnemyVisualEffects } from "./enemyEffectsRegistry.js";
-import { registerTroopVisualEffects } from "./troopEffectsRegistry.js";
+import { getTroopVisualEffects, registerTroopVisualEffects } from "./troopEffectsRegistry.js";
 
 const troopFrameCountsCache = new WeakMap();
 const enemyFrameCountsCache = new WeakMap();
@@ -248,14 +248,40 @@ export function drawTroopEntity(ctx, entry, session, assets, runtime, settings, 
   }
   if (!spriteDrawn) { ctx.fillStyle = config.color; ctx.fillRect(scratch.x - 24, scratch.y - 34, 48, 68); }
   drawThermalBurnFrontLayer(ctx, logicalEntity, thermalRect, session.elapsed, settings, thermalState);
-  drawLumiDefenseShield(ctx, scratch, config, session.elapsed, settings);
+  const troopEffects = getTroopVisualEffects(logicalEntity.type);
+  const troopEffectContext = { ctx, entity: scratch, logicalEntity, config, session, assets, settings, now, height };
+  troopEffects.beforeSpecial?.(troopEffectContext);
   if (config.specialEveryMs && !logicalEntity.specialRequested && session.elapsed >= logicalEntity.specialReadyAt) drawTroopSpecialReady(ctx, scratch, session.elapsed, settings);
-  drawNaniteTargetEffect(ctx, scratch, session, settings); drawTroopCooldown(ctx, scratch, session, settings); drawLeviathanStateEffect(ctx, scratch, session, settings); drawExecutorComboIndicator(ctx, scratch, session.elapsed, settings); drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings); drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height); drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings); drawPhysicalStunEffect(ctx, logicalEntity, session.elapsed, settings); drawSporeConfusionEffect(ctx, logicalEntity, session.elapsed, settings); drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed); drawAresThermalShield(ctx, logicalEntity, settings);
+  troopEffects.afterSpecial?.(troopEffectContext);
+  drawWorkerQueenWebDebuff(ctx, logicalEntity, session, settings); drawSandstormTroopEffects(ctx, logicalEntity, session, assets, settings, height); drawElectricTroopStatus(ctx, logicalEntity, session.elapsed, settings); drawPhysicalStunEffect(ctx, logicalEntity, session.elapsed, settings); drawSporeConfusionEffect(ctx, logicalEntity, session.elapsed, settings); drawHealth(ctx, logicalEntity, runtime, now, config.healthBarWidth || 54, config.healthBarOffset || 52, null, session.elapsed);
+  troopEffects.afterHealth?.(troopEffectContext);
   if (logicalEntity.type === "droneSentinela") { ctx.save(); ctx.font = "700 13px Inter, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#e0f2fe"; ctx.strokeStyle = "#082f49"; ctx.lineWidth = 3; const countLabel = `×${Number(logicalEntity.droneCount || 1)}`; ctx.strokeText(countLabel, scratch.x + 33, scratch.y - 58); ctx.fillText(countLabel, scratch.x + 33, scratch.y - 58); ctx.restore(); }
 }
 
-registerTroopVisualEffects("medicaNanites", { underlay: drawNaniteTargetEffect });
-registerTroopVisualEffects("lumiUrsa7", { overlay: drawLumiDefenseShield });
+registerTroopVisualEffects("lumiUrsa7", {
+  beforeSpecial: ({ ctx, entity, config, session, settings }) =>
+    drawLumiDefenseShield(ctx, entity, config, session.elapsed, settings),
+}, { replace: true });
+registerTroopVisualEffects("medicaNanites", {
+  afterSpecial: ({ ctx, entity, session, settings }) => {
+    drawNaniteTargetEffect(ctx, entity, session, settings);
+    drawTroopCooldown(ctx, entity, session, settings);
+  },
+}, { replace: true });
+registerTroopVisualEffects("cacadorLeviatas", {
+  afterSpecial: ({ ctx, entity, session, settings }) => {
+    drawTroopCooldown(ctx, entity, session, settings);
+    drawLeviathanStateEffect(ctx, entity, session, settings);
+  },
+}, { replace: true });
+registerTroopVisualEffects("executorArco", {
+  afterSpecial: ({ ctx, entity, session, settings }) =>
+    drawExecutorComboIndicator(ctx, entity, session.elapsed, settings),
+}, { replace: true });
+registerTroopVisualEffects("aresT", {
+  afterHealth: ({ ctx, logicalEntity, settings }) =>
+    drawAresThermalShield(ctx, logicalEntity, settings),
+}, { replace: true });
 
 /** Draws one enemy, including its registered visual effects and status layers. */
 export function drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, scratch, drawHalo = true) {

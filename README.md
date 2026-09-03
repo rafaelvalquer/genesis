@@ -49,7 +49,7 @@ art/qa/               referências visuais permanentes de QA
 docs/                 documentação técnica e de gameplay
 scripts/              geração, auditoria e quality gates
 reports/              relatórios controlados de simulação
-a rtifacts/            outputs locais/CI gerados (não versionados)
+artifacts/            outputs locais/CI gerados (não versionados)
 ```
 
 > `artifacts/`, `.codex-tmp/` e `.genesis-backups/` são diretórios locais/gerados e não devem ser commitados.
