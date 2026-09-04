@@ -25,15 +25,36 @@ import {
 } from "../../chapter07/forestObstacleTargeting.js";
 import { findFirstForestObstacleCollision } from "../../chapter07/forestObstacleCollision.js";
 
+function initializeSession(session) {
+  const phase = session?.phase;
+  if (!phase) return session;
+
+  // Preserve the exact legacy guards from createBattleSession. Convoy setup
+  // remains tied to progressionMode, while forest setup remains Chapter 7-only.
+  if (phase.progressionMode === "convoy") {
+    session.convoy = createConvoyState(phase);
+    session.convoyFlow = createConvoyFlow();
+    session.convoySectorQueue = session.queue;
+  }
+
+  if (phase.chapterId === "chapter_07" && phase.forestObstacles?.enabled) {
+    session.forestObstacles = generateForestObstacles(phase, session.seed);
+    session.chapterSevenMetrics.forestTreesSpawned = session.forestObstacles.length;
+  }
+
+  return session;
+}
+
 /**
  * Chapter 7 battle integration boundary.
  *
- * This object intentionally exposes the exact runtime functions that engine.js
- * already consumed. It does not wrap, transform or reorder calls, so moving the
- * dependency behind the registry cannot alter combat mechanics or timing.
+ * Existing runtime functions remain the exact functions previously consumed by
+ * engine.js. initializeSession only relocates the session setup that already
+ * lived in createBattleSession, preserving the same guards and constructors.
  */
 export const chapter07Plugin = Object.freeze({
   chapterId: "chapter_07",
+  initializeSession,
   createConvoyFlow,
   createConvoyState,
   updateConvoyEnergy,
