@@ -180,9 +180,9 @@ import { getBattleSystemRegistry } from "./systems/battleSystemRegistry.js";
 import { getProjectileHandler } from "../projectileRegistry.js";
 import "../registerProjectileHandlers.js";
 
+const chapterSevenPlugin = getBattleSystemRegistry().chapterPlugins.require("chapter_07");
+
 const {
-  createConvoyFlow,
-  createConvoyState,
   updateConvoyEnergy,
   advanceConvoyTransit,
   completeConvoySector,
@@ -205,7 +205,6 @@ const {
   updateConvoyAnimation,
   CONVOY_DEFEAT_RESULT_DELAY_MS,
   getVertebralToxinAttackSpeedFactor,
-  generateForestObstacles,
   damageForestObstacle,
   destroyForestObstacle,
   getBlockingForestObstacle,
@@ -214,7 +213,7 @@ const {
   getNearestTargetableForestObstacle,
   resolveForestCombatTarget,
   findFirstForestObstacleCollision,
-} = getBattleSystemRegistry().chapterPlugins.require("chapter_07");
+} = chapterSevenPlugin;
 
 export {
   createWindCurrentState,
@@ -576,16 +575,8 @@ export function createBattleSession(phase, loadout, seed = Date.now(), options =
   };
   session.telemetry.timeline = createBattleTimeline();
   sampleBattleTimeline(session, { force: true });
-  if (sessionPhase.progressionMode === "convoy") {
-    session.convoy = createConvoyState(sessionPhase);
-    session.convoyFlow = createConvoyFlow();
-    session.convoySectorQueue = session.queue;
-  }
   session.spawnEnemy = (queued) => createEnemy(session, queued);
-  if (sessionPhase.chapterId === "chapter_07" && sessionPhase.forestObstacles?.enabled) {
-    session.forestObstacles = generateForestObstacles(sessionPhase, seed);
-    session.chapterSevenMetrics.forestTreesSpawned = session.forestObstacles.length;
-  }
+  chapterSevenPlugin.initializeSession(session);
   initializeSandboxHazard(session);
   deployStartingTroops(session);
   return session;
