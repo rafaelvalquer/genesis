@@ -48,12 +48,31 @@ jobs:
         run: npm run build:android
 
       - name: Generate Android Studio project
+        id: prepare_android
+        continue-on-error: true
         run: |
-          rm -rf android
-          npx cap add android
-          npx cap sync android
-          npm run android:prepare
-          chmod +x android/gradlew
+          set -o pipefail
+          {
+            set -x
+            rm -rf android
+            npx cap add android
+            npx cap sync android
+            npm run android:prepare
+            chmod +x android/gradlew
+          } 2>&1 | tee android-prepare.log
+
+      - name: Upload Android preparation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-android-prepare-log
+          path: android-prepare.log
+          if-no-files-found: warn
+          retention-days: 2
+
+      - name: Stop on Android preparation failure
+        if: steps.prepare_android.outcome != 'success'
+        run: exit 1
 
       - name: Build debug APK
         id: build_apk
@@ -104,9 +123,6 @@ jobs:
           mkdir -p "$OUT/android"
           rsync -a --exclude 'app/build' --exclude '.gradle' android/ "$OUT/android/"
 
-          # Capacitor's generated Gradle settings reference this local module.
-          # Keeping it in the delivery lets Android Studio sync/build immediately
-          # without requiring npm install just to resolve :capacitor-android.
           mkdir -p "$OUT/node_modules/@capacitor"
           cp -R node_modules/@capacitor/android "$OUT/node_modules/@capacitor/android"
 
