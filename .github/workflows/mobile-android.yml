@@ -1,6 +1,9 @@
 name: Genesis Mobile Android
 
 on:
+  push:
+    branches:
+      - feature/genesis-mobile-apk
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -20,7 +23,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 22
           cache: npm
 
       - name: Set up Java
@@ -53,8 +56,25 @@ jobs:
           chmod +x android/gradlew
 
       - name: Build debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --stacktrace
+        id: build_apk
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../gradle-build.log
+
+      - name: Upload Gradle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-gradle-build-log
+          path: gradle-build.log
+          if-no-files-found: warn
+          retention-days: 2
+
+      - name: Stop on APK build failure
+        if: steps.build_apk.outcome != 'success'
+        run: exit 1
 
       - name: Validate mobile output
         run: |
@@ -82,7 +102,14 @@ jobs:
           cp package.json package-lock.json index.html vite.config.js capacitor.config.js README.md README_MOBILE.md .gitignore "$OUT/"
 
           mkdir -p "$OUT/android"
-          rsync -a --exclude 'app/build' android/ "$OUT/android/"
+          rsync -a --exclude 'app/build' --exclude '.gradle' android/ "$OUT/android/"
+
+          # Capacitor's generated Gradle settings reference this local module.
+          # Keeping it in the delivery lets Android Studio sync/build immediately
+          # without requiring npm install just to resolve :capacitor-android.
+          mkdir -p "$OUT/node_modules/@capacitor"
+          cp -R node_modules/@capacitor/android "$OUT/node_modules/@capacitor/android"
+
           cp android/app/build/outputs/apk/debug/app-debug.apk "$OUT/APK/app-debug.apk"
 
           cat > "$OUT/BUILD_INFO.txt" <<EOF
@@ -92,6 +119,7 @@ jobs:
           Build: debug APK
           Orientation: landscape
           Web assets: local/offline
+          Validated by: ./gradlew assembleDebug
           EOF
 
           du -sh "$OUT"
