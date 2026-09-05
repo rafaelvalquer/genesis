@@ -1,0 +1,107 @@
+name: Genesis Mobile Android
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout mobile revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Genesis dependencies
+        run: npm ci
+
+      - name: Add Capacitor dependencies to packaged project
+        run: |
+          npm install --save-exact @capacitor/core@7 @capacitor/android@7
+          npm install --save-dev --save-exact @capacitor/cli@7
+          node scripts/configure-mobile-package.mjs
+
+      - name: Build Android web assets
+        run: npm run build:android
+
+      - name: Generate Android Studio project
+        run: |
+          rm -rf android
+          npx cap add android
+          npx cap sync android
+          npm run android:prepare
+          chmod +x android/gradlew
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Validate mobile output
+        run: |
+          set -euo pipefail
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/src/main/assets/public/index.html
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/java/com/luminor/genesisdefense/MainActivity.java
+          grep -q 'screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.VIBRATE' android/app/src/main/AndroidManifest.xml
+          grep -q 'base: mode === "android" ? "./"' vite.config.js
+          echo "Genesis Mobile Android validated"
+          du -sh android/app/src/main/assets/public
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Assemble Android Studio delivery
+        run: |
+          set -euo pipefail
+          OUT="delivery/genesis-mobile-androidstudio"
+          mkdir -p "$OUT/APK"
+
+          cp -R src "$OUT/src"
+          cp -R public "$OUT/public"
+          cp -R scripts "$OUT/scripts"
+          cp package.json package-lock.json index.html vite.config.js capacitor.config.js README.md README_MOBILE.md .gitignore "$OUT/"
+
+          mkdir -p "$OUT/android"
+          rsync -a --exclude 'app/build' android/ "$OUT/android/"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$OUT/APK/app-debug.apk"
+
+          cat > "$OUT/BUILD_INFO.txt" <<EOF
+          Genesis Defense Mobile
+          Source commit: $GITHUB_SHA
+          Android package: com.luminor.genesisdefense
+          Build: debug APK
+          Orientation: landscape
+          Web assets: local/offline
+          EOF
+
+          du -sh "$OUT"
+          find "$OUT" -maxdepth 2 -type f | sort | head -80
+
+      - name: Upload complete Android Studio ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-mobile-androidstudio
+          path: delivery/genesis-mobile-androidstudio
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
