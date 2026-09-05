@@ -17,8 +17,23 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout mobile revision
+      - name: Checkout mobile runtime only
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /src/
+            /public/
+            /scripts/
+            /package.json
+            /package-lock.json
+            /index.html
+            /vite.config.js
+            /capacitor.config.js
+            /README.md
+            /README_MOBILE.md
+            /.gitignore
 
       - name: Set up Node
         uses: actions/setup-node@v4
