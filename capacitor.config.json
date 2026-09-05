@@ -1,0 +1,10 @@
+{
+  "appId": "com.luminor.genesisdefense",
+  "appName": "Genesis Defense",
+  "webDir": "dist/android",
+  "backgroundColor": "#020912",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}
