@@ -60,13 +60,13 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onPause() {
+    public void onPause() {
         pauseBattleInWebView();
         super.onPause();
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         if (bridge != null && bridge.getWebView() != null) {
             bridge.getWebView().postDelayed(this::hideSystemBars, 120);
