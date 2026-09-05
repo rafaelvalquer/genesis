@@ -6,7 +6,7 @@ const pkg = JSON.parse(fs.readFileSync(packagePath, "utf8"));
 pkg.scripts = {
   ...pkg.scripts,
   "build:web": "vite build && node scripts/optimize-build-assets.mjs",
-  "build:android": "vite build --mode android",
+  "build:android": "vite build --mode android --outDir dist/android",
   "android:prepare": "node scripts/prepare-android-project.mjs",
   "mobile:sync": "npm run build:android && npx cap sync android && npm run android:prepare",
   "mobile:open": "npx cap open android",
