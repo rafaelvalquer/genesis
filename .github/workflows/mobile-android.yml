@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: genesis-mobile-android-${{ github.ref }}
@@ -18,7 +18,7 @@ concurrency:
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Checkout mobile runtime only
@@ -190,3 +190,31 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           compression-level: 6
+
+      - name: Create final release ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/genesis-mobile-apk'
+        run: |
+          set -euo pipefail
+          cd delivery
+          zip -r -0 genesis-mobile-androidstudio.zip genesis-mobile-androidstudio
+          ls -lh genesis-mobile-androidstudio.zip
+
+      - name: Publish final package in GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/genesis-mobile-apk'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: genesis-mobile-android-v1.0.0
+        run: |
+          set -euo pipefail
+          ZIP="delivery/genesis-mobile-androidstudio.zip"
+          APK="delivery/genesis-mobile-androidstudio/APK/app-debug.apk"
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$ZIP" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" "$ZIP" "$APK" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Genesis Mobile Android v1.0.0" \
+              --notes "Projeto Android Studio completo e APK debug validado pelo Gradle. Landscape, touch/Pointer Events, Capacitor, assets offline e package com.luminor.genesisdefense."
+          fi
