@@ -128,24 +128,42 @@ jobs:
           du -sh android/app/src/main/assets/public
           ls -lh android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Assemble Android Studio delivery
+      - name: Assemble compact Android Studio delivery
         run: |
           set -euo pipefail
           OUT="delivery/genesis-mobile-androidstudio"
-          mkdir -p "$OUT/APK"
+          mkdir -p "$OUT/APK" "$OUT/web-source"
 
-          cp -R src "$OUT/src"
-          cp -R public "$OUT/public"
-          cp -R scripts "$OUT/scripts"
-          cp package.json package-lock.json index.html vite.config.js capacitor.config.json README.md README_MOBILE.md .gitignore "$OUT/"
-
+          # Android Studio project already contains the compiled offline web runtime
+          # under android/app/src/main/assets/public. Keep that single canonical copy.
           mkdir -p "$OUT/android"
           rsync -a --exclude 'app/build' --exclude '.gradle' android/ "$OUT/android/"
 
-          mkdir -p "$OUT/node_modules/@capacitor"
-          cp -R node_modules/@capacitor/android "$OUT/node_modules/@capacitor/android"
+          # Include editable application source without duplicating the very large raw public assets.
+          cp -R src "$OUT/web-source/src"
+          cp -R scripts "$OUT/web-source/scripts"
+          cp package.json package-lock.json index.html vite.config.js capacitor.config.json README.md README_MOBILE.md .gitignore "$OUT/web-source/"
 
           cp android/app/build/outputs/apk/debug/app-debug.apk "$OUT/APK/app-debug.apk"
+
+          cat > "$OUT/README_ENTREGA.txt" <<EOF
+          GENESIS DEFENSE MOBILE - ENTREGA ANDROID
+
+          Para executar agora:
+          1. Abra a pasta android/ no Android Studio.
+          2. Aguarde a sincronizacao do Gradle.
+          3. Conecte um aparelho Android ou abra um emulador.
+          4. Clique em Run.
+
+          APK pronto para instalacao:
+          APK/app-debug.apk
+
+          O runtime web completo e offline ja esta incorporado em:
+          android/app/src/main/assets/public/
+
+          A pasta web-source/ contem os fontes React/Vite essenciais usados na adaptacao mobile.
+          Os assets brutos de producao nao foram duplicados no ZIP porque o runtime compilado ja esta dentro do projeto Android.
+          EOF
 
           cat > "$OUT/BUILD_INFO.txt" <<EOF
           Genesis Defense Mobile
@@ -157,13 +175,17 @@ jobs:
           Validated by: ./gradlew assembleDebug
           EOF
 
+          echo "Delivery size:"
           du -sh "$OUT"
-          find "$OUT" -maxdepth 2 -type f | sort | head -80
+          echo "Android runtime size:"
+          du -sh "$OUT/android/app/src/main/assets/public"
+          echo "APK:"
+          ls -lh "$OUT/APK/app-debug.apk"
 
-      - name: Upload complete Android Studio ZIP
+      - name: Upload compact Android Studio ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: genesis-mobile-androidstudio
+          name: genesis-mobile-androidstudio-compact
           path: delivery/genesis-mobile-androidstudio
           if-no-files-found: error
           retention-days: 7
