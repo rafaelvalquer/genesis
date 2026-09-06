@@ -9,7 +9,11 @@ import "@fontsource/chakra-petch/latin-500.css";
 import "@fontsource/chakra-petch/latin-600.css";
 import "@fontsource/chakra-petch/latin-700.css";
 import App from "./App.jsx";
+import { initializePlatform } from "./platform/bootstrap.js";
 import "./styles.css";
+import "./mobile/mobile.css";
+
+initializePlatform();
 
 const VITE_PRELOAD_RELOAD_KEY = "genesis:vite-preload-reload-at";
 const VITE_PRELOAD_RELOAD_WINDOW_MS = 30_000;
