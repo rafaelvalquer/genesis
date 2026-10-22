@@ -201,12 +201,59 @@ function drawGrassSway(ctx, session, time, profile, grass) {
     const y = row * CELL.height + (pseudo(index, seed + 930) > .5 ? 6 : CELL.height - 4);
     const sway = Math.sin(time / 650 + index * 1.7) * .22 + lean;
     for (let blade = -2; blade <= 2; blade += 1) {
-      const height = 9 + (2 - Math.abs(blade)) * 3;
+      const height = (grass.height || 9) + (2 - Math.abs(blade)) * 3;
       ctx.moveTo(x + blade * 2.2, y);
       ctx.quadraticCurveTo(x + blade * 2.6, y - height * .6, x + blade * 3 + Math.sin(sway) * height, y - Math.cos(sway) * height);
     }
   }
   ctx.stroke();
+  ctx.restore();
+}
+
+// Rippling water light on the floor: two sets of wavy bands crossing each
+// other and drifting, added on top of the ground.
+function drawCaustics(ctx, time, profile, caustics) {
+  const bands = Math.max(5, Math.round(9 * profile.atmosphere));
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = `rgba(${caustics.color},.07)`;
+  ctx.beginPath();
+  for (let band = 0; band < bands; band += 1) {
+    const baseY = (band + .5) * FIELD.height / bands;
+    for (let x = 0; x <= FIELD.width; x += 40) {
+      const y = baseY + Math.sin(x / 70 + time / 900 + band * 1.7) * 14 + Math.sin(x / 31 - time / 1300) * 5;
+      if (x) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+  }
+  for (let band = 0; band < bands + 2; band += 1) {
+    const baseX = (band + .5) * FIELD.width / (bands + 2);
+    for (let y = 0; y <= FIELD.height; y += 40) {
+      const x = baseX + Math.sin(y / 60 - time / 1100 + band * 2.1) * 18;
+      if (y) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Bubbles rising and wobbling from fixed spots on the seabed.
+function drawBubbles(ctx, session, time, profile, bubbles) {
+  const seed = seedOf(session);
+  const count = Math.max(4, Math.round(bubbles.count * profile.particles));
+  ctx.save();
+  ctx.lineWidth = 1.2;
+  for (let index = 0; index < count; index += 1) {
+    const cycle = 2800 + pseudo(index, seed + 1110) * 2200;
+    const progress = ((time + pseudo(index, seed + 1120) * cycle) % cycle) / cycle;
+    const x = FIELD.baseX + 30 + pseudo(index, seed + 1130) * (FIELD.width - FIELD.baseX - 60) + Math.sin(progress * 12 + index) * 4;
+    const y = 30 + pseudo(index, seed + 1140) * (FIELD.height - 40) - progress * 70;
+    const radius = 2 + pseudo(index, seed + 1150) * 3 + progress * 1.5;
+    ctx.strokeStyle = `rgba(200,240,255,${.55 * (1 - progress)})`;
+    ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = `rgba(255,255,255,${.45 * (1 - progress)})`;
+    ctx.fillRect(x - radius * .45, y - radius * .5, 1.4, 1.4);
+  }
   ctx.restore();
 }
 
@@ -278,6 +325,7 @@ export function drawBiomeGroundEffects(ctx, session, settings) {
   const edge = themeOf(session).edge || "#38bdf8";
   if (variant.sheen && !settings.reduceMotion) drawSheen(ctx, time, variant.sheen);
   if (variant.sandDrift && !settings.reduceMotion) drawSandDrift(ctx, session, time, profile, variant.sandDrift);
+  if (variant.caustics && !settings.reduceMotion) drawCaustics(ctx, time, profile, variant.caustics);
   if (variant.grassSway) drawGrassSway(ctx, session, time, profile, variant.grassSway);
   for (const vent of getVents(session, getVentCount(variant, profile))) drawVentGrate(ctx, vent, time, edge, variant.vents.glow, variant.vents.style);
   if (variant.glow) drawGlowDecals(ctx, session, time, variant.glow);
@@ -419,6 +467,7 @@ export function drawBiomeAtmosphere(ctx, session, settings) {
   if (variant.weather.searchlight) drawSearchlight(ctx, time);
   if (variant.vents) drawSteam(ctx, session, time, profile, variant.vents);
   if (variant.cloudShadows) drawCloudShadows(ctx, session, time, variant.cloudShadows);
+  if (variant.bubbles) drawBubbles(ctx, session, time, profile, variant.bubbles);
   if (variant.motes) drawMotes(ctx, session, time, profile, variant.motes);
   if (variant.sparks) drawSparks(ctx, time, profile, variant.sparks);
   if (variant.flares) drawFlares(ctx, session, time, variant.flares);

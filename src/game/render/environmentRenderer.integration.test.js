@@ -13,7 +13,7 @@ describe("phase environment renderer integration", () => {
 
   it("resolve apenas os sistemas do capítulo ativo", () => {
     expect(createBattleRenderPlan({ chapterId: "chapter_04", environment: "wind" }).environments).toEqual(["biome", "wind"]);
-    expect(createBattleRenderPlan({ chapterId: "chapter_05", environment: "tide" }).environments).toEqual(["tide"]);
+    expect(createBattleRenderPlan({ chapterId: "chapter_05", environment: "tide" }).environments).toEqual(["biome", "tide"]);
     expect(createBattleRenderPlan({ chapterId: "chapter_06", environment: "thermal" }).environments).toEqual(["thermal"]);
     expect(createBattleRenderPlan({ chapterId: "chapter_07", environment: "forest" }).environments).toEqual(["forest", "spores", "convoy"]);
   });

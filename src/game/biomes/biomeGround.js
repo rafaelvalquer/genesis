@@ -3,6 +3,7 @@ import { pseudo, rgba } from "./decorMath.js";
 import { CHAPTER_TWO_DECOR } from "./chapter02Glass.js";
 import { CHAPTER_THREE_DECOR } from "./chapter03Dunes.js";
 import { CHAPTER_FOUR_DECOR } from "./chapter04Highlands.js";
+import { CHAPTER_FIVE_DECOR } from "./chapter05Abyss.js";
 
 // Static biome ground, drawn once into the battlefield cache: one plate per
 // grid cell (tile images or a procedural plate style), re-colored per phase,
@@ -16,6 +17,7 @@ const PLATE_STYLES = {
   ...CHAPTER_TWO_DECOR.plates,
   ...CHAPTER_THREE_DECOR.plates,
   ...CHAPTER_FOUR_DECOR.plates,
+  ...CHAPTER_FIVE_DECOR.plates,
 };
 
 // One ground plate per grid cell, in a checker of two tones, so the field reads
@@ -169,6 +171,7 @@ const SCATTER = {
   ...CHAPTER_TWO_DECOR.scatter,
   ...CHAPTER_THREE_DECOR.scatter,
   ...CHAPTER_FOUR_DECOR.scatter,
+  ...CHAPTER_FIVE_DECOR.scatter,
 };
 
 // Small deterministic details scattered over the plates so the ground has
@@ -218,6 +221,7 @@ const RAILS = {
   ...CHAPTER_TWO_DECOR.rails,
   ...CHAPTER_THREE_DECOR.rails,
   ...CHAPTER_FOUR_DECOR.rails,
+  ...CHAPTER_FIVE_DECOR.rails,
 };
 
 function drawRailPattern(ctx, y, theme, style) {
