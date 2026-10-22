@@ -10,7 +10,10 @@ describe("battle scene renderer", () => {
 
   it("resolve sistemas de ambiente uma vez por fase", () => {
     expect(createBattleRenderPlan({ chapterId: "chapter_07" }).environments).toEqual(["forest", "spores", "convoy"]);
-    expect(createBattleRenderPlan({ chapterId: "chapter_02" }).environments).toEqual([]);
+    expect(createBattleRenderPlan({ chapterId: "chapter_02" }).environments).toEqual(["biome"]);
+    expect(createBattleRenderPlan({ chapterId: "chapter_02" }).softShadows).toBe(true);
+    expect(createBattleRenderPlan({}).environments).toEqual([]);
+    expect(createBattleRenderPlan({}).softShadows).toBe(false);
   });
 
   it("não chama uma etapa ausente", () => {

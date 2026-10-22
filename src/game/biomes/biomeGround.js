@@ -1,21 +1,27 @@
 import { CELL, FIELD } from "../visualGeometry.js";
 import { pseudo, rgba } from "./decorMath.js";
-import { getChapterOneVariant } from "./phaseVariants.js";
+import { CHAPTER_TWO_DECOR } from "./chapter02Glass.js";
 
-// Static chapter 1 ground, drawn once into the battlefield cache: tiled plates
-// re-colored per phase, scattered wear details and a framing rail.
+// Static biome ground, drawn once into the battlefield cache: one plate per
+// grid cell (tile images or a procedural plate style), re-colored per phase,
+// scattered wear details and a framing rail.
 
 const RAIL = 12;
+const COLUMNS = Math.round(FIELD.width / CELL.width);
+
+// Procedural plate styles, keyed by a biome's `plate`. Each draws one cell.
+const PLATE_STYLES = {
+  ...CHAPTER_TWO_DECOR.plates,
+};
 
 // One ground plate per grid cell, in a checker of two tones, so the field reads
 // as a built surface rather than a backdrop. Rare stone plates break repetition.
-function drawGroundTiles(ctx, tiles, theme, variant) {
-  const columns = Math.round(FIELD.width / CELL.width);
+function drawGroundTiles(ctx, tiles, theme) {
   ctx.fillStyle = rgba(theme.lane, 1);
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
   for (let row = 0; row < FIELD.rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const index = row * columns + column;
+    for (let column = 0; column < COLUMNS; column += 1) {
+      const index = row * COLUMNS + column;
       const accent = tiles.length > 2 && pseudo(index, theme.seed + 300) > .93;
       const tile = accent ? tiles[2] : tiles[(row + column) % 2];
       const x = column * CELL.width + 1;
@@ -26,6 +32,30 @@ function drawGroundTiles(ctx, tiles, theme, variant) {
       ctx.fillRect(x, y, CELL.width - 2, CELL.height - 2);
     }
   }
+}
+
+function drawProceduralPlates(ctx, drawPlate, theme, variant) {
+  ctx.fillStyle = rgba(theme.lane, 1);
+  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  for (let row = 0; row < FIELD.rows; row += 1) {
+    for (let column = 0; column < COLUMNS; column += 1) {
+      const cell = {
+        x: column * CELL.width + 1,
+        y: row * CELL.height + 1,
+        width: CELL.width - 2,
+        height: CELL.height - 2,
+        row,
+        column,
+        index: row * COLUMNS + column,
+      };
+      ctx.save();
+      drawPlate(ctx, cell, theme, variant);
+      ctx.restore();
+    }
+  }
+}
+
+function applyTint(ctx, theme, variant) {
   if (variant.tint) {
     // "color" keeps the plates' shading and swaps their hue for the phase's.
     ctx.save();
@@ -132,6 +162,7 @@ const SCATTER = {
     ctx.moveTo(x, y - size * .8); ctx.lineTo(x, y + size * .8);
     ctx.stroke();
   },
+  ...CHAPTER_TWO_DECOR.scatter,
 };
 
 // Small deterministic details scattered over the plates so the ground has
@@ -150,20 +181,9 @@ function drawGroundScatter(ctx, theme, profile, variant) {
   ctx.restore();
 }
 
-function drawRailPattern(ctx, y, theme, style) {
-  if (style === "organic") {
-    for (let x = 6; x < FIELD.width; x += 22) {
-      ctx.fillStyle = rgba(theme.detail, .45);
-      ctx.beginPath(); ctx.ellipse(x, y + RAIL / 2, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
-    }
-  } else if (style === "runic") {
-    ctx.fillStyle = rgba(theme.edge, .6);
-    for (let x = 10; x < FIELD.width; x += 34) {
-      ctx.beginPath();
-      ctx.moveTo(x, y + 2); ctx.lineTo(x + 4, y + RAIL / 2); ctx.lineTo(x, y + RAIL - 2); ctx.lineTo(x - 4, y + RAIL / 2);
-      ctx.closePath(); ctx.fill();
-    }
-  } else {
+// Rail patterns, keyed by a variant's `rail`; unknown styles fall back to hazard.
+const RAILS = {
+  hazard(ctx, y, theme) {
     ctx.fillStyle = rgba(theme.detail, .55);
     for (let x = -RAIL; x < FIELD.width; x += 28) {
       ctx.beginPath();
@@ -174,7 +194,26 @@ function drawRailPattern(ctx, y, theme, style) {
       ctx.closePath();
       ctx.fill();
     }
-  }
+  },
+  organic(ctx, y, theme) {
+    for (let x = 6; x < FIELD.width; x += 22) {
+      ctx.fillStyle = rgba(theme.detail, .45);
+      ctx.beginPath(); ctx.ellipse(x, y + RAIL / 2, 8, 5, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  },
+  runic(ctx, y, theme) {
+    ctx.fillStyle = rgba(theme.edge, .6);
+    for (let x = 10; x < FIELD.width; x += 34) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 2); ctx.lineTo(x + 4, y + RAIL / 2); ctx.lineTo(x, y + RAIL - 2); ctx.lineTo(x - 4, y + RAIL / 2);
+      ctx.closePath(); ctx.fill();
+    }
+  },
+  ...CHAPTER_TWO_DECOR.rails,
+};
+
+function drawRailPattern(ctx, y, theme, style) {
+  (RAILS[style] || RAILS.hazard)(ctx, y, theme);
 }
 
 // Rails along the top and bottom of the field, with an inner shadow, framing
@@ -205,9 +244,22 @@ function drawFieldFrame(ctx, theme, variant) {
   }
 }
 
-export function drawChapterOneGround(ctx, tiles, theme, profile) {
-  const variant = getChapterOneVariant(theme.id);
-  drawGroundTiles(ctx, tiles, theme, variant);
+/**
+ * Draws a biome ground into the static battlefield cache. Returns false when
+ * it cannot (a "kit" biome whose tiles are not loaded, or an unknown plate
+ * style), so the caller can fall back to the generic battlefield.
+ */
+export function drawBiomeGround(ctx, theme, variant, profile, tiles = null) {
+  if (variant.plate === "kit") {
+    if (!tiles) return false;
+    drawGroundTiles(ctx, tiles, theme);
+  } else {
+    const drawPlate = PLATE_STYLES[variant.plate];
+    if (!drawPlate) return false;
+    drawProceduralPlates(ctx, drawPlate, theme, variant);
+  }
+  applyTint(ctx, theme, variant);
   drawGroundScatter(ctx, theme, profile, variant);
   drawFieldFrame(ctx, theme, variant);
+  return true;
 }

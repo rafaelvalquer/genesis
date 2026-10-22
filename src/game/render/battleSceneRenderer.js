@@ -1,4 +1,5 @@
 import { getAnchoredSpriteRect } from "../visualGeometry.js";
+import { hasBiome } from "../biomes/biomeRegistry.js";
 
 export const BATTLE_RENDER_STAGES = Object.freeze([
   "background",
@@ -29,16 +30,16 @@ export function renderBattleScene(renderContext, stages) {
 export function createBattleRenderPlan(phase = {}) {
   const chapterId = phase.chapterId;
   const environments = [];
-  if (chapterId === "chapter_01") environments.push("chapterOne");
+  const biome = hasBiome(chapterId);
+  if (biome) environments.push("biome");
   if (phase.environment === "forest" || chapterId === "chapter_07") environments.push("forest", "spores", "convoy");
   if (phase.environment === "thermal" || chapterId === "chapter_06") environments.push("thermal");
   if (phase.environment === "tide" || chapterId === "chapter_05") environments.push("tide");
   if (phase.environment === "wind" || chapterId === "chapter_04") environments.push("wind");
   return Object.freeze({
     environments: Object.freeze([...new Set(environments)]),
-    // Soft gradient shadows read better than the flat ellipse on the lighter
-    // chapter 1 floor plates.
-    softShadows: chapterId === "chapter_01",
+    // Soft gradient shadows read better than the flat ellipse on biome plates.
+    softShadows: biome,
     stages: BATTLE_RENDER_STAGES,
   });
 }

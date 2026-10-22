@@ -1,16 +1,7 @@
-// Visual identity of each chapter 1 phase, keyed by battlefieldTheme.id. Colors
-// that are "r,g,b" triplets are used inside rgba(); hex values go through tinting.
-//
-//   tint     hue the ground plates are re-colored to ("color" blend), or null
-//   scatter  ground detail kinds picked from at random (repeat to weight them)
-//   rail     frame style: hazard stripes, organic bumps or runic diamonds
-//   vents    floor grates with steam, or null
-//   lights   rail lights palette and blink style (pulse | strobe | slow)
-//   sparks   spark bursts from the rails, or null
-//   motes    drifting particles rising from the floor, or null
-//   glow     glowing ground decals (cracks | runes | veins), or null
-//   weather  extra whole-field effects
-export const CHAPTER_ONE_VARIANTS = Object.freeze({
+// Visual identity of each chapter 1 phase, keyed by battlefieldTheme.id. The
+// variant fields are documented in biomeRegistry.js. Chapter 1 paints its
+// plates from the tile kit ("kit"), so it needs the ground tiles loaded.
+const CHAPTER_ONE_VARIANTS = Object.freeze({
   colony: {
     tint: null,
     scatter: ["bolts", "cracks", "stain", "light", "plate"],
@@ -101,6 +92,8 @@ export const CHAPTER_ONE_VARIANTS = Object.freeze({
   },
 });
 
-export function getChapterOneVariant(themeId) {
-  return CHAPTER_ONE_VARIANTS[themeId] || CHAPTER_ONE_VARIANTS.colony;
-}
+export const CHAPTER_ONE_BIOME = Object.freeze({
+  plate: "kit",
+  fallback: "colony",
+  phases: CHAPTER_ONE_VARIANTS,
+});

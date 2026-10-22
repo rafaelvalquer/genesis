@@ -6,7 +6,8 @@ import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRen
 import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
 import { getThermalPlatformAt } from "./thermalTerrain.js";
 import { getConvoyXForProgress } from "./chapter07/convoyGeometry.js";
-import { drawChapterOneGround } from "./chapter01/groundDecor.js";
+import { drawBiomeGround } from "./biomes/biomeGround.js";
+import { getBiomeVariant } from "./biomes/biomeRegistry.js";
 import { drawFerrivoreTerrainBase, drawFerrivoreGroundVeins, drawFerrivoreGrowths, drawFerrivoreConvoyRoute, drawFerrivoreAmbient, drawFerrivoreCombatLanes, drawFerrivoreStaticDetails, drawFerrivoreForeground as drawFerrivoreBiomeForeground } from "./chapter07/ferrivoreBiomeRenderer.js";
 
 export const QUALITY_PROFILES = {
@@ -96,9 +97,17 @@ function getPaintableTiles(arenaKit) {
   return tiles;
 }
 
+// Which biome ground a phase will get, so cached battlefields never mix them.
+function getBiomeCacheSuffix(phase, arenaKit) {
+  const variant = getBiomeVariant(phase);
+  if (!variant) return "";
+  if (variant.plate === "kit") return getPaintableTiles(arenaKit) ? ":tiles" : "";
+  return ":biome";
+}
+
 export function getBattlefieldCacheKey(phase, settings = {}, arenaKit = null) {
   const profile = settings.quality && QUALITY_PROFILES[settings.quality] ? settings.quality : "high";
-  const art = getPaintableTiles(arenaKit) ? ":tiles" : "";
+  const art = getBiomeCacheSuffix(phase, arenaKit);
   return `${phase.arenaId}:${phase.progressionMode || "waves"}:${phase.battlefieldTheme?.seed || 1}:${phase.terrain?.routeType || "standard"}:${phase.terrain?.seed || 0}:${profile}${art}`;
 }
 
@@ -523,10 +532,10 @@ function drawLaneLabels(ctx, blueprint, profile) {
 function renderStaticBattlefield(ctx, phase, settings = {}, arenaKit = null) {
   const blueprint = getBattlefieldBlueprint(phase);
   const profile = getQualityProfile(settings);
-  const tiles = getPaintableTiles(arenaKit);
+  const variant = getBiomeVariant(phase);
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
-  if (tiles) {
-    drawChapterOneGround(ctx, tiles, blueprint.theme, profile);
+  if (variant && drawBiomeGround(ctx, blueprint.theme, variant, profile, getPaintableTiles(arenaKit))) {
+    // Biome ground drawn; base, entrance and labels follow below.
   } else if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
     drawFerrivoreTerrainBase(ctx, phase);
     drawFerrivoreCombatLanes(ctx, blueprint, phase, profile);

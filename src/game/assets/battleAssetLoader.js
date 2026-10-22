@@ -19,8 +19,7 @@ import {
 import { copyBattleAudioUrls } from "./audioCatalog.js";
 import { resolveForestObstacleAssetDependencies } from "./forestObstacleAssetCatalog.js";
 import { getGroundTileUrls } from "./arenaCatalog.js";
-
-const TILED_ARENA_CHAPTERS = new Set(["chapter_01"]);
+import { getBiomeVariant } from "../biomes/biomeRegistry.js";
 
 const troopFrameModules = import.meta.glob([
   "./troop/**/frame*.png",
@@ -268,9 +267,9 @@ export async function loadBattleAssets(
   };
 
   result.effectDependencies = effectDependencies;
-  // Tiled arena floor is piloted on chapter 1 before rolling out to the rest.
+  // Biomes that paint their plates from the tile kit need its images loaded.
   result.arena = {};
-  if (TILED_ARENA_CHAPTERS.has(phase.chapterId)) {
+  if (getBiomeVariant(phase)?.plate === "kit") {
     const tileUrls = getGroundTileUrls();
     result.arena.tiles = new Array(tileUrls.length).fill(null);
     tileUrls.forEach((url, index) => {

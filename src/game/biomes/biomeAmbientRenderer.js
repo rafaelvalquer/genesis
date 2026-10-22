@@ -2,9 +2,9 @@ import { FIELD, CELL } from "../visualGeometry.js";
 import { getQualityProfile } from "../arenaRenderer.js";
 import { drawCachedRadialGlow } from "../effectTextureCache.js";
 import { pseudo } from "./decorMath.js";
-import { getChapterOneVariant } from "./phaseVariants.js";
+import { getBiomeVariant } from "./biomeRegistry.js";
 
-// Animated life for chapter 1 phases: floor vents with steam, blinking rail
+// Animated life for biome battlefields: floor vents with steam, blinking rail
 // lights, sparks, drifting motes, glowing ground decals and weather, mixed per
 // phase by its variant. Everything is a pure function of the battle clock and
 // the phase seed, so it never touches session state.
@@ -81,8 +81,8 @@ function drawRailLights(ctx, time, count, lights) {
   }
 }
 
-function getGlowSpots(session, count) {
-  const seed = seedOf(session);
+function getGlowSpots(session, count, seedOffset = 0) {
+  const seed = seedOf(session) + seedOffset;
   return Array.from({ length: count }, (_, index) => ({
     x: (2 + Math.floor(pseudo(index, seed + 510) * 8)) * CELL.width + 20 + pseudo(index, seed + 520) * 60,
     y: Math.floor(pseudo(index, seed + 530) * FIELD.rows) * CELL.height + 30 + pseudo(index, seed + 540) * 60,
@@ -128,15 +128,55 @@ function drawGlowDecals(ctx, session, time, glow) {
   ctx.restore();
 }
 
-/** Layer below the units: vent grates, glowing decals and rail lights. */
-export function drawChapterOneGround(ctx, session, settings) {
-  const variant = getChapterOneVariant(themeOf(session).id);
+// A soft diagonal band of light sliding across polished floors.
+function drawSheen(ctx, time, sheen) {
+  const travel = FIELD.width + 700;
+  const center = ((time / sheen.period) % 1) * travel - 100;
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.transform(1, 0, -.45, 1, 0, 0);
+  const band = ctx.createLinearGradient(center - 110, 0, center + 110, 0);
+  band.addColorStop(0, `rgba(${sheen.color},0)`);
+  band.addColorStop(.5, `rgba(${sheen.color},.09)`);
+  band.addColorStop(1, `rgba(${sheen.color},0)`);
+  ctx.fillStyle = band;
+  ctx.fillRect(center - 110, 0, 220, FIELD.height);
+  ctx.restore();
+}
+
+// Short-lived prismatic star flares that cycle through the spectrum.
+function drawFlares(ctx, session, time, flares) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  for (const spot of getGlowSpots(session, flares.count, 1000)) {
+    const local = (time / 2400 + spot.phase * .37) % 1;
+    const strength = Math.max(0, Math.sin(local * Math.PI)) ** 3;
+    if (strength < .02) continue;
+    const length = 10 + strength * 22;
+    ctx.globalAlpha = strength * .8;
+    drawCachedRadialGlow(ctx, "biome-flare", spot.x, spot.y, length * .7, length * .7, "rgba(255,255,255,.9)", "rgba(255,255,255,.25)", "rgba(255,255,255,0)");
+    ctx.strokeStyle = `hsl(${(time / 12 + spot.phase * 80) % 360},95%,72%)`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(spot.x - length, spot.y); ctx.lineTo(spot.x + length, spot.y);
+    ctx.moveTo(spot.x, spot.y - length * .6); ctx.lineTo(spot.x, spot.y + length * .6);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Layer below the units: sheen, vent grates, glowing decals and rail lights. */
+export function drawBiomeGroundEffects(ctx, session, settings) {
+  const variant = getBiomeVariant(session.phase);
+  if (!variant) return;
   const profile = getQualityProfile(settings);
   const time = clock(session, settings);
   const edge = themeOf(session).edge || "#38bdf8";
+  if (variant.sheen && !settings.reduceMotion) drawSheen(ctx, time, variant.sheen);
   for (const vent of getVents(session, getVentCount(variant, profile))) drawVentGrate(ctx, vent, time, edge, variant.vents.glow);
   if (variant.glow) drawGlowDecals(ctx, session, time, variant.glow);
-  drawRailLights(ctx, time, Math.max(5, Math.round(10 * profile.detail)), variant.lights);
+  if (variant.lights) drawRailLights(ctx, time, Math.max(5, Math.round(10 * profile.detail)), variant.lights);
 }
 
 function drawSteam(ctx, session, time, profile, vents) {
@@ -265,15 +305,17 @@ function drawSearchlight(ctx, time) {
 }
 
 /** Layer above the units: steam, sparks, motes and weather. Skipped when motion is reduced. */
-export function drawChapterOneAtmosphere(ctx, session, settings) {
+export function drawBiomeAtmosphere(ctx, session, settings) {
   if (settings.reduceMotion) return;
-  const variant = getChapterOneVariant(themeOf(session).id);
+  const variant = getBiomeVariant(session.phase);
+  if (!variant) return;
   const profile = getQualityProfile(settings);
   const time = clock(session, settings);
   if (variant.weather.searchlight) drawSearchlight(ctx, time);
   if (variant.vents) drawSteam(ctx, session, time, profile, variant.vents);
   if (variant.motes) drawMotes(ctx, session, time, profile, variant.motes);
   if (variant.sparks) drawSparks(ctx, time, profile, variant.sparks);
+  if (variant.flares) drawFlares(ctx, session, time, variant.flares);
   if (variant.weather.rain) drawRain(ctx, session, time, profile);
   if (variant.weather.lightning) drawLightning(ctx, time);
 }
