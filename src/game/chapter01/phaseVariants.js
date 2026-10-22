@@ -1,0 +1,106 @@
+// Visual identity of each chapter 1 phase, keyed by battlefieldTheme.id. Colors
+// that are "r,g,b" triplets are used inside rgba(); hex values go through tinting.
+//
+//   tint     hue the ground plates are re-colored to ("color" blend), or null
+//   scatter  ground detail kinds picked from at random (repeat to weight them)
+//   rail     frame style: hazard stripes, organic bumps or runic diamonds
+//   vents    floor grates with steam, or null
+//   lights   rail lights palette and blink style (pulse | strobe | slow)
+//   sparks   spark bursts from the rails, or null
+//   motes    drifting particles rising from the floor, or null
+//   glow     glowing ground decals (cracks | runes | veins), or null
+//   weather  extra whole-field effects
+export const CHAPTER_ONE_VARIANTS = Object.freeze({
+  colony: {
+    tint: null,
+    scatter: ["bolts", "cracks", "stain", "light", "plate"],
+    rail: "hazard",
+    vents: { count: 5, steam: "228,242,250", glow: "245,158,11" },
+    lights: { colors: ["#f59e0b", "#22d3ee", "#f59e0b", "#ef4444"], blink: "pulse" },
+    sparks: { count: 3, color: "255,206,110" },
+    motes: null,
+    glow: null,
+    weather: {},
+  },
+  jungle: {
+    tint: "#2f8a5e",
+    scatter: ["moss", "moss", "cracks", "stain", "light"],
+    rail: "organic",
+    vents: { count: 3, steam: "176,238,206", glow: "94,234,212" },
+    lights: { colors: ["#5eead4", "#a78bfa", "#5eead4"], blink: "slow" },
+    sparks: null,
+    motes: { count: 16, color: "150,255,200" },
+    glow: null,
+    weather: {},
+  },
+  crater: {
+    tint: "#a8693a",
+    scatter: ["rubble", "rubble", "cracks", "stain", "plate"],
+    rail: "hazard",
+    vents: { count: 2, steam: "214,184,140", glow: "251,146,60" },
+    lights: { colors: ["#fb923c", "#f59e0b", "#7dd3fc"], blink: "pulse" },
+    sparks: { count: 2, color: "255,160,70" },
+    motes: { count: 8, color: "255,150,60" },
+    glow: { kind: "cracks", count: 6, color: "251,146,60" },
+    weather: {},
+  },
+  krulax: {
+    tint: "#9a3fb8",
+    scatter: ["resin", "resin", "vein", "stain", "light"],
+    rail: "organic",
+    vents: { count: 3, steam: "244,170,224", glow: "244,114,182" },
+    lights: { colors: ["#f472b6", "#67e8f9", "#f472b6"], blink: "slow" },
+    sparks: null,
+    motes: { count: 14, color: "250,140,215" },
+    glow: { kind: "veins", count: 5, color: "244,114,182" },
+    weather: {},
+  },
+  station: {
+    tint: "#6f7f8f",
+    scatter: ["bolts", "plate", "cracks", "stain", "light"],
+    rail: "hazard",
+    vents: { count: 4, steam: "205,214,224", glow: "239,68,68" },
+    lights: { colors: ["#ef4444", "#ef4444", "#f59e0b"], blink: "strobe" },
+    sparks: { count: 3, color: "255,236,170" },
+    motes: null,
+    glow: null,
+    weather: { searchlight: true },
+  },
+  storm: {
+    tint: "#5b5fd6",
+    scatter: ["stain", "stain", "bolts", "plate", "light"],
+    rail: "hazard",
+    vents: null,
+    lights: { colors: ["#7dd3fc", "#a78bfa", "#7dd3fc"], blink: "pulse" },
+    sparks: { count: 2, color: "180,210,255" },
+    motes: null,
+    glow: null,
+    weather: { rain: true, lightning: true },
+  },
+  ancient: {
+    tint: "#2f9aa4",
+    scatter: ["rune", "rune", "cracks", "rubble", "light"],
+    rail: "runic",
+    vents: null,
+    lights: { colors: ["#fbbf24", "#22d3ee", "#fbbf24"], blink: "slow" },
+    sparks: null,
+    motes: { count: 12, color: "255,214,110" },
+    glow: { kind: "runes", count: 6, color: "34,211,238" },
+    weather: {},
+  },
+  hive: {
+    tint: "#b52a8c",
+    scatter: ["vein", "resin", "resin", "stain", "light"],
+    rail: "organic",
+    vents: { count: 3, steam: "240,110,190", glow: "244,63,94" },
+    lights: { colors: ["#f43f5e", "#c026d3", "#f43f5e"], blink: "slow" },
+    sparks: null,
+    motes: { count: 16, color: "255,100,140" },
+    glow: { kind: "veins", count: 7, color: "244,63,94" },
+    weather: {},
+  },
+});
+
+export function getChapterOneVariant(themeId) {
+  return CHAPTER_ONE_VARIANTS[themeId] || CHAPTER_ONE_VARIANTS.colony;
+}

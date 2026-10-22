@@ -10,6 +10,7 @@ import { drawDecals, drawDeploymentEffects, drawDynamicLights, drawPostProcessin
 import { drawForestObstacles } from "../chapter07/forestObstacleRenderer.js";
 import { drawSporeClouds, drawSporeFruits } from "../chapter07/sporeFruitRenderer.js";
 import { drawTartaragarraEffects } from "../chapter07/tartaragarraRenderer.js";
+import { drawChapterOneAtmosphere, drawChapterOneGround } from "../chapter01/chapterOneAmbientRenderer.js";
 import { drawContainmentForeground, drawContainmentUnderlay } from "../containmentRenderer.js";
 import { drawThermalPlatformHeatBars } from "../thermalPlatformRenderer.js";
 import { drawIncubatorFissureEffects, drawIncubatorFissureUnderlay, drawIncubatorTargetTelegraph } from "../incubatorFissureRenderer.js";
@@ -37,6 +38,11 @@ registerEnvironmentRenderer("convoy", ({ stage, ctx, session, settings }) => {
   if (stage === "entitiesAfter") {
     drawConvoy(ctx, session, performance.now(), { ...settings, paused: Boolean(session.renderPaused) });
   }
+}, { replace: true });
+
+registerEnvironmentRenderer("chapterOne", ({ stage, ctx, session, settings }) => {
+  if (stage === "effectsBefore") drawChapterOneGround(ctx, session, settings);
+  if (stage === "overlayBefore") drawChapterOneAtmosphere(ctx, session, settings);
 }, { replace: true });
 
 registerEnvironmentRenderer("tide", ({ stage, ctx, session, settings, adaptive, now, hoveredCell }) => {

@@ -1,0 +1,279 @@
+import { FIELD, CELL } from "../visualGeometry.js";
+import { getQualityProfile } from "../arenaRenderer.js";
+import { drawCachedRadialGlow } from "../effectTextureCache.js";
+import { pseudo } from "./decorMath.js";
+import { getChapterOneVariant } from "./phaseVariants.js";
+
+// Animated life for chapter 1 phases: floor vents with steam, blinking rail
+// lights, sparks, drifting motes, glowing ground decals and weather, mixed per
+// phase by its variant. Everything is a pure function of the battle clock and
+// the phase seed, so it never touches session state.
+
+const RAIL = 12;
+const VENT_ROWS = [1, 3, 0, 4, 2];
+const SPARK_EMITTERS = [
+  { x: 0.24, top: true, period: 3300, offset: 400 },
+  { x: 0.63, top: false, period: 4100, offset: 1700 },
+  { x: 0.86, top: true, period: 3700, offset: 2600 },
+];
+const SPARK_BURST_MS = 520;
+const SPARK_COUNT = 8;
+
+const clock = (session, settings) => (settings.reduceMotion ? 0 : session.elapsed || 0);
+const themeOf = (session) => session.phase?.battlefieldTheme || {};
+const seedOf = (session) => themeOf(session).seed || 1;
+
+function getVents(session, count) {
+  const seed = seedOf(session);
+  return VENT_ROWS.slice(0, count).map((row, index) => {
+    const column = 3 + ((seed * (row + 3) + row * 5) % 7);
+    return {
+      x: column * CELL.width + CELL.width / 2,
+      y: row * CELL.height + CELL.height / 2 + 20,
+      phase: index * 1.9,
+    };
+  });
+}
+
+function getVentCount(variant, profile) {
+  if (!variant.vents) return 0;
+  return Math.max(1, Math.round(variant.vents.count * profile.atmosphere));
+}
+
+function drawVentGrate(ctx, vent, time, edge, glow) {
+  const pulse = .5 + .5 * Math.sin(time / 1700 + vent.phase);
+  ctx.save();
+  ctx.translate(vent.x, vent.y);
+  ctx.fillStyle = "rgba(2,8,14,.82)";
+  ctx.fillRect(-28, -12, 56, 24);
+  ctx.strokeStyle = `${edge}59`;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-28, -12, 56, 24);
+  ctx.fillStyle = `rgba(${glow},${.1 + pulse * .22})`;
+  ctx.fillRect(-25, -9, 50, 18);
+  ctx.fillStyle = "rgba(0,0,0,.7)";
+  for (let slat = -8; slat <= 8; slat += 5) ctx.fillRect(-25, slat - 1, 50, 2.4);
+  ctx.restore();
+}
+
+function lightLevel(blink, time, index) {
+  if (blink === "strobe") return ((time / 620 + index * .5) % 1) < .35 ? 1 : .12;
+  if (blink === "slow") return .35 + .65 * (.5 + .5 * Math.sin(time / 1100 + index * 1.3));
+  return .3 + .7 * Math.max(0, Math.sin(time / (380 + (index % 3) * 140) + index * 1.7));
+}
+
+function drawRailLights(ctx, time, count, lights) {
+  const spacing = Math.max(80, Math.round(FIELD.width / count));
+  for (let index = 0; index < count; index += 1) {
+    const x = FIELD.baseX + 20 + index * spacing;
+    if (x > FIELD.width - 40) break;
+    const color = lights.colors[index % lights.colors.length];
+    const level = lightLevel(lights.blink, time, index);
+    for (const y of [RAIL / 2, FIELD.height - RAIL / 2]) {
+      ctx.save();
+      ctx.globalAlpha = level * .85;
+      drawCachedRadialGlow(ctx, `ch1-light-${color}`, x, y, 22, 22, `${color}ff`, `${color}77`, `${color}00`);
+      ctx.globalAlpha = .55 + level * .45;
+      ctx.fillStyle = color;
+      ctx.fillRect(x - 4, y - 2, 8, 4);
+      ctx.restore();
+    }
+  }
+}
+
+function getGlowSpots(session, count) {
+  const seed = seedOf(session);
+  return Array.from({ length: count }, (_, index) => ({
+    x: (2 + Math.floor(pseudo(index, seed + 510) * 8)) * CELL.width + 20 + pseudo(index, seed + 520) * 60,
+    y: Math.floor(pseudo(index, seed + 530) * FIELD.rows) * CELL.height + 30 + pseudo(index, seed + 540) * 60,
+    phase: index * 1.3,
+  }));
+}
+
+function drawGlowDecals(ctx, session, time, glow) {
+  ctx.save();
+  ctx.lineCap = "round";
+  for (const spot of getGlowSpots(session, glow.count)) {
+    const pulse = .5 + .5 * Math.sin(time / 900 + spot.phase);
+    const { x, y } = spot;
+    if (glow.kind === "runes") {
+      ctx.strokeStyle = `rgba(${glow.color},${.25 + pulse * .4})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(x, y, 20, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([4, 5]);
+      ctx.lineDashOffset = -time / 80;
+      ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = `rgba(${glow.color},${.4 + pulse * .5})`;
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+      continue;
+    }
+    ctx.beginPath();
+    if (glow.kind === "veins") {
+      ctx.moveTo(x - 34, y + 8);
+      ctx.quadraticCurveTo(x, y - 22, x + 34, y + 6);
+    } else {
+      ctx.moveTo(x - 22, y - 6);
+      ctx.lineTo(x - 6, y + 4);
+      ctx.lineTo(x + 6, y - 8);
+      ctx.lineTo(x + 24, y + 6);
+    }
+    ctx.strokeStyle = `rgba(${glow.color},${.08 + pulse * .18})`;
+    ctx.lineWidth = 7;
+    ctx.stroke();
+    ctx.strokeStyle = `rgba(${glow.color},${.5 + pulse * .4})`;
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** Layer below the units: vent grates, glowing decals and rail lights. */
+export function drawChapterOneGround(ctx, session, settings) {
+  const variant = getChapterOneVariant(themeOf(session).id);
+  const profile = getQualityProfile(settings);
+  const time = clock(session, settings);
+  const edge = themeOf(session).edge || "#38bdf8";
+  for (const vent of getVents(session, getVentCount(variant, profile))) drawVentGrate(ctx, vent, time, edge, variant.vents.glow);
+  if (variant.glow) drawGlowDecals(ctx, session, time, variant.glow);
+  drawRailLights(ctx, time, Math.max(5, Math.round(10 * profile.detail)), variant.lights);
+}
+
+function drawSteam(ctx, session, time, profile, vents) {
+  const puffs = profile.particles > .5 ? 4 : 3;
+  const cycle = 2600;
+  ctx.save();
+  getVents(session, getVentCount({ vents }, profile)).forEach((vent) => {
+    const envelope = .35 + .65 * (.5 + .5 * Math.sin(time / 1700 + vent.phase));
+    for (let puff = 0; puff < puffs; puff += 1) {
+      const progress = ((time / cycle) + puff / puffs + vent.phase * .13) % 1;
+      const fadeIn = Math.min(1, progress / .14);
+      ctx.globalAlpha = .6 * (1 - progress) * fadeIn * envelope * profile.atmosphere;
+      const x = vent.x + Math.sin(progress * 5 + vent.phase + puff) * 12 + progress * 20;
+      const y = vent.y - progress * 90;
+      const radius = 10 + progress * 30;
+      drawCachedRadialGlow(ctx, `ch1-steam-${vents.steam}`, x, y, radius, radius, `rgba(${vents.steam},.6)`, `rgba(${vents.steam},.28)`, `rgba(${vents.steam},0)`);
+    }
+  });
+  ctx.restore();
+}
+
+function drawSparks(ctx, time, profile, sparks) {
+  const emitters = SPARK_EMITTERS.slice(0, profile.particles > .5 ? sparks.count : 1);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.lineCap = "round";
+  emitters.forEach((emitter, index) => {
+    const local = (time + emitter.offset) % emitter.period;
+    if (local > SPARK_BURST_MS) return;
+    const x0 = FIELD.baseX + 40 + emitter.x * (FIELD.width - FIELD.baseX - 120);
+    const dir = emitter.top ? 1 : -1;
+    const y0 = emitter.top ? RAIL : FIELD.height - RAIL;
+    const life = 1 - local / SPARK_BURST_MS;
+    if (local < 140) {
+      ctx.globalAlpha = (1 - local / 140) * .8;
+      drawCachedRadialGlow(ctx, `ch1-spark-${sparks.color}`, x0, y0, 22, 22, "rgba(255,245,220,1)", `rgba(${sparks.color},.4)`, `rgba(${sparks.color},0)`);
+    }
+    for (let spark = 0; spark < SPARK_COUNT; spark += 1) {
+      const spread = (spark / (SPARK_COUNT - 1) - .5) * 2.2;
+      const speed = 70 + ((spark * 7 + index * 3) % 5) * 22;
+      const position = (seconds) => ({
+        x: x0 + Math.sin(spread) * speed * seconds,
+        y: y0 + dir * (Math.cos(spread) * speed * .8 * seconds) + 260 * seconds * seconds,
+      });
+      const head = position(local / 1000);
+      const tail = position(Math.max(0, local - 36) / 1000);
+      ctx.globalAlpha = life;
+      ctx.strokeStyle = `rgba(${sparks.color},1)`;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(tail.x, tail.y);
+      ctx.lineTo(head.x, head.y);
+      ctx.stroke();
+    }
+  });
+  ctx.restore();
+}
+
+function drawMotes(ctx, session, time, profile, motes) {
+  const seed = seedOf(session);
+  const count = Math.round(motes.count * profile.particles);
+  const span = FIELD.width - FIELD.baseX - 60;
+  ctx.save();
+  for (let index = 0; index < count; index += 1) {
+    const speed = 14 + pseudo(index, seed + 610) * 18;
+    const startY = pseudo(index, seed + 620) * FIELD.height;
+    const y = (((startY - time / 1000 * speed) % FIELD.height) + FIELD.height) % FIELD.height;
+    const x = FIELD.baseX + 30 + pseudo(index, seed + 630) * span + Math.sin(time / 1300 + index) * 14;
+    const radius = 3 + pseudo(index, seed + 640) * 3;
+    ctx.globalAlpha = (.35 + .65 * (.5 + .5 * Math.sin(time / 600 + index * 2))) * .75;
+    drawCachedRadialGlow(ctx, `ch1-mote-${motes.color}`, x, y, radius * 2.2, radius * 2.2, `rgba(${motes.color},1)`, `rgba(${motes.color},.35)`, `rgba(${motes.color},0)`);
+  }
+  ctx.restore();
+}
+
+function drawRain(ctx, session, time, profile) {
+  const seed = seedOf(session);
+  const drops = Math.max(20, Math.round(46 * profile.atmosphere));
+  ctx.save();
+  ctx.strokeStyle = "rgba(190,210,255,.35)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let index = 0; index < drops; index += 1) {
+    const y = (pseudo(index, seed + 710) * FIELD.height + time * .9) % FIELD.height;
+    const x = ((pseudo(index, seed + 720) * FIELD.width - y * .25) % FIELD.width + FIELD.width) % FIELD.width;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 4, y + 14);
+  }
+  ctx.stroke();
+  for (let index = 0; index < 10; index += 1) {
+    const progress = (time / 900 + pseudo(index, seed + 730)) % 1;
+    const x = FIELD.baseX + 20 + pseudo(index, seed + 740) * (FIELD.width - FIELD.baseX - 40);
+    const y = 20 + pseudo(index, seed + 750) * (FIELD.height - 40);
+    const radiusX = 4 + progress * 16;
+    ctx.strokeStyle = `rgba(200,220,255,${(1 - progress) * .4})`;
+    ctx.beginPath(); ctx.ellipse(x, y, radiusX, radiusX * .35, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawLightning(ctx, time) {
+  const local = (time + 2100) % 7400;
+  const alpha = local < 90 ? .32 * (1 - local / 90) : local > 160 && local < 230 ? .2 : 0;
+  if (!alpha) return;
+  ctx.save();
+  ctx.fillStyle = `rgba(205,215,255,${alpha})`;
+  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  ctx.restore();
+}
+
+function drawSearchlight(ctx, time) {
+  const x = FIELD.width * .55 + Math.sin(time / 2600) * FIELD.width * .36;
+  const beam = ctx.createLinearGradient(0, RAIL, 0, FIELD.height);
+  beam.addColorStop(0, "rgba(255,240,220,.16)");
+  beam.addColorStop(1, "rgba(255,240,220,.03)");
+  ctx.save();
+  ctx.fillStyle = beam;
+  ctx.beginPath();
+  ctx.moveTo(x - 10, RAIL);
+  ctx.lineTo(x + 10, RAIL);
+  ctx.lineTo(x + 90 + Math.sin(time / 1900) * 30, FIELD.height);
+  ctx.lineTo(x - 90 + Math.sin(time / 1900) * 30, FIELD.height);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Layer above the units: steam, sparks, motes and weather. Skipped when motion is reduced. */
+export function drawChapterOneAtmosphere(ctx, session, settings) {
+  if (settings.reduceMotion) return;
+  const variant = getChapterOneVariant(themeOf(session).id);
+  const profile = getQualityProfile(settings);
+  const time = clock(session, settings);
+  if (variant.weather.searchlight) drawSearchlight(ctx, time);
+  if (variant.vents) drawSteam(ctx, session, time, profile, variant.vents);
+  if (variant.motes) drawMotes(ctx, session, time, profile, variant.motes);
+  if (variant.sparks) drawSparks(ctx, time, profile, variant.sparks);
+  if (variant.weather.rain) drawRain(ctx, session, time, profile);
+  if (variant.weather.lightning) drawLightning(ctx, time);
+}
