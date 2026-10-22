@@ -15,6 +15,6 @@ describe("phase environment renderer integration", () => {
     expect(createBattleRenderPlan({ chapterId: "chapter_04", environment: "wind" }).environments).toEqual(["biome", "wind"]);
     expect(createBattleRenderPlan({ chapterId: "chapter_05", environment: "tide" }).environments).toEqual(["biome", "tide"]);
     expect(createBattleRenderPlan({ chapterId: "chapter_06", environment: "thermal" }).environments).toEqual(["biome", "thermal"]);
-    expect(createBattleRenderPlan({ chapterId: "chapter_07", environment: "forest" }).environments).toEqual(["forest", "spores", "convoy"]);
+    expect(createBattleRenderPlan({ chapterId: "chapter_07", environment: "forest" }).environments).toEqual(["biome", "forest", "spores", "convoy"]);
   });
 });

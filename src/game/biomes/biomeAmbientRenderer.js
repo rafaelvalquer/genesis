@@ -266,6 +266,27 @@ function drawBreath(ctx, time, breath) {
   ctx.restore();
 }
 
+// Soft diagonal beams of light falling through a canopy, slowly breathing.
+function drawLightShafts(ctx, session, time, shafts) {
+  const seed = seedOf(session);
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  for (let index = 0; index < shafts.count; index += 1) {
+    const x = FIELD.baseX + 120 + pseudo(index, seed + 1210) * (FIELD.width - FIELD.baseX - 80);
+    const alpha = shafts.alpha * (.6 + .4 * Math.sin(time / 3000 + index * 1.9));
+    const beam = ctx.createLinearGradient(0, 0, 0, FIELD.height);
+    beam.addColorStop(0, `rgba(210,240,170,${alpha})`);
+    beam.addColorStop(1, "rgba(210,240,170,0)");
+    ctx.fillStyle = beam;
+    ctx.beginPath();
+    ctx.moveTo(x - 18, 0); ctx.lineTo(x + 26, 0);
+    ctx.lineTo(x - 110, FIELD.height); ctx.lineTo(x - 210, FIELD.height);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // Large soft cloud shadows drifting slowly across the whole field.
 function drawCloudShadows(ctx, session, time, clouds) {
   const seed = seedOf(session);
@@ -479,6 +500,7 @@ export function drawBiomeAtmosphere(ctx, session, settings) {
   if (variant.weather.searchlight) drawSearchlight(ctx, time);
   if (variant.vents) drawSteam(ctx, session, time, profile, variant.vents);
   if (variant.cloudShadows) drawCloudShadows(ctx, session, time, variant.cloudShadows);
+  if (variant.lightShafts) drawLightShafts(ctx, session, time, variant.lightShafts);
   if (variant.bubbles) drawBubbles(ctx, session, time, profile, variant.bubbles);
   if (variant.motes) drawMotes(ctx, session, time, profile, variant.motes);
   if (variant.ash) drawMotes(ctx, session, time, profile, variant.ash, true);

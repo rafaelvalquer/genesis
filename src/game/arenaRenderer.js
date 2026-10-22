@@ -8,7 +8,7 @@ import { getThermalPlatformAt } from "./thermalTerrain.js";
 import { getConvoyXForProgress } from "./chapter07/convoyGeometry.js";
 import { drawBiomeGround } from "./biomes/biomeGround.js";
 import { getBiomeVariant } from "./biomes/biomeRegistry.js";
-import { drawFerrivoreTerrainBase, drawFerrivoreGroundVeins, drawFerrivoreGrowths, drawFerrivoreConvoyRoute, drawFerrivoreAmbient, drawFerrivoreCombatLanes, drawFerrivoreStaticDetails, drawFerrivoreForeground as drawFerrivoreBiomeForeground } from "./chapter07/ferrivoreBiomeRenderer.js";
+import { drawFerrivoreAmbient } from "./chapter07/ferrivoreBiomeRenderer.js";
 
 export const QUALITY_PROFILES = {
   low: { parallax: 0, particles: 0.25, atmosphere: 0.38, shadows: 0.55, detail: 0.42 },
@@ -534,14 +534,7 @@ function renderStaticBattlefield(ctx, phase, settings = {}, arenaKit = null) {
   const profile = getQualityProfile(settings);
   const variant = getBiomeVariant(phase);
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
-  if (variant && drawBiomeGround(ctx, blueprint.theme, variant, profile, getPaintableTiles(arenaKit), phase)) {
-    // Biome ground drawn; base, entrance and labels follow below.
-  } else if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
-    drawFerrivoreTerrainBase(ctx, phase);
-    drawFerrivoreCombatLanes(ctx, blueprint, phase, profile);
-    drawFerrivoreStaticDetails(ctx, phase);
-    drawFerrivoreBiomeForeground(ctx, phase);
-  } else {
+  if (!variant || !drawBiomeGround(ctx, blueprint.theme, variant, profile, getPaintableTiles(arenaKit), phase)) {
     drawBackdrop(ctx, phase, blueprint);
     drawLanes(ctx, blueprint, profile);
   }
@@ -1302,7 +1295,6 @@ export function drawArenaForeground(ctx, phase, settings, session, time, adaptiv
   ctx.save();
   if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
     drawFerrivoreAmbient(ctx, phase, time, profile, settings.reduceMotion);
-    drawFerrivoreGroundVeins(ctx, phase, time, settings.reduceMotion);
   }
   drawMagmaTerrainEffects(ctx, session, time, settings, adaptive, runtime);
   drawThermalPlatformIndicators(ctx, session);
