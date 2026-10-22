@@ -1,6 +1,7 @@
 import { FIELD, CELL } from "../visualGeometry.js";
 import { getQualityProfile } from "../arenaRenderer.js";
 import { drawCachedRadialGlow } from "../effectTextureCache.js";
+import { getWindArrowVector, getWindCurrentVisualState } from "../windCurrentRenderer.js";
 import { pseudo } from "./decorMath.js";
 import { getBiomeVariant } from "./biomeRegistry.js";
 
@@ -182,6 +183,49 @@ function drawSheen(ctx, time, sheen) {
   ctx.restore();
 }
 
+// Grass tufts swaying in the breeze; an active wind current leans them all
+// along its direction.
+function drawGrassSway(ctx, session, time, profile, grass) {
+  const seed = seedOf(session);
+  const count = Math.max(6, Math.round(grass.count * profile.detail));
+  const wind = getWindCurrentVisualState(session, session.elapsed || 0);
+  const lean = wind.intensity ? getWindArrowVector(wind).x * wind.intensity * .6 : 0;
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1.4;
+  ctx.strokeStyle = `rgba(${grass.color},.75)`;
+  ctx.beginPath();
+  for (let index = 0; index < count; index += 1) {
+    const x = FIELD.baseX + 20 + pseudo(index, seed + 910) * (FIELD.width - FIELD.baseX - 40);
+    const row = Math.floor(pseudo(index, seed + 920) * FIELD.rows);
+    const y = row * CELL.height + (pseudo(index, seed + 930) > .5 ? 6 : CELL.height - 4);
+    const sway = Math.sin(time / 650 + index * 1.7) * .22 + lean;
+    for (let blade = -2; blade <= 2; blade += 1) {
+      const height = 9 + (2 - Math.abs(blade)) * 3;
+      ctx.moveTo(x + blade * 2.2, y);
+      ctx.quadraticCurveTo(x + blade * 2.6, y - height * .6, x + blade * 3 + Math.sin(sway) * height, y - Math.cos(sway) * height);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Large soft cloud shadows drifting slowly across the whole field.
+function drawCloudShadows(ctx, session, time, clouds) {
+  const seed = seedOf(session);
+  const span = FIELD.width + 700;
+  ctx.save();
+  ctx.globalAlpha = clouds.alpha;
+  for (let index = 0; index < clouds.count; index += 1) {
+    const radiusX = 180 + pseudo(index, seed + 950) * 120;
+    const radiusY = radiusX * .5;
+    const x = ((pseudo(index, seed + 960) * span + time / 1000 * clouds.speed) % span) - 350;
+    const y = pseudo(index, seed + 970) * FIELD.height;
+    drawCachedRadialGlow(ctx, "biome-cloud-shadow", x, y, radiusX, radiusY, "rgba(0,0,0,1)", "rgba(0,0,0,.55)", "rgba(0,0,0,0)", .5);
+  }
+  ctx.restore();
+}
+
 // Thin streaks of sand blown low across the floor, right to left.
 function drawSandDrift(ctx, session, time, profile, drift) {
   const seed = seedOf(session);
@@ -234,6 +278,7 @@ export function drawBiomeGroundEffects(ctx, session, settings) {
   const edge = themeOf(session).edge || "#38bdf8";
   if (variant.sheen && !settings.reduceMotion) drawSheen(ctx, time, variant.sheen);
   if (variant.sandDrift && !settings.reduceMotion) drawSandDrift(ctx, session, time, profile, variant.sandDrift);
+  if (variant.grassSway) drawGrassSway(ctx, session, time, profile, variant.grassSway);
   for (const vent of getVents(session, getVentCount(variant, profile))) drawVentGrate(ctx, vent, time, edge, variant.vents.glow, variant.vents.style);
   if (variant.glow) drawGlowDecals(ctx, session, time, variant.glow);
   if (variant.lights) drawRailLights(ctx, time, Math.max(5, Math.round(10 * profile.detail)), variant.lights);
@@ -312,9 +357,9 @@ function drawMotes(ctx, session, time, profile, motes) {
   ctx.restore();
 }
 
-function drawRain(ctx, session, time, profile) {
+function drawRain(ctx, session, time, profile, amount) {
   const seed = seedOf(session);
-  const drops = Math.max(20, Math.round(46 * profile.atmosphere));
+  const drops = Math.round(Math.max(20, Math.round(46 * profile.atmosphere)) * amount);
   ctx.save();
   ctx.strokeStyle = "rgba(190,210,255,.35)";
   ctx.lineWidth = 1;
@@ -337,9 +382,9 @@ function drawRain(ctx, session, time, profile) {
   ctx.restore();
 }
 
-function drawLightning(ctx, time) {
+function drawLightning(ctx, time, strength) {
   const local = (time + 2100) % 7400;
-  const alpha = local < 90 ? .32 * (1 - local / 90) : local > 160 && local < 230 ? .2 : 0;
+  const alpha = (local < 90 ? .32 * (1 - local / 90) : local > 160 && local < 230 ? .2 : 0) * strength;
   if (!alpha) return;
   ctx.save();
   ctx.fillStyle = `rgba(205,215,255,${alpha})`;
@@ -373,9 +418,10 @@ export function drawBiomeAtmosphere(ctx, session, settings) {
   const time = clock(session, settings);
   if (variant.weather.searchlight) drawSearchlight(ctx, time);
   if (variant.vents) drawSteam(ctx, session, time, profile, variant.vents);
+  if (variant.cloudShadows) drawCloudShadows(ctx, session, time, variant.cloudShadows);
   if (variant.motes) drawMotes(ctx, session, time, profile, variant.motes);
   if (variant.sparks) drawSparks(ctx, time, profile, variant.sparks);
   if (variant.flares) drawFlares(ctx, session, time, variant.flares);
-  if (variant.weather.rain) drawRain(ctx, session, time, profile);
-  if (variant.weather.lightning) drawLightning(ctx, time);
+  if (variant.weather.rain) drawRain(ctx, session, time, profile, Number(variant.weather.rain));
+  if (variant.weather.lightning) drawLightning(ctx, time, Number(variant.weather.lightning));
 }

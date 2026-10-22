@@ -256,7 +256,8 @@ const CHAPTER_TWO_VARIANTS = Object.freeze({
     glow: { kind: "cracks", count: 6, color: "127,255,212" },
     sheen: { color: "180,255,240", period: 7000 },
     flares: { count: 3 },
-    weather: { lightning: true },
+    // Lightning comes from the phase ambient effects; drawing it here too doubled the flash.
+    weather: {},
   },
   "reflection-throne": {
     ...shared,

@@ -1,6 +1,7 @@
 import { CHAPTER_ONE_BIOME } from "./chapter01Variants.js";
 import { CHAPTER_TWO_BIOME } from "./chapter02Glass.js";
 import { CHAPTER_THREE_BIOME } from "./chapter03Dunes.js";
+import { CHAPTER_FOUR_BIOME } from "./chapter04Highlands.js";
 
 // Each chapter with a biome battlefield registers a table here:
 //
@@ -20,14 +21,18 @@ import { CHAPTER_THREE_BIOME } from "./chapter03Dunes.js";
 //   sparks   spark bursts from the rails, or null
 //   motes    drifting particles rising from the floor, or null
 //   glow     glowing ground decals (cracks | runes | veins | spots | eggs), or null
-//   sandDrift  streaks of sand blown low across the floor, or absent
+//   sandDrift  streaks of sand or wind blown low across the floor, or absent
+//   grassSway  grass tufts swaying (leaning with an active wind current), or absent
+//   cloudShadows  large soft shadows drifting across the field, or absent
 //   sheen    diagonal band of light sweeping across the floor, or absent
 //   flares   prismatic star flares at fixed spots, or absent
-//   weather  extra whole-field effects
+//   weather  extra whole-field effects; rain and lightning take an intensity
+//            (true counts as 1)
 const BIOMES = Object.freeze({
   chapter_01: CHAPTER_ONE_BIOME,
   chapter_02: CHAPTER_TWO_BIOME,
   chapter_03: CHAPTER_THREE_BIOME,
+  chapter_04: CHAPTER_FOUR_BIOME,
 });
 
 // Variants are resolved once per (chapter, theme) and reused every frame.
