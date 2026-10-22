@@ -4,6 +4,7 @@ import { CHAPTER_TWO_DECOR } from "./chapter02Glass.js";
 import { CHAPTER_THREE_DECOR } from "./chapter03Dunes.js";
 import { CHAPTER_FOUR_DECOR } from "./chapter04Highlands.js";
 import { CHAPTER_FIVE_DECOR } from "./chapter05Abyss.js";
+import { CHAPTER_SIX_DECOR } from "./chapter06Caldera.js";
 
 // Static biome ground, drawn once into the battlefield cache: one plate per
 // grid cell (tile images or a procedural plate style), re-colored per phase,
@@ -12,12 +13,14 @@ import { CHAPTER_FIVE_DECOR } from "./chapter05Abyss.js";
 const RAIL = 12;
 const COLUMNS = Math.round(FIELD.width / CELL.width);
 
-// Procedural plate styles, keyed by a biome's `plate`. Each draws one cell.
+// Procedural plate styles, keyed by a biome's `plate`. Each draws one cell
+// and receives the phase, so it can react to static terrain such as magma.
 const PLATE_STYLES = {
   ...CHAPTER_TWO_DECOR.plates,
   ...CHAPTER_THREE_DECOR.plates,
   ...CHAPTER_FOUR_DECOR.plates,
   ...CHAPTER_FIVE_DECOR.plates,
+  ...CHAPTER_SIX_DECOR.plates,
 };
 
 // One ground plate per grid cell, in a checker of two tones, so the field reads
@@ -40,7 +43,7 @@ function drawGroundTiles(ctx, tiles, theme) {
   }
 }
 
-function drawProceduralPlates(ctx, drawPlate, theme, variant) {
+function drawProceduralPlates(ctx, drawPlate, theme, variant, phase) {
   ctx.fillStyle = rgba(theme.lane, 1);
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
   for (let row = 0; row < FIELD.rows; row += 1) {
@@ -55,7 +58,7 @@ function drawProceduralPlates(ctx, drawPlate, theme, variant) {
         index: row * COLUMNS + column,
       };
       ctx.save();
-      drawPlate(ctx, cell, theme, variant);
+      drawPlate(ctx, cell, theme, variant, phase);
       ctx.restore();
     }
   }
@@ -172,6 +175,7 @@ const SCATTER = {
   ...CHAPTER_THREE_DECOR.scatter,
   ...CHAPTER_FOUR_DECOR.scatter,
   ...CHAPTER_FIVE_DECOR.scatter,
+  ...CHAPTER_SIX_DECOR.scatter,
 };
 
 // Small deterministic details scattered over the plates so the ground has
@@ -222,6 +226,7 @@ const RAILS = {
   ...CHAPTER_THREE_DECOR.rails,
   ...CHAPTER_FOUR_DECOR.rails,
   ...CHAPTER_FIVE_DECOR.rails,
+  ...CHAPTER_SIX_DECOR.rails,
 };
 
 function drawRailPattern(ctx, y, theme, style) {
@@ -261,14 +266,14 @@ function drawFieldFrame(ctx, theme, variant) {
  * it cannot (a "kit" biome whose tiles are not loaded, or an unknown plate
  * style), so the caller can fall back to the generic battlefield.
  */
-export function drawBiomeGround(ctx, theme, variant, profile, tiles = null) {
+export function drawBiomeGround(ctx, theme, variant, profile, tiles = null, phase = null) {
   if (variant.plate === "kit") {
     if (!tiles) return false;
     drawGroundTiles(ctx, tiles, theme);
   } else {
     const drawPlate = PLATE_STYLES[variant.plate];
     if (!drawPlate) return false;
-    drawProceduralPlates(ctx, drawPlate, theme, variant);
+    drawProceduralPlates(ctx, drawPlate, theme, variant, phase);
   }
   applyTint(ctx, theme, variant);
   drawGroundScatter(ctx, theme, profile, variant);

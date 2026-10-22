@@ -257,6 +257,15 @@ function drawBubbles(ctx, session, time, profile, bubbles) {
   ctx.restore();
 }
 
+// A slow heartbeat of heat washing over the whole floor.
+function drawBreath(ctx, time, breath) {
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.fillStyle = `rgba(${breath.color},${breath.alpha * (.5 + .5 * Math.sin(time / 1600))})`;
+  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
+  ctx.restore();
+}
+
 // Large soft cloud shadows drifting slowly across the whole field.
 function drawCloudShadows(ctx, session, time, clouds) {
   const seed = seedOf(session);
@@ -324,6 +333,7 @@ export function drawBiomeGroundEffects(ctx, session, settings) {
   const time = clock(session, settings);
   const edge = themeOf(session).edge || "#38bdf8";
   if (variant.sheen && !settings.reduceMotion) drawSheen(ctx, time, variant.sheen);
+  if (variant.breath && !settings.reduceMotion) drawBreath(ctx, time, variant.breath);
   if (variant.sandDrift && !settings.reduceMotion) drawSandDrift(ctx, session, time, profile, variant.sandDrift);
   if (variant.caustics && !settings.reduceMotion) drawCaustics(ctx, time, profile, variant.caustics);
   if (variant.grassSway) drawGrassSway(ctx, session, time, profile, variant.grassSway);
@@ -388,15 +398,17 @@ function drawSparks(ctx, time, profile, sparks) {
   ctx.restore();
 }
 
-function drawMotes(ctx, session, time, profile, motes) {
-  const seed = seedOf(session);
+// Motes rise by default; falling ones (ash) take a different seed salt so
+// they never overlap a rising set in the same phase.
+function drawMotes(ctx, session, time, profile, motes, fall = false) {
+  const seed = seedOf(session) + (fall ? 5000 : 0);
   const count = Math.round(motes.count * profile.particles);
   const span = FIELD.width - FIELD.baseX - 60;
   ctx.save();
   for (let index = 0; index < count; index += 1) {
     const speed = 14 + pseudo(index, seed + 610) * 18;
     const startY = pseudo(index, seed + 620) * FIELD.height;
-    const y = (((startY - time / 1000 * speed) % FIELD.height) + FIELD.height) % FIELD.height;
+    const y = (((startY + (fall ? 1 : -1) * time / 1000 * speed) % FIELD.height) + FIELD.height) % FIELD.height;
     const x = FIELD.baseX + 30 + pseudo(index, seed + 630) * span + Math.sin(time / 1300 + index) * 14;
     const radius = 3 + pseudo(index, seed + 640) * 3;
     ctx.globalAlpha = (.35 + .65 * (.5 + .5 * Math.sin(time / 600 + index * 2))) * .75;
@@ -469,6 +481,7 @@ export function drawBiomeAtmosphere(ctx, session, settings) {
   if (variant.cloudShadows) drawCloudShadows(ctx, session, time, variant.cloudShadows);
   if (variant.bubbles) drawBubbles(ctx, session, time, profile, variant.bubbles);
   if (variant.motes) drawMotes(ctx, session, time, profile, variant.motes);
+  if (variant.ash) drawMotes(ctx, session, time, profile, variant.ash, true);
   if (variant.sparks) drawSparks(ctx, time, profile, variant.sparks);
   if (variant.flares) drawFlares(ctx, session, time, variant.flares);
   if (variant.weather.rain) drawRain(ctx, session, time, profile, Number(variant.weather.rain));

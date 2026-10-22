@@ -534,7 +534,7 @@ function renderStaticBattlefield(ctx, phase, settings = {}, arenaKit = null) {
   const profile = getQualityProfile(settings);
   const variant = getBiomeVariant(phase);
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
-  if (variant && drawBiomeGround(ctx, blueprint.theme, variant, profile, getPaintableTiles(arenaKit))) {
+  if (variant && drawBiomeGround(ctx, blueprint.theme, variant, profile, getPaintableTiles(arenaKit), phase)) {
     // Biome ground drawn; base, entrance and labels follow below.
   } else if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
     drawFerrivoreTerrainBase(ctx, phase);
