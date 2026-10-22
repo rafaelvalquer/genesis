@@ -1,6 +1,7 @@
 import { CELL, FIELD } from "../visualGeometry.js";
 import { pseudo, rgba } from "./decorMath.js";
 import { CHAPTER_TWO_DECOR } from "./chapter02Glass.js";
+import { CHAPTER_THREE_DECOR } from "./chapter03Dunes.js";
 
 // Static biome ground, drawn once into the battlefield cache: one plate per
 // grid cell (tile images or a procedural plate style), re-colored per phase,
@@ -12,6 +13,7 @@ const COLUMNS = Math.round(FIELD.width / CELL.width);
 // Procedural plate styles, keyed by a biome's `plate`. Each draws one cell.
 const PLATE_STYLES = {
   ...CHAPTER_TWO_DECOR.plates,
+  ...CHAPTER_THREE_DECOR.plates,
 };
 
 // One ground plate per grid cell, in a checker of two tones, so the field reads
@@ -163,6 +165,7 @@ const SCATTER = {
     ctx.stroke();
   },
   ...CHAPTER_TWO_DECOR.scatter,
+  ...CHAPTER_THREE_DECOR.scatter,
 };
 
 // Small deterministic details scattered over the plates so the ground has
@@ -210,6 +213,7 @@ const RAILS = {
     }
   },
   ...CHAPTER_TWO_DECOR.rails,
+  ...CHAPTER_THREE_DECOR.rails,
 };
 
 function drawRailPattern(ctx, y, theme, style) {

@@ -40,7 +40,22 @@ function getVentCount(variant, profile) {
   return Math.max(1, Math.round(variant.vents.count * profile.atmosphere));
 }
 
-function drawVentGrate(ctx, vent, time, edge, glow) {
+// A sand burrow: a dark hole with a raised rim, used instead of a metal grate.
+function drawBurrow(ctx, vent) {
+  ctx.save();
+  ctx.translate(vent.x, vent.y);
+  ctx.fillStyle = "rgba(255,225,180,.14)";
+  ctx.beginPath(); ctx.ellipse(0, 2, 30, 13, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(12,5,2,.75)";
+  ctx.beginPath(); ctx.ellipse(0, 0, 19, 8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawVentGrate(ctx, vent, time, edge, glow, style) {
+  if (style === "burrow") {
+    drawBurrow(ctx, vent);
+    return;
+  }
   const pulse = .5 + .5 * Math.sin(time / 1700 + vent.phase);
   ctx.save();
   ctx.translate(vent.x, vent.y);
@@ -96,6 +111,29 @@ function drawGlowDecals(ctx, session, time, glow) {
   for (const spot of getGlowSpots(session, glow.count)) {
     const pulse = .5 + .5 * Math.sin(time / 900 + spot.phase);
     const { x, y } = spot;
+    if (glow.kind === "spots") {
+      for (let dot = 0; dot < 3; dot += 1) {
+        const dx = x + (dot - 1) * 9;
+        const dy = y + (dot % 2) * 6;
+        ctx.globalAlpha = .35 + pulse * .55 * (dot === 1 ? 1 : .7);
+        drawCachedRadialGlow(ctx, `biome-spot-${glow.color}`, dx, dy, 9, 9, `rgba(${glow.color},1)`, `rgba(${glow.color},.35)`, `rgba(${glow.color},0)`);
+      }
+      ctx.globalAlpha = 1;
+      continue;
+    }
+    if (glow.kind === "eggs") {
+      for (let egg = 0; egg < 3; egg += 1) {
+        const ex = x + (egg - 1) * 14;
+        const ey = y + (egg % 2) * 5;
+        const beat = .5 + .5 * Math.sin(time / 700 + spot.phase + egg);
+        ctx.fillStyle = `rgba(${glow.color},${.12 + beat * .28})`;
+        ctx.beginPath(); ctx.ellipse(ex, ey, 6, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = `rgba(${glow.color},.55)`;
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+      continue;
+    }
     if (glow.kind === "runes") {
       ctx.strokeStyle = `rgba(${glow.color},${.25 + pulse * .4})`;
       ctx.lineWidth = 2;
@@ -144,6 +182,27 @@ function drawSheen(ctx, time, sheen) {
   ctx.restore();
 }
 
+// Thin streaks of sand blown low across the floor, right to left.
+function drawSandDrift(ctx, session, time, profile, drift) {
+  const seed = seedOf(session);
+  const count = Math.max(6, Math.round(drift.count * profile.particles));
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1.4;
+  for (let index = 0; index < count; index += 1) {
+    const speed = drift.speed * (.6 + pseudo(index, seed + 820) * .8);
+    const y = 20 + pseudo(index, seed + 810) * (FIELD.height - 40);
+    const x = ((pseudo(index, seed + 830) * FIELD.width - time / 1000 * speed) % FIELD.width + FIELD.width) % FIELD.width;
+    const length = 14 + pseudo(index, seed + 840) * 26;
+    ctx.strokeStyle = `rgba(${drift.color},${.1 + pseudo(index, seed + 850) * .14})`;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + length, y + Math.sin(time / 400 + index) * 1.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Short-lived prismatic star flares that cycle through the spectrum.
 function drawFlares(ctx, session, time, flares) {
   ctx.save();
@@ -174,7 +233,8 @@ export function drawBiomeGroundEffects(ctx, session, settings) {
   const time = clock(session, settings);
   const edge = themeOf(session).edge || "#38bdf8";
   if (variant.sheen && !settings.reduceMotion) drawSheen(ctx, time, variant.sheen);
-  for (const vent of getVents(session, getVentCount(variant, profile))) drawVentGrate(ctx, vent, time, edge, variant.vents.glow);
+  if (variant.sandDrift && !settings.reduceMotion) drawSandDrift(ctx, session, time, profile, variant.sandDrift);
+  for (const vent of getVents(session, getVentCount(variant, profile))) drawVentGrate(ctx, vent, time, edge, variant.vents.glow, variant.vents.style);
   if (variant.glow) drawGlowDecals(ctx, session, time, variant.glow);
   if (variant.lights) drawRailLights(ctx, time, Math.max(5, Math.round(10 * profile.detail)), variant.lights);
 }
