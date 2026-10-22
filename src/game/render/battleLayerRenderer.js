@@ -46,7 +46,7 @@ export function drawBattleLayers({
   drawContainmentUnderlay(arenaCtx, session.phase, session, runtime, now, settings);
   arenaCtx.save();
   arenaCtx.translate(0, viewport.fieldOffsetY);
-  drawArenaBackground(arenaCtx, session.phase, settings);
+  drawArenaBackground(arenaCtx, session.phase, settings, assets.arena);
   drawArenaUnderlay(arenaCtx, session.phase, settings, session, now, adaptive, runtime);
   drawIncubatorFissureUnderlay(arenaCtx, session);
   const placementPreview = getPlacementPreviewGeometry(session, selectedTroop, hoveredCell, removeMode);

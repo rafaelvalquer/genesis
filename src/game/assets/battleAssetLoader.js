@@ -18,6 +18,9 @@ import {
 } from "./assetDependencyResolver.js";
 import { copyBattleAudioUrls } from "./audioCatalog.js";
 import { resolveForestObstacleAssetDependencies } from "./forestObstacleAssetCatalog.js";
+import { getGroundTileUrls } from "./arenaCatalog.js";
+
+const TILED_ARENA_CHAPTERS = new Set(["chapter_01"]);
 
 const troopFrameModules = import.meta.glob([
   "./troop/**/frame*.png",
@@ -265,6 +268,21 @@ export async function loadBattleAssets(
   };
 
   result.effectDependencies = effectDependencies;
+  // Tiled arena floor is piloted on chapter 1 before rolling out to the rest.
+  result.arena = {};
+  if (TILED_ARENA_CHAPTERS.has(phase.chapterId)) {
+    const tileUrls = getGroundTileUrls();
+    result.arena.tiles = new Array(tileUrls.length).fill(null);
+    tileUrls.forEach((url, index) => {
+      priorityTasks.push(async () => {
+        result.arena.tiles[index] = await loadDecodedImage(
+          url,
+          options.signal,
+          retainedKeys,
+        );
+      });
+    });
+  }
   result.forestObstacles = {};
   for (const dependency of resolveForestObstacleAssetDependencies(phase)) {
     result.forestObstacles[dependency.type] ||= {};

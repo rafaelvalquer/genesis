@@ -406,6 +406,7 @@ export function drawAttachedConvoyEnemies(ctx, session, assets, runtime, setting
  * of the React screen.
  */
 export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, adaptive, now, animationElapsed, interpolation, buffers, field }) {
+  const softShadows = Boolean(runtime?.renderPlan?.softShadows);
   drawThermalPlatforms(ctx, session, assets);
   buildBattleRenderRows(session.troops, session.enemies, interpolation, session.elapsed, settings.reduceMotion, buffers);
   drawWetReflections(ctx, session.phase, buffers.rows, settings, adaptive);
@@ -426,7 +427,7 @@ export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, 
       else if (entry.kind === "enemy" && entity.type === "rasgaCeusCinereo") drawRasgaCeusShadow(ctx, entity);
       else if (!leviathanShadowOnly && (entry.kind !== "enemy" || !entity.attachedToTroopId)) {
         const emergenceScale = entry.kind === "enemy" ? .2 + .8 * silicaDiggerEmergenceProgress(entity, session.elapsed) : 1;
-        drawContactShadow(ctx, buffers.position, (entry.kind === "enemy" ? entity.scale : 1) * emergenceScale, settings);
+        drawContactShadow(ctx, buffers.position, (entry.kind === "enemy" ? entity.scale : 1) * emergenceScale, settings, softShadows);
       }
       if (entry.kind === "troop") drawTroopEntity(ctx, entry, session, assets, runtime, settings, now, animationElapsed, buffers.troopScratch, drawHalo);
       else drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, drawHalo);
@@ -437,7 +438,7 @@ export function drawBattleEntityRows({ ctx, session, assets, runtime, settings, 
     buffers.position.x = entry.x + reaction.offsetX; buffers.position.y = entry.y;
     if (!isLeviathanShadowOnly(entity, session.elapsed)) {
       buffers.position.x += (config.visualOffsetX || config.spriteOffsetX || 0) * (entity.scale || config.scale || 1);
-      drawContactShadow(ctx, buffers.position, entity.scale, settings);
+      drawContactShadow(ctx, buffers.position, entity.scale, settings, softShadows);
     }
     drawEnemyEntity(ctx, entry, session, assets, runtime, settings, adaptive, now, interpolation, buffers.enemyScratch, true);
   }

@@ -6,6 +6,7 @@ import { drawMagmaTerrainBase, drawMagmaTerrainEffects } from "./magmaTerrainRen
 import { drawThermalPlatformIndicators } from "./thermalPlatformRenderer.js";
 import { getThermalPlatformAt } from "./thermalTerrain.js";
 import { getConvoyXForProgress } from "./chapter07/convoyGeometry.js";
+import { drawChapterOneGround } from "./chapter01/groundDecor.js";
 import { drawFerrivoreTerrainBase, drawFerrivoreGroundVeins, drawFerrivoreGrowths, drawFerrivoreConvoyRoute, drawFerrivoreAmbient, drawFerrivoreCombatLanes, drawFerrivoreStaticDetails, drawFerrivoreForeground as drawFerrivoreBiomeForeground } from "./chapter07/ferrivoreBiomeRenderer.js";
 
 export const QUALITY_PROFILES = {
@@ -84,9 +85,21 @@ export function getBattlefieldBlueprint(phase) {
     convoy: phase.progressionMode === "convoy" ? { sectorStops: [...(phase.convoy?.sectorStops || [])] } : null };
 }
 
-export function getBattlefieldCacheKey(phase, settings = {}) {
+// Test environments decode images to a 1x1 stub that cannot be painted.
+function isPaintableTile(image) {
+  return Boolean(image) && image.width > 1 && image.height > 1;
+}
+
+function getPaintableTiles(arenaKit) {
+  const tiles = arenaKit?.tiles;
+  if (!Array.isArray(tiles) || !tiles.length || !tiles.every(isPaintableTile)) return null;
+  return tiles;
+}
+
+export function getBattlefieldCacheKey(phase, settings = {}, arenaKit = null) {
   const profile = settings.quality && QUALITY_PROFILES[settings.quality] ? settings.quality : "high";
-  return `${phase.arenaId}:${phase.progressionMode || "waves"}:${phase.battlefieldTheme?.seed || 1}:${phase.terrain?.routeType || "standard"}:${phase.terrain?.seed || 0}:${profile}`;
+  const art = getPaintableTiles(arenaKit) ? ":tiles" : "";
+  return `${phase.arenaId}:${phase.progressionMode || "waves"}:${phase.battlefieldTheme?.seed || 1}:${phase.terrain?.routeType || "standard"}:${phase.terrain?.seed || 0}:${profile}${art}`;
 }
 
 export function clearBattlefieldCache() {
@@ -507,11 +520,14 @@ function drawLaneLabels(ctx, blueprint, profile) {
   ctx.restore();
 }
 
-function renderStaticBattlefield(ctx, phase, settings = {}) {
+function renderStaticBattlefield(ctx, phase, settings = {}, arenaKit = null) {
   const blueprint = getBattlefieldBlueprint(phase);
   const profile = getQualityProfile(settings);
+  const tiles = getPaintableTiles(arenaKit);
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
-  if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
+  if (tiles) {
+    drawChapterOneGround(ctx, tiles, blueprint.theme, profile);
+  } else if (phase.chapterId === "chapter_07" && phase.battlefieldTheme?.material === "ferrivore") {
     drawFerrivoreTerrainBase(ctx, phase);
     drawFerrivoreCombatLanes(ctx, blueprint, phase, profile);
     drawFerrivoreStaticDetails(ctx, phase);
@@ -526,22 +542,22 @@ function renderStaticBattlefield(ctx, phase, settings = {}) {
   drawLaneLabels(ctx, blueprint, profile);
 }
 
-function getStaticBattlefield(phase, settings) {
-  const key = getBattlefieldCacheKey(phase, settings);
+function getStaticBattlefield(phase, settings, arenaKit) {
+  const key = getBattlefieldCacheKey(phase, settings, arenaKit);
   if (staticBattlefieldCache.has(key)) return staticBattlefieldCache.get(key);
   const canvas = createCacheCanvas();
   const context = canvas?.getContext?.("2d");
   if (!context) return null;
-  renderStaticBattlefield(context, phase, settings);
+  renderStaticBattlefield(context, phase, settings, arenaKit);
   staticBattlefieldCache.set(key, canvas);
   return canvas;
 }
 
-export function drawArenaBackground(ctx, phase, settings = {}) {
-  const cached = getStaticBattlefield(phase, settings);
+export function drawArenaBackground(ctx, phase, settings = {}, arenaKit = null) {
+  const cached = getStaticBattlefield(phase, settings, arenaKit);
   ctx.clearRect(0, 0, FIELD.width, FIELD.height);
   if (cached) ctx.drawImage(cached, 0, 0);
-  else renderStaticBattlefield(ctx, phase, settings);
+  else renderStaticBattlefield(ctx, phase, settings, arenaKit);
 }
 
 function drawDamageMarks(ctx, phase, intensity) {
@@ -1106,8 +1122,15 @@ export function drawTacticalGrid(ctx, session, selectedTroop, removeMode, hovere
   }
 }
 
-export function drawContactShadow(ctx, entity, scale = 1, settings = {}) {
+export function drawContactShadow(ctx, entity, scale = 1, settings = {}, soft = false) {
   const strength = getQualityProfile(settings).shadows;
+  if (soft) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, strength);
+    drawCachedRadialGlow(ctx, "soft-contact-shadow", entity.x, entity.y + 43, 48 * scale, 16 * scale, "rgba(0,0,0,.72)", "rgba(0,0,0,.36)", "rgba(0,0,0,0)", .5);
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.fillStyle = `rgba(0,0,0,${0.38 * strength})`;
   ctx.beginPath();
