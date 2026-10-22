@@ -26,8 +26,18 @@ export default function BattleCanvas({
     height={VIEWPORT.height}
     onClick={onClick}
     onContextMenu={onContextMenu}
-    onMouseMove={onPointerMove}
-    onMouseLeave={onPointerLeave}
+    onPointerMove={onPointerMove}
+    onPointerLeave={onPointerLeave}
+    onPointerCancel={onPointerLeave}
+    onPointerDown={(event) => {
+      if (event.pointerType !== "mouse") event.currentTarget.setPointerCapture?.(event.pointerId);
+    }}
+    onPointerUp={(event) => {
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+    }}
+    style={{ touchAction: "none" }}
     aria-label={label}
   />;
 }

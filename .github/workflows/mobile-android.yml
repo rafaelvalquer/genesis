@@ -1,0 +1,220 @@
+name: Genesis Mobile Android
+
+on:
+  push:
+    branches:
+      - feature/genesis-mobile-apk
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: genesis-mobile-android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+
+    steps:
+      - name: Checkout mobile runtime only
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          sparse-checkout-cone-mode: false
+          sparse-checkout: |
+            /src/
+            /public/
+            /scripts/
+            /package.json
+            /package-lock.json
+            /index.html
+            /vite.config.js
+            /capacitor.config.json
+            /README.md
+            /README_MOBILE.md
+            /.gitignore
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Genesis dependencies
+        run: npm ci
+
+      - name: Add Capacitor dependencies to packaged project
+        run: |
+          npm install --save-exact @capacitor/core@7 @capacitor/android@7
+          npm install --save-dev --save-exact @capacitor/cli@7
+          node scripts/configure-mobile-package.mjs
+
+      - name: Build Android web assets
+        run: npm run build:android
+
+      - name: Generate Android Studio project
+        id: prepare_android
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          {
+            set -x
+            rm -rf android
+            npx cap add android
+            npx cap sync android
+            npm run android:prepare
+            chmod +x android/gradlew
+          } 2>&1 | tee android-prepare.log
+
+      - name: Upload Android preparation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-android-prepare-log
+          path: android-prepare.log
+          if-no-files-found: warn
+          retention-days: 2
+
+      - name: Stop on Android preparation failure
+        if: steps.prepare_android.outcome != 'success'
+        run: exit 1
+
+      - name: Build debug APK
+        id: build_apk
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../gradle-build.log
+
+      - name: Upload Gradle diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-gradle-build-log
+          path: gradle-build.log
+          if-no-files-found: warn
+          retention-days: 2
+
+      - name: Stop on APK build failure
+        if: steps.build_apk.outcome != 'success'
+        run: exit 1
+
+      - name: Validate mobile output
+        run: |
+          set -euo pipefail
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
+          test -f android/app/src/main/assets/public/index.html
+          test -f android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/java/com/luminor/genesisdefense/MainActivity.java
+          grep -q 'screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml
+          grep -q 'android.permission.VIBRATE' android/app/src/main/AndroidManifest.xml
+          grep -q 'base: mode === "android" ? "./"' vite.config.js
+          echo "Genesis Mobile Android validated"
+          du -sh android/app/src/main/assets/public
+          ls -lh android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Assemble compact Android Studio delivery
+        run: |
+          set -euo pipefail
+          OUT="delivery/genesis-mobile-androidstudio"
+          mkdir -p "$OUT/APK" "$OUT/web-source"
+
+          # Android Studio project already contains the compiled offline web runtime
+          # under android/app/src/main/assets/public. Keep that single canonical copy.
+          mkdir -p "$OUT/android"
+          rsync -a --exclude 'app/build' --exclude '.gradle' android/ "$OUT/android/"
+
+          # Include editable application source without duplicating the very large raw public assets.
+          cp -R src "$OUT/web-source/src"
+          cp -R scripts "$OUT/web-source/scripts"
+          cp package.json package-lock.json index.html vite.config.js capacitor.config.json README.md README_MOBILE.md .gitignore "$OUT/web-source/"
+
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$OUT/APK/app-debug.apk"
+
+          cat > "$OUT/README_ENTREGA.txt" <<EOF
+          GENESIS DEFENSE MOBILE - ENTREGA ANDROID
+
+          Para executar agora:
+          1. Abra a pasta android/ no Android Studio.
+          2. Aguarde a sincronizacao do Gradle.
+          3. Conecte um aparelho Android ou abra um emulador.
+          4. Clique em Run.
+
+          APK pronto para instalacao:
+          APK/app-debug.apk
+
+          O runtime web completo e offline ja esta incorporado em:
+          android/app/src/main/assets/public/
+
+          A pasta web-source/ contem os fontes React/Vite essenciais usados na adaptacao mobile.
+          Os assets brutos de producao nao foram duplicados no ZIP porque o runtime compilado ja esta dentro do projeto Android.
+          EOF
+
+          cat > "$OUT/BUILD_INFO.txt" <<EOF
+          Genesis Defense Mobile
+          Source commit: $GITHUB_SHA
+          Android package: com.luminor.genesisdefense
+          Build: debug APK
+          Orientation: landscape
+          Web assets: local/offline
+          Validated by: ./gradlew assembleDebug
+          EOF
+
+          echo "Delivery size:"
+          du -sh "$OUT"
+          echo "Android runtime size:"
+          du -sh "$OUT/android/app/src/main/assets/public"
+          echo "APK:"
+          ls -lh "$OUT/APK/app-debug.apk"
+
+      - name: Upload compact Android Studio ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: genesis-mobile-androidstudio-compact
+          path: delivery/genesis-mobile-androidstudio
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+
+      - name: Create final release ZIP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/genesis-mobile-apk'
+        run: |
+          set -euo pipefail
+          cd delivery
+          zip -r -0 genesis-mobile-androidstudio.zip genesis-mobile-androidstudio
+          ls -lh genesis-mobile-androidstudio.zip
+
+      - name: Publish final package in GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/genesis-mobile-apk'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: genesis-mobile-android-v1.0.0
+        run: |
+          set -euo pipefail
+          ZIP="delivery/genesis-mobile-androidstudio.zip"
+          APK="delivery/genesis-mobile-androidstudio/APK/app-debug.apk"
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$ZIP" "$APK" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" "$ZIP" "$APK" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "Genesis Mobile Android v1.0.0" \
+              --notes "Projeto Android Studio completo e APK debug validado pelo Gradle. Landscape, touch/Pointer Events, Capacitor, assets offline e package com.luminor.genesisdefense."
+          fi
